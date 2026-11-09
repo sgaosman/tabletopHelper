@@ -4,7 +4,7 @@
 
 > **Note (2026-11-06, R8):** the refactor phase (R1–R8, [[decisions-log#D150]]) is implemented, each step committed locally and not yet pushed. The local database takes V29 and R8's content changes at its next start, followed by the `json-roundtrip`, `recompute-characters` dry run and load checks. Feature milestones resume with M13 after that. HTTPS and automated backups wait for the Hosting step (D154).
 
-> **Note (2026-11-06, M13):** the local database has since taken V29 and R8, and R7 and R8 are pushed. M13 (action economy, [[decisions-log#D174]]) is implemented as local commits, not yet pushed; the local database took V30 and M13's content changes on 2026-11-07.
+> **Note (2026-11-06, M13):** the local database has since taken V29 and R8, and R7 and R8 are pushed. M13 (action economy, [[decisions-log#D174]]) is implemented as local commits, not yet pushed; the local database took V30 and M13's content changes on 2026-11-07. M13 and its QA fixes were pushed on 2026-11-08; M13.5 (armour) comes next.
 
 ## Milestone Status
 
@@ -25,6 +25,7 @@
 | 12 | Monster Actions, Legendary Actions & Resistance | Complete | All CRs, lair actions, structured action data, DM action panel, legendary action pool, combat-log-based legendary resistance undo, recharge logging, lair action cards |
 | 12.5 | CR 11-15 Monster Data Expansion | Eliminated — merged into M12 (D129) | Extend structured monster actions from CR 10 to CR 15, required for M6 release trigger |
 | 13 | Enhanced Action Economy | Implemented (2026-11-06) | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, bonus-action-spell rule, pools in encounters (D174); 2,096 backend unit, 235 integration and 851 frontend tests. Item use moved out; V30 applied to the local database on 2026-11-07 |
+| 13.5 | Armour and Armour Class | Not started | AC worked out from equipped armour and shield, Unarmoured Defence and similar features, heavy armour's Strength speed penalty, Stealth disadvantage, the penalties for armour without proficiency; changes D158 |
 | 14 | Undo System | Not started | Before-state snapshots on every combat action, DM-only rollback with cascade support |
 | 15 | Persistent Spell Effects as Companion Participants | Not started | Spiritual Weapon, Flaming Sphere etc. as sub-cards beneath the caster |
 | 16 | Short/Long Rest System | Complete (in M9) | Implemented as part of M9 character sheet — hit dice spending, HP recovery, spell slot reset on long rest |
@@ -476,7 +477,7 @@ Phase 3 — Multiclass at creation:
 
 **Goal:** Full D&D 5e action economy tracking with reactions, bonus actions, and non-attack actions.
 
-**Status (2026-11-06):** implemented as workstreams A–G, local commits not yet pushed ([[decisions-log#D174]]). The local database took V30 and M13's content changes on 2026-11-07. The plan of record replaced some tasks below; the notes say how.
+**Status (2026-11-06):** implemented as workstreams A–G, pushed with its QA fixes on 2026-11-08 ([[decisions-log#D174]]). The local database took V30 and M13's content changes on 2026-11-07. The plan of record replaced some tasks below; the notes say how.
 
 **Backend tasks:**
 - [x] Action economy tracking per turn: action used, bonus action used, reaction used (reset on turn start) — one `turn_economy` record (V30) with actions, attacks left in the Attack action, bonus action, reaction, object interaction and the bonus-action-spell flags; enforced for players with a 409, the DM never refused
@@ -513,6 +514,41 @@ Phase 3 — Multiclass at creation:
 - [x] Action economy indicators: visual display of action/bonus action/reaction availability per turn — `TurnEconomyBar` on the DM's rows and the player's "This Turn" card, with greyed options and reasons
 
 **Out of scope / later:** item use with charges and attunement; automatic reaction prompts and reactions such as Shield or Parry rewriting a hit already rolled; a movement counter or grid; surprise; Haste and Slow automation (the DM's budget edit covers them); spells longer than a turn in combat; Martial Arts, Flurry of Blows, Thirsting Blade and fighting styles (M17); Quickened Spell (M18); Counterspell's ability check; Ready triggers beyond a logged reaction; restoring the budget on undo (M14); companions' bonus-action attacks (M15).
+
+## Milestone 13.5: Armour and Armour Class
+
+**Goal:** a player character's AC comes from what they wear, not a fixed value set at creation. Today AC is 10 + DEX from creation plus DM Adjustments, because armour isn't modelled ([[decisions-log#D158]]). Scheduled before M14 because every attack against a player character reads AC, and M6's trigger counts the DM setting AC by hand as a manual ruling.
+
+**Backend tasks:**
+- [ ] Armour data on items: base AC, category (light, medium, heavy, shield), Strength requirement and Stealth disadvantage, loaded from the 5etools item data; a Flyway migration adds the columns
+- [ ] AC as a Derived Stat in `CharacterStats`, worked out from the equipped body armour and shield:
+  - unarmoured: 10 + DEX
+  - light armour: base + DEX
+  - medium armour: base + DEX, up to +2
+  - heavy armour: base only
+  - a shield: +2
+  - DM Adjustments added on top
+- [ ] Alternative AC calculations, with the highest one used:
+  - Barbarian Unarmoured Defence: 10 + DEX + CON, a shield allowed
+  - Monk Unarmoured Defence: 10 + DEX + WIS, no armour or shield
+  - Draconic Resilience: 13 + DEX
+  - racial natural armour, such as a Lizardfolk's 13 + DEX
+- [ ] Only one suit of body armour and one shield can be equipped at a time; equipping a second answers 400
+- [ ] Heavy armour below its Strength requirement lowers speed by 10 feet (PHB p.144)
+- [ ] Armour with Stealth disadvantage gives disadvantage on Stealth checks, including the Hide standard action (closes the D174 open item)
+- [ ] Armour worn without proficiency: disadvantage on ability checks, saves and attack rolls that use STR or DEX, and no spellcasting (PHB p.144)
+- [ ] `recompute-characters` gives every character its new AC, run as a dry run first. Its report flags AC DM Adjustments whose reason looks like armour, which would now count twice.
+
+**Frontend tasks:**
+- [ ] Stats tab: shows how AC is made up, for example "Chain Mail 16 + Shield 2 + DM +1 = 19"
+- [ ] Inventory: an equip toggle for armour and shields that enforces one of each
+- [ ] Warnings for missing armour proficiency and an unmet Strength requirement
+- [ ] Wizard: AC preview from starting equipment
+
+**Knock-on effects:**
+- Encounters copy AC when a participant is added and again when the encounter starts (D166). An encounter already under way keeps the old AC, and changing armour mid-encounter doesn't reach the participant.
+- D158's decision text, CONTEXT.md's DM Adjustment entry, `database-schema.md` (`armour_class`) and `api-reference.md` change from "armour isn't modelled" to the new rule.
+- DM AC Adjustments added to stand in for armour have to be removed by the DM after the recompute.
 
 ## Milestone 14: Undo System
 
