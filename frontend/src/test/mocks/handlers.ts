@@ -326,6 +326,8 @@ export const combatHandlers = [
     } satisfies MonsterActionResponse);
   }),
   http.post(`${BASE}/encounters/:id/combat/legendary-resistance`, async () => HttpResponse.json(makeMockEncounter())),
+  // The DM's undo (M14): the encounter as it was, with nothing left to undo in the mock
+  http.post(`${BASE}/encounters/:id/combat/undo`, async () => HttpResponse.json(makeMockEncounter({ undo: null }))),
   http.post(`${BASE}/encounters/:id/combat/use-pool`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/standard-action`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/object-interaction`, async () => HttpResponse.json(makeMockEncounter())),
@@ -608,7 +610,7 @@ export function makeMockCastSpellResponse(overrides: Partial<CastSpellResponse> 
 
 export function makeMockLogEntry(id: string, description: string, overrides: Partial<CombatLogEntry> = {}): CombatLogEntry {
   const entry = {
-    id, roundNumber: 1, actionType: 'DAMAGE', description, createdAt: makeTimestamp(),
+    id, roundNumber: 1, actionType: 'DAMAGE', description, createdAt: makeTimestamp(), undone: false,
   } satisfies CombatLogEntry;
   return { ...entry, ...overrides };
 }

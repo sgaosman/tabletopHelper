@@ -13,6 +13,7 @@ import com.tabletophelper.character.dto.CombatResultPreview;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.encounter.internal.CommandRecorder;
 import com.tabletophelper.encounter.internal.EncounterTurns;
 import com.tabletophelper.encounter.internal.MonsterPools;
 import com.tabletophelper.encounter.internal.TurnEconomies;
@@ -54,6 +55,7 @@ public class EncounterService {
     private final CombatLogReader combatLogReader;
     private final TurnProcessor turnProcessor;
     private final EncounterResults encounterResults;
+    private final CommandRecorder commandRecorder;
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -282,6 +284,9 @@ public class EncounterService {
             // Before the turn order reads the sheets, so the character's is read once its row is locked
             encounterResults.apply(encounter, List.of(participant));
             turnProcessor.leave(encounter, participant);
+            // Its sheet has taken the encounter's changes, so nothing before this can be undone (M14)
+            commandRecorder.barrier(encounter, userId, "PARTICIPANT_REMOVED",
+                    participant.getDisplayName() + " leaves the encounter");
         }
         encounter.getParticipants().remove(participant);
         return toResponse(encounterRepository.save(encounter));
@@ -348,6 +353,8 @@ public class EncounterService {
         encounter.setSessionCode(generateSessionCode());
         encounter.setRoundNumber(1);
         turnProcessor.begin(encounter);
+        // Undo never goes back past the start (M14)
+        commandRecorder.barrier(encounter, userId, "ENCOUNTER_START", "The encounter starts");
 
         return toResponse(encounterRepository.save(encounter));
     }
@@ -381,6 +388,8 @@ public class EncounterService {
         if (applyResults) {
             encounterResults.apply(encounter, encounter.getParticipants());
         }
+        // Completed is final, so nothing can be undone: the commands keep only whether they were undone (M14)
+        commandRecorder.completed(encounter);
         log.info("DM {} completed encounter {} {} its results applied", userId, encounterId,
                 applyResults ? "with" : "without");
         return toResponse(encounterRepository.save(encounter));
@@ -575,6 +584,7 @@ public class EncounterService {
                 .dmUserId(campaign.getDm().getId())
                 .showExactMonsterHp(Boolean.TRUE.equals(campaign.getShowExactMonsterHp()))
                 .allowPlayerManualModifiers(!Boolean.FALSE.equals(campaign.getAllowPlayerManualModifiers()))
+                .undo(commandRecorder.undoInfo(encounter).orElse(null))
                 .build();
     }
 

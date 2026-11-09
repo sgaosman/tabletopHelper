@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { makeMockLogEntry } from '../../test/mocks/handlers';
 import CombatLog from './CombatLog';
@@ -62,5 +62,45 @@ describe('CombatLog', () => {
     expect(screen.getByRole('button', { name: 'Act on log-1' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Act on log-4' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Act on log-2' })).not.toBeInTheDocument();
+  });
+
+  it('dims an undone entry, strikes it through and tags it Undone (M14)', async () => {
+    render(<CombatLog entries={[
+      makeMockLogEntry('log-1', 'DM deals 5 damage to Goblin.', { undone: true, commandId: 'cmd-1' }),
+      makeMockLogEntry('log-2', 'The DM undoes: DM deals 5 damage to Goblin.', { actionType: 'UNDO' }),
+    ]} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: /Combat Log/ }));
+    expect(screen.getByText('DM deals 5 damage to Goblin.')).toHaveClass('line-through', 'opacity-60');
+    expect(screen.getByText('The DM undoes: DM deals 5 damage to Goblin.')).not.toHaveClass('line-through');
+    expect(screen.getAllByText('Undone')).toHaveLength(1);
+  });
+
+  it('strikes through an undone turn change in its header, and adds turnActions there', async () => {
+    const turnActions = vi.fn((entry: { id: string }) => <button>Undo to {entry.id}</button>);
+    render(<CombatLog turnActions={turnActions} entries={[
+      makeMockLogEntry('log-1', 'Turn passes to Goblin.', { actionType: 'TURN_ADVANCE', targetName: 'Goblin', undone: true }),
+    ]} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: /Combat Log/ }));
+    expect(screen.getByText('Turn: Goblin')).toHaveClass('line-through');
+    expect(screen.getByText('Undone')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Undo to log-1' })).toBeInTheDocument();
+  });
+
+  it('highlights entries for a moment as they become undone', async () => {
+    vi.useFakeTimers();
+    try {
+      const entry = makeMockLogEntry('log-1', 'Gimli hits Test Goblin.', { actionType: 'ATTACK' });
+      const { rerender } = render(<CombatLog entries={[entry]} />);
+      act(() => { screen.getByRole('button', { name: /Combat Log/ }).click(); });
+      expect(screen.getByText('Gimli hits Test Goblin.').parentElement).not.toHaveClass('ring-2');
+
+      rerender(<CombatLog entries={[{ ...entry, undone: true }]} />);
+      expect(screen.getByText('Gimli hits Test Goblin.').parentElement).toHaveClass('ring-2');
+
+      act(() => { vi.advanceTimersByTime(2500); });
+      expect(screen.getByText('Gimli hits Test Goblin.').parentElement).not.toHaveClass('ring-2');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

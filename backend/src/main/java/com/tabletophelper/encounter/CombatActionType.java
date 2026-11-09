@@ -37,5 +37,7 @@ public enum CombatActionType {
     // The DM's edit of a participant's turn economy, with what changed (D174)
     TURN_ECONOMY_SET,
     // A monster's reaction from its stat block, with what it did or what the DM applies by hand (D174)
-    REACTION_TAKEN
+    REACTION_TAKEN,
+    // The DM's undo of a combat command, naming the command it undid (M14)
+    UNDO
 }

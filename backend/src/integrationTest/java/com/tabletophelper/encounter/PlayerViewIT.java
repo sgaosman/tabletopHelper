@@ -251,6 +251,44 @@ class PlayerViewIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("Undone entries stay dimmed in the DM's log and leave the players', whose UNDO entry is generic for a hidden monster (M14)")
+    void undoneEntriesInTheLogs() {
+        damage(goblinId, 2);
+        undoNewest();
+        damage(bugbearId, 5);
+        undoNewest();
+
+        JsonNode playerLog = expect(HttpStatus.OK, exchange(HttpMethod.GET,
+                "/api/encounters/" + encounterId + "/combat/log", null, player.accessToken()));
+        JsonNode dmLog = expect(HttpStatus.OK, exchange(HttpMethod.GET,
+                "/api/encounters/" + encounterId + "/combat/log", null, dm.accessToken()));
+
+        assertThat(descriptions(playerLog)).containsExactly("The DM undoes: DM deals 2 damage to Goblin",
+                "The DM undid an action.");
+        playerLog.forEach(entry -> {
+            assertThat(entry.get("undone").asBoolean()).isFalse();
+            assertThat(entry.get("commandId").isNull()).isTrue();
+            assertThat(entry.get("undoesCommandId").isNull()).isTrue();
+        });
+        assertThat(descriptions(dmLog)).containsExactly("DM deals 2 damage to Goblin",
+                "The DM undoes: DM deals 2 damage to Goblin", "DM deals 5 damage to Bugbear",
+                "The DM undoes: DM deals 5 damage to Bugbear");
+        assertThat(dmLog.get(0).get("undone").asBoolean()).isTrue();
+        assertThat(dmLog.get(1).get("undone").asBoolean()).isFalse();
+        assertThat(dmLog.get(1).get("undoesCommandId").asString()).isEqualTo(dmLog.get(0).get("commandId").asString());
+    }
+
+    @Test
+    @DisplayName("The DM View offers undo; the Player View never does (M14)")
+    void undoIsTheDms() {
+        damage(goblinId, 2);
+
+        assertThat(getEncounter(dm.accessToken()).get("undo").get("summary").asString())
+                .isEqualTo("DM deals 2 damage to Goblin");
+        assertThat(getEncounter(player.accessToken()).get("undo").isNull()).isTrue();
+    }
+
+    @Test
     @DisplayName("Only the DM can hide a monster or change the campaign's settings")
     void hidingAndSettingsAreDmOnly() {
         var hide = setVisibility(goblinId, false, player.accessToken());
@@ -300,6 +338,12 @@ class PlayerViewIT extends IntegrationTest {
     private void damage(String targetId, int amount) {
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/damage",
                 Map.of("targetId", targetId, "amount", amount), dm.accessToken()));
+    }
+
+    private void undoNewest() {
+        String newest = getEncounter(dm.accessToken()).get("undo").get("commandId").asString();
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/undo",
+                Map.of("expectedCommandId", newest), dm.accessToken()));
     }
 
     private JsonNode getEncounter(String token) {

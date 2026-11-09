@@ -1,5 +1,7 @@
 package com.tabletophelper.encounter;
 
+import com.tabletophelper.encounter.internal.CommandRecorder;
+
 import com.tabletophelper.character.EquippedArmour;
 import com.tabletophelper.reference.ItemRepository;
 import com.tabletophelper.shared.JacksonDefaults;
@@ -63,6 +65,7 @@ class EncounterServiceTest {
     @Mock private com.tabletophelper.encounter.internal.MonsterPools monsterPools;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private CombatLogRepository combatLogRepository;
+    @Mock private CombatCommandRepository combatCommandRepository;
     @Mock private WriteBackService writeBackService;
 
     private EncounterService encounterService;
@@ -82,8 +85,9 @@ class EncounterServiceTest {
         encounterService = new EncounterService(encounterRepository, participantRepository, campaignRepository,
                 characterRepository, monsterRepository, objectMapper, monsterPools, accessPolicy,
                 new EncounterCommands(encounterRepository, accessPolicy, eventPublisher),
-                new CombatLogReader(combatLogRepository), turnProcessor,
-                new EncounterResults(eventPublisher, writeBackService));
+                new CombatLogReader(combatLogRepository, combatCommandRepository), turnProcessor,
+                new EncounterResults(eventPublisher, writeBackService),
+                new CommandRecorder(combatCommandRepository, combatLogRepository, objectMapper));
 
         dmUserId = UUID.randomUUID();
         campaignId = UUID.randomUUID();

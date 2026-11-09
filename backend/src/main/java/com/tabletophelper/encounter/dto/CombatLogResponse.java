@@ -49,6 +49,17 @@ public class CombatLogResponse {
     private Integer lrSuccessDamage;
     private List<UUID> lrConditionIds;
 
+    // The combat command that wrote it, which undo takes back with all its entries (M14); null for entries written
+    // before undo existed and for UNDO entries. The players' log leaves it out
+    private UUID commandId;
+
+    // The DM undid the command that wrote it (M14). The DM's log keeps it, dimmed; the players' log leaves it out
+    @Schema(requiredMode = REQUIRED)
+    private boolean undone;
+
+    // On an UNDO entry, the command it undid (M14). The players' log leaves it out
+    private UUID undoesCommandId;
+
     // The log is only read back after its entries are inserted, when @CreationTimestamp has filled it in
     @Schema(requiredMode = REQUIRED)
     private Instant createdAt;

@@ -414,6 +414,8 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Trade-offs:** Increases combat log row size by the snapshot payload. For a typical action affecting 1–3 participants, this is ~1–3 KB of additional JSONB. Acceptable for reliable undo.
 
+**Update (2026-11-09, M14):** implemented with the snapshot on a combat command rather than on each log entry, and undone entries marked rather than deleted ([[#D176]]).
+
 ## D038: Rename QuestKeeper to TabletopHelper
 
 **Date:** 2026-07-18
@@ -2504,6 +2506,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 
 **Update (2026-11-06, M13):** the turn budget of D174 leaves these rules alone. Legendary actions keep their own count, and lair actions and Legendary Resistance cost nothing from a monster's turn budget (Legendary Resistance's pool is now FREE, D125). A creature's budget is reset only at the start of its own turn, so moving the turn marker back with Previous doesn't restore the budget it had; the DM corrects it with the turn-economy edit until M14's undo.
 
+**Update (2026-11-09, M14):** Next Turn can now be undone, restoring the turn budget, expired conditions, recharges and the round; Previous Turn still only moves the marker ([[#D176]]).
+
 ## D164: Attacks and Spells Calculated and Validated by the Server
 
 **Date:** 2026-11-01
@@ -3038,6 +3042,8 @@ The plan's twelve questions were answered with its recommended answers when the 
 
 **Update (2026-11-09, M13.5):** Hide now rolls with disadvantage in armour that imposes it, or in armour worn without proficiency ([[#D175]]). That closes the last of D174's open items apart from monsters' per-day limits.
 
+**Update (2026-11-09, M14):** undoing a command restores the turn economy it spent, and undoing a Next Turn restores the previous creature's budget, as planned for M14 ([[#D176]]).
+
 ## D175: Armour and Armour Class
 
 **Date:** 2026-11-09
@@ -3069,3 +3075,34 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D158, D164, D166, D169, D174, [[Derived Stat]], [[DM Adjustment]], [[Armour Class]]
 
 **Rehearsal on a copy of the local data (2026-11-09):** V31 applied and the item reload filled 70 armour rows. A `recompute-characters` dry run found 7 of 13 characters would change AC: three Barbarians gain Unarmored Defense (13 → 15, 12 → 15, 13 → 16), and four Fighters whose DEX rose after creation gain its modifier; none has an armour-like AC adjustment. Through the API, a Fighter with STR 12 in Chain Mail and a Shield had AC 18 and speed 20; a Hill Dwarf in Plate with STR 10 had 18 and kept 25 ft; a Barbarian with a Shield had 17; a Wizard in Chain Mail without proficiency had 16 with both warnings; and a Breastplate with DEX 18 gave 16. A second suit of armour got 400, and taking the Chain Mail off gave 14 and 30 ft. The sheet's AC line and Equip and Take off buttons worked in the browser, and M13's turn pips (A, BA, R, Obj) fit a 375-pixel phone screen without scrolling. Tests: 2,174 backend unit, 241 integration and 870 frontend.
+
+## D176: Undo Through Combat Commands
+
+**Date:** 2026-11-09
+**Status:** Accepted — implemented (M14); the local database takes V32 at its next start
+
+**Decision:** the DM can undo combat, one command or several, restoring everything the commands changed. It amends [[#D037]]: the before-state belongs to the command, not to a log entry, because one command writes any number of entries and some write none.
+- **Commands.** V32 adds `combat_commands` (`encounter_id`, `sequence`, `kind`, `summary`, `issued_by`, `before_state` JSONB, `barrier`, `undone_at`, `undone_by`, `created_at`; unique on encounter and sequence) and gives `combat_logs` a `command_id` and an `undoes_command_id`. `CommandRecorder` starts a command whenever a combat service begins through `CombatAccess`, so every combat command is covered without code in each service. It snapshots every participant's combat state and the encounter's turn fields as JSON, and before commit keeps only the participants that changed, so any cascade (a concentration drop removing conditions from three creatures, a death, Next Turn's expiries and recharge rolls) is captured. A command that changed nothing and logged nothing is discarded. `CombatLogWriter` stamps each entry with its command.
+- **Restored:** HP, temporary HP, life state, death saves, conditions, concentration, the tracked spell, spell slots, pools (legendary actions, Legendary Resistance and recharges among them), the turn economy and the lair action; the round, whose turn it is, the lair turn and the monsters in the lair. **Not restored:** setup fields (names, visibility, initiative, order, AC, HP maximum, known spells), so a rename or a hide made afterwards stays. Legendary Resistance also records a log patch, so undoing it resets the failed save's `lr_resolved`; an undone entry can't be used for Legendary Resistance.
+- **Endpoint.** `POST /api/encounters/{id}/combat/undo` `{expectedCommandId, steps?}` (1–20), DM-only and Active-only. It undoes the newest commands, newest first, and answers 409 "The last action has changed since you reviewed it; review it again" when the newest isn't the one the DM reviewed, so a player's action taken while the dialog was open is never undone blind. Nothing to undo answers 409, a player 403.
+- **Barriers.** Nothing before the encounter's start, or before a creature was removed mid-fight, can be undone, because removal writes the character back at once ([[#D166]]). Undo itself isn't recorded: there is no redo.
+- **The log.** Undone entries stay in the DM's log, dimmed and struck through with an "Undone" tag, and each undone command gets an `UNDO` entry, "The DM undoes: <summary>". The Player View drops undone entries and keeps the `UNDO` entry, reduced to a generic line when the command involved a hidden participant ([[#D157]]); the check runs when the log is read, so a later visibility change can't leak a name.
+- **Next Turn is undoable**, which closes what [[#D163]] and [[#D174]] left to M14: the previous creature's turn budget, conditions that expired, recharge pools and the round come back. Previous Turn still only moves the marker; its tooltip and the Undo dialog say so when the newest command is a Next Turn.
+- **Dice.** Undo restores state, not dice: an action taken again rolls fresh. That is why undo is the DM's alone, so players can't undo to re-roll; the dialog says so.
+- **Storage.** `before_state` is cleared when an encounter completes; the rows stay as the record.
+- **Frontend.** The DM's page has an Undo button beside Previous Turn, opening a dialog that lists what will be undone, newest first, and "Undo to here" on each command's first log entry for several steps; the DM response carries `undo` (the newest command, the steps available and the 20 most recent).
+
+**Rationale:** the roadmap's per-entry snapshot can't represent a command that logs nothing (lair status) or one whose cascade spans many entries, and recording from `CombatAccess` covers every present and future command at once.
+
+**Trade-offs:** the DM View runs four small extra queries on every response, broadcasts included. Log entries written before V32 have no command and can't be undone.
+
+**Alternatives considered:**
+- **Snapshot on each log entry (D037 as written)** — rejected for the reasons above.
+- **Delete undone entries** — rejected: the DM keeps an audit trail, and players see that something was undone.
+- **Redo** — left out; undo is a correction tool.
+
+**Key files:** `encounter/internal/CommandRecorder.java`, `encounter/internal/UndoService.java`, `encounter/CombatCommand.java`, `encounter/state/CommandSnapshot.java`, `CombatLogWriter.java`, `EncounterViews.java`, `UndoDialog.tsx`, `CombatLog.tsx`, `V32__combat_commands.sql`
+
+**Related:** D037, D145, D157, D163, D166, D174, [[Undo]], [[Live Encounter]]
+
+**Rehearsal on a copy of the local data (2026-11-09):** V32 applied after V31. In a test encounter, 3 slashing damage to a Goblin (7 → 4) was undone back to 7; a player's undo got 403 and a stale `expectedCommandId` got 409; a Next Turn was undone back to the first creature. The DM's log kept both entries marked undone with an `UNDO` entry each, and the player's log showed only the two `UNDO` entries. In the browser the DM's Undo button opened the dialog naming the command and the fresh-dice warning, and confirming it struck the entry through. Tests: 2,189 backend unit, 255 integration and 880 frontend.

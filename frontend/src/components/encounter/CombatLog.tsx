@@ -3,14 +3,21 @@ import { ChevronLeft, ChevronRight, ScrollText } from 'lucide-react';
 import type { CombatLogEntry } from '../../types/combat';
 import { isTurnChange, logBorderColour, logTextColour } from '../../utils/combatLogStyle';
 
+// How long an entry the DM has just undone stays highlighted
+const UNDONE_HIGHLIGHT_MS = 2000;
+
 /**
  * The combat log, folded until opened, grouped by round and turn, and kept at the newest entry unless the reader has
  * scrolled up. `entries` is whatever the server sent for this view: the players' log leaves out entries about hidden
- * participants (D157, D171). `entryActions` adds controls after an entry, such as the DM's Legendary Resistance.
+ * participants (D157, D171). `entryActions` adds controls after an entry, such as the DM's Legendary Resistance, and
+ * `turnActions` after a turn change's header, such as the DM's "Undo to here". Entries of commands the DM undid, which
+ * only the DM's log keeps, are dimmed and struck through with an "Undone" tag, and highlighted briefly as they
+ * become undone (M14).
  */
-export default function CombatLog({ entries, entryActions }: {
+export default function CombatLog({ entries, entryActions, turnActions }: {
   entries: CombatLogEntry[];
   entryActions?: (entry: CombatLogEntry) => ReactNode;
+  turnActions?: (entry: CombatLogEntry) => ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -18,8 +25,23 @@ export default function CombatLog({ entries, entryActions }: {
   const [newCount, setNewCount] = useState(0);
   const prevLogCount = useRef(0);
   const isAtBottomRef = useRef(true);
+  // The entries already undone when the log was last sent, so those undone since stand out for a moment
+  const undoneBefore = useRef<Set<string> | null>(null);
+  const [justUndone, setJustUndone] = useState<ReadonlySet<string>>(new Set());
 
   useEffect(() => { isAtBottomRef.current = isAtBottom; }, [isAtBottom]);
+
+  useEffect(() => {
+    const undone = new Set(entries.filter(entry => entry.undone).map(entry => entry.id));
+    const previous = undoneBefore.current;
+    undoneBefore.current = undone;
+    if (previous === null) return;
+    const fresh = [...undone].filter(id => !previous.has(id));
+    if (fresh.length === 0) return;
+    setJustUndone(new Set(fresh));
+    const timer = setTimeout(() => setJustUndone(new Set()), UNDONE_HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+  }, [entries]);
 
   useEffect(() => {
     const added = entries.length - prevLogCount.current;
@@ -41,6 +63,11 @@ export default function CombatLog({ entries, entryActions }: {
     const atBottom = scrollHeight - scrollTop - clientHeight < 30;
     setIsAtBottom(atBottom);
     if (atBottom) setNewCount(0);
+  }
+
+  // An entry undone since the log was last sent is ringed for a moment
+  function highlight(entry: CombatLogEntry): string {
+    return justUndone.has(entry.id) ? ' ring-2 ring-cls-paladin transition-shadow' : '';
   }
 
   function scrollToBottom() {
@@ -88,13 +115,16 @@ export default function CombatLog({ entries, entryActions }: {
                       </div>
                     )}
                     {showTurnHeader && (
-                      <div className="font-body text-[15px] font-semibold text-faint py-0.5 pl-2 border-l-2 border-rule my-1">
-                        Turn: {turnName}
+                      <div className={`font-body text-[15px] font-semibold text-faint py-0.5 pl-2 border-l-2 border-rule my-1${turnChange ? highlight(log) : ''}`}>
+                        <span className={turnChange && log.undone ? 'opacity-60 line-through' : undefined}>Turn: {turnName}</span>
+                        {turnChange && log.undone && <UndoneTag />}
+                        {turnChange && turnActions?.(log)}
                       </div>
                     )}
                     {!turnChange && (
-                      <div className={`bg-page-alt border-l-2 ${logBorderColour(log.actionType)} px-2 py-0.5`}>
-                        <span className={`font-body text-[15px] font-semibold ${logTextColour(log.actionType)}`}>{log.description}</span>
+                      <div className={`bg-page-alt border-l-2 ${logBorderColour(log.actionType)} px-2 py-0.5${highlight(log)}`}>
+                        <span className={`font-body text-[15px] font-semibold ${logTextColour(log.actionType)}${log.undone ? ' opacity-60 line-through' : ''}`}>{log.description}</span>
+                        {log.undone && <UndoneTag />}
                         {entryActions?.(log)}
                       </div>
                     )}
@@ -115,5 +145,14 @@ export default function CombatLog({ entries, entryActions }: {
         </div>
       )}
     </div>
+  );
+}
+
+/** Marks an entry whose command the DM undid (M14). */
+function UndoneTag() {
+  return (
+    <span className="ml-2 px-1.5 py-px border border-rule text-faint font-heading text-[11px] font-semibold tracking-[0.06em] uppercase">
+      Undone
+    </span>
   );
 }

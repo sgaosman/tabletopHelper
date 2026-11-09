@@ -8,7 +8,11 @@ import com.tabletophelper.character.state.CombatTotals;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
+import com.tabletophelper.encounter.state.CommandSnapshot;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
+import com.tabletophelper.encounter.state.EncounterTurnState;
+import com.tabletophelper.encounter.state.LogPatch;
+import com.tabletophelper.encounter.state.ParticipantCombatState;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.TurnEconomy;
@@ -43,6 +47,7 @@ class EncounterJsonMappingIT extends IntegrationTest {
     @Autowired private CampaignRepository campaignRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private MonsterRepository monsterRepository;
+    @Autowired private CombatCommandRepository combatCommandRepository;
 
     private Campaign campaign;
 
@@ -295,5 +300,32 @@ class EncounterJsonMappingIT extends IntegrationTest {
                 .containsExactly(new KnownSpell(null, "Shield", 1, null, null, null, null, null, null));
         assertThat(participant.getResourcePoolsCurrent()).singleElement()
                 .satisfies(pool -> assertThat(pool.currentUses()).isEqualTo(3));
+    }
+
+    @Test
+    @DisplayName("A combat command's before-state round-trips: participants, the encounter's turn and log patches (M14)")
+    void commandSnapshotRoundTrips() {
+        UUID encounterId = encounterRepository.save(Encounter.builder().campaign(campaign).name("Ambush").build()).getId();
+        ConcentrationInstance web = ConcentrationInstance.start("Web", 2, 1, 600);
+        Map<String, SpellSlot> slots = new LinkedHashMap<>();
+        slots.put("2", new SpellSlot(3, 1));
+        slots.put("pact_3", new SpellSlot(2, 0));
+        ParticipantCombatState lich = new ParticipantCombatState(UUID.randomUUID(), 0, 5, LifeState.DYING, 1, 2, true,
+                List.of(ConditionEntry.fromEffect("restrained", null, 1, "Web", UUID.randomUUID(), web),
+                        ConditionEntry.unconsciousAtZeroHp(1)),
+                web, "Web", 2, slots,
+                List.of(new ResourcePoolEntry("monster:legendary-resistance", "Legendary Resistance", "MONSTER", "Lich",
+                        3, null, 2, "longRest", null, null, "FREE", "shield", Map.of())),
+                new TurnEconomy(1, 1, true, 0, true, false, true, false, true, false, true, true), "Tremor");
+        CommandSnapshot snapshot = new CommandSnapshot(List.of(lich),
+                new EncounterTurnState(3, null, true, List.of(UUID.randomUUID())),
+                List.of(new LogPatch(UUID.randomUUID(), false)));
+
+        UUID id = combatCommandRepository.save(CombatCommand.builder().encounterId(encounterId).sequence(1L)
+                .kind("SPELL_CAST").summary("Lich casts Web").beforeState(snapshot).build()).getId();
+
+        assertThat(combatCommandRepository.findById(id).orElseThrow().getBeforeState()).isEqualTo(snapshot);
+        assertThat(jdbcTemplate.queryForObject("SELECT before_state -> 'encounter' ->> 'lairTurn' FROM combat_commands "
+                + "WHERE id = ?", String.class, id)).isEqualTo("true");
     }
 }

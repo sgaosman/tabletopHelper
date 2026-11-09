@@ -89,6 +89,15 @@ public class CombatLog {
     @Column(name = "lr_condition_ids", columnDefinition = "jsonb")
     private List<UUID> lrConditionIds;
 
+    // The combat command that wrote it (M14, V32), which undo marks undone; null for entries written before V32 and
+    // for UNDO entries, which can't be undone
+    @Column(name = "command_id")
+    private UUID commandId;
+
+    // On an UNDO entry, the command it undid (M14)
+    @Column(name = "undoes_command_id")
+    private UUID undoesCommandId;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;

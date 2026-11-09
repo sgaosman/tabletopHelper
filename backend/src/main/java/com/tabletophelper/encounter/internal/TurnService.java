@@ -59,6 +59,9 @@ public class TurnService {
             }
         }
         encounter.setMonstersInLair(inLair);
+        // It writes no log entry, so the undo dialog names it here (M14)
+        CommandRecorder.current().ifPresent(recording -> recording.describe("LAIR_STATUS",
+                "The DM changes which monsters fight in their lair"));
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 }

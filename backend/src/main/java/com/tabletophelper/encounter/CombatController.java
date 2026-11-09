@@ -11,6 +11,7 @@ import com.tabletophelper.encounter.internal.SpellcastingService;
 import com.tabletophelper.encounter.internal.StandardActionService;
 import com.tabletophelper.encounter.internal.TurnEconomyEditService;
 import com.tabletophelper.encounter.internal.TurnService;
+import com.tabletophelper.encounter.internal.UndoService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class CombatController {
     private final TurnEconomyEditService turnEconomyEditService;
     private final ConditionService conditionService;
     private final HitPointService hitPointService;
+    private final UndoService undoService;
     private final EncounterService encounterService;
 
     // A weapon attack the server works out, or an attack entered by hand, which is a Manual Modifier (D164)
@@ -239,6 +241,17 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         MonsterActionResponse response = monsterActionService.monsterAction(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // The DM's alone (M14): undoes the newest combat commands, refused unless expectedCommandId is still the newest
+    @PostMapping("/undo")
+    public ResponseEntity<EncounterResponse> undo(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody UndoRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = undoService.undo(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 

@@ -48,6 +48,7 @@ class EncounterBroadcasterTest {
 
     @Mock private SimpMessagingTemplate messagingTemplate;
     @Mock private CombatLogRepository combatLogRepository;
+    @Mock private CombatCommandRepository combatCommandRepository;
     @Mock private EncounterRepository encounterRepository;
     @Mock private EncounterService encounterService;
 
@@ -60,7 +61,7 @@ class EncounterBroadcasterTest {
 
     @BeforeEach
     void setUp() {
-        broadcaster = new EncounterBroadcaster(messagingTemplate, new CombatLogReader(combatLogRepository),
+        broadcaster = new EncounterBroadcaster(messagingTemplate, new CombatLogReader(combatLogRepository, combatCommandRepository),
                 encounterRepository, encounterService);
         lenient().when(combatLogRepository.findByEncounterIdOrderByCreatedAtAsc(encounterId)).thenReturn(List.of(
                 logEntry("Aria hits Goblin", ariaId, goblinId),

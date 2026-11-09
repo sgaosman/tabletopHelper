@@ -1522,7 +1522,7 @@ Advance to the next turn (DM only): the current turn ends and the next one start
 
 ### POST /encounters/{id}/combat/turn/previous
 
-Go back to the previous turn (DM only). It only moves the turn marker, past any dead monster's turn, and decrements the round number when it passes the start of the order (never below round 1). Nothing the turn change did is undone, and no turn effects run. Answers 409 when nobody can take a turn. Since M13 that includes the turn economy: going back doesn't restore a creature's budget, which the DM can set with `PUT /combat/turn-economy` (D163, D174).
+Go back to the previous turn (DM only). It only moves the turn marker, past any dead monster's turn, and decrements the round number when it passes the start of the order (never below round 1). Nothing the turn change did is undone, and no turn effects run; to take back a Next Turn completely, use undo (M14, D176). Answers 409 when nobody can take a turn. Since M13 that includes the turn economy: going back doesn't restore a creature's budget, which the DM can set with `PUT /combat/turn-economy` (D163, D174).
 
 ### POST /encounters/{id}/combat/use-pool
 
@@ -1724,6 +1724,18 @@ List a monster's multiattacks and the attacks each makes, so the DM can choose a
 - `400` — the participant isn't in the encounter
 - `403` — the user isn't the campaign's DM
 - `404` — no such encounter
+
+### POST /encounters/{id}/combat/undo
+
+Undo the newest combat commands (DM only, M14, D176). Everything they changed goes back: HP, conditions, concentration, slots, pools, the turn economy, the round and whose turn it is. Dice aren't undone, so taking the action again rolls fresh.
+
+**Request:** `{"expectedCommandId": "uuid", "steps": 1}`. `expectedCommandId` is the newest command the DM reviewed, from the DM response's `undo.commandId`; `steps` is 1–20 and defaults to 1.
+
+**Response:** the encounter (DM View). Undone entries stay in the DM's log with `undone: true`; each undone command gets an `UNDO` entry with `undoesCommandId`. Players' logs drop undone entries.
+
+**Errors:** `403` for anyone but the DM; `409` when the encounter isn't Active, when there is nothing to undo, when a barrier (the start, or a creature removed mid-fight) is reached, or "The last action has changed since you reviewed it; review it again" when `expectedCommandId` isn't the newest.
+
+The DM's encounter response carries `undo`: `{commandId, summary, kind, entryCount, stepsAvailable, recent}`, where `recent` lists up to 20 newest commands for "Undo to here", or null when nothing can be undone. Log entries carry `commandId`, `undone` and `undoesCommandId` for the DM.
 
 ### GET /encounters/{id}/combat/log
 

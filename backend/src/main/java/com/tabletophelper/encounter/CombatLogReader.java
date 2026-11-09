@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -16,15 +17,20 @@ import java.util.UUID;
 public class CombatLogReader {
 
     private final CombatLogRepository combatLogRepository;
+    private final CombatCommandRepository combatCommandRepository;
 
-    /** The whole log, as the DM reads it; {@link EncounterViews#playerLog} derives what players read. */
+    /**
+     * The whole log, as the DM reads it, the entries of commands the DM undid included and marked undone (M14);
+     * {@link EncounterViews#playerLog} derives what players read.
+     */
     public List<CombatLogResponse> dmLog(UUID encounterId) {
+        Set<UUID> undone = combatCommandRepository.undoneIds(encounterId);
         return combatLogRepository.findByEncounterIdOrderByCreatedAtAsc(encounterId).stream()
-                .map(CombatLogReader::toResponse)
+                .map(log -> toResponse(log, undone))
                 .toList();
     }
 
-    private static CombatLogResponse toResponse(CombatLog log) {
+    private static CombatLogResponse toResponse(CombatLog log, Set<UUID> undoneCommands) {
         return CombatLogResponse.builder()
                 .id(log.getId())
                 .roundNumber(log.getRoundNumber())
@@ -46,6 +52,9 @@ public class CombatLogReader {
                 .lrResolved(log.getLrResolved())
                 .lrSuccessDamage(log.getLrSuccessDamage())
                 .lrConditionIds(log.getLrConditionIds())
+                .commandId(log.getCommandId())
+                .undone(log.getCommandId() != null && undoneCommands.contains(log.getCommandId()))
+                .undoesCommandId(log.getUndoesCommandId())
                 .createdAt(log.getCreatedAt())
                 .build();
     }

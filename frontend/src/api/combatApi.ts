@@ -15,6 +15,7 @@ import type {
   SpellOption,
   StandardActionRequest,
   TurnEconomyRequest,
+  UndoRequest,
   UsePoolRequest,
 } from '../types/combat';
 
@@ -104,6 +105,12 @@ export const combatApi = {
     return api.post<CastSpellResponse>(`/encounters/${encounterId}/combat/repeat-spell-effect`, request, {
       params: actorId ? { actorId } : undefined,
     });
+  },
+
+  // The DM's alone (M14): undoes the newest `steps` commands (one when left out), refused with 409 when
+  // expectedCommandId is no longer the newest, so the DM never undoes what they didn't review
+  undo(encounterId: string, expectedCommandId: string, steps?: number) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/undo`, { expectedCommandId, steps } satisfies UndoRequest);
   },
 
   getCombatLog(encounterId: string) {

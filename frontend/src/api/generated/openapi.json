@@ -2427,6 +2427,47 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/undo": {
+      "post": {
+        "operationId": "undo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UndoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/use-pool": {
       "post": {
         "operationId": "usePool",
@@ -5995,7 +6036,8 @@
           "createdAt",
           "description",
           "id",
-          "roundNumber"
+          "roundNumber",
+          "undone"
         ],
         "type": "object",
         "properties": {
@@ -6031,7 +6073,8 @@
               "STANDARD_ACTION",
               "OBJECT_INTERACTION",
               "TURN_ECONOMY_SET",
-              "REACTION_TAKEN"
+              "REACTION_TAKEN",
+              "UNDO"
             ]
           },
           "actorId": {
@@ -6041,6 +6084,11 @@
           },
           "actorName": {
             "type": "string",
+            "nullable": true
+          },
+          "commandId": {
+            "type": "string",
+            "format": "uuid",
             "nullable": true
           },
           "createdAt": {
@@ -6125,6 +6173,14 @@
           "turnParticipantName": {
             "type": "string",
             "nullable": true
+          },
+          "undoesCommandId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "undone": {
+            "type": "boolean"
           }
         }
       },
@@ -6680,6 +6736,14 @@
             "items": {
               "$ref": "#/components/schemas/TurnResponse"
             }
+          },
+          "undo": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UndoInfo"
+              }
+            ]
           }
         }
       },
@@ -10182,6 +10246,87 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          }
+        }
+      },
+      "UndoInfo": {
+        "required": [
+          "commandId",
+          "entryCount",
+          "kind",
+          "recent",
+          "stepsAvailable",
+          "summary"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entryCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UndoableCommand"
+            }
+          },
+          "stepsAvailable": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      },
+      "UndoRequest": {
+        "required": [
+          "expectedCommandId"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedCommandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "steps": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "UndoableCommand": {
+        "required": [
+          "commandId",
+          "entryCount",
+          "kind",
+          "summary"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entryCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
           }
         }
       },

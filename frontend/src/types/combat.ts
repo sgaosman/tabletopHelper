@@ -38,9 +38,20 @@ export type TurnEconomyRequest = Schemas['TurnEconomyRequest'];
 
 /**
  * A combat log entry. The players' log leaves out entries about participants the DM hides, and its
- * entries have no Legendary Resistance fields (D157).
+ * entries have no Legendary Resistance fields (D157). Each entry since M14 names the combat command that wrote it
+ * (commandId); the DM's log keeps the entries of commands the DM undid, marked undone, and the players' log leaves
+ * them out.
  */
 export type CombatLogEntry = Schemas['CombatLogResponse'];
+
+/** The DM's undo of the newest combat commands, refused unless expectedCommandId is still the newest (M14). */
+export type UndoRequest = Schemas['UndoRequest'];
+
+/** What the DM's Undo would take back: the newest command and those before it that one undo may take (M14). */
+export type UndoInfo = Schemas['UndoInfo'];
+
+/** A combat command the DM may undo, with what it did and how many log entries it wrote (M14). */
+export type UndoableCommand = Schemas['UndoableCommand'];
 
 // ── M12 Monster Action Types ──────────────────────────────────────
 

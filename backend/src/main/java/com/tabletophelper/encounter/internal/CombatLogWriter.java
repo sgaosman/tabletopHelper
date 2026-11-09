@@ -9,6 +9,8 @@ import com.tabletophelper.rules.combat.TurnOrder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+
 /** Writes combat log entries, each stamped with the encounter's round and whose turn it is. */
 @Component
 @RequiredArgsConstructor
@@ -36,8 +38,13 @@ public class CombatLogWriter {
                 .targetName(target != null ? target.getDisplayName() : null);
     }
 
+    /** Saves the entry, stamped with the combat command being recorded, if any, which undo marks undone (M14). */
     public CombatLog save(CombatLog.CombatLogBuilder entry) {
-        return combatLogRepository.save(entry.build());
+        Optional<CommandRecorder.Recording> command = CommandRecorder.current();
+        command.ifPresent(recording -> entry.commandId(recording.id()));
+        CombatLog saved = combatLogRepository.save(entry.build());
+        command.ifPresent(recording -> recording.written(saved));
+        return saved;
     }
 
     /** Writes an entry about an actor and a target, either of which may be null. */

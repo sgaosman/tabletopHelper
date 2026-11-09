@@ -264,6 +264,73 @@ describe('DM EncounterSessionPage', () => {
     });
   });
 
+  describe('undo (M14)', () => {
+    const UNDO = {
+      commandId: 'cmd-2', kind: 'DAMAGE', summary: 'DM deals 3 damage to Test Goblin', entryCount: 1, stepsAvailable: 2,
+      recent: [
+        { commandId: 'cmd-2', kind: 'DAMAGE', summary: 'DM deals 3 damage to Test Goblin', entryCount: 1 },
+        { commandId: 'cmd-1', kind: 'ATTACK', summary: 'Gimli hits Test Goblin', entryCount: 1 },
+      ],
+    };
+    const LOG = [
+      makeMockLogEntry('log-0', 'An old entry from before undo.'),
+      makeMockLogEntry('log-1', 'Gimli hits Test Goblin', { actionType: 'ATTACK', commandId: 'cmd-1' }),
+      makeMockLogEntry('log-2', 'DM deals 3 damage to Test Goblin', { commandId: 'cmd-2' }),
+      makeMockLogEntry('log-x', 'DM deals 1 damage to Gimli', { commandId: 'cmd-x', undone: true }),
+    ];
+
+    it('has nothing to undo until the server offers it', async () => {
+      await renderLoaded();
+
+      expect(screen.getByRole('button', { name: 'Nothing to undo' })).toBeDisabled();
+    });
+
+    it('asks first, listing what will be undone, then undoes the newest action with one request', async () => {
+      let body: unknown;
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json({ ...encounterWith(), undo: UNDO })),
+        http.get('/api/encounters/:id/combat/log', () => HttpResponse.json(LOG)),
+        http.post('/api/encounters/:id/combat/undo', async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(encounterWith());
+        }),
+      );
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getByRole('button', { name: 'Undo: DM deals 3 damage to Test Goblin' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Undo the last action?' });
+      expect(within(dialog).getByText(/rolled fresh/)).toBeInTheDocument();
+      await user.click(within(dialog).getByRole('button', { name: 'Undo' }));
+
+      await waitFor(() => expect(body).toEqual({ expectedCommandId: 'cmd-2', steps: 1 }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it('offers "Undo to here" on the first entry of each action undo can still take, dimming undone entries', async () => {
+      let body: unknown;
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json({ ...encounterWith(), undo: UNDO })),
+        http.get('/api/encounters/:id/combat/log', () => HttpResponse.json(LOG)),
+        http.post('/api/encounters/:id/combat/undo', async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(encounterWith());
+        }),
+      );
+      const user = userEvent.setup();
+      await renderLoaded();
+      await user.click(await screen.findByRole('button', { name: /Combat Log/ }));
+
+      expect(await screen.findAllByRole('button', { name: 'Undo to here' })).toHaveLength(2);
+      expect(screen.getByText('DM deals 1 damage to Gimli')).toHaveClass('line-through');
+      await user.click(screen.getAllByRole('button', { name: 'Undo to here' })[0]);
+      const dialog = await screen.findByRole('dialog', { name: 'Undo the last 2 actions?' });
+      await user.click(within(dialog).getByRole('button', { name: 'Undo' }));
+
+      await waitFor(() => expect(body).toEqual({ expectedCommandId: 'cmd-2', steps: 2 }));
+    });
+  });
+
   describe('dying and the DM\'s corrections (D161)', () => {
     it('shows Dying, Stable and Dead, with death save controls only while Dying', async () => {
       server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({

@@ -964,6 +964,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["undo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/use-pool": {
         parameters: {
             query?: never;
@@ -2242,10 +2258,12 @@ export interface components {
         };
         CombatLogResponse: {
             /** @enum {string} */
-            actionType: "ATTACK" | "DAMAGE" | "HEAL" | "CONDITION_ADD" | "CONDITION_REMOVE" | "DEATH_SAVE" | "CONCENTRATION_CHECK" | "CONCENTRATION_LOST" | "TURN_ADVANCE" | "TURN_BACK" | "STABILIZE" | "KILL" | "REVIVE" | "SPELL_SLOT_USE" | "SPELL_SLOT_RESTORE" | "SPELL_CAST" | "SPELL_EFFECT_REPEAT" | "MONSTER_ACTION" | "LEGENDARY_ACTION" | "LAIR_ACTION" | "LEGENDARY_RESISTANCE_USED" | "RECHARGE_SUCCESS" | "RECHARGE_FAILURE" | "HP_SET" | "REPEAT_SAVE" | "POOL_USE" | "STANDARD_ACTION" | "OBJECT_INTERACTION" | "TURN_ECONOMY_SET" | "REACTION_TAKEN";
+            actionType: "ATTACK" | "DAMAGE" | "HEAL" | "CONDITION_ADD" | "CONDITION_REMOVE" | "DEATH_SAVE" | "CONCENTRATION_CHECK" | "CONCENTRATION_LOST" | "TURN_ADVANCE" | "TURN_BACK" | "STABILIZE" | "KILL" | "REVIVE" | "SPELL_SLOT_USE" | "SPELL_SLOT_RESTORE" | "SPELL_CAST" | "SPELL_EFFECT_REPEAT" | "MONSTER_ACTION" | "LEGENDARY_ACTION" | "LAIR_ACTION" | "LEGENDARY_RESISTANCE_USED" | "RECHARGE_SUCCESS" | "RECHARGE_FAILURE" | "HP_SET" | "REPEAT_SAVE" | "POOL_USE" | "STANDARD_ACTION" | "OBJECT_INTERACTION" | "TURN_ECONOMY_SET" | "REACTION_TAKEN" | "UNDO";
             /** Format: uuid */
             actorId?: string | null;
             actorName?: string | null;
+            /** Format: uuid */
+            commandId?: string | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: int32 */
@@ -2275,6 +2293,9 @@ export interface components {
             targetId?: string | null;
             targetName?: string | null;
             turnParticipantName?: string | null;
+            /** Format: uuid */
+            undoesCommandId?: string | null;
+            undone: boolean;
         };
         CombatResultPreview: {
             /** Format: uuid */
@@ -2437,6 +2458,7 @@ export interface components {
             /** @enum {string} */
             status: "PREPARING" | "ACTIVE" | "PAUSED" | "COMPLETED";
             turnOrder: components["schemas"]["TurnResponse"][];
+            undo?: components["schemas"]["UndoInfo"] | null;
         };
         EndEncounterRequest: {
             applyResults?: boolean | null;
@@ -3404,6 +3426,31 @@ export interface components {
             skipped: boolean;
             /** Format: int32 */
             tieGroup?: number | null;
+        };
+        UndoInfo: {
+            /** Format: uuid */
+            commandId: string;
+            /** Format: int32 */
+            entryCount: number;
+            kind: string;
+            recent: components["schemas"]["UndoableCommand"][];
+            /** Format: int64 */
+            stepsAvailable: number;
+            summary: string;
+        };
+        UndoRequest: {
+            /** Format: uuid */
+            expectedCommandId: string;
+            /** Format: int32 */
+            steps?: number | null;
+        };
+        UndoableCommand: {
+            /** Format: uuid */
+            commandId: string;
+            /** Format: int32 */
+            entryCount: number;
+            kind: string;
+            summary: string;
         };
         UsePoolRequest: {
             /** Format: uuid */
@@ -4997,6 +5044,32 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    undo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UndoRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {

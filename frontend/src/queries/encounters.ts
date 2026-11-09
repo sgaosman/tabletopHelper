@@ -332,6 +332,8 @@ export function useEncounterAction() {
       spendSpellSlot: change(combatApi.useSpellSlot),
       restoreSpellSlot: change(combatApi.restoreSpellSlot),
       spendLegendaryResistance: change(combatApi.useLegendaryResistance),
+      // The DM's undo of the newest commands (M14)
+      undo: change(combatApi.undo),
       castSpell: resolve(combatApi.castSpell),
       repeatSpellEffect: resolve(combatApi.repeatSpellEffect),
       monsterAction: resolve(combatApi.monsterAction),

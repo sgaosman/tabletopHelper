@@ -84,6 +84,10 @@ public class EncounterResponse {
     @Schema(requiredMode = REQUIRED)
     private boolean allowPlayerManualModifiers;
 
+    // What the DM's Undo would take back (M14): null unless the encounter is Active and has a command to undo since
+    // the last barrier, and always null in the Player View
+    private UndoInfo undo;
+
     @Data
     @Builder(toBuilder = true)
     public static class ParticipantResponse {

@@ -44,13 +44,13 @@ class FlywayMigrationIT extends IntegrationTest {
     private EntityManagerFactory entityManagerFactory;
 
     @Test
-    @DisplayName("Flyway applied V0–V6 and V8–V31 to the empty database; V7 was never used")
+    @DisplayName("Flyway applied V0–V6 and V8–V32 to the empty database; V7 was never used")
     void appliedVersionsMatchMigrationFiles() {
         List<String> versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
 
         assertThat(versions).containsExactly("0", "1", "2", "3", "4", "5", "6", "8", "9", "10", "11", "12", "13", "14", "15",
-                "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31");
+                "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32");
     }
 
     @Test
@@ -115,6 +115,28 @@ class FlywayMigrationIT extends IntegrationTest {
         assertThat(jdbcTemplate.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
                 + "WHERE conname = 'items_armour_category_check'", String.class))
                 .contains("'LIGHT'", "'MEDIUM'", "'HEAVY'", "'SHIELD'");
+    }
+
+    @Test
+    @DisplayName("V32 adds combat_commands, numbered per encounter, and the combat log's command_id, undoes_command_id and UNDO type")
+    void combatCommands() {
+        assertThat(jdbcTemplate.queryForMap("SELECT data_type, is_nullable FROM information_schema.columns "
+                + "WHERE table_name = 'combat_commands' AND column_name = 'before_state'"))
+                .isEqualTo(Map.of("data_type", "jsonb", "is_nullable", "YES"));
+        assertThat(jdbcTemplate.queryForMap("SELECT data_type, is_nullable FROM information_schema.columns "
+                + "WHERE table_name = 'combat_commands' AND column_name = 'barrier'"))
+                .isEqualTo(Map.of("data_type", "boolean", "is_nullable", "NO"));
+        for (String column : List.of("command_id", "undoes_command_id")) {
+            assertThat(jdbcTemplate.queryForMap("SELECT data_type, is_nullable FROM information_schema.columns "
+                    + "WHERE table_name = 'combat_logs' AND column_name = ?", column))
+                    .as(column).isEqualTo(Map.of("data_type", "uuid", "is_nullable", "YES"));
+        }
+        assertThat(jdbcTemplate.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                + "WHERE conname = 'uq_combat_commands_encounter_sequence'", String.class))
+                .isEqualTo("UNIQUE (encounter_id, sequence)");
+        assertThat(jdbcTemplate.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                + "WHERE conname = 'combat_logs_action_type_check'", String.class))
+                .contains("'REACTION_TAKEN'", "'UNDO'");
     }
 
     @Test

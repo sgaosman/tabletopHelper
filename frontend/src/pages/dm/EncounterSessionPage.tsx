@@ -13,6 +13,7 @@ import LairToggle from '../../components/encounter/LairToggle';
 import LairTurnRow from '../../components/encounter/LairTurnRow';
 import TieOrderArrows from '../../components/encounter/TieOrderArrows';
 import EndEncounterModal from '../../components/encounter/EndEncounterModal';
+import UndoDialog from '../../components/encounter/UndoDialog';
 import ParticipantRow from '../../components/encounter/ParticipantRow';
 import LifeStateBadge from '../../components/encounter/LifeStateBadge';
 import ConditionChips from '../../components/encounter/ConditionChips';
@@ -39,7 +40,7 @@ import { DAMAGE_TYPES } from '../../utils/conditions';
 import {
   ArrowLeft, Pause, Play, Flag, Copy, Check,
   ChevronRight, ChevronLeft, Heart, HeartPulse, Swords,
-  Plus, Minus, X, Zap, Crosshair, Sparkles, Trash2, Footprints, ShieldAlert
+  Plus, Minus, X, Zap, Crosshair, Sparkles, Trash2, Footprints, ShieldAlert, Undo2
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
@@ -175,6 +176,8 @@ function DmSessionView() {
   const [removeError, setRemoveError] = useState('');
   // Whether the End dialog is open (D166)
   const [ending, setEnding] = useState(false);
+  // How many of the newest combat commands the Undo dialog offers to take back, while it is open (M14)
+  const [undoSteps, setUndoSteps] = useState<number | null>(null);
 
   // Opening another monster's actions, or closing them, starts them afresh: no targets and no result
   function toggleMonsterActions(participantId: string) {
@@ -302,6 +305,33 @@ function DmSessionView() {
       </button>
     );
 
+  // Undo, while the encounter is Active and has a command since the last barrier (M14)
+  const undo = isActive ? encounter.undo ?? null : null;
+  const undoPlace = new Map(undo?.recent.map((command, index) => [command.commandId, index]) ?? []);
+  const firstEntryOf = new Map<string, string>();
+  for (const entry of logs) {
+    if (entry.commandId && !firstEntryOf.has(entry.commandId)) firstEntryOf.set(entry.commandId, entry.id);
+  }
+  // "Undo to here" on the first entry of each command undo may still take, which undoes it and everything after
+  const undoToHere = (log: CombatLogEntry) => {
+    const place = log.commandId != null ? undoPlace.get(log.commandId) : undefined;
+    if (place === undefined || firstEntryOf.get(log.commandId!) !== log.id) return null;
+    return (
+      <button
+        className="ml-2 px-2 py-0.5 border border-rule bg-card hover:bg-page-alt text-muted font-heading text-[11px] font-semibold tracking-[0.02em]"
+        onClick={() => setUndoSteps(place + 1)}
+      >
+        Undo to here
+      </button>
+    );
+  };
+  const entryActions = (log: CombatLogEntry) => (
+    <>
+      {legendaryResistance(log)}
+      {undoToHere(log)}
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-page">
       <header className="sticky top-0 z-10 bg-page border-b border-rule px-6 py-3">
@@ -338,7 +368,22 @@ function DmSessionView() {
           <div className="flex items-center gap-2">
             {isActive && (
               <>
-                <IconButton label="Previous turn" onClick={handlePrevTurn} className="flex items-center gap-1 px-3 py-2 bg-page-alt hover:bg-rule text-muted font-body text-[16px] font-semibold">
+                {/* Undo takes back the newest command after asking; after Next Turn it restores what Previous can't */}
+                <IconButton
+                  label={undo ? `Undo: ${undo.summary}` : 'Nothing to undo'}
+                  onClick={() => setUndoSteps(1)}
+                  disabled={!undo}
+                  className="flex items-center gap-1 px-3 py-2 bg-page-alt hover:bg-rule text-muted font-body text-[16px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Undo2 className="w-4 h-4" />
+                </IconButton>
+                <IconButton
+                  label={undo?.kind === 'TURN_ADVANCE'
+                    ? 'Previous turn (moves the marker only; Undo restores the turn Next Turn ended)'
+                    : 'Previous turn'}
+                  onClick={handlePrevTurn}
+                  className="flex items-center gap-1 px-3 py-2 bg-page-alt hover:bg-rule text-muted font-body text-[16px] font-semibold"
+                >
                   <ChevronLeft className="w-4 h-4" />
                 </IconButton>
                 <button onClick={handleNextTurn} className="flex items-center gap-1.5 px-4 py-2 bg-ink hover:bg-ink/90 text-card font-body text-[16px] font-semibold">
@@ -443,6 +488,12 @@ function DmSessionView() {
             )}
             {removeError && <p role="alert" className="text-debuff font-body text-[15px] mt-3">{removeError}</p>}
           </Modal>
+        )}
+
+        {undo && undoSteps !== null && (
+          <UndoDialog undo={undo} steps={undoSteps} log={logs}
+            onUndo={(expectedCommandId, steps) => actions.undo(expectedCommandId, steps)}
+            onClose={() => setUndoSteps(null)} />
         )}
 
         {ending && (
@@ -644,7 +695,7 @@ function DmSessionView() {
           })}
         </div>
 
-        <CombatLog entries={logs} entryActions={legendaryResistance} />
+        <CombatLog entries={logs} entryActions={entryActions} turnActions={undoToHere} />
       </main>
     </div>
   );

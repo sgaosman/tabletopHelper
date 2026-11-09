@@ -1,6 +1,7 @@
 package com.tabletophelper.encounter.internal;
 
 import com.tabletophelper.encounter.CombatActionType;
+import com.tabletophelper.encounter.CombatCommandRepository;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.CombatLogRepository;
 import com.tabletophelper.encounter.Encounter;
@@ -31,6 +32,7 @@ public class LegendaryResistanceService {
     private final EffectApplier effectApplier;
     private final ResourcePoolService resourcePoolService;
     private final CombatLogRepository combatLogRepository;
+    private final CombatCommandRepository combatCommandRepository;
     private final CombatLogWriter combatLog;
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
@@ -43,6 +45,10 @@ public class LegendaryResistanceService {
         CombatLog entry = combatLogRepository.findById(combatLogId)
                 .filter(found -> found.getEncounter().getId().equals(encounterId))
                 .orElseThrow(() -> new NotFoundException("Combat log entry not found"));
+        // The DM undid the action that wrote it, so the save it records never happened (M14)
+        if (entry.getCommandId() != null && combatCommandRepository.existsByIdAndUndoneAtIsNotNull(entry.getCommandId())) {
+            throw new ConflictException("That action was undone, so Legendary Resistance can't be used on it");
+        }
         if (Boolean.TRUE.equals(entry.getLrResolved())) {
             throw new ConflictException("Legendary Resistance already resolved for this entry");
         }
@@ -59,6 +65,8 @@ public class LegendaryResistanceService {
             throw new ConflictException("No legendary resistance remaining");
         }
         EffectApplier.LegendaryResistanceUndo undo = effectApplier.undoFailedSave(target, entry);
+        // Undoing this command leaves the entry unresolved again (M14)
+        CommandRecorder.current().ifPresent(recording -> recording.patched(entry));
         entry.setLrResolved(true);
         combatLogRepository.save(entry);
 

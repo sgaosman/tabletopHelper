@@ -626,6 +626,27 @@ Append-only log of every combat action in an encounter. One row per action.
 | lr_condition_ids | JSONB | | IDs of the condition entries the failed save applied, removed if Legendary Resistance is used (V16, D163). Entries logged before V16 have neither column, so Legendary Resistance can't be used on them. |
 | created_at | TIMESTAMPTZ | | |
 
+`command_id` (UUID, FK to `combat_commands`, ON DELETE SET NULL) and `undoes_command_id` (UUID, the same) came with V32 (M14, D176): the command an entry belongs to, and for an `UNDO` entry the command it undoes. Entries written before V32 have neither. V32 also adds `UNDO` to the action type check.
+
+### combat_commands
+
+One row per combat command (V32, M14, D176), the unit undo works on.
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| id | UUID | PK | |
+| encounter_id | UUID | FK, ON DELETE CASCADE | |
+| sequence | BIGINT | UNIQUE with `encounter_id` | Increasing within the encounter, assigned under the encounter lock |
+| kind | VARCHAR(40) | | The command's main log type, such as `SPELL_CAST` or `TURN_ADVANCE` |
+| summary | TEXT | | What the undo dialog shows, usually the main entry's text |
+| issued_by | UUID | | The user who issued it |
+| before_state | JSONB | nullable | A `CommandSnapshot`: the combat state of each participant the command changed, the encounter's turn fields if they changed, and any log patches (Legendary Resistance). Cleared when the encounter completes |
+| barrier | BOOLEAN | NOT NULL DEFAULT FALSE | The encounter's start and a live removal: undo never goes past one |
+| undone_at, undone_by | TIMESTAMPTZ, UUID | | Set when the command is undone |
+| created_at | TIMESTAMPTZ | | |
+
+A partial index on `(encounter_id, sequence DESC) WHERE undone_at IS NULL` finds the newest command still standing.
+
 ## Indexes
 
 All indexes are created by Flyway migrations (D170). R2 removed the JPA `@Index` annotations, which Hibernate had only applied under `ddl-auto: update` (D080, D089).

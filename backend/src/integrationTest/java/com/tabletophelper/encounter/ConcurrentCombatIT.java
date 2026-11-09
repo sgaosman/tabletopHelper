@@ -87,6 +87,33 @@ class ConcurrentCombatIT extends IntegrationTest {
         // The second command started from the first one's committed state, so no damage was lost
         assertThat(answeredHp).contains(47).containsAnyOf(54, 52);
         assertThat(log()).contains("DM deals 5 damage to Ogre", "DM deals 7 damage to Ogre");
+        // Each command was recorded for undo in the order the lock let it through, after the start's barrier (M14)
+        assertThat(jdbcTemplate.queryForList("SELECT sequence FROM combat_commands WHERE encounter_id = ? "
+                + "ORDER BY sequence", Long.class, encounterId)).containsExactly(1L, 2L, 3L);
+    }
+
+    @Test
+    @DisplayName("Two undos of the same action sent at once: one undoes it, the other is refused with 409 (M14)")
+    void simultaneousUndoUndoesOnce() throws Exception {
+        expect(HttpStatus.OK, damageAsync(5).get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        JsonNode state = expect(HttpStatus.OK, damageAsync(7).get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        String reviewed = state.get("undo").get("commandId").asString();
+
+        List<CompletableFuture<ResponseEntity<String>>> calls;
+        Connection lock = lockEncounterRow();
+        try {
+            calls = List.of(undoAsync(reviewed), undoAsync(reviewed));
+            awaitRequestsWaitingForLock(2);
+        } finally {
+            release(lock);
+        }
+
+        List<HttpStatus> statuses = new ArrayList<>();
+        for (CompletableFuture<ResponseEntity<String>> call : calls) {
+            statuses.add(HttpStatus.valueOf(call.get(TIMEOUT_SECONDS, TimeUnit.SECONDS).getStatusCode().value()));
+        }
+        assertThat(statuses).containsExactlyInAnyOrder(HttpStatus.OK, HttpStatus.CONFLICT);
+        assertThat(ogreHp()).isEqualTo(59 - 5);
     }
 
     @Test
@@ -152,6 +179,12 @@ class ConcurrentCombatIT extends IntegrationTest {
         return CompletableFuture.supplyAsync(() -> exchange(HttpMethod.POST,
                 "/api/encounters/" + encounterId + "/combat/damage",
                 Map.of("targetId", ogreId, "amount", amount), dm.accessToken()), requests);
+    }
+
+    private CompletableFuture<ResponseEntity<String>> undoAsync(String expectedCommandId) {
+        return CompletableFuture.supplyAsync(() -> exchange(HttpMethod.POST,
+                "/api/encounters/" + encounterId + "/combat/undo",
+                Map.of("expectedCommandId", expectedCommandId), dm.accessToken()), requests);
     }
 
     private JsonNode ogre(JsonNode encounter) {

@@ -30,6 +30,9 @@ public final class EncounterViews {
     private static final Pattern RESOURCE_TALLY = Pattern.compile(
             " \\((?:\\d+/\\d+(?: remaining)?|\\d+ remaining|unlimited)\\)|; (?:\\d+/\\d+ left|unlimited)$");
 
+    /** What players read for the DM's undo of a command about a participant hidden from them (D157, M14). */
+    public static final String UNDID_HIDDEN = "The DM undid an action.";
+
     private EncounterViews() {}
 
     /** The DM View for the campaign's DM, the Player View for everyone else. */
@@ -95,6 +98,7 @@ public final class EncounterViews {
                 .turnOrder(turns)
                 .currentTurnIndex(current)
                 .monstersInLair(visibleInLair)
+                .undo(null)
                 .build();
     }
 
@@ -104,19 +108,26 @@ public final class EncounterViews {
      * during a hidden participant's turn keeps its place without that participant's name. The DM's edit of a
      * monster's turn economy keeps its place as "The DM adjusts Goblin's turn.", without the changes, since players
      * don't see monsters' budgets (D157, D174). A monster's use of a pool, a spell slot or Legendary Resistance keeps
-     * its text without what the monster has left, as players don't see its pools or slots either.
+     * its text without what the monster has left, as players don't see its pools or slots either. The entries of
+     * commands the DM undid are left out, and the UNDO entry for a command about a hidden participant reads only
+     * {@link #UNDID_HIDDEN} (M14). No entry keeps the command IDs.
      *
      * @param hiddenParticipants each hidden participant's ID, mapped to its display name
      * @param monsters           each monster's ID
      */
     public static List<CombatLogResponse> playerLog(List<CombatLogResponse> log, Map<UUID, String> hiddenParticipants,
                                                     Set<UUID> monsters) {
+        Set<UUID> hiddenCommands = log.stream()
+                .filter(entry -> entry.getCommandId() != null && aboutHidden(entry, hiddenParticipants))
+                .map(CombatLogResponse::getCommandId)
+                .collect(Collectors.toSet());
         return log.stream()
-                .filter(entry -> !isHidden(entry.getActorId(), hiddenParticipants)
-                        && !isHidden(entry.getTargetId(), hiddenParticipants)
-                        && !isHidden(entry.getLrTargetId(), hiddenParticipants))
+                .filter(entry -> !entry.isUndone() && !aboutHidden(entry, hiddenParticipants))
                 .map(entry -> entry.toBuilder()
-                        .description(playerDescription(entry, monsters))
+                        .description(undoesHidden(entry, hiddenCommands, hiddenParticipants)
+                                ? UNDID_HIDDEN : playerDescription(entry, monsters))
+                        .commandId(null)
+                        .undoesCommandId(null)
                         .turnParticipantName(namesHiddenParticipant(entry.getTurnParticipantName(), hiddenParticipants)
                                 ? null : entry.getTurnParticipantName())
                         .legendaryResistanceEligible(null)
@@ -169,6 +180,22 @@ public final class EncounterViews {
     private static boolean monsterEconomyEdit(CombatLogResponse entry, Set<UUID> monsters) {
         return CombatActionType.TURN_ECONOMY_SET.name().equals(entry.getActionType())
                 && entry.getTargetId() != null && monsters.contains(entry.getTargetId());
+    }
+
+    private static boolean aboutHidden(CombatLogResponse entry, Map<UUID, String> hiddenParticipants) {
+        return isHidden(entry.getActorId(), hiddenParticipants) || isHidden(entry.getTargetId(), hiddenParticipants)
+                || isHidden(entry.getLrTargetId(), hiddenParticipants);
+    }
+
+    // An UNDO entry for a command about a participant hidden from players, whose summary could name it (D157)
+    private static boolean undoesHidden(CombatLogResponse entry, Set<UUID> hiddenCommands,
+                                        Map<UUID, String> hiddenParticipants) {
+        if (!CombatActionType.UNDO.name().equals(entry.getActionType())) {
+            return false;
+        }
+        return entry.getUndoesCommandId() != null && hiddenCommands.contains(entry.getUndoesCommandId())
+                || entry.getDescription() != null && hiddenParticipants.values().stream()
+                        .anyMatch(name -> name != null && !name.isBlank() && entry.getDescription().contains(name));
     }
 
     private static boolean isHidden(UUID participantId, Map<UUID, String> hiddenParticipants) {

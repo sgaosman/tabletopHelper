@@ -19,7 +19,7 @@ import java.util.UUID;
  * How a combat command starts (D160): access by campaign first, then the encounter's row lock, then who the
  * user may act for (D028), then that the encounter is Active (D166), and last, for a command a player gives only on
  * their turn, the turn. Commands name participants in the body or the query string, never the path, so an unknown
- * one is a 400.
+ * one is a 400. Once a command has passed the checks up to Active, {@link CommandRecorder} records it for undo (M14).
  */
 @Component
 @RequiredArgsConstructor
@@ -40,11 +40,13 @@ public class CombatAccess {
 
     private final EncounterCommands encounterCommands;
     private final AccessPolicy accessPolicy;
+    private final CommandRecorder commandRecorder;
 
     /** A command only the DM may give. */
     public Encounter beginAsDm(UUID encounterId, UUID userId) {
         Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
         EncounterLifecycle.requireActive(encounter);
+        commandRecorder.record(encounter, userId);
         return encounter;
     }
 
@@ -53,6 +55,7 @@ public class CombatAccess {
         Encounter encounter = encounterCommands.beginAsMember(encounterId, userId);
         accessPolicy.requireControls(campaignId(encounter), controllerOf(encounter, participantId), userId);
         EncounterLifecycle.requireActive(encounter);
+        commandRecorder.record(encounter, userId);
         return encounter;
     }
 

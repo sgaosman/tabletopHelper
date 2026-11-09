@@ -15,6 +15,8 @@ import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.CombatActionType;
+import com.tabletophelper.encounter.CombatCommand;
+import com.tabletophelper.encounter.CombatCommandRepository;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.CombatLogRepository;
 import com.tabletophelper.encounter.Encounter;
@@ -43,14 +45,23 @@ import com.tabletophelper.rules.Rng;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.Resolver;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -64,6 +75,7 @@ class CombatFixture {
 
     final EncounterRepository encounterRepository = mock(EncounterRepository.class);
     final CombatLogRepository combatLogRepository = mock(CombatLogRepository.class);
+    final CombatCommandRepository combatCommandRepository = mock(CombatCommandRepository.class);
     final CampaignRepository campaignRepository = mock(CampaignRepository.class);
     final CampaignMemberRepository campaignMemberRepository = mock(CampaignMemberRepository.class);
     final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
@@ -76,6 +88,9 @@ class CombatFixture {
     final CharacterService characterService = mock(CharacterService.class);
 
     final ObjectMapper objectMapper = JacksonDefaults.mapper();
+    // Records commands only inside a transaction's synchronization, which UndoServiceTest starts
+    final CommandRecorder commandRecorder =
+            new CommandRecorder(combatCommandRepository, combatLogRepository, objectMapper);
     final ScriptedDice dice = new ScriptedDice();
     final Resolver resolver = new Resolver(dice);
     final CreatureStats stats = new CreatureStats(objectMapper, new EquippedArmour(itemRepository));
@@ -84,8 +99,8 @@ class CombatFixture {
             new ResourcePoolService(mock(ClassFeaturePoolRepository.class), JacksonDefaults.mapper());
     final EffectApplier effectApplier = new EffectApplier(resolver, stats, combatLog, resourcePoolService);
     final AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
-    final CombatAccess access = new CombatAccess(
-            new EncounterCommands(encounterRepository, accessPolicy, eventPublisher), accessPolicy);
+    final EncounterCommands encounterCommands = new EncounterCommands(encounterRepository, accessPolicy, eventPublisher);
+    final CombatAccess access = new CombatAccess(encounterCommands, accessPolicy, commandRecorder);
     final SpellEffects spellEffects = new SpellEffects(spellRepository, stats);
     final SpellCaster spellCaster = new SpellCaster(spellEffects, resolver, effectApplier, stats);
     final MonsterEffects monsterEffects = new MonsterEffects(dice);
@@ -107,7 +122,8 @@ class CombatFixture {
     final MonsterActionService monsterActions = new MonsterActionService(access, accessPolicy, monsterEffects, resolver,
             stats, effectApplier, economy, resourcePoolService, objectMapper, encounterRepository, encounterService);
     final LegendaryResistanceService legendaryResistance = new LegendaryResistanceService(access, effectApplier,
-            resourcePoolService, combatLogRepository, combatLog, encounterRepository, encounterService);
+            resourcePoolService, combatLogRepository, combatCommandRepository, combatLog, encounterRepository,
+            encounterService);
     final PoolUseService poolUse = new PoolUseService(access, economy, combatLog, encounterRepository,
             encounterService);
     final StandardActionService standardActions = new StandardActionService(access, economy, resolver, stats,
@@ -116,6 +132,8 @@ class CombatFixture {
             encounterService);
     final TurnProcessor turnProcessor = new TurnProcessor(effectApplier, combatLog);
     final TurnService turns = new TurnService(access, turnProcessor, encounterRepository, encounterService);
+    final UndoService undoService = new UndoService(encounterCommands, commandRecorder, combatLog, combatLogRepository,
+            encounterRepository, encounterService);
 
     final UUID dmUserId = UUID.randomUUID();
     final Campaign campaign;
@@ -334,6 +352,87 @@ class CombatFixture {
         pc.getCharacter().setEquipment(Arrays.stream(weaponNames)
                 .map(name -> new InventoryItem(name, 1, null, null, null, null)).toList());
         pc.getCharacter().setWeaponProficiencies(proficiencies);
+    }
+
+    // ── Commands (M14) ───────────────────────────────────────────
+
+    /** The combat commands recorded, in the order saved, once {@link #recordCommands} is called. */
+    final List<CombatCommand> commands = new ArrayList<>();
+
+    /**
+     * Makes the command repository keep commands in {@link #commands}, answering its queries from them, and the log
+     * count the entries of each. Commands are recorded only inside {@link #inTransaction}.
+     */
+    void recordCommands() {
+        lenient().when(combatCommandRepository.save(any(CombatCommand.class))).thenAnswer(inv -> {
+            CombatCommand command = inv.getArgument(0);
+            if (command.getId() == null) {
+                command.setId(UUID.randomUUID());
+            }
+            if (!commands.contains(command)) {
+                commands.add(command);
+            }
+            return command;
+        });
+        lenient().doAnswer(inv -> commands.remove(inv.<CombatCommand>getArgument(0)))
+                .when(combatCommandRepository).delete(any(CombatCommand.class));
+        lenient().when(combatCommandRepository.lastSequence(any())).thenAnswer(inv ->
+                commands.stream().mapToLong(CombatCommand::getSequence).max().orElse(0));
+        lenient().when(combatCommandRepository.lastBarrier(any())).thenAnswer(inv ->
+                commands.stream().filter(CombatCommand::isBarrier).mapToLong(CombatCommand::getSequence).max().orElse(0));
+        lenient().when(combatCommandRepository.undoable(any(), anyLong(), any(Pageable.class))).thenAnswer(inv ->
+                undoableAfter(inv.getArgument(1)).limit(inv.<Pageable>getArgument(2).getPageSize()).toList());
+        lenient().when(combatCommandRepository.countUndoable(any(), anyLong())).thenAnswer(inv ->
+                undoableAfter(inv.getArgument(1)).count());
+        lenient().when(combatCommandRepository.undoneIds(any())).thenAnswer(inv -> commands.stream()
+                .filter(command -> command.getUndoneAt() != null).map(CombatCommand::getId).collect(Collectors.toSet()));
+        lenient().when(combatCommandRepository.existsByIdAndUndoneAtIsNotNull(any())).thenAnswer(inv -> commands.stream()
+                .anyMatch(command -> command.getId().equals(inv.getArgument(0)) && command.getUndoneAt() != null));
+        lenient().when(combatLogRepository.countByCommand(any())).thenAnswer(inv -> {
+            Collection<UUID> ids = inv.getArgument(0);
+            return log.stream().filter(entry -> ids.contains(entry.getCommandId()))
+                    .collect(Collectors.groupingBy(CombatLog::getCommandId, Collectors.counting()))
+                    .entrySet().stream().map(e -> new Object[] {e.getKey(), e.getValue()}).toList();
+        });
+    }
+
+    private Stream<CombatCommand> undoableAfter(long sequence) {
+        return commands.stream()
+                .filter(command -> command.getUndoneAt() == null && !command.isBarrier() && command.getSequence() > sequence)
+                .sorted(Comparator.comparing(CombatCommand::getSequence).reversed());
+    }
+
+    /** Records the start of the encounter, the barrier undo can't go past. */
+    void started() {
+        commandRecorder.barrier(encounter, dmUserId, "ENCOUNTER_START", "The encounter starts");
+    }
+
+    /**
+     * Runs the command as its transaction would: with synchronization on, so the recorder records it, and then
+     * committed, which runs the recorder's check before commit. A command that throws rolls back instead, and the
+     * command saved for it is dropped, as the database would drop it.
+     */
+    <T> T inTransaction(Supplier<T> command) {
+        TransactionSynchronizationManager.initSynchronization();
+        int before = commands.size();
+        boolean committed = false;
+        try {
+            T result = command.get();
+            TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.beforeCommit(false));
+            committed = true;
+            return result;
+        } finally {
+            List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+            TransactionSynchronizationManager.clearSynchronization();
+            int status = committed
+                    ? TransactionSynchronization.STATUS_COMMITTED : TransactionSynchronization.STATUS_ROLLED_BACK;
+            synchronizations.forEach(sync -> sync.afterCompletion(status));
+            if (!committed) {
+                while (commands.size() > before) {
+                    commands.removeLast();
+                }
+            }
+        }
     }
 
     // ── The log ──────────────────────────────────────────────────
