@@ -11,6 +11,7 @@ import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.RepeatSave;
+import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.LifeState;
@@ -352,6 +353,70 @@ class TurnServiceTest {
             advance();
 
             assertEquals(List.of(), CombatFixture.conditionNames(fighter));
+        }
+
+        @Test
+        @DisplayName("A dead monster's Spell Effect runs out at the top of the round once its duration has passed, since "
+                + "its turns are skipped (D177 follow-up)")
+        void deadCastersEffectRunsOutAtTheTopOfTheRound() {
+            EncounterParticipant fighter = pc("Fighter", 20);
+            EncounterParticipant priest = monster("Priest", 15);
+            EncounterParticipant goblin = monster("Goblin", 5);
+            priest.setActiveEffects(new ArrayList<>(List.of(
+                    SpellEffectEntry.start("Spiritual Weapon", 2, null, 1, 10, null))));
+            CombatFixture.dead(priest);
+            f.encounter.setRoundNumber(10);
+            f.turnOf(fighter);
+
+            // Round 10 goes on past the priest's skipped turn: the weapon has a round left
+            advance();
+            assertTrue(EncounterTurns.isCurrentTurn(f.encounter, goblin.getId()));
+            assertEquals(1, priest.getActiveEffects().size());
+
+            // Round 11 starts: ten rounds have passed, before the fighter's turn
+            advance();
+
+            assertEquals(List.of(), priest.getActiveEffects());
+            assertEquals(List.of("Priest's Spiritual Weapon ends (its duration ends)", "Turn passes to Fighter (Round 11)"),
+                    f.descriptions().subList(f.descriptions().size() - 2, f.descriptions().size()));
+        }
+
+        @Test
+        @DisplayName("A living caster's Spell Effect still waits for the start of its own turn, not the top of the round")
+        void livingCastersEffectWaitsForItsTurn() {
+            pc("Fighter", 20);
+            EncounterParticipant priest = monster("Priest", 15);
+            EncounterParticipant goblin = monster("Goblin", 5);
+            priest.setActiveEffects(new ArrayList<>(List.of(
+                    SpellEffectEntry.start("Spiritual Weapon", 2, null, 1, 10, null))));
+            f.encounter.setRoundNumber(10);
+            f.turnOf(goblin);
+
+            advance();
+            assertEquals(1, priest.getActiveEffects().size());
+            advance();
+
+            assertEquals(List.of(), priest.getActiveEffects());
+            assertTrue(EncounterTurns.isCurrentTurn(f.encounter, priest.getId()));
+        }
+
+        @Test
+        @DisplayName("A duration on a dead monster counted on another dead monster's turn ends at the top of the round")
+        void durationBetweenTwoDeadMonsters() {
+            pc("Fighter", 20);
+            EncounterParticipant mage = monster("Mage", 15);
+            EncounterParticipant ogre = monster("Ogre", 12);
+            EncounterParticipant goblin = monster("Goblin", 5);
+            give(ogre, ConditionEntry.fromEffect("poisoned", 1, 1, "Ray of Sickness", mage.getId(), null));
+            CombatFixture.dead(mage);
+            CombatFixture.dead(ogre);
+            f.encounter.setRoundNumber(1);
+            f.turnOf(goblin);
+
+            advance();
+
+            assertEquals(List.of(), CombatFixture.conditionNames(ogre));
+            assertTrue(f.descriptions().contains("poisoned ends on Ogre (its duration ends)"));
         }
 
         @Test

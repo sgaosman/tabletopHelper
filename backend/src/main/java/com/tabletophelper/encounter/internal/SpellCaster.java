@@ -11,6 +11,7 @@ import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.Metamagic;
+import com.tabletophelper.rules.combat.Outcome;
 import com.tabletophelper.rules.combat.Resolver;
 import com.tabletophelper.rules.combat.RollMode;
 import com.tabletophelper.rules.combat.SpellTrigger;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -358,8 +360,32 @@ public class SpellCaster {
         effectApplier.summary(encounter, use, lead + ".");
         List<EffectApplier.Applied> applied = effectApplier.apply(encounter, use, plan.effect(),
                 resolver.resolve(plan.effect(), stats.targets(targets, plan.effect())));
+        endOnSave(encounter, caster, spellEffect, when, applied);
         return new CastResult(spellName, plan.spellLevel(), false, null, summary(lead, applied),
                 outcomes(plan.effect(), applied));
+    }
+
+    /*
+     * A trigger whose successful save ends the spell, as Searing Smite's does (PHB p.274): once a creature saves, the
+     * spell ends. One kept up by concentration ends with the concentration, which takes the effect and any conditions it
+     * created with it (D162); one without just ends. A save Legendary Resistance turns into a success afterwards isn't
+     * counted, as the spell's end isn't undone either; the DM ends the spell by hand then.
+     */
+    private void endOnSave(Encounter encounter, EncounterParticipant caster, SpellEffectEntry spellEffect,
+                           SpellTrigger when, List<EffectApplier.Applied> applied) {
+        Optional<EffectApplier.Applied> saved = applied.stream()
+                .filter(result -> result.outcome().outcome() == Outcome.SAVE_SUCCESS)
+                .findFirst();
+        if (saved.isEmpty() || !spellEffects.triggerSaveEndsSpell(spellEffect.spell(), when)) {
+            return;
+        }
+        String why = saved.get().target().getDisplayName() + " succeeds on the save";
+        ConcentrationInstance held = instanceOf(caster, spellEffect);
+        if (held != null) {
+            effectApplier.endConcentration(encounter, caster, spellEffect.spell() + " ends: " + why);
+        } else {
+            effectApplier.endEffect(encounter, caster, spellEffect.id(), why);
+        }
     }
 
     // The Concentration Instance the effect belongs to, while its caster still holds it

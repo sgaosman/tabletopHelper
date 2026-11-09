@@ -2614,6 +2614,7 @@ export interface components {
             sourceParticipantId?: string | null;
             sourceRequiresConcentration?: boolean | null;
             sourceSpellName?: string | null;
+            weapon?: string | null;
             wildShape?: components["schemas"]["WildShapeForm"] | null;
         };
         ConditionRequest: {
@@ -3883,6 +3884,7 @@ export interface components {
             targetIds?: string[] | null;
             /** Format: int32 */
             uses?: number | null;
+            weapon?: string | null;
         };
         VisibilityRequest: {
             visible: boolean;
@@ -3955,6 +3957,7 @@ export interface components {
             druidLevel: number;
             /** Format: int32 */
             durationHours: number;
+            elementals: components["schemas"]["Beast"][];
             flyingAllowed: boolean;
             maxChallengeRating?: string | null;
             swimmingAllowed: boolean;

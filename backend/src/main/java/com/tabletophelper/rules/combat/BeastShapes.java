@@ -2,10 +2,12 @@ package com.tabletophelper.rules.combat;
 
 import com.tabletophelper.rules.Dice;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -15,7 +17,11 @@ import java.util.regex.Pattern;
  *   <li>The beasts a druid can become: the Beast Shapes table limits the challenge rating and movement by druid level,
  *       CR 1/4 with no flying or swimming speed at 2nd, CR 1/2 with no flying speed at 4th, and CR 1 at 8th. A Circle
  *       of the Moon druid ignores the Max. CR column but keeps the movement limits (Circle Forms): CR 1 from 2nd, and
- *       its druid level divided by 3, rounded down, from 6th. Elemental Wild Shape (Moon 10) is not modelled.</li>
+ *       its druid level divided by 3, rounded down, from 6th.</li>
+ *   <li>The beasts offered are those of the rulebooks, not the adventures, with hit points in their stat block
+ *       ({@link #offered}).</li>
+ *   <li>Elemental Wild Shape (Circle of the Moon 10, PHB p.69): two uses of Wild Shape at once turn the druid into an
+ *       air, earth, fire or water elemental, the Monster Manual's, outside the Beast Shapes limits.</li>
  *   <li>Wild Shape is an action, a bonus action for a Circle of the Moon druid (Combat Wild Shape), and lasts up to
  *       half the druid level in hours. Reverting early is a bonus action.</li>
  *   <li>Combat Wild Shape also lets a transformed Moon druid expend a spell slot as a bonus action to regain 1d8 hit
@@ -36,6 +42,30 @@ public final class BeastShapes {
     /** The speed names that the Beast Shapes table limits. */
     public static final String FLY = "fly";
     public static final String SWIM = "swim";
+
+    /**
+     * The books whose beasts Wild Shape offers: the rulebooks 5etools files as core, supplement or setting books, of the
+     * sources in the bundled bestiary data. Adventures, such as Waterdeep: Dungeon of the Mad Mage's CR 0 Haungharassk
+     * with 52 hit points, and the alternative supplements, such as Adventures with Muk's Boontu Monkey with none, are
+     * left out; the Plane Shift setting PDFs too. Acquisitions Incorporated, a supplement with no beasts in the data, isn't
+     * listed. The codes are the monsters table's sources.
+     */
+    public static final Set<String> RULEBOOK_SOURCES = Set.of("PHB", "MM", "DMG", "SCAG", "VGM", "XGE", "MTF", "GGR",
+            "ERLW", "EGW", "MOT", "TCE", "VRGR", "FTD", "SCC", "MPMM", "AAG", "BAM", "BGG", "MPP", "SatO", "BMT",
+            "DMTCRG");
+
+    /** The druid level of the Circle of the Moon that brings Elemental Wild Shape (PHB p.69). */
+    public static final int ELEMENTAL_LEVEL = 10;
+
+    /** The uses of Wild Shape that Elemental Wild Shape expends at the same time (PHB p.69). */
+    public static final int ELEMENTAL_USES = 2;
+
+    /** The book the elementals come from (PHB p.69 names the Monster Manual's). */
+    public static final String ELEMENTAL_SOURCE = "MM";
+
+    /** The four elementals Elemental Wild Shape can become (PHB p.69; MM p.124–125). */
+    public static final List<String> ELEMENTALS = List.of("Air Elemental", "Earth Elemental", "Fire Elemental",
+            "Water Elemental");
 
     private static final Pattern FRACTION = Pattern.compile("^\\s*(\\d+)\\s*/\\s*(\\d+)\\s*$");
     private static final Pattern WHOLE = Pattern.compile("^\\s*(\\d+(?:\\.\\d+)?)\\s*$");
@@ -74,6 +104,26 @@ public final class BeastShapes {
             cr = 0.25;
         }
         return Optional.of(new Limit(cr, fly, swim, label(cr)));
+    }
+
+    /**
+     * Whether the picker offers a beast from this book with these hit points: one of {@link #RULEBOOK_SOURCES}, with more
+     * than 0 hit points, so a stat block whose hit points are a formula of its master's level, such as Tasha's Beast of
+     * the Land, isn't offered.
+     */
+    public static boolean offered(String source, Integer hitPoints) {
+        return source != null && RULEBOOK_SOURCES.contains(source.trim()) && hitPoints != null && hitPoints > 0;
+    }
+
+    /** Whether a druid of this level can use Elemental Wild Shape: the Circle of the Moon's from 10th (PHB p.69). */
+    public static boolean elementalWildShape(int druidLevel, boolean circleOfTheMoon) {
+        return circleOfTheMoon && druidLevel >= ELEMENTAL_LEVEL;
+    }
+
+    /** Whether the monster is one of the four elementals Elemental Wild Shape can become, by name and book. */
+    public static boolean elemental(String name, String source) {
+        return name != null && ELEMENTAL_SOURCE.equals(source != null ? source.trim() : null)
+                && ELEMENTALS.stream().anyMatch(elemental -> elemental.equalsIgnoreCase(name.trim()));
     }
 
     /** What Wild Shape costs: an action, or a bonus action for a Circle of the Moon druid (PHB p.66, p.69). */

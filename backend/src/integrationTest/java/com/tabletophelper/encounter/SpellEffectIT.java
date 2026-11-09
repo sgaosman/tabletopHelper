@@ -3,6 +3,7 @@ package com.tabletophelper.encounter;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.SpellSlot;
+import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.reference.Spell;
@@ -47,6 +48,17 @@ class SpellEffectIT extends IntegrationTest {
              "directedResolves": false, "effectTriggers": [{"when": ["ENTER", "START_OF_TURN"]}],
              "effects": [{"effectType": "DAMAGE", "damageDice": "2d10", "damageType": "radiant"}]}""";
 
+    // Searing Smite as the templates have it: the burning creature's CON save at the start of each of its turns,
+    // which ends the spell on a success (PHB p.274)
+    private static final String SEARING_SMITE = """
+            {"spellLevel": 1, "deliveryMethod": "SAVING_THROW", "saveAbility": "CON", "concentration": true,
+             "durationRounds": 10, "requiresManualResolution": true,
+             "manualResolutionReason": "Smite-style delivery on next weapon hit.",
+             "effectTriggers": [{"when": ["START_OF_TURN"], "deliveryMethod": "SAVING_THROW", "saveAbility": "CON",
+               "halfOnSave": false, "damageDice": "1d6", "damageType": "fire", "usesUpcastScaling": false,
+               "endsSpellOnSave": true}],
+             "effects": [{"effectType": "DAMAGE", "damageDice": "1d6", "damageType": "fire"}]}""";
+
     @Autowired private MonsterRepository monsterRepository;
     @Autowired private SpellRepository spellRepository;
     @Autowired private EncounterParticipantRepository participantRepository;
@@ -69,6 +81,7 @@ class SpellEffectIT extends IntegrationTest {
         spell("Spiritual Weapon", 2, SPIRITUAL_WEAPON, "1 bonus action");
         spell("Spirit Guardians", 3, SPIRIT_GUARDIANS, "1 action");
         spell("Moonbeam", 2, MOONBEAM, "1 action");
+        spell("Searing Smite", 1, SEARING_SMITE, "1 bonus action");
 
         ariaId = idOf(addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "PLAYER", "characterId", character, "displayName", "Aria")), "Aria");
@@ -91,13 +104,15 @@ class SpellEffectIT extends IntegrationTest {
         EncounterParticipant aria = participantRepository.findById(UUID.fromString(ariaId)).orElseThrow();
         aria.setHpMax(30);
         aria.setHpCurrent(30);
-        aria.setSpellSlotsCurrent(new HashMap<>(Map.of("2", new SpellSlot(3, 0), "3", new SpellSlot(2, 0))));
+        aria.setSpellSlotsCurrent(new HashMap<>(Map.of("1", new SpellSlot(2, 0), "2", new SpellSlot(3, 0),
+                "3", new SpellSlot(2, 0))));
         aria.setSpellSaveDc(14);
         aria.setSpellAttackBonus(6);
         aria.setSpellsKnown(List.of(
                 new KnownSpell(null, "Spiritual Weapon", 2, "class:Cleric", true, null, null, null, null),
                 new KnownSpell(null, "Spirit Guardians", 3, "class:Cleric", true, null, null, null, null),
-                new KnownSpell(null, "Moonbeam", 2, "class:Cleric", true, null, null, null, null)));
+                new KnownSpell(null, "Moonbeam", 2, "class:Cleric", true, null, null, null, null),
+                new KnownSpell(null, "Searing Smite", 1, "class:Cleric", true, null, null, null, null)));
         participantRepository.save(aria);
     }
 
@@ -177,6 +192,56 @@ class SpellEffectIT extends IntegrationTest {
         JsonNode restored = participant(dmState(), ariaId).get("activeEffects");
         assertThat(restored).hasSize(1);
         assertThat(restored.get(0).get("id").asString()).isEqualTo(weaponId);
+    }
+
+    @Test
+    @DisplayName("The ogre's successful CON save against Searing Smite's burning ends the spell and Aria's "
+            + "concentration (PHB p.274); undo brings both back")
+    void searingSmiteEndsOnSave() {
+        cast("Searing Smite", 1, List.of(ogreId));
+        JsonNode cast = participant(dmState(), ariaId);
+        assertThat(cast.get("concentrationSpell").asString()).isEqualTo("Searing Smite");
+        assertThat(cast.get("activeEffects")).hasSize(1);
+        nextTurn();
+
+        // 1d6 rolls 4; the ogre's CON save of 12 + 3 beats DC 14
+        dice.script(4, 12);
+        JsonNode burned = expect(HttpStatus.OK, use(Map.of("targetIds", List.of(ogreId), "trigger", "START_OF_TURN"),
+                dm.accessToken()));
+
+        JsonNode aria = participant(burned.get("encounterState"), ariaId);
+        assertThat(aria.get("activeEffects")).isEmpty();
+        assertThat(aria.get("concentrationSpell").isNull()).isTrue();
+        assertThat(participant(burned.get("encounterState"), ogreId).get("hpCurrent").asInt()).isEqualTo(40);
+
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/undo",
+                Map.of("expectedCommandId", dmState().get("undo").get("commandId").asString()), dm.accessToken()));
+        JsonNode restored = participant(dmState(), ariaId);
+        assertThat(restored.get("concentrationSpell").asString()).isEqualTo("Searing Smite");
+        assertThat(restored.get("activeEffects")).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("A dead ogre's Spiritual Weapon runs out at the top of the round its duration passes, though its "
+            + "turns are skipped; undoing the turn brings it back")
+    void deadCastersEffectExpires() {
+        EncounterParticipant ogre = participantRepository.findById(UUID.fromString(ogreId)).orElseThrow();
+        ogre.setActiveEffects(List.of(SpellEffectEntry.start("Spiritual Weapon", 2, null, 1, 1, null)));
+        participantRepository.save(ogre);
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/damage",
+                Map.of("targetId", ogreId, "amount", 40), dm.accessToken()));
+        assertThat(participant(dmState(), ogreId).get("lifeState").asString()).isEqualTo("DEAD");
+
+        // Aria's turn ends, the ogre's is skipped, and round 2 starts
+        nextTurn();
+
+        JsonNode state = dmState();
+        assertThat(state.get("roundNumber").asInt()).isEqualTo(2);
+        assertThat(participant(state, ogreId).get("activeEffects")).isEmpty();
+
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/undo",
+                Map.of("expectedCommandId", state.get("undo").get("commandId").asString()), dm.accessToken()));
+        assertThat(participant(dmState(), ogreId).get("activeEffects")).hasSize(1);
     }
 
     // ── Helpers ──────────────────────────────────────────────────

@@ -254,15 +254,16 @@ public class AttackService {
             return List.of();
         }
         AttackFeatures.Attacker attacker = characterWeapons.attacker(character, armoured(participant));
-        RollBonuses rollBonuses = rollBonuses(participant, CreatureStats.conditionNames(participant));
+        List<String> conditions = CreatureStats.conditionNames(participant);
         return characterWeapons.of(character).stream()
-                .map(held -> option(character, attacker, held, rollBonuses))
+                .map(held -> option(character, attacker, held,
+                        rollBonuses(participant, conditions, held.weapon().name())))
                 .toList();
     }
 
     /**
      * The bonuses to a weapon attack roll the attacker has in force now: Sacred Weapon's Charisma modifier, at least
-     * +1 (PHB p.86), and War God's Blessing's +10, which the next attack spends (PHB p.63).
+     * +1, with the weapon it imbued (PHB p.86), and War God's Blessing's +10, which the next attack spends (PHB p.63).
      */
     record RollBonuses(int sacredWeapon, boolean blessed) {
 
@@ -278,10 +279,22 @@ public class AttackService {
         }
     }
 
-    private RollBonuses rollBonuses(EncounterParticipant attacker, List<String> conditions) {
-        int sacredWeapon = ClassFeatures.has(conditions, ChannelDivinity.SACRED_WEAPON)
+    private RollBonuses rollBonuses(EncounterParticipant attacker, List<String> conditions, String weaponName) {
+        int sacredWeapon = sacredWeaponImbues(attacker, weaponName)
                 ? ChannelDivinity.sacredWeaponBonus(stats.abilityScore(attacker, Ability.CHA)) : 0;
         return new RollBonuses(sacredWeapon, ClassFeatures.has(conditions, ChannelDivinity.WAR_GODS_BLESSING));
+    }
+
+    /**
+     * Whether the attacker's Sacred Weapon imbues this weapon (PHB p.86): the one it named, in any case. An entry from
+     * before the weapon was recorded names none, and goes on counting for every weapon until it ends.
+     */
+    static boolean sacredWeaponImbues(EncounterParticipant attacker, String weaponName) {
+        return attacker.getActiveConditions() != null && attacker.getActiveConditions().stream()
+                .filter(java.util.Objects::nonNull)
+                .filter(entry -> ChannelDivinity.SACRED_WEAPON.equalsIgnoreCase(entry.name()))
+                .anyMatch(entry -> entry.weapon() == null
+                        || (weaponName != null && entry.weapon().trim().equalsIgnoreCase(weaponName.trim())));
     }
 
     // A weapon's option with the attack roll bonuses in force, which the attack itself adds (Sacred Weapon, War God's
@@ -458,8 +471,8 @@ public class AttackService {
         if (extraDamage != null) {
             damage.add(new Effect.DamagePart(extraDamage, extraType));
         }
-        // Sacred Weapon (PHB p.86) and War God's Blessing (PHB p.63) add to the attack roll
-        RollBonuses rollBonuses = rollBonuses(actor, conditions);
+        // Sacred Weapon, with the weapon it imbued (PHB p.86), and War God's Blessing (PHB p.63) add to the attack roll
+        RollBonuses rollBonuses = rollBonuses(actor, conditions, weapon.name());
         int sacredWeapon = rollBonuses.sacredWeapon();
         boolean blessed = rollBonuses.blessed();
         int attackBonus = numbers.attackBonus() + rollBonuses.total()

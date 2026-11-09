@@ -10,7 +10,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 
 /**
  * The beasts a druid can become with Wild Shape now (PHB p.66–67), by the Beast Shapes limits of its druid level, with
- * Circle Forms for a Circle of the Moon druid (PHB p.69). Whether the druid has seen a beast is the DM's call.
+ * Circle Forms for a Circle of the Moon druid (PHB p.69), and the elementals of Elemental Wild Shape. Whether the druid
+ * has seen a beast is the DM's call.
  *
  * @param druidLevel        the participant's druid level; below 2 it has no Wild Shape
  * @param circleOfTheMoon   whether it is a Circle of the Moon druid
@@ -20,7 +21,10 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param cost              what transforming costs, ACTION or BONUS_ACTION; null without Wild Shape
  * @param currentForm       the beast it is now, or null
  * @param durationHours     how long a Wild Shape lasts at most, in hours
- * @param beasts            the beasts within the limits, by challenge rating and then name
+ * @param beasts            the beasts within the limits, by challenge rating and then name, from the rulebooks and with
+ *                          hit points
+ * @param elementals        the elementals a Circle of the Moon druid of 10th level can become with Elemental Wild Shape,
+ *                          which spends two uses of Wild Shape (PHB p.69); empty for any other druid
  */
 public record WildShapeOptions(
         @Schema(requiredMode = REQUIRED) int druidLevel,
@@ -31,11 +35,12 @@ public record WildShapeOptions(
         String cost,
         String currentForm,
         @Schema(requiredMode = REQUIRED) int durationHours,
-        @Schema(requiredMode = REQUIRED) List<Beast> beasts
+        @Schema(requiredMode = REQUIRED) List<Beast> beasts,
+        @Schema(requiredMode = REQUIRED) List<Beast> elementals
 ) {
 
     /**
-     * A beast the druid can become.
+     * A beast, or an elemental, the druid can become.
      *
      * @param monsterId       its monster row, which the use-pool request names as beastId
      * @param name            its name

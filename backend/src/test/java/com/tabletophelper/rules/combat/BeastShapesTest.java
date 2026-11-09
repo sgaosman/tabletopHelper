@@ -122,4 +122,36 @@ class BeastShapesTest {
         assertEquals(4, BeastShapes.bonus(4, 3));
         assertEquals(1, BeastShapes.bonus(1, null));
     }
+
+    @Test
+    @DisplayName("The picker offers rulebook beasts with hit points: not Dungeon of the Mad Mage's Haungharassk, Adventures "
+            + "with Muk's Boontu Monkey or Tasha's Beast of the Land")
+    void offered() {
+        assertTrue(BeastShapes.offered("MM", 11));
+        assertTrue(BeastShapes.offered("VGM", 15));
+        assertTrue(BeastShapes.offered("MPMM", 15));
+        assertFalse(BeastShapes.offered("WDMM", 52));
+        assertFalse(BeastShapes.offered("AWM", 3));
+        assertFalse(BeastShapes.offered("IDRotF", 30));
+        assertFalse(BeastShapes.offered("PSX", 30));
+        assertFalse(BeastShapes.offered("TCE", 0));
+        assertFalse(BeastShapes.offered("MM", null));
+        assertFalse(BeastShapes.offered(null, 11));
+    }
+
+    @Test
+    @DisplayName("Elemental Wild Shape: a Circle of the Moon druid of 10th level, the Monster Manual's four elementals, "
+            + "two uses (PHB p.69)")
+    void elementalWildShape() {
+        assertFalse(BeastShapes.elementalWildShape(9, true));
+        assertTrue(BeastShapes.elementalWildShape(10, true));
+        assertFalse(BeastShapes.elementalWildShape(20, false));
+        for (String name : java.util.List.of("Air Elemental", "earth elemental", "Fire Elemental", "Water Elemental")) {
+            assertTrue(BeastShapes.elemental(name, "MM"), name);
+        }
+        assertFalse(BeastShapes.elemental("Air Elemental", "MPMM"));
+        assertFalse(BeastShapes.elemental("Ice Elemental", "MM"));
+        assertFalse(BeastShapes.elemental("Brown Bear", "MM"));
+        assertEquals(2, BeastShapes.ELEMENTAL_USES);
+    }
 }

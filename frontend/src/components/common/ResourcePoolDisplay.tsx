@@ -7,7 +7,7 @@ import {
   channelOptions, heldInspiration, isRaging, KI_OPTIONS, poolEffect, poolEffectText, RAGE_TEXT, WILD_SHAPE_TEXT,
   wildShapeOf, type PoolEffect, type PoolUseOptions,
 } from '../../utils/classFeatures';
-import { useWildShapeOptions } from '../../queries/encounters';
+import { useAttackOptions, useWildShapeOptions } from '../../queries/encounters';
 import IconButton from '../ui/IconButton';
 import FlexibleCastingControls from './FlexibleCastingControls';
 import { SORCERY_POINTS } from '../../utils/metamagic';
@@ -324,6 +324,7 @@ function WildShapeControls({ entry, participant, blocked, asDm, onUse, onHeal }:
   const form = wildShapeOf(participant);
   const options = useWildShapeOptions(participant.id, true);
   const [beastId, setBeastId] = useState('');
+  const [elementalId, setElementalId] = useState('');
   const [slotKey, setSlotKey] = useState('');
   const [healing, setHealing] = useState(false);
   const [healError, setHealError] = useState('');
@@ -378,6 +379,10 @@ function WildShapeControls({ entry, participant, blocked, asDm, onUse, onHeal }:
     return <span className="text-[11px] text-muted">Wild Shape comes at druid level 2.</span>;
   }
   const beast = data.beasts.find(b => b.monsterId === beastId) ?? data.beasts[0];
+  const elementals = data.elementals ?? [];
+  const elemental = elementals.find(e => e.monsterId === elementalId) ?? elementals[0];
+  // Elemental Wild Shape expends two uses at once (PHB p.69)
+  const twoUses = isUnlimited(entry) || entry.currentUses >= ELEMENTAL_USES;
   const cost = data.cost === 'BONUS_ACTION' ? 'BONUS_ACTION' : 'ACTION';
   const budget = chargeBlock(participant, { cost });
   const disabled = blocked || !beast || (budget !== null && !asDm);
@@ -405,9 +410,31 @@ function WildShapeControls({ entry, participant, blocked, asDm, onUse, onHeal }:
       <span className="max-w-xs text-[11px] text-muted">
         A beast you have seen, {limits.join(', ')}, for up to {data.durationHours} hour{data.durationHours === 1 ? '' : 's'}.
       </span>
+      {elemental && (
+        <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Elemental Wild Shape">
+          <label htmlFor={`${base}-elemental`} className="sr-only">Elemental</label>
+          <select id={`${base}-elemental`} value={elemental.monsterId} onChange={e => setElementalId(e.target.value)}
+            className={SMALL_FIELD}>
+            {elementals.map(e => (
+              <option key={e.monsterId} value={e.monsterId}>
+                {e.name} (CR {e.challengeRating}, {e.hitPoints} HP, AC {e.armourClass})
+              </option>
+            ))}
+          </select>
+          <button type="button" disabled={blocked || !twoUses || (budget !== null && !asDm)}
+            aria-label="Use Elemental Wild Shape" onClick={() => onUse({ beastId: elemental.monsterId })}
+            className={USE_BUTTON}>
+            Elemental Wild Shape (2 uses)
+          </button>
+          {!twoUses && <span className="text-[11px] text-muted">Needs two uses of Wild Shape left</span>}
+        </div>
+      )}
     </div>
   );
 }
+
+/** The uses of Wild Shape that Elemental Wild Shape expends at once (Circle of the Moon 10, PHB p.69). */
+const ELEMENTAL_USES = 2;
 
 function LayOnHandsControls({ entry, participant, targets, blocked, asDm, onUse }: {
   entry: ResourcePoolEntry;
@@ -474,6 +501,7 @@ function ChannelDivinityControls({ entry, participant, targets, blocked, asDm, o
   const [optionId, setOptionId] = useState(options[0]?.id ?? '');
   const [picked, setPicked] = useState<string[]>([]);
   const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [weapon, setWeapon] = useState('');
   if (options.length === 0) return null;
   const chosen = options.find(o => o.id === optionId) ?? options[0];
   const option = chosen.option;
@@ -512,6 +540,7 @@ function ChannelDivinityControls({ entry, participant, targets, blocked, asDm, o
               option: chosen.id,
               targetIds: option.targets === 'none' ? undefined : selected,
               amounts: option.targets === 'split' ? splitAmounts : undefined,
+              ...(chosen.id === SACRED_WEAPON_OPTION && weapon ? { weapon } : {}),
             })}
             className={USE_BUTTON}>
             {option.label}
@@ -519,6 +548,9 @@ function ChannelDivinityControls({ entry, participant, targets, blocked, asDm, o
         )}
       </div>
       <span className="max-w-xs text-[11px] text-muted">{option.description}</span>
+      {chosen.id === SACRED_WEAPON_OPTION && (
+        <SacredWeaponPicker participantId={participant.id} id={`${base}-weapon`} value={weapon} onChange={setWeapon} />
+      )}
       {option.targets !== 'none' && option.targets !== 'attack' && (
         <fieldset className="flex flex-wrap gap-x-3 gap-y-1">
           <legend className="sr-only">{option.label}: creatures</legend>
@@ -541,6 +573,33 @@ function ChannelDivinityControls({ entry, participant, targets, blocked, asDm, o
           ))}
         </fieldset>
       )}
+    </div>
+  );
+}
+
+/** Channel Divinity's Sacred Weapon option, which imbues one weapon (PHB p.86). */
+const SACRED_WEAPON_OPTION = 'sacred-weapon';
+
+/**
+ * The weapon Sacred Weapon imbues (PHB p.86): one of the participant's weapons from its attack options, an unarmed
+ * strike not being one it holds. Left at the default, the server takes its only weapon, or the only one equipped.
+ */
+function SacredWeaponPicker({ participantId, id, value, onChange }: {
+  participantId: string;
+  id: string;
+  value: string;
+  onChange: (weapon: string) => void;
+}) {
+  const options = useAttackOptions(participantId);
+  const weapons = (options.data ?? []).map(o => o.weapon).filter(name => name !== 'Unarmed Strike');
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <label htmlFor={id} className="text-[11px] text-muted">Weapon</label>
+      <select id={id} value={value} onChange={e => onChange(e.target.value)} className={SMALL_FIELD}
+        disabled={options.isPending}>
+        <option value="">Only or equipped weapon</option>
+        {weapons.map(name => <option key={name} value={name}>{name}</option>)}
+      </select>
     </div>
   );
 }

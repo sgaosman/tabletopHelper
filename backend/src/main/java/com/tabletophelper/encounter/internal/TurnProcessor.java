@@ -39,7 +39,10 @@ import java.util.UUID;
  * actions refill, and each spent Recharge ability rolls its d6; and a Dying PC is due a death save.
  *
  * <p>A turn counted on a creature that has left the encounter, or a dead monster whose turns are skipped,
- * counts on the turn of the creature with the condition instead, so the condition still ends.
+ * counts on the turn of the creature with the condition instead, so the condition still ends. What has no turn left to
+ * count on runs out at the start of each round instead, before the first turn: a dead monster's Spell Effects, such as
+ * the Spiritual Weapon it cast before it died, and a duration that would count on a dead monster's turn when the
+ * creature with the condition is a dead monster too.
  */
 @Component
 @RequiredArgsConstructor
@@ -110,6 +113,7 @@ public class TurnProcessor {
     private void passTo(Encounter encounter, Turn turn, boolean newRound) {
         if (newRound) {
             encounter.setRoundNumber(encounter.getRoundNumber() + 1);
+            startRound(encounter);
         }
         EncounterTurns.moveTo(encounter, turn);
         combatLog.write(encounter, CombatActionType.TURN_ADVANCE, "Turn passes to " + EncounterTurns.name(encounter, turn)
@@ -199,6 +203,40 @@ public class TurnProcessor {
         effectApplier.deathSaveDue(creature);
     }
 
+    // ── The round that starts ────────────────────────────────────
+
+    /*
+     * The top of a new round, before its first turn (D177 follow-up): durations whose clock has no turn left to run on
+     * end here once they have passed, as they would have at the start of their creature's turn. A dead monster's Spell
+     * Effects, and its concentration should it still hold one, count here, since its turns are skipped; so does a
+     * condition with a duration whose counting creature takes no turns, which happens only when the creature with it is
+     * a dead monster too. A creature that has left is no longer in the encounter, and nothing of its is left to count.
+     */
+    private void startRound(Encounter encounter) {
+        int round = encounter.getRoundNumber();
+        for (EncounterParticipant participant : List.copyOf(encounter.getParticipants())) {
+            if (takesTurns(participant)) {
+                continue;
+            }
+            ConcentrationInstance instance = participant.getConcentration();
+            if (instance != null && instance.durationRounds() != null
+                    && round - instance.startedRound() >= instance.durationRounds()) {
+                effectApplier.endConcentration(encounter, participant, "its duration ends");
+            }
+            for (SpellEffectEntry effect : EffectApplier.effects(participant)) {
+                if (effect.expiredBy(round)) {
+                    effectApplier.endEffect(encounter, participant, effect.id(), "its duration ends");
+                }
+            }
+            for (ConditionEntry condition : conditions(participant)) {
+                if (condition.duration() != null && round - condition.appliedRound() >= condition.duration()
+                        && participant.getId().equals(turnCounter(encounter, participant, condition))) {
+                    effectApplier.endCondition(encounter, participant, condition.id(), "its duration ends");
+                }
+            }
+        }
+    }
+
     // ── Whose turn counts ────────────────────────────────────────
 
     /**
@@ -213,8 +251,14 @@ public class TurnProcessor {
         };
         boolean takesTurns = named != null && encounter.getParticipants().stream()
                 .filter(p -> p.getId().equals(named))
-                .anyMatch(p -> p.getLifeState() != LifeState.DEAD || p.getParticipantType() == ParticipantType.PLAYER);
+                .anyMatch(TurnProcessor::takesTurns);
         return takesTurns ? named : participant.getId();
+    }
+
+    /** Whether the creature still takes turns: anyone but a dead monster, whose turns are skipped (D163). */
+    private static boolean takesTurns(EncounterParticipant participant) {
+        return participant.getLifeState() != LifeState.DEAD
+                || participant.getParticipantType() == ParticipantType.PLAYER;
     }
 
     private static boolean isTurnOf(Turn turn, EncounterParticipant participant) {

@@ -27,6 +27,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  *                                    (M17); null for any other entry
  * @param wildShape                   the beast a druid has become, on its {@code wild shape} entry (PHB p.66); null
  *                                    for any other entry
+ * @param weapon                      the one weapon the entry's feature imbues, as Sacred Weapon's (PHB p.86), by the
+ *                                    name the attack options give it, such as "Longsword"; null for any other entry
  */
 public record ConditionEntry(
         @Schema(requiredMode = REQUIRED) UUID id,
@@ -40,8 +42,17 @@ public record ConditionEntry(
         @Schema(requiredMode = REQUIRED) EndRule endRule,
         RepeatSave repeatSave,
         HeldDie heldDie,
-        WildShapeForm wildShape
+        WildShapeForm wildShape,
+        String weapon
 ) {
+
+    /** An entry imbuing no weapon. */
+    public ConditionEntry(UUID id, String name, Integer duration, int appliedRound, String sourceSpellName,
+                          UUID sourceParticipantId, Boolean sourceRequiresConcentration, UUID concentrationInstanceId,
+                          EndRule endRule, RepeatSave repeatSave, HeldDie heldDie, WildShapeForm wildShape) {
+        this(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId, sourceRequiresConcentration,
+                concentrationInstanceId, endRule, repeatSave, heldDie, wildShape, null);
+    }
 
     /** An entry with no beast form. */
     public ConditionEntry(UUID id, String name, Integer duration, int appliedRound, String sourceSpellName,
@@ -106,11 +117,11 @@ public record ConditionEntry(
 
     public ConditionEntry withRepeatSave(RepeatSave save) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
-                sourceRequiresConcentration, concentrationInstanceId, endRule, save, heldDie, wildShape);
+                sourceRequiresConcentration, concentrationInstanceId, endRule, save, heldDie, wildShape, weapon);
     }
 
     public ConditionEntry withHeldDie(HeldDie die) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
-                sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, die, wildShape);
+                sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, die, wildShape, weapon);
     }
 }

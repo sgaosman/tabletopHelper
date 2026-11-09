@@ -448,6 +448,163 @@ class WildShapeTest {
     }
 
     @Nested
+    @DisplayName("The beasts offered")
+    class Offered {
+
+        @Test
+        @DisplayName("The picker leaves out adventure beasts, such as the CR 0 Haungharassk, and beasts without hit "
+                + "points, such as the Boontu Monkey; Wild Shape refuses a beast without hit points")
+        void rulebookBeastsWithHitPoints() {
+            Monster haungharassk = beast("Haungharassk", "0", 52, 12, "{\"walk\": 30}");
+            haungharassk.setSource("WDMM");
+            Monster monkey = beast("Boontu Monkey", "0", 0, 12, "{\"walk\": 30}");
+            monkey.setSource("AWM");
+            Monster ox = beast("Ox", "1/4", 15, 10, "{\"walk\": 30}");
+            ox.setSource("VGM");
+            Monster landBeast = beast("Beast of the Land", "0", 0, 13, "{\"walk\": 40}");
+            landBeast.setSource("MM");
+            lenient().when(f.monsterRepository.findById(landBeast.getId())).thenReturn(Optional.of(landBeast));
+            lenient().when(f.monsterRepository.findByTypeIgnoreCase("beast"))
+                    .thenReturn(List.of(wolf, haungharassk, monkey, ox, landBeast));
+
+            WildShapeOptions options = f.wildShape.options(f.encounterId(), rowan.getId(), f.dmUserId);
+            ConflictException noHp = assertThrows(ConflictException.class, () -> shape(landBeast));
+
+            assertEquals(List.of("Ox", "Wolf"), options.beasts().stream().map(WildShapeOptions.Beast::name).toList());
+            assertEquals(List.of(), options.elementals());
+            assertEquals("Beast of the Land's stat block gives no hit points, so Wild Shape can't take its form",
+                    noHp.getMessage());
+        }
+    }
+
+    @Nested
+    @DisplayName("Elemental Wild Shape (Circle of the Moon 10, PHB p.69)")
+    class ElementalWildShape {
+
+        private static final String SLAM = """
+                {"actions": [
+                   {"name": "Slam", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 8, "attackType": "MELEE_WEAPON",
+                    "effects": [{"effectType": "DAMAGE", "damageDice": "2d8 + 5", "damageType": "bludgeoning"}]}
+                ]}""";
+
+        private Monster air;
+
+        @BeforeEach
+        void moonTen() {
+            druid(rowan, 10, "Circle of the Moon");
+            rowan.setResourcePoolsCurrent(new ArrayList<>(List.of(new ResourcePoolEntry(POOL, "Wild Shape", "CLASS",
+                    null, 2, "2", 2, "shortRest", null, null, "ACTION", "paw-print", Map.of("effect", "wild-shape")))));
+            // The Monster Manual's air elemental (p.124)
+            air = Monster.builder().id(UUID.randomUUID()).name("Air Elemental").type("elemental").challengeRating("5")
+                    .hitPoints(90).armourClass(15).strength(14).dexterity(20).constitution(14).intelligence(6)
+                    .wisdom(10).charisma(6).speed("{\"walk\": 0, \"fly\": 90}").source("MM")
+                    .damageResistances("[\"lightning\", \"thunder\", {\"resist\": [\"bludgeoning\", \"piercing\", "
+                            + "\"slashing\"], \"note\": \"from nonmagical attacks\", \"cond\": true}]")
+                    .damageImmunities("[\"poison\"]")
+                    .conditionImmunities("[\"exhaustion\", \"grappled\", \"paralyzed\", \"petrified\", \"poisoned\", "
+                            + "\"prone\", \"restrained\", \"unconscious\"]")
+                    .build();
+            air.setActionTemplates(MonsterTemplates.parse(SLAM));
+            lenient().when(f.monsterRepository.findById(air.getId())).thenReturn(Optional.of(air));
+            lenient().when(f.monsterRepository.findByNameIgnoreCaseAndSource("Air Elemental", "MM"))
+                    .thenReturn(Optional.of(air));
+        }
+
+        @Test
+        @DisplayName("Two uses at once and a bonus action turn Rowan into an air elemental, with its hit points, AC, "
+                + "defences and condition immunities")
+        void becomesAnAirElemental() {
+            shape(air);
+
+            assertEquals(90, rowan.getHpCurrent());
+            assertEquals(90, rowan.getHpMax());
+            assertEquals(15, rowan.getArmourClass());
+            assertEquals(0, usesLeft(rowan));
+            assertTrue(rowan.getTurnEconomy().bonusActionUsed());
+            assertEquals(0, rowan.getTurnEconomy().actionsUsed());
+            WildShapeForm form = WildShapeForm.of(rowan).orElseThrow();
+            assertEquals("Air Elemental", form.beastName());
+            assertEquals(List.of("lightning", "thunder"), form.damageResistances());
+            assertEquals(List.of("poison"), form.damageImmunities());
+            assertTrue(form.conditionImmunities().containsAll(List.of("grappled", "poisoned", "prone")));
+            assertEquals(Map.of("walk", 0, "fly", 90), form.speed());
+            assertEquals(List.of("Rowan uses Wild Shape ×2 (bonus action): Elemental Wild Shape, two uses at once, "
+                    + "becomes an Air Elemental (CR 5, 90 HP, AC 15) for up to 5 hours; 0/2 left"),
+                    descriptions(CombatActionType.POOL_USE));
+
+            DamageRequest poison = new DamageRequest();
+            poison.setTargetId(rowan.getId());
+            poison.setAmount(12);
+            poison.setDamageType("poison");
+            f.hitPoints.applyDamage(f.encounterId(), poison, null, f.dmUserId);
+            assertEquals(90, rowan.getHpCurrent());
+        }
+
+        @Test
+        @DisplayName("Rowan slams with the elemental's Slam, as with a beast's attack")
+        void elementalAttack() {
+            shape(air);
+            CombatFixture.newTurn(rowan);
+            f.dice.script(12, 4, 4);
+
+            f.monsterActions.monsterAction(f.encounterId(), new MonsterActionRequest(rowan.getId(), "Slam", "ACTION",
+                    List.of(goblin.getId()), null, null, null, null), f.dmUserId);
+
+            assertEquals(30 - 13, goblin.getHpCurrent());
+        }
+
+        @Test
+        @DisplayName("The options list the four elementals for a Moon druid of 10th level only")
+        void options() {
+            WildShapeOptions options = f.wildShape.options(f.encounterId(), rowan.getId(), f.dmUserId);
+            assertEquals(List.of("Air Elemental"),
+                    options.elementals().stream().map(WildShapeOptions.Beast::name).toList());
+
+            druid(rowan, 9, "Circle of the Moon");
+            assertEquals(List.of(), f.wildShape.options(f.encounterId(), rowan.getId(), f.dmUserId).elementals());
+            druid(rowan, 10, "Circle of the Land");
+            assertEquals(List.of(), f.wildShape.options(f.encounterId(), rowan.getId(), f.dmUserId).elementals());
+        }
+
+        @Test
+        @DisplayName("Elemental Wild Shape is refused with one use left, below 10th level and outside the Circle of the "
+                + "Moon, spending nothing")
+        void refusals() {
+            rowan.setResourcePoolsCurrent(new ArrayList<>(List.of(new ResourcePoolEntry(POOL, "Wild Shape", "CLASS",
+                    null, 2, "2", 1, "shortRest", null, null, "ACTION", "paw-print", Map.of("effect", "wild-shape")))));
+            assertThrows(ConflictException.class, () -> shape(air));
+            assertEquals(1, usesLeft(rowan));
+            assertTrue(WildShapeForm.of(rowan).isEmpty());
+
+            druid(rowan, 9, "Circle of the Moon");
+            ConflictException low = assertThrows(ConflictException.class, () -> shape(air));
+            druid(rowan, 10, "Circle of the Land");
+            ConflictException land = assertThrows(ConflictException.class, () -> shape(air));
+
+            assertEquals("Air Elemental is a form only Elemental Wild Shape takes, which needs a Circle of the Moon "
+                    + "druid of level 10, and Rowan isn't one", low.getMessage());
+            assertEquals(low.getMessage(), land.getMessage());
+            assertEquals(1, usesLeft(rowan));
+        }
+
+        @Test
+        @DisplayName("Undoing Elemental Wild Shape gives back both uses and Rowan's own form")
+        void undo() {
+            f.recordCommands();
+            f.started();
+            f.inTransaction(() -> shape(air));
+            CombatCommand shaped = f.commands.getLast();
+
+            f.inTransaction(() -> f.undoService.undo(f.encounterId(), new UndoRequest(shaped.getId(), 1),
+                    f.dmUserId));
+
+            assertTrue(WildShapeForm.of(rowan).isEmpty());
+            assertEquals(20, rowan.getHpCurrent());
+            assertEquals(2, usesLeft(rowan));
+        }
+    }
+
+    @Nested
     @DisplayName("Undo (D176)")
     class Undo {
 

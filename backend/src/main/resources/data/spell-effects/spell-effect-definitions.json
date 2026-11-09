@@ -6131,7 +6131,8 @@
         "halfOnSave": false,
         "damageDice": "1d6",
         "damageType": "fire",
-        "usesUpcastScaling": false
+        "usesUpcastScaling": false,
+        "endsSpellOnSave": true
       }
     ]
   },

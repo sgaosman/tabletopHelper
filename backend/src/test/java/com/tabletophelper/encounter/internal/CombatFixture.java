@@ -130,7 +130,8 @@ class CombatFixture {
     final LegendaryResistanceService legendaryResistance = new LegendaryResistanceService(access, effectApplier,
             resourcePoolService, combatLogRepository, combatCommandRepository, combatLog, encounterRepository,
             encounterService);
-    final ChannelDivinityEffects channelDivinity = new ChannelDivinityEffects(effectApplier, stats, resolver);
+    final ChannelDivinityEffects channelDivinity = new ChannelDivinityEffects(effectApplier, stats, resolver,
+            characterWeapons);
     final WildShapeEffects wildShapeEffects = new WildShapeEffects(monsterRepository, objectMapper, effectApplier);
     final FeatureEffects featureEffects = new FeatureEffects(effectApplier, stats, dice, channelDivinity,
             wildShapeEffects);

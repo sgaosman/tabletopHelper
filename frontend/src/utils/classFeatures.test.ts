@@ -103,6 +103,11 @@ describe('classFeatures: Channel Divinity, Bardic Inspiration and Arcane Recover
     expect(featureMarker(inspired)?.label).toBe('Inspired (d10)');
     expect(featureMarker(inspired)?.description).toMatch(/Kept for the next failed save/);
     expect(featureMarker({ name: 'vow of enmity' })?.label).toBe('Vow of Enmity');
+    // Sacred Weapon names the one weapon it imbues (PHB p.86), and an entry from before it was recorded names none
+    expect(featureMarker({ name: 'sacred weapon', weapon: 'Longsword' })?.label).toBe('Sacred Weapon: Longsword');
+    expect(featureMarker({ name: 'sacred weapon', weapon: 'Longsword' })?.description)
+      .toMatch(/attack rolls with the Longsword/);
+    expect(featureMarker({ name: 'sacred weapon' })?.label).toBe('Sacred Weapon');
   });
 
   it('offers Guided Strike only to a War cleric with Channel Divinity left (PHB p.63)', () => {

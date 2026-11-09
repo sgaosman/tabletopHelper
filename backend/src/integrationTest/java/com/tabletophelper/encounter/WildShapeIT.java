@@ -9,6 +9,8 @@ import com.tabletophelper.reference.ClassFeaturePool;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.reference.ResourcePoolDefinitionRepository;
+import com.tabletophelper.reference.Subclass;
+import com.tabletophelper.reference.SubclassRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,6 +41,7 @@ class WildShapeIT extends IntegrationTest {
     @Autowired private ResourcePoolDefinitionRepository poolDefinitionRepository;
     @Autowired private ClassFeaturePoolRepository classFeaturePoolRepository;
     @Autowired private MonsterRepository monsterRepository;
+    @Autowired private SubclassRepository subclassRepository;
 
     private RegisteredUser dm;
     private RegisteredUser player;
@@ -197,6 +200,85 @@ class WildShapeIT extends IntegrationTest {
         assertThat(restored.get("hpCurrent").asInt()).isEqualTo(before.get("hpCurrent").asInt());
         assertThat(restored.get("hpMax").asInt()).isEqualTo(before.get("hpMax").asInt());
         assertThat(restored.get("armourClass").asInt()).isEqualTo(before.get("armourClass").asInt());
+        assertThat(pool(restored, WILD_SHAPE).get("currentUses").asInt()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("A Circle of the Moon Druid 10 sees the elementals, spends two uses to become an air elemental, slams "
+            + "with its Slam, and undo gives both uses back (PHB p.69)")
+    void elementalWildShape() {
+        CharacterClass druid = characterClassRepository.findAll().stream()
+                .filter(characterClass -> characterClass.getName().equals("Druid")).findFirst().orElseThrow();
+        Subclass moon = subclassRepository.save(Subclass.builder().name("Circle of the Moon").source("PHB")
+                .characterClass(druid).build());
+        Map<String, Object> body = new LinkedHashMap<>(Map.of("name", "Luna", "raceId", insertRace("Elf"),
+                "classId", druid.getId(), "level", 10, "strength", 10, "dexterity", 12, "constitution", 14,
+                "intelligence", 10, "wisdom", 16, "charisma", 8));
+        body.put("campaignId", campaignId);
+        body.put("subclassId", moon.getId());
+        String luna = expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters", body,
+                player.accessToken())).get("id").asString();
+        Monster air = monsterRepository.save(Monster.builder().name("Air Elemental").type("elemental")
+                .challengeRating("5").source("MM").hitPoints(90).armourClass(15).strength(14).dexterity(20)
+                .constitution(14).speed("{\"walk\": 0, \"fly\": 90}")
+                .damageImmunities("[\"poison\"]")
+                .conditionImmunities("[\"grappled\", \"poisoned\", \"prone\"]")
+                .actionTemplates(MonsterTemplates.parse("""
+                        {"actions": [
+                           {"name": "Slam", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 8,
+                            "attackType": "MELEE_WEAPON",
+                            "effects": [{"effectType": "DAMAGE", "damageDice": "2d8 + 5",
+                                         "damageType": "bludgeoning"}]}
+                        ]}"""))
+                .build());
+        Monster goblin = monsterRepository.findByNameIgnoreCaseAndSource("Goblin", "MM").orElseThrow();
+        UUID moonEncounter = createEncounter(dm.accessToken(), campaignId);
+        String lunaId = idOf(addParticipant(dm.accessToken(), moonEncounter,
+                Map.of("participantType", "PLAYER", "characterId", luna, "displayName", "Luna")), "Luna");
+        String targetId = idOf(addParticipant(dm.accessToken(), moonEncounter,
+                Map.of("participantType", "MONSTER", "monsterId", goblin.getId(), "displayName", "Goblin")),
+                "Goblin");
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + moonEncounter + "/initiatives",
+                Map.of("initiatives", List.of(
+                        Map.of("participantId", lunaId, "initiative", 20),
+                        Map.of("participantId", targetId, "initiative", 10))),
+                dm.accessToken()));
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + moonEncounter + "/start", null,
+                dm.accessToken()));
+
+        JsonNode options = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + moonEncounter
+                + "/combat/wild-shape-options?participantId=" + lunaId, null, player.accessToken()));
+        assertThat(options.get("elementals")).hasSize(1);
+        assertThat(options.get("elementals").get(0).get("name").asString()).isEqualTo("Air Elemental");
+
+        Map<String, Object> use = Map.of("participantId", lunaId, "poolId", WILD_SHAPE, "beastId", air.getId());
+        JsonNode shaped = participant(expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/"
+                + moonEncounter + "/combat/use-pool", use, player.accessToken())), lunaId);
+        assertThat(shaped.get("wildShape").get("beastName").asString()).isEqualTo("Air Elemental");
+        assertThat(shaped.get("hpCurrent").asInt()).isEqualTo(90);
+        assertThat(shaped.get("armourClass").asInt()).isEqualTo(15);
+        assertThat(pool(shaped, WILD_SHAPE).get("currentUses").asInt()).isZero();
+        assertThat(shaped.get("turnEconomy").get("bonusActionUsed").asBoolean()).isTrue();
+
+        // The elemental's Slam, on Luna's own turn: 15 + 8 hits, 2d8 + 5 is 3 + 4 + 5
+        dice.script(15, 3, 4);
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + moonEncounter + "/combat/monster-action",
+                Map.of("monsterParticipantId", lunaId, "actionName", "Slam", "actionSource", "ACTION",
+                        "targetParticipantIds", List.of(targetId)), player.accessToken()));
+        JsonNode slammed = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + moonEncounter, null,
+                dm.accessToken()));
+        assertThat(participant(slammed, targetId).get("hpCurrent").asInt()).isEqualTo(188);
+
+        // Undo the slam, then the transformation
+        for (int i = 0; i < 2; i++) {
+            String newest = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + moonEncounter, null,
+                    dm.accessToken())).get("undo").get("commandId").asString();
+            expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + moonEncounter + "/combat/undo",
+                    Map.of("expectedCommandId", newest), dm.accessToken()));
+        }
+        JsonNode restored = participant(expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/"
+                + moonEncounter, null, dm.accessToken())), lunaId);
+        assertThat(restored.get("wildShape").isNull()).isTrue();
         assertThat(pool(restored, WILD_SHAPE).get("currentUses").asInt()).isEqualTo(2);
     }
 

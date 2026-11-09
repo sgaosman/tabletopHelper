@@ -157,7 +157,9 @@ class JsonRoundTripJobIT extends IntegrationTest {
         assertThat(report.changes()).singleElement().asString()
                 .startsWith("changed: encounter_participants.active_conditions " + participantId
                         + " (only fields that are null differ): stored ")
-                .contains("\"participantId\": null");
+                // The excerpt starts at the first difference, the condition entry's weapon since Sacred Weapon's
+                // weapon was recorded; EndRule's participantId comes later
+                .contains("\"weapon\": null");
     }
 
     @Test

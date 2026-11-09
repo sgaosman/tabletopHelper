@@ -131,6 +131,50 @@ describe('Wild Shape (PHB p.66–67)', () => {
     });
   });
 
+  describe('Elemental Wild Shape (Circle of the Moon 10, PHB p.69)', () => {
+    const airElemental = {
+      monsterId: 'monster-air', name: 'Air Elemental', challengeRating: '5', hitPoints: 90, armourClass: 15,
+      speed: { walk: 0, fly: 90 }, size: 'L', source: 'MM',
+    };
+    const fireElemental = { ...airElemental, monsterId: 'monster-fire', name: 'Fire Elemental', hitPoints: 102,
+      armourClass: 13, speed: { walk: 50 } };
+
+    function moonOptions() {
+      server.use(http.get('/api/encounters/:id/combat/wild-shape-options', () => HttpResponse.json(
+        makeMockWildShapeOptions({ druidLevel: 10, circleOfTheMoon: true, maxChallengeRating: '3', cost: 'BONUS_ACTION',
+          flyingAllowed: true, swimmingAllowed: true, elementals: [airElemental, fireElemental] }))));
+    }
+
+    it('offers the elementals beside the beasts and sends the one picked, which spends two uses', async () => {
+      moonOptions();
+      const { onUse, user } = await renderPools(rowan());
+
+      const use = await screen.findByRole('button', { name: 'Use Elemental Wild Shape' });
+      expect(screen.getByRole('option', { name: 'Air Elemental (CR 5, 90 HP, AC 15)' })).toBeInTheDocument();
+      expect(use).toHaveTextContent('Elemental Wild Shape (2 uses)');
+      await user.selectOptions(screen.getByLabelText('Elemental'), 'monster-fire');
+      await user.click(use);
+
+      expect(onUse).toHaveBeenCalledWith(WILD_SHAPE_POOL, { beastId: 'monster-fire' });
+    });
+
+    it('greys Elemental Wild Shape with one use left', async () => {
+      moonOptions();
+      await renderPools(rowan({ resourcePoolsCurrent: [{ ...wildShapePool, currentUses: 1 }] }));
+
+      expect(await screen.findByRole('button', { name: 'Use Elemental Wild Shape' })).toBeDisabled();
+      expect(screen.getByText('Needs two uses of Wild Shape left')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Use Wild Shape' })).toBeEnabled();
+    });
+
+    it('shows no elementals for a druid the server lists none for', async () => {
+      await renderPools(rowan());
+
+      await screen.findByRole('button', { name: 'Use Wild Shape' });
+      expect(screen.queryByRole('button', { name: 'Use Elemental Wild Shape' })).not.toBeInTheDocument();
+    });
+  });
+
   describe('the rules helpers', () => {
     it('reads the Wild Shape pool by its effect, or by its ID for a pool copied before the effect was named', () => {
       expect(poolEffect(wildShapePool)).toBe('wild-shape');

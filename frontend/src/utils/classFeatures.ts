@@ -71,7 +71,7 @@ export function isReckless(participant: EncounterParticipant): boolean {
  * "Reckless" are a class feature's state, not conditions of appendix A.
  */
 export function featureMarker(condition: Pick<ConditionEntry, 'name'>
-  & Partial<Pick<ConditionEntry, 'heldDie' | 'wildShape'>>):
+  & Partial<Pick<ConditionEntry, 'heldDie' | 'wildShape' | 'weapon'>>):
   { label: string; description: string } | null {
   switch (condition.name.trim().toLowerCase()) {
     case RAGING: return { label: 'Raging', description: RAGE_TEXT };
@@ -85,8 +85,10 @@ export function featureMarker(condition: Pick<ConditionEntry, 'name'>
       description: INSPIRATION_TEXT + (condition.heldDie?.onFailedSave ? ' Kept for the next failed save.' : ''),
     };
     case SACRED_WEAPON: return {
-      label: 'Sacred Weapon',
-      description: 'Charisma modifier (at least +1) added to weapon attack rolls for 1 minute (PHB p.86).',
+      label: `Sacred Weapon${condition.weapon ? `: ${condition.weapon}` : ''}`,
+      description: `Charisma modifier (at least +1) added to attack rolls with ${condition.weapon
+        ? `the ${condition.weapon}` : 'the imbued weapon'} for 1 minute; it sheds bright light in a 20-foot radius and `
+        + 'is magical (PHB p.86).',
     };
     case VOW_OF_ENMITY: return {
       label: 'Vow of Enmity',
@@ -284,7 +286,7 @@ export const CHANNEL_DIVINITY_OPTIONS: Record<string, ChannelOption> = {
   },
   'sacred-weapon': {
     label: 'Sacred Weapon', targets: 'none', cost: 'ACTION',
-    description: '+CHA modifier (at least +1) to weapon attack rolls for 1 minute',
+    description: '+CHA modifier (at least +1) to attack rolls with the one weapon imbued, for 1 minute',
   },
   'turn-the-unholy': {
     label: 'Turn the Unholy', targets: 'many', cost: 'ACTION',

@@ -370,6 +370,7 @@ class SpellEffectsTest {
             Map<String, ActionCost> costs = new LinkedHashMap<>();
             Map<String, List<SpellTrigger>> triggers = new LinkedHashMap<>();
             Map<String, Boolean> moves = new LinkedHashMap<>();
+            Set<String> endOnSave = new java.util.HashSet<>();
             try (InputStream in = getClass().getResourceAsStream(
                     "/data/spell-effects/spell-effect-definitions.json")) {
                 assertNotNull(in, "the spell effect templates are on the classpath");
@@ -386,8 +387,14 @@ class SpellEffectsTest {
                     }
                     triggers.put(name, template.effectTriggers().stream()
                             .flatMap(trigger -> trigger.when().stream()).toList());
+                    if (template.effectTriggers().stream().anyMatch(SpellTemplate.EffectTrigger::endsSpellOnSave)) {
+                        endOnSave.add(name);
+                    }
                 }
             }
+            // Only Searing Smite's text ends the spell on a successful save (PHB p.274); Ensnaring Strike's creature
+            // escapes with a Strength check as an action instead (PHB p.237)
+            assertEquals(Set.of("Searing Smite"), endOnSave);
 
             Map<String, ActionCost> expected = new LinkedHashMap<>();
             // PHB p.289, p.220, p.261, p.285, p.242; XGE p.161
@@ -458,6 +465,21 @@ class SpellEffectsTest {
                     {"effectTriggers": [{"damageDice": "1d6"}]}""").unreadable());
             assertNull(SpellTemplate.parse("""
                     {"effectTriggers": [{"when": ["ENTER"]}]}""").unreadable());
+        }
+
+        @Test
+        @DisplayName("A trigger's endsSpellOnSave is read as true or false, false when left out; anything else makes "
+                + "the template unreadable")
+        void endsSpellOnSave() {
+            SpellTemplate ends = SpellTemplate.parse("""
+                    {"effectTriggers": [{"when": ["START_OF_TURN"], "endsSpellOnSave": true}]}""");
+            SpellTemplate goesOn = SpellTemplate.parse("""
+                    {"effectTriggers": [{"when": ["START_OF_TURN"]}]}""");
+
+            assertTrue(ends.effectTriggers().getFirst().endsSpellOnSave());
+            assertFalse(goesOn.effectTriggers().getFirst().endsSpellOnSave());
+            assertNotNull(SpellTemplate.parse("""
+                    {"effectTriggers": [{"when": ["START_OF_TURN"], "endsSpellOnSave": "yes"}]}""").unreadable());
         }
 
         @Test

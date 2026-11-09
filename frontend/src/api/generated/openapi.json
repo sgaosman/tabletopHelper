@@ -7058,6 +7058,10 @@
             "type": "string",
             "nullable": true
           },
+          "weapon": {
+            "type": "string",
+            "nullable": true
+          },
           "wildShape": {
             "nullable": true,
             "allOf": [
@@ -11725,6 +11729,12 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          },
+          "weapon": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -11942,6 +11952,7 @@
           "circleOfTheMoon",
           "druidLevel",
           "durationHours",
+          "elementals",
           "flyingAllowed",
           "swimmingAllowed"
         ],
@@ -11971,6 +11982,12 @@
           "durationHours": {
             "type": "integer",
             "format": "int32"
+          },
+          "elementals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Beast"
+            }
           },
           "flyingAllowed": {
             "type": "boolean"

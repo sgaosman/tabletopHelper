@@ -149,6 +149,16 @@ public class SpellEffects {
                 attackBonus, saveDc, null);
     }
 
+    /**
+     * Whether a successful save against what the spell's area does at that moment ends the spell, as a burning target's
+     * Constitution save does Searing Smite's (PHB p.274): the template's trigger says so with endsSpellOnSave.
+     */
+    public boolean triggerSaveEndsSpell(String spellName, SpellTrigger when) {
+        return template(spellName).flatMap(template -> template.trigger(when))
+                .map(SpellTemplate.EffectTrigger::endsSpellOnSave)
+                .orElse(false);
+    }
+
     // A repeat effect or a trigger as an Effect: the spell's own effect unless it replaces it
     private SpellPlan planFor(SpellTemplate template, String spellName, SpellTemplate.RepeatEffect repeat,
                               boolean ownConditions, int slotLevel, EncounterParticipant caster, String castingAbility,

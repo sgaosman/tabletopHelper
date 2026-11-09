@@ -19,6 +19,7 @@ import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.Outcome;
 import com.tabletophelper.rules.combat.Resolver;
 import com.tabletophelper.rules.combat.RollMode;
+import com.tabletophelper.rules.combat.WeaponRules;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
@@ -63,6 +64,7 @@ public class ChannelDivinityEffects {
     private final EffectApplier effectApplier;
     private final CreatureStats stats;
     private final Resolver resolver;
+    private final CharacterWeapons characterWeapons;
 
     /** The options the participant's Channel Divinity offers now, by its class, level and subclass; none for a monster. */
     public static List<Option> available(EncounterParticipant participant) {
@@ -118,6 +120,9 @@ public class ChannelDivinityEffects {
         if (request.amounts() != null && option.kind() != Kind.PRESERVE_LIFE) {
             throw new ValidationException(option.label() + " takes no amounts");
         }
+        if (request.weapon() != null && option != Option.SACRED_WEAPON) {
+            throw new ValidationException(option.label() + " takes no weapon");
+        }
         int dc = saveDc(user, className);
         String save = " (" + saveName(option, dc) + ")";
         String note = " for " + option.label();
@@ -158,10 +163,15 @@ public class ChannelDivinityEffects {
             }
             case SELF_MARKER, INVISIBLE -> {
                 requireNoTargets(option, targetIds);
-                String bonus = option == Option.SACRED_WEAPON ? " (+" + ChannelDivinity.sacredWeaponBonus(
-                        stats.abilityScore(user, Ability.CHA)) + ")" : "";
+                if (option != Option.SACRED_WEAPON) {
+                    yield new FeatureEffects.Plan(EFFECT, option.id(), option.cost(), 1, user,
+                            note + ": " + option.text(), List.of(user), List.of());
+                }
+                String weapon = sacredWeapon(user, request.weapon());
+                String bonus = " (+" + ChannelDivinity.sacredWeaponBonus(stats.abilityScore(user, Ability.CHA)) + ")";
                 yield new FeatureEffects.Plan(EFFECT, option.id(), option.cost(), 1, user,
-                        note + bonus + ": " + option.text(), List.of(user), List.of());
+                        note + " on the " + weapon + bonus + ": " + option.text(),
+                        List.of(user), List.of(), weapon);
             }
             case LOG -> {
                 if (option == Option.READ_THOUGHTS) {
@@ -227,7 +237,8 @@ public class ChannelDivinityEffects {
             }
             case SELF_MARKER -> effectApplier.addFeatureEntry(user, new ConditionEntry(UUID.randomUUID(),
                     ChannelDivinity.SACRED_WEAPON, ChannelDivinity.MINUTE_ROUNDS, encounter.getRoundNumber(),
-                    option.label(), user.getId(), null, null, EndRule.afterRounds(user.getId()), null));
+                    option.label(), user.getId(), null, null, EndRule.afterRounds(user.getId()), null, null, null,
+                    plan.weapon()));
             case TARGET_MARKER -> mark(encounter, user, plan.targets().getFirst(), option);
             case ON_ATTACK, LOG -> {
             }
@@ -235,6 +246,50 @@ public class ChannelDivinityEffects {
     }
 
     // ── The options ──────────────────────────────────────────────
+
+    /*
+     * The one weapon Sacred Weapon imbues, "one weapon that you are holding" (PHB p.86), by the name the attack options
+     * give it: the one the request names, or the paladin's only weapon, or the only one of several it has equipped. An
+     * unarmed strike isn't a weapon it holds. There is no hand tracking, so any weapon it carries counts as one it can
+     * hold.
+     */
+    private String sacredWeapon(EncounterParticipant user, String named) {
+        PlayerCharacter character = user.getCharacter();
+        List<String> weapons = character == null ? List.of() : characterWeapons.of(character).stream()
+                .map(held -> held.weapon().name())
+                .filter(name -> !name.equalsIgnoreCase(WeaponRules.UNARMED_STRIKE.name()))
+                .toList();
+        if (named != null && !named.isBlank()) {
+            if (named.trim().equalsIgnoreCase(WeaponRules.UNARMED_STRIKE.name())) {
+                throw new ValidationException("Sacred Weapon imbues a weapon " + user.getDisplayName()
+                        + " is holding, not an unarmed strike");
+            }
+            return weapons.stream().filter(name -> name.equalsIgnoreCase(named.trim())).findFirst()
+                    .orElseThrow(() -> new ValidationException(user.getDisplayName() + " has no weapon called "
+                            + named.trim() + (weapons.isEmpty() ? "" : "; their weapons are "
+                            + String.join(", ", weapons))));
+        }
+        if (weapons.isEmpty()) {
+            throw new ConflictException(user.getDisplayName() + " has no weapon for Sacred Weapon to imbue");
+        }
+        if (weapons.size() == 1) {
+            return weapons.getFirst();
+        }
+        List<String> equipped = equipped(character, weapons);
+        if (equipped.size() == 1) {
+            return equipped.getFirst();
+        }
+        throw new ValidationException("Choose the weapon Sacred Weapon imbues: " + String.join(", ", weapons));
+    }
+
+    // The weapons whose inventory entry is marked equipped, by the entry's name
+    private static List<String> equipped(PlayerCharacter character, List<String> weapons) {
+        Set<String> names = character.getEquipment() == null ? Set.of() : character.getEquipment().stream()
+                .filter(entry -> entry != null && Boolean.TRUE.equals(entry.equipped()) && entry.name() != null)
+                .map(entry -> entry.name().trim().toLowerCase(java.util.Locale.ROOT))
+                .collect(Collectors.toSet());
+        return weapons.stream().filter(name -> names.contains(name.toLowerCase(java.util.Locale.ROOT))).toList();
+    }
 
     // Each creature picked makes its Wisdom save, with advantage for one whose stat block resists turning, such as a
     // vampire spawn's Turn Resistance; Destroy Undead destroys a cleric's turned undead of a low enough rating

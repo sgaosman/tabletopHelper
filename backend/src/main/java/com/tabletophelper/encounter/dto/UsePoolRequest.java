@@ -25,8 +25,11 @@ import java.util.UUID;
  *                      one creature (Lay on Hands' the user itself when left out), or those a Channel Divinity option
  *                      affects, such as the undead Turn Undead is used on
  * @param amounts       Preserve Life's hit points for each of targetIds, in the same order; only for Preserve Life
- * @param beastId       the beast Wild Shape turns the druid into, a monster from the wild-shape options; only for
- *                      Wild Shape without an option
+ * @param beastId       the beast Wild Shape turns the druid into, a monster from the wild-shape options, or for a
+ *                      Circle of the Moon druid of 10th level one of the elementals Elemental Wild Shape offers, which
+ *                      spends two uses (PHB p.69); only for Wild Shape without an option
+ * @param weapon        the weapon Sacred Weapon imbues (PHB p.86), as the attack options name it, such as "Longsword";
+ *                      left out, the paladin's only weapon. Only for Sacred Weapon
  */
 public record UsePoolRequest(
         @NotNull UUID participantId,
@@ -35,8 +38,15 @@ public record UsePoolRequest(
         String option,
         @Size(max = 20) List<UUID> targetIds,
         @Size(max = 20) List<@NotNull @Min(1) Integer> amounts,
-        UUID beastId
+        UUID beastId,
+        @Size(max = 200) String weapon
 ) {
+
+    /** Uses of a pool naming no weapon. */
+    public UsePoolRequest(UUID participantId, String poolId, Integer uses, String option, List<UUID> targetIds,
+                          List<Integer> amounts, UUID beastId) {
+        this(participantId, poolId, uses, option, targetIds, amounts, beastId, null);
+    }
 
     /** Uses of a pool with no option and no target. */
     public UsePoolRequest(UUID participantId, String poolId, Integer uses) {

@@ -334,13 +334,20 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      * Moonbeam's save against its damage, or one of its own given as a repeat effect object, such as Hunger of Hadar's
      * cold damage at the start of a turn (PHB p.251).
      *
-     * @param when   the moments it happens: ENTER, START_OF_TURN or END_OF_TURN
-     * @param effect what it does: the spell's own effect when it doesn't replace it
+     * @param when            the moments it happens: ENTER, START_OF_TURN or END_OF_TURN
+     * @param effect          what it does: the spell's own effect when it doesn't replace it
+     * @param endsSpellOnSave whether a successful save against it ends the spell, as Searing Smite's does (PHB p.274);
+     *                        the data's {@code endsSpellOnSave}, false when left out
      */
-    public record EffectTrigger(List<SpellTrigger> when, RepeatEffect effect) {
+    public record EffectTrigger(List<SpellTrigger> when, RepeatEffect effect, boolean endsSpellOnSave) {
 
         public EffectTrigger {
             when = listOf(when);
+        }
+
+        /** A trigger whose save, if any, leaves the spell going. */
+        public EffectTrigger(List<SpellTrigger> when, RepeatEffect effect) {
+            this(when, effect, false);
         }
     }
 
@@ -369,7 +376,8 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
     }
 
     // The triggers the data lists: each an object naming its moments, which replaces the spell's own effect when it
-    // gives a delivery, damage or healing of its own. A moment other than the three makes the template unreadable
+    // gives a delivery, damage or healing of its own, and may say a successful save ends the spell. A moment other than
+    // the three, or an endsSpellOnSave that isn't true or false, makes the template unreadable
     private static List<EffectTrigger> effectTriggers(JsonNode node) {
         if (node == null || node.isNull()) {
             return List.of();
@@ -394,7 +402,11 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             boolean replaces = trigger.has("deliveryMethod") || trigger.has("damageDice") || trigger.has("healingDice");
             RepeatEffect effect = replaces ? RepeatEffect.of(trigger)
                     : new RepeatEffect(false, null, null, null, null, null, null, null, false, null);
-            triggers.add(new EffectTrigger(when, effect));
+            JsonNode ends = trigger.path("endsSpellOnSave");
+            if (!ends.isMissingNode() && !ends.isNull() && !ends.isBoolean()) {
+                throw new IllegalArgumentException("endsSpellOnSave is not true or false");
+            }
+            triggers.add(new EffectTrigger(when, effect, ends.asBoolean(false)));
         }
         return triggers;
     }

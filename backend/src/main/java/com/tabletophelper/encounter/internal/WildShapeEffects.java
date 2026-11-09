@@ -34,9 +34,11 @@ import java.util.regex.Pattern;
  * Wild Shape used at the table (Druid 2, PHB p.66–67), through the druid's Wild Shape pool (M17): the use names the
  * beast, which must be a beast within the Beast Shapes limits of the druid's level ({@link BeastShapes}), and costs an
  * action, or a bonus action for a Circle of the Moon druid (PHB p.69). The option "end" reverts early as a bonus action,
- * spending no use. Whether the druid has seen the beast is the DM's call. While transformed the druid can't start
- * another Wild Shape; its beast's statistics are copied onto the form when it transforms ({@link WildShapeForm}), and
- * {@link EffectApplier} keeps the form's hit points apart from the druid's own.
+ * spending no use. A Circle of the Moon druid of 10th level may name one of the four elementals instead, Elemental Wild
+ * Shape, which spends two uses at once (PHB p.69); an elemental takes the place of a beast in everything that follows,
+ * its defences, condition immunities and actions included. Whether the druid has seen the beast is the DM's call. While
+ * transformed the druid can't start another Wild Shape; its beast's statistics are copied onto the form when it
+ * transforms ({@link WildShapeForm}), and {@link EffectApplier} keeps the form's hit points apart from the druid's own.
  */
 @Component
 @RequiredArgsConstructor
@@ -59,17 +61,18 @@ public class WildShapeEffects {
     /**
      * Checks a use of Wild Shape before anything is charged or spent.
      *
-     * @throws ValidationException for a target, amounts, more than one use, no beast named, or a creature that isn't a
-     *                             beast
-     * @throws ConflictException   for a druid below 2nd level, one already transformed, a beast beyond its limits, a
-     *                             druid not alive, or ending a Wild Shape it isn't in
+     * @throws ValidationException for a target, amounts, more than one use (two for an elemental), no beast named, or a
+     *                             creature that isn't a beast or one of the four elementals
+     * @throws ConflictException   for a druid below 2nd level, one already transformed, a beast beyond its limits or
+     *                             without hit points, an elemental for a druid without Elemental Wild Shape, a druid not
+     *                             alive, or ending a Wild Shape it isn't in. Too few uses left is the pool's own 409
      */
     public FeatureEffects.Plan plan(EncounterParticipant druid, ResourcePoolEntry pool, UsePoolRequest request,
                                     String option, int uses) {
         if (request.targetIds() != null && !request.targetIds().isEmpty() || request.amounts() != null) {
             throw new ValidationException(pool.displayName() + " is used only on " + druid.getDisplayName());
         }
-        if (uses != 1) {
+        if (uses != 1 && (uses != BeastShapes.ELEMENTAL_USES || option != null)) {
             throw new ValidationException(pool.displayName() + " can be used only once at a time");
         }
         Optional<WildShapeForm> current = WildShapeForm.of(druid);
@@ -96,19 +99,45 @@ public class WildShapeEffects {
         BeastShapes.Limit limit = limit(druid);
         Monster beast = monsterRepository.findById(request.beastId())
                 .orElseThrow(() -> new ValidationException("Beast not found"));
+        int level = druidLevel(druid.getCharacter());
+        int hours = BeastShapes.durationHours(level);
+        String lasts = " for up to " + hours + " hour" + (hours == 1 ? "" : "s");
+        if (BeastShapes.elemental(beast.getName(), beast.getSource())) {
+            // Elemental Wild Shape: two uses at the same time, outside the Beast Shapes limits (PHB p.69)
+            if (!BeastShapes.elementalWildShape(level, circleOfTheMoon(druid))) {
+                throw new ConflictException(beast.getName() + " is a form only Elemental Wild Shape takes, which needs a "
+                        + "Circle of the Moon druid of level " + BeastShapes.ELEMENTAL_LEVEL + ", and "
+                        + druid.getDisplayName() + " isn't one");
+            }
+            return new FeatureEffects.Plan(EFFECT, beast.getId().toString(), BeastShapes.cost(true),
+                    BeastShapes.ELEMENTAL_USES, druid, ": Elemental Wild Shape, two uses at once, becomes "
+                    + article(beast.getName()) + " " + beast.getName() + " (CR " + beast.getChallengeRating() + ", "
+                    + beast.getHitPoints() + " HP, AC " + beast.getArmourClass() + ")" + lasts);
+        }
+        if (uses != 1) {
+            throw new ValidationException(pool.displayName() + " can be used only once at a time, except for "
+                    + "Elemental Wild Shape");
+        }
         if (!isBeast(beast)) {
             throw new ValidationException(beast.getName() + " isn't a beast, so Wild Shape can't take its form");
+        }
+        if (beast.getHitPoints() == null || beast.getHitPoints() <= 0) {
+            throw new ConflictException(beast.getName() + "'s stat block gives no hit points, so Wild Shape can't take "
+                    + "its form");
         }
         BeastShapes.refusal(limit, beast.getName(), beast.getChallengeRating(),
                 TurnEconomies.speed(beast, objectMapper)).ifPresent(reason -> {
             throw new ConflictException(reason + " for " + druid.getDisplayName());
         });
-        int level = druidLevel(druid.getCharacter());
-        int hours = BeastShapes.durationHours(level);
         return new FeatureEffects.Plan(EFFECT, beast.getId().toString(), BeastShapes.cost(circleOfTheMoon(druid)), 1,
-                druid, ": becomes a " + beast.getName() + " (CR " + beast.getChallengeRating() + ", "
-                        + beast.getHitPoints() + " HP, AC " + beast.getArmourClass() + ") for up to " + hours + " hour"
-                        + (hours == 1 ? "" : "s"));
+                druid, ": becomes " + article(beast.getName()) + " " + beast.getName() + " (CR "
+                        + beast.getChallengeRating() + ", " + beast.getHitPoints() + " HP, AC " + beast.getArmourClass()
+                        + ")" + lasts);
+    }
+
+    // "a" or "an", by the name's first letter, as for "an Air Elemental"
+    private static String article(String name) {
+        return name != null && !name.isEmpty() && "AEIOUaeiou".indexOf(name.charAt(0)) >= 0 ? "an" : "a";
     }
 
     /** Transforms the druid, or reverts it, once the turn is charged and the pool spent. */
@@ -124,22 +153,29 @@ public class WildShapeEffects {
 
     /**
      * The beasts the druid can become now, by the Beast Shapes limits of its level, in challenge rating then name
-     * order; empty for a creature without Wild Shape.
+     * order, from the rulebooks and with hit points ({@link BeastShapes#offered}); and for a Circle of the Moon druid of
+     * 10th level the four elementals of Elemental Wild Shape (PHB p.69). Empty for a creature without Wild Shape.
      */
     public WildShapeOptions options(EncounterParticipant druid) {
         int level = druidLevel(druid.getCharacter());
         boolean moon = circleOfTheMoon(druid);
         Optional<BeastShapes.Limit> limit = BeastShapes.limit(level, moon);
         if (limit.isEmpty()) {
-            return new WildShapeOptions(level, moon, null, false, false, null, null, 0, List.of());
+            return new WildShapeOptions(level, moon, null, false, false, null, null, 0, List.of(), List.of());
         }
         List<WildShapeOptions.Beast> beasts = new ArrayList<>();
         for (Monster beast : monsterRepository.findByTypeIgnoreCase(BEAST)) {
             Map<String, Integer> speed = TurnEconomies.speed(beast, objectMapper);
-            if (BeastShapes.refusal(limit.get(), beast.getName(), beast.getChallengeRating(), speed).isEmpty()) {
-                beasts.add(new WildShapeOptions.Beast(beast.getId(), beast.getName(), beast.getChallengeRating(),
-                        orZero(beast.getHitPoints()), orZero(beast.getArmourClass()), speed, beast.getSize(),
-                        beast.getSource()));
+            if (BeastShapes.offered(beast.getSource(), beast.getHitPoints())
+                    && BeastShapes.refusal(limit.get(), beast.getName(), beast.getChallengeRating(), speed).isEmpty()) {
+                beasts.add(option(beast, speed));
+            }
+        }
+        List<WildShapeOptions.Beast> elementals = new ArrayList<>();
+        if (BeastShapes.elementalWildShape(level, moon)) {
+            for (String name : BeastShapes.ELEMENTALS) {
+                monsterRepository.findByNameIgnoreCaseAndSource(name, BeastShapes.ELEMENTAL_SOURCE).ifPresent(
+                        elemental -> elementals.add(option(elemental, TurnEconomies.speed(elemental, objectMapper))));
             }
         }
         beasts.sort(Comparator.comparingDouble((WildShapeOptions.Beast beast) ->
@@ -149,7 +185,12 @@ public class WildShapeEffects {
         BeastShapes.Limit max = limit.get();
         return new WildShapeOptions(level, moon, max.label(), max.flyingAllowed(), max.swimmingAllowed(),
                 BeastShapes.cost(moon).name(), WildShapeForm.of(druid).map(WildShapeForm::beastName).orElse(null),
-                BeastShapes.durationHours(level), beasts);
+                BeastShapes.durationHours(level), beasts, elementals);
+    }
+
+    private static WildShapeOptions.Beast option(Monster beast, Map<String, Integer> speed) {
+        return new WildShapeOptions.Beast(beast.getId(), beast.getName(), beast.getChallengeRating(),
+                orZero(beast.getHitPoints()), orZero(beast.getArmourClass()), speed, beast.getSize(), beast.getSource());
     }
 
     /** The beast's statistics as the druid takes them on, with the druid's own hit points, maximum and AC kept. */

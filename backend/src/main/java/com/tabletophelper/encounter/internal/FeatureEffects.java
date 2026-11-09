@@ -97,13 +97,21 @@ public class FeatureEffects {
      * @param targets every creature it affects, for a feature that affects several, such as Turn Undead
      * @param amounts what each of targets gets, in the same order, for a feature that splits something among them, as
      *                Preserve Life splits its healing; empty otherwise
+     * @param weapon  the weapon the feature imbues, as Sacred Weapon's (PHB p.86), as the attack options name it; null
+     *                otherwise
      */
     public record Plan(String effect, String option, ActionCost cost, int spend, EncounterParticipant target,
-                       String note, List<EncounterParticipant> targets, List<Integer> amounts) {
+                       String note, List<EncounterParticipant> targets, List<Integer> amounts, String weapon) {
 
         public Plan {
             targets = targets != null ? List.copyOf(targets) : List.of();
             amounts = amounts != null ? List.copyOf(amounts) : List.of();
+        }
+
+        /** A use that imbues no weapon. */
+        public Plan(String effect, String option, ActionCost cost, int spend, EncounterParticipant target,
+                    String note, List<EncounterParticipant> targets, List<Integer> amounts) {
+            this(effect, option, cost, spend, target, note, targets, amounts, null);
         }
 
         /** A use that affects only its one target. */
@@ -139,13 +147,16 @@ public class FeatureEffects {
         boolean targeted = request.targetIds() != null && !request.targetIds().isEmpty();
         int uses = request.uses() != null ? request.uses() : 1;
         if (effect == null) {
-            if (option != null || targeted || request.beastId() != null) {
-                throw new ValidationException(pool.displayName() + " takes no option, target or beast");
+            if (option != null || targeted || request.beastId() != null || request.weapon() != null) {
+                throw new ValidationException(pool.displayName() + " takes no option, target, beast or weapon");
             }
             return new Plan(null, null, poolCost, uses, user, "");
         }
         if (request.beastId() != null && !WildShapeEffects.EFFECT.equals(effect)) {
             throw new ValidationException(pool.displayName() + " takes no beast");
+        }
+        if (request.weapon() != null && !ChannelDivinityEffects.EFFECT.equals(effect)) {
+            throw new ValidationException(pool.displayName() + " takes no weapon");
         }
         if (ChannelDivinityEffects.EFFECT.equals(effect)) {
             return channelDivinity.plan(encounter, user, pool, request, option, uses, userId, poolCost);

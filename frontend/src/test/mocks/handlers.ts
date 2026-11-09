@@ -596,6 +596,7 @@ export function makeMockWildShapeOptions(overrides: Partial<WildShapeOptions> = 
       monsterId: 'monster-wolf', name: 'Wolf', challengeRating: '1/4', hitPoints: 11, armourClass: 13,
       speed: { walk: 40 }, size: 'M', source: 'MM',
     }],
+    elementals: [],
     ...overrides,
   };
 }

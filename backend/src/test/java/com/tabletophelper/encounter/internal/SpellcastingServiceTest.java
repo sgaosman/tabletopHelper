@@ -1288,6 +1288,80 @@ class SpellcastingServiceTest {
                     wizard.getId(), f.dmUserId));
         }
 
+        // Searing Smite's burning, as the templates have it (PHB p.274): the trigger's own CON save against 1d6 fire
+        private static final String SEARING_SMITE = """
+                {"spellLevel": 1, "deliveryMethod": "SAVING_THROW", "saveAbility": "CON", "concentration": true,
+                 "durationRounds": 10, "requiresManualResolution": true,
+                 "effectTriggers": [{"when": ["START_OF_TURN"], "deliveryMethod": "SAVING_THROW", "saveAbility": "CON",
+                   "halfOnSave": false, "damageDice": "1d6", "damageType": "fire", "usesUpcastScaling": false,
+                   "endsSpellOnSave": true}],
+                 "effects": [{"effectType": "DAMAGE", "damageDice": "1d6", "damageType": "fire"}]}""";
+
+        // The wizard holds Searing Smite on the goblin, which is starting its turn burning
+        private SpellEffectEntry burning() {
+            f.spell("Searing Smite", 1, SEARING_SMITE);
+            ConcentrationInstance smite = ConcentrationInstance.start("Searing Smite", 1, 1, 10);
+            wizard.setConcentration(smite);
+            SpellEffectEntry effect = SpellEffectEntry.start("Searing Smite", 1, smite.id(), 1, 10, null);
+            wizard.setActiveEffects(new ArrayList<>(List.of(effect)));
+            f.turnOf(goblin);
+            return effect;
+        }
+
+        private CastSpellResponse burn(int... dice) {
+            RepeatSpellEffectRequest request = use(List.of(goblin));
+            request.setTrigger(SpellTrigger.START_OF_TURN);
+            f.dice.script(dice);
+            return f.spellcasting.repeatSpellEffect(f.encounterId(), request, wizard.getId(), f.dmUserId);
+        }
+
+        @Test
+        @DisplayName("Searing Smite: a failed CON save at the start of the burning creature's turn takes 1d6 fire, "
+                + "and the spell goes on (PHB p.274)")
+        void searingSmiteBurns() {
+            SpellEffectEntry effect = burning();
+
+            // 1d6 rolls 4, then the save: 3 + the goblin's CON 0 fails against DC 15
+            CastSpellResponse response = burn(4, 3);
+
+            assertEquals("failed_save", response.getTargets().getFirst().getOutcome());
+            assertEquals(16, goblin.getHpCurrent());
+            assertEquals(List.of(effect), wizard.getActiveEffects());
+            assertEquals("Searing Smite", wizard.getConcentration().spell());
+        }
+
+        @Test
+        @DisplayName("Searing Smite: a successful CON save ends the spell, its Spell Effect and its caster's "
+                + "concentration (PHB p.274)")
+        void searingSmiteEndsOnSave() {
+            burning();
+
+            CastSpellResponse response = burn(4, 19);
+
+            assertEquals("saved", response.getTargets().getFirst().getOutcome());
+            assertEquals(20, goblin.getHpCurrent());
+            assertEquals(List.of(), wizard.getActiveEffects());
+            assertNull(wizard.getConcentration());
+            assertTrue(f.descriptions().contains(
+                    "Wizard loses concentration on Searing Smite (Searing Smite ends: Goblin succeeds on the save)"));
+            assertTrue(f.descriptions().contains("Wizard's Searing Smite ends (concentration lost)"));
+        }
+
+        @Test
+        @DisplayName("A successful save against a trigger that doesn't say so, such as Moonbeam's, leaves the spell going")
+        void otherTriggersSaveWithoutEnding() {
+            cast("Moonbeam", 2, List.of(), 1, 1);
+            f.turnOf(goblin);
+            RepeatSpellEffectRequest request = use(List.of(goblin));
+            request.setTrigger(SpellTrigger.START_OF_TURN);
+            f.dice.script(4, 4, 19);
+
+            f.spellcasting.repeatSpellEffect(f.encounterId(), request, wizard.getId(), f.dmUserId);
+
+            assertEquals("Moonbeam", wizard.getConcentration().spell());
+            assertEquals(1, wizard.getActiveEffects().size());
+        }
+
         @Test
         @DisplayName("Losing concentration ends its Spell Effect; Spiritual Weapon, kept up without it, stays")
         void concentrationCascade() {

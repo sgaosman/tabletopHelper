@@ -1,6 +1,7 @@
 package com.tabletophelper.encounter.internal;
 
 import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
@@ -13,6 +14,7 @@ import com.tabletophelper.encounter.dto.AttackRollRequest;
 import com.tabletophelper.encounter.dto.BardicInspirationRequest;
 import com.tabletophelper.encounter.dto.CastSpellRequest;
 import com.tabletophelper.encounter.dto.DamageRequest;
+import com.tabletophelper.encounter.dto.UndoRequest;
 import com.tabletophelper.encounter.dto.UsePoolRequest;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
@@ -492,6 +494,115 @@ class ChannelDivinityEffectsTest {
             assertEquals(5, after.attackBonus());
             assertTrue(after.features().contains("Sacred Weapon +3"));
             assertFalse(before.features().contains("Sacred Weapon +3"));
+        }
+
+        // Aria carries a rapier and a dagger; the dagger's entry is marked equipped when equippedDagger is true
+        private void rapierAndDagger(boolean equippedDagger) {
+            f.weapons(weapon("Rapier", "Melee Weapon", "martial", "1d8", "piercing", "F"),
+                    weapon("Dagger", "Melee Weapon", "simple", "1d4", "piercing", "F", "L", "T"));
+            aria.getCharacter().setEquipment(List.of(new InventoryItem("Rapier", 1, null, null, null, null),
+                    new InventoryItem("Dagger", 1, null, null, equippedDagger ? Boolean.TRUE : null, null)));
+        }
+
+        private Object sacredWeapon(String weapon) {
+            return f.poolUse.usePool(f.encounterId(), new UsePoolRequest(aria.getId(), PALADIN_CD, null, "sacred-weapon",
+                    null, null, null, weapon), f.dmUserId);
+        }
+
+        private AttackOption option(String weapon) {
+            return f.attacks.attackOptions(f.encounterId(), aria.getId(), f.dmUserId).stream()
+                    .filter(option -> option.weapon().equals(weapon)).findFirst().orElseThrow();
+        }
+
+        @Test
+        @DisplayName("Sacred Weapon imbues the one weapon named: only its attacks add the Charisma modifier (PHB p.86)")
+        void sacredWeaponImbuesOneWeapon() {
+            paladin("Oath of Devotion");
+            rapierAndDagger(false);
+
+            sacredWeapon("dagger");
+
+            assertEquals("Dagger", entry(aria, ChannelDivinity.SACRED_WEAPON).weapon());
+            assertTrue(option("Dagger").features().contains("Sacred Weapon +3"));
+            assertFalse(option("Rapier").features().contains("Sacred Weapon +3"));
+            assertFalse(option("Unarmed Strike").features().contains("Sacred Weapon +3"));
+            attack(aria, rapierAt(goblin), 10, 4);
+            assertFalse(descriptions(CombatActionType.ATTACK).getLast().contains("Sacred Weapon"));
+            assertTrue(descriptions(CombatActionType.POOL_USE).getFirst().contains(
+                    "for Sacred Weapon on the Dagger (+3)"));
+            assertTrue(descriptions(CombatActionType.POOL_USE).getFirst().endsWith("the weapon sheds bright light; "
+                    + "0/1 left"));
+        }
+
+        @Test
+        @DisplayName("Left out, the weapon is the paladin's only one, or the only one of several equipped")
+        void sacredWeaponDefaults() {
+            paladin("Oath of Devotion");
+            sacredWeapon(null);
+            assertEquals("Rapier", entry(aria, ChannelDivinity.SACRED_WEAPON).weapon());
+
+            f.effectApplier.endSacredWeapon(f.encounter, aria, "test");
+            aria.setResourcePoolsCurrent(pools(pool(PALADIN_CD, "Channel Divinity", "ACTION", 1, "channel-divinity")));
+            CombatFixture.newTurn(aria);
+            rapierAndDagger(true);
+            sacredWeapon(null);
+            assertEquals("Dagger", entry(aria, ChannelDivinity.SACRED_WEAPON).weapon());
+        }
+
+        @Test
+        @DisplayName("Sacred Weapon is refused, spending nothing, for an unknown weapon, an unarmed strike, a choice "
+                + "left open among several weapons, or no weapon; another option naming a weapon is a 400")
+        void sacredWeaponRefusals() {
+            paladin("Oath of Devotion");
+            rapierAndDagger(false);
+
+            ValidationException unknown = assertThrows(ValidationException.class, () -> sacredWeapon("Glaive"));
+            ValidationException unarmed = assertThrows(ValidationException.class,
+                    () -> sacredWeapon("Unarmed Strike"));
+            ValidationException choose = assertThrows(ValidationException.class, () -> sacredWeapon(null));
+            aria.getCharacter().setEquipment(List.of());
+            ConflictException none = assertThrows(ConflictException.class, () -> sacredWeapon(null));
+            ValidationException turnWithWeapon = assertThrows(ValidationException.class, () -> f.poolUse.usePool(
+                    f.encounterId(), new UsePoolRequest(aria.getId(), PALADIN_CD, null, "turn-the-unholy",
+                            List.of(goblin.getId()), null, null, "Rapier"), f.dmUserId));
+
+            assertEquals("Aria has no weapon called Glaive; their weapons are Rapier, Dagger", unknown.getMessage());
+            assertEquals("Sacred Weapon imbues a weapon Aria is holding, not an unarmed strike", unarmed.getMessage());
+            assertEquals("Choose the weapon Sacred Weapon imbues: Rapier, Dagger", choose.getMessage());
+            assertEquals("Aria has no weapon for Sacred Weapon to imbue", none.getMessage());
+            assertEquals("Turn the Unholy takes no weapon", turnWithWeapon.getMessage());
+            assertEquals(1, usesLeft(aria, PALADIN_CD));
+            assertNull(entry(aria, ChannelDivinity.SACRED_WEAPON));
+        }
+
+        @Test
+        @DisplayName("A Sacred Weapon entry from before the weapon was recorded still counts for every weapon")
+        void sacredWeaponWithoutAWeapon() {
+            paladin("Oath of Devotion");
+            rapierAndDagger(false);
+            aria.setActiveConditions(new ArrayList<>(List.of(new ConditionEntry(UUID.randomUUID(),
+                    ChannelDivinity.SACRED_WEAPON, ChannelDivinity.MINUTE_ROUNDS, 1, "Sacred Weapon", aria.getId(),
+                    null, null, EndRule.afterRounds(aria.getId()), null))));
+
+            assertTrue(option("Dagger").features().contains("Sacred Weapon +3"));
+            assertTrue(option("Rapier").features().contains("Sacred Weapon +3"));
+        }
+
+        @Test
+        @DisplayName("Undo after Sacred Weapon removes the entry and its weapon, and gives the use back (D176)")
+        void undoSacredWeapon() {
+            paladin("Oath of Devotion");
+            rapierAndDagger(false);
+            f.recordCommands();
+            f.started();
+
+            f.inTransaction(() -> sacredWeapon("Dagger"));
+            assertEquals("Dagger", entry(aria, ChannelDivinity.SACRED_WEAPON).weapon());
+            UUID used = f.commands.getLast().getId();
+            f.inTransaction(() -> f.undoService.undo(f.encounterId(), new UndoRequest(used, 1), f.dmUserId));
+
+            assertNull(entry(aria, ChannelDivinity.SACRED_WEAPON));
+            assertEquals(1, usesLeft(aria, PALADIN_CD));
         }
 
         @Test
