@@ -3139,3 +3139,27 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D036, D113, D114, D157, D166, D174, D176, [[Spell Effect]]
 
 **Rehearsal on a copy of the local data (2026-11-09):** V33 applied after V31 and V32; no participant had an `active_spell` or a concentration, so nothing was converted. `json-roundtrip` kept its baseline of 11 null-only changes with 0 unreadable, and the test encounter loaded with empty effect lists. Tests: 2,203 backend unit, 261 integration and 891 frontend; `PreviewMigrationJobIT` seeds rows at V32 and checks V33's conversion.
+
+## D178: Class Feature Automation
+
+**Date:** 2026-11-09
+**Status:** Accepted — workstream A implemented (M17); B (attack riders) and C (Channel Divinity, Bardic Inspiration, Arcane Recovery) planned; Wild Shape and reaction features deferred
+
+**Decision:** class features with a pool get their mechanical effect when used through `use-pool` ([[#D174]]), rather than a new `use-feature` endpoint. The request gains `option` and `targetIds`, and `uses` goes up to 100 for Lay on Hands. A pool's definition in `resource-pools.json` names its effect in `metadata.effect` (`rage`, `second-wind`, `lay-on-hands`, `ki`). Ongoing class states are entries in `active_conditions`, as Dodge's `dodging` is ([[#D162]]), not M15's Spell Effects, whose record is shaped for spells ([[#D177]]). No migration.
+- **Rage** (PHB p.48): a bonus action that ends concentration and lasts 10 rounds; Rage Damage +2/+3/+4 by barbarian level on melee weapon attacks using Strength, not doubled on a crit; resistance to bludgeoning, piercing and slashing; advantage on Strength saves; no spellcasting or concentration while raging, refused for the DM too, like the armour casting ban ([[#D175]]). It ends when the barbarian is knocked unconscious, and automatically at the end of a turn on which they hadn't attacked a hostile creature or taken damage since their last turn, tracked as the turn economy's `attackedOrDamaged`; the end is logged and undoable. `option: "end"` ends it early as a bonus action without spending a use. Starting a rage in heavy armour is refused (409), since the rage would give none of its benefits. Rage's advantage on Strength checks is described but not applied, because the engine rolls no Strength checks.
+- **Reckless Attack** (p.48): chosen on the turn's first attack, offered only for a melee Strength weapon when the character has the feature; that turn's melee Strength attacks have advantage, and attacks against the barbarian have advantage until its next turn (a `reckless` condition entry).
+- **Second Wind** (p.72) heals 1d10 + fighter level, logged with the roll.
+- **Lay on Hands** (p.84) heals the chosen creature by the points spent, or with `option: "cure"` spends 5 per disease or poison and logs it; undead and constructs answer 400, a dead creature 409.
+- **Patient Defense and Step of the Wind** (p.78) spend 1 ki and a bonus action for Dodge, or Dash or Disengage; ki spent without an option works as before.
+- **Undo.** Rage, Reckless Attack and the new flag live in fields the undo snapshot already covers ([[#D176]]).
+- **Later workstreams** (decided 2026-11-09): Divine Smite is chosen after a hit as a follow-up command on that attack (PHB p.85), with dice doubled on a crit; Sneak Attack is once per turn, applied when the attack had advantage or when the player claims an ally next to the target (p.96); fighting styles, Martial Arts and Flurry of Blows, Stunning Strike and Improved Critical follow in B; Channel Divinity, Disciple of Life, Bardic Inspiration and Arcane Recovery in C; Metamagic is M18.
+
+**Rationale:** the pools already counted uses and charged the action economy, so the missing piece was the effect.
+
+**Trade-offs:** existing sheets and participants take the new pool metadata on their next character command, a `recompute-characters` apply or an encounter start; until then those pools spend as before. A Spiritual Weapon attack doesn't count as attacking for keeping a rage going. Danger Sense isn't done.
+
+**Key files:** `rules/combat/ClassFeatures.java`, `encounter/internal/FeatureEffects.java`, `encounter/internal/PoolUseService.java`, `resource-pools.json`, `ResourcePoolDisplay.tsx`, `WeaponAttackForm.tsx`, `utils/classFeatures.ts`
+
+**Related:** D125, D127, D162, D174, D175, D176, D177
+
+**Checks (2026-11-09):** a `recompute-characters` dry run on a copy of the local data found only M13.5's AC changes. Tests: 2,236 backend unit, 264 integration and 900 frontend, including `FeatureEffectsTest` (30 cases) and `FeatureEffectsIT`.

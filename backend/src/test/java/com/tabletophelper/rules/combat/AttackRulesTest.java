@@ -97,4 +97,15 @@ class AttackRulesTest {
     private static List<RollMode> modes(String spaced) {
         return names(spaced).stream().map(RollMode::valueOf).toList();
     }
+
+    @Test
+    @DisplayName("Attacks against a creature that attacked recklessly have advantage (PHB p.48); a Dodge cancels it")
+    void recklessTarget() {
+        assertEquals(new AttackRules.Setup(RollMode.ADVANTAGE, false),
+                AttackRules.setup(List.of(), List.of(ClassFeatures.RECKLESS), true));
+        assertEquals(new AttackRules.Setup(RollMode.NORMAL, false),
+                AttackRules.setup(List.of(), List.of(ClassFeatures.RECKLESS, StandardActions.DODGING), true));
+        assertEquals(new AttackRules.Setup(RollMode.NORMAL, false),
+                AttackRules.setup(List.of(RollMode.DISADVANTAGE), List.of(ClassFeatures.RECKLESS), true));
+    }
 }

@@ -712,8 +712,8 @@ function DmSessionView() {
                   )}
 
                   {/* Resource pools (M24.5), which the DM uses for anyone while the encounter is Active (D174) */}
-                  <ResourcePoolDisplay pools={p.resourcePoolsCurrent} participant={p} asDm
-                    onUse={isActive ? poolId => actions.usePool({ participantId: p.id, poolId }) : undefined} />
+                  <ResourcePoolDisplay pools={p.resourcePoolsCurrent} participant={p} asDm targets={sorted}
+                    onUse={isActive ? (poolId, options) => actions.usePool({ participantId: p.id, poolId, ...options }) : undefined} />
                 </ParticipantRow>
 
                 {/* M12 Inline monster action panel */}

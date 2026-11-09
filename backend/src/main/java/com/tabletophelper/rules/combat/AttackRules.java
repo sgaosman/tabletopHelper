@@ -20,7 +20,8 @@ public final class AttackRules {
      * unconscious or paralyzed target gives advantage, and a hit from within 5 feet is a critical hit. An
      * unconscious creature is also prone, which gives disadvantage from beyond 5 feet, so out there the two
      * cancel and it is attacked normally (PHB appendix A). A target taking the Dodge action gives disadvantage,
-     * the attacker being assumed to see it (PHB p.192, {@link StandardActions#dodging}). The other conditions'
+     * the attacker being assumed to see it (PHB p.192, {@link StandardActions#dodging}). A target that attacked
+     * recklessly gives advantage until its next turn (PHB p.48, {@link ClassFeatures#reckless}). The other conditions'
      * effects on attacks, prone on its own included, are left to the attack's own sources.
      */
     public static Setup setup(Collection<RollMode> sources, Collection<String> targetConditions, boolean withinFiveFeet) {
@@ -31,6 +32,7 @@ public final class AttackRules {
         if (downed) all.add(RollMode.ADVANTAGE);
         if (unconscious && !withinFiveFeet) all.add(RollMode.DISADVANTAGE);
         if (StandardActions.dodging(targetConditions)) all.add(RollMode.DISADVANTAGE);
+        if (ClassFeatures.reckless(targetConditions)) all.add(RollMode.ADVANTAGE);
         return new Setup(RollMode.combine(all), downed && withinFiveFeet);
     }
 

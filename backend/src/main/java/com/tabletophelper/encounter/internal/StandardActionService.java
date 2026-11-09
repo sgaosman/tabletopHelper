@@ -12,7 +12,6 @@ import com.tabletophelper.encounter.dto.ObjectInteractionRequest;
 import com.tabletophelper.encounter.dto.StandardActionCost;
 import com.tabletophelper.encounter.dto.StandardActionRequest;
 import com.tabletophelper.encounter.state.ConditionEntry;
-import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterTemplates;
@@ -68,6 +67,7 @@ public class StandardActionService {
     private final Resolver resolver;
     private final CreatureStats stats;
     private final CombatLogWriter combatLog;
+    private final EffectApplier effectApplier;
     private final ObjectMapper objectMapper;
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
@@ -119,7 +119,7 @@ public class StandardActionService {
                         participant, null);
             }
             case DODGE -> {
-                dodge(encounter, participant);
+                effectApplier.dodge(encounter, participant, Action.DODGE.label());
                 log(encounter, taken + " until the start of its next turn: attacks against it have disadvantage and "
                         + "it has advantage on Dexterity saves.", participant, null);
             }
@@ -172,17 +172,6 @@ public class StandardActionService {
             throw new ValidationException("Help names the creature it helps or distracts");
         }
         return CombatAccess.target(encounter, request.targetId(), userId);
-    }
-
-    // The Dodge's entry, replacing one left from earlier, ending at the start of the dodger's next turn (D162)
-    private static void dodge(Encounter encounter, EncounterParticipant participant) {
-        List<ConditionEntry> conditions = participant.getActiveConditions() != null
-                ? new ArrayList<>(participant.getActiveConditions()) : new ArrayList<>();
-        conditions.removeIf(c -> c != null && StandardActions.DODGING.equalsIgnoreCase(c.name()));
-        conditions.add(new ConditionEntry(UUID.randomUUID(), StandardActions.DODGING, null,
-                encounter.getRoundNumber(), Action.DODGE.label(), participant.getId(), null, null,
-                EndRule.startOfTurn(participant.getId()), null));
-        participant.setActiveConditions(conditions);
     }
 
     // Dexterity (Stealth) from the sheet or the stat block, for the DM to judge against whoever is looking. Armour

@@ -17,17 +17,30 @@ package com.tabletophelper.rules.combat;
  * @param dashed               it has taken the Dash action (advisory)
  * @param disengaged           it has taken the Disengage action (advisory)
  * @param actionSurgeUsed      it has used Action Surge this turn, which it may only once (PHB p.72)
+ * @param attackedOrDamaged    it has attacked or taken damage since its own last turn ended, which keeps a Rage going
+ *                             (PHB p.48). Unlike the rest it isn't spent or refreshed by the turn: the start of the
+ *                             creature's turn keeps it, and the end of that turn clears it
  */
 public record TurnBudget(int actions, int actionsUsed, boolean attackActionTaken, int attacksLeft,
                          boolean bonusActionUsed, boolean reactionUsed, boolean objectInteractionUsed,
                          boolean bonusActionSpellCast, boolean otherSpellCast, boolean dashed, boolean disengaged,
-                         boolean actionSurgeUsed) {
+                         boolean actionSurgeUsed, boolean attackedOrDamaged) {
 
     public TurnBudget {
         if (actions < 0 || actionsUsed < 0 || attacksLeft < 0) {
             throw new IllegalArgumentException("Impossible budget: " + actionsUsed + " of " + actions + " actions, "
                     + attacksLeft + " attacks left");
         }
+    }
+
+    /** A budget that records no attack or damage since the creature's last turn. */
+    public TurnBudget(int actions, int actionsUsed, boolean attackActionTaken, int attacksLeft,
+                      boolean bonusActionUsed, boolean reactionUsed, boolean objectInteractionUsed,
+                      boolean bonusActionSpellCast, boolean otherSpellCast, boolean dashed, boolean disengaged,
+                      boolean actionSurgeUsed) {
+        this(actions, actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed, reactionUsed,
+                objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged, actionSurgeUsed,
+                false);
     }
 
     /** The budget at the start of a creature's turn: one action and nothing spent. */

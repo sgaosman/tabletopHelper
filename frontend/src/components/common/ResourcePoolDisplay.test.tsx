@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { AxiosError, AxiosHeaders } from 'axios';
 import userEvent from '@testing-library/user-event';
-import { makeMockParticipant, makeMockResourcePool } from '../../test/mocks/handlers';
+import { makeMockCondition, makeMockParticipant, makeMockResourcePool } from '../../test/mocks/handlers';
 import type { EncounterParticipant, ResourcePoolEntry } from '../../types/encounter';
 import ResourcePoolDisplay from './ResourcePoolDisplay';
 
@@ -230,6 +230,84 @@ describe('ResourcePoolDisplay', () => {
       await user.click(screen.getByRole('button', { name: 'Use Second Wind' }));
 
       await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Bonus action already used this turn'));
+    });
+  });
+
+  // ── Class features at the table (M17) ────────────────────────────
+
+  describe('class features in an encounter', () => {
+    const feature = (poolId: string, name: string, effect: string, overrides: Partial<ResourcePoolEntry> = {}) =>
+      makeMockResourcePool(poolId, name, { metadata: metadata({ effect }), ...overrides });
+    const ragePool = feature('class:barbarian-rage', 'Rage', 'rage', { maxUses: 3, currentUses: 2, spendActionType: 'BONUS_ACTION' });
+    const kiPool = feature('class:monk-ki', 'Ki Points', 'ki', { maxUses: 5, currentUses: 5, spendActionType: 'FREE' });
+    const layOnHands = feature('class:paladin-lay-on-hands', 'Lay on Hands', 'lay-on-hands', {
+      maxUses: 25, currentUses: 25, spendActionType: 'ACTION',
+    });
+    const hero = (entries: ResourcePoolEntry[], overrides: Partial<EncounterParticipant> = {}) =>
+      makeMockParticipant('part-hero', 'Hero', 'PLAYER', { isCurrentTurn: true, resourcePoolsCurrent: entries, ...overrides });
+
+    function renderPools(participant: EncounterParticipant, targets?: EncounterParticipant[]) {
+      const onUse = vi.fn().mockResolvedValue(undefined);
+      render(<ResourcePoolDisplay pools={participant.resourcePoolsCurrent} participant={participant} onUse={onUse}
+        targets={targets} />);
+      return { onUse, user: userEvent.setup() };
+    }
+
+    it('says what a rage gives while it lasts, and ends it with the end option', async () => {
+      const raging = hero([ragePool], { activeConditions: [makeMockCondition('raging', { duration: 10 })] });
+      const { onUse, user } = renderPools(raging);
+
+      expect(screen.getByRole('status')).toHaveTextContent(/Raging.*resistance to bludgeoning, piercing and slashing/);
+      expect(screen.queryByRole('button', { name: 'Use Rage' })).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'End Rage' }));
+
+      expect(onUse).toHaveBeenCalledWith('class:barbarian-rage', { option: 'end' });
+    });
+
+    it('starts a rage with a plain use, saying what it does', async () => {
+      const { onUse, user } = renderPools(hero([ragePool]));
+
+      expect(screen.getByText('Bonus action: rage for 1 minute')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Use Rage' }));
+
+      expect(onUse).toHaveBeenCalledWith('class:barbarian-rage');
+    });
+
+    it('offers Patient Defense and Step of the Wind for ki, greyed once the bonus action is spent', async () => {
+      const { onUse, user } = renderPools(hero([kiPool]));
+
+      await user.click(screen.getByRole('button', { name: 'Patient Defense' }));
+      expect(onUse).toHaveBeenCalledWith('class:monk-ki', { option: 'patient-defense' });
+      await user.click(screen.getByRole('button', { name: 'Step of the Wind: Disengage' }));
+      expect(onUse).toHaveBeenCalledWith('class:monk-ki', { option: 'step-of-the-wind-disengage' });
+    });
+
+    it('greys the ki options for a player whose bonus action is spent', () => {
+      const spent = hero([kiPool]);
+      renderPools({ ...spent, turnEconomy: { ...spent.turnEconomy!, bonusActionUsed: true } });
+
+      expect(screen.getByRole('button', { name: 'Step of the Wind: Dash' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Use Ki Points' })).toBeEnabled();
+    });
+
+    it("sends Lay on Hands' points, use and creature, and refuses a cure not in fives", async () => {
+      const ally = makeMockParticipant('part-ally', 'Gimli', 'PLAYER');
+      const { onUse, user } = renderPools(hero([layOnHands]), [ally]);
+
+      const points = screen.getByLabelText('Lay on Hands points');
+      await user.clear(points);
+      await user.type(points, '12');
+      await user.selectOptions(screen.getByLabelText('Lay on Hands target'), 'part-ally');
+      await user.click(screen.getByRole('button', { name: 'Use Lay on Hands' }));
+      expect(onUse).toHaveBeenCalledWith('class:paladin-lay-on-hands', { uses: 12, option: 'heal', targetIds: ['part-ally'] });
+
+      await user.selectOptions(screen.getByLabelText('Lay on Hands use'), 'cure');
+      expect(screen.getByRole('button', { name: 'Use Lay on Hands' })).toBeDisabled();
+      await user.clear(points);
+      await user.type(points, '5');
+      await user.selectOptions(screen.getByLabelText('Lay on Hands target'), 'part-hero');
+      await user.click(screen.getByRole('button', { name: 'Use Lay on Hands' }));
+      expect(onUse).toHaveBeenLastCalledWith('class:paladin-lay-on-hands', { uses: 5, option: 'cure', targetIds: undefined });
     });
   });
 });

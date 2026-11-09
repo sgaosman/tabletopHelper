@@ -144,7 +144,7 @@ public final class ActionEconomy {
         }
         return new TurnBudget(budget.actions(), actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed,
                 reactionUsed, budget.objectInteractionUsed(), bonusActionSpellCast, otherSpellCast, budget.dashed(),
-                budget.disengaged(), budget.actionSurgeUsed());
+                budget.disengaged(), budget.actionSurgeUsed(), budget.attackedOrDamaged());
     }
 
     /** The budget with one more action, as Action Surge gives (PHB p.72). */
@@ -152,7 +152,7 @@ public final class ActionEconomy {
         return new TurnBudget(budget.actions() + 1, budget.actionsUsed(), budget.attackActionTaken(),
                 budget.attacksLeft(), budget.bonusActionUsed(), budget.reactionUsed(), budget.objectInteractionUsed(),
                 budget.bonusActionSpellCast(), budget.otherSpellCast(), budget.dashed(), budget.disengaged(),
-                budget.actionSurgeUsed());
+                budget.actionSurgeUsed(), budget.attackedOrDamaged());
     }
 
     /**
@@ -175,7 +175,7 @@ public final class ActionEconomy {
         return new TurnBudget(granted.actions(), granted.actionsUsed(), granted.attackActionTaken(),
                 granted.attacksLeft(), granted.bonusActionUsed(), granted.reactionUsed(),
                 granted.objectInteractionUsed(), granted.bonusActionSpellCast(), granted.otherSpellCast(),
-                granted.dashed(), granted.disengaged(), true);
+                granted.dashed(), granted.disengaged(), true, granted.attackedOrDamaged());
     }
 
     /** The budget with the Dash action taken this turn, which the encounter shows (PHB p.192). */
@@ -183,7 +183,7 @@ public final class ActionEconomy {
         return new TurnBudget(budget.actions(), budget.actionsUsed(), budget.attackActionTaken(), budget.attacksLeft(),
                 budget.bonusActionUsed(), budget.reactionUsed(), budget.objectInteractionUsed(),
                 budget.bonusActionSpellCast(), budget.otherSpellCast(), true, budget.disengaged(),
-                budget.actionSurgeUsed());
+                budget.actionSurgeUsed(), budget.attackedOrDamaged());
     }
 
     /** The budget with the Disengage action taken this turn, which the encounter shows (PHB p.192). */
@@ -191,7 +191,7 @@ public final class ActionEconomy {
         return new TurnBudget(budget.actions(), budget.actionsUsed(), budget.attackActionTaken(), budget.attacksLeft(),
                 budget.bonusActionUsed(), budget.reactionUsed(), budget.objectInteractionUsed(),
                 budget.bonusActionSpellCast(), budget.otherSpellCast(), budget.dashed(), true,
-                budget.actionSurgeUsed());
+                budget.actionSurgeUsed(), budget.attackedOrDamaged());
     }
 
     /**
@@ -217,7 +217,8 @@ public final class ActionEconomy {
     public static TurnBudget objectInteraction(TurnBudget budget) {
         return new TurnBudget(budget.actions(), budget.actionsUsed(), budget.attackActionTaken(), budget.attacksLeft(),
                 budget.bonusActionUsed(), budget.reactionUsed(), true, budget.bonusActionSpellCast(),
-                budget.otherSpellCast(), budget.dashed(), budget.disengaged(), budget.actionSurgeUsed());
+                budget.otherSpellCast(), budget.dashed(), budget.disengaged(), budget.actionSurgeUsed(),
+                budget.attackedOrDamaged());
     }
 
     /**

@@ -24,7 +24,8 @@ public final class SaveRules {
 
     /**
      * How the creature rolls this saving throw: Dexterity saves with advantage while it takes the Dodge action
-     * (PHB p.192, {@link StandardActions#dodging}), and anything else normally.
+     * (PHB p.192, {@link StandardActions#dodging}), Strength saves with advantage while it rages (PHB p.48,
+     * {@link ClassFeatures#raging}), and anything else normally.
      */
     public static RollMode rollMode(Ability ability, Collection<String> conditions) {
         return rollMode(ability, conditions, false);
@@ -38,8 +39,10 @@ public final class SaveRules {
     public static RollMode rollMode(Ability ability, Collection<String> conditions, boolean strDexDisadvantage) {
         RollMode dodge = ability == Ability.DEX && StandardActions.dodging(conditions)
                 ? RollMode.ADVANTAGE : RollMode.NORMAL;
+        RollMode rage = ability == Ability.STR && ClassFeatures.raging(conditions)
+                ? RollMode.ADVANTAGE : RollMode.NORMAL;
         RollMode armour = strDexDisadvantage && (ability == Ability.STR || ability == Ability.DEX)
                 ? RollMode.DISADVANTAGE : RollMode.NORMAL;
-        return RollMode.combine(List.of(dodge, armour));
+        return RollMode.combine(List.of(dodge, rage, armour));
     }
 }

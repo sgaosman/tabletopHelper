@@ -604,11 +604,14 @@ export function makeMockEncounter(overrides: Partial<Encounter> = {}): Encounter
   return { ...encounter, ...overrides };
 }
 
-/** A proficient STR melee weapon at +5 for 1d8 + 3 slashing, without Great Weapon Master or Sharpshooter. */
+/**
+ * A proficient STR melee weapon at +5 for 1d8 + 3 slashing, without Great Weapon Master, Sharpshooter or Reckless
+ * Attack.
+ */
 export function makeMockAttackOption(weapon: string, overrides: Partial<AttackOption> = {}): AttackOption {
   const option = {
     weapon, ability: 'STR', proficient: true, attackBonus: 5, damage: '1d8 + 3', damageType: 'slashing',
-    ranged: false, powerAttack: null,
+    ranged: false, powerAttack: null, recklessAttack: false,
   } satisfies AttackOption;
   return { ...option, ...overrides };
 }

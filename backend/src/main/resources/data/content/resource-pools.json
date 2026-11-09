@@ -10,6 +10,9 @@
       "resetCheck": null,
       "spendActionType": "FREE",
       "description": "Ki points power Flurry of Blows, Patient Defense, Step of the Wind, and Stunning Strike.",
+      "metadata": {
+        "effect": "ki"
+      },
       "icon": "zap"
     },
     {
@@ -71,6 +74,9 @@
       "resetCheck": null,
       "spendActionType": "ACTION",
       "description": "A pool of healing equal to 5 x your paladin level. Touch a creature to restore hit points from it, or spend 5 points to cure one disease or neutralize one poison. No effect on undead and constructs.",
+      "metadata": {
+        "effect": "lay-on-hands"
+      },
       "icon": "heart"
     },
     {
@@ -116,6 +122,9 @@
       "resetCheck": null,
       "spendActionType": "BONUS_ACTION",
       "description": "Regain 1d10 + fighter level HP as a bonus action.",
+      "metadata": {
+        "effect": "second-wind"
+      },
       "icon": "heart"
     },
     {
@@ -187,6 +196,9 @@
       "resetCheck": null,
       "spendActionType": "BONUS_ACTION",
       "description": "Enter a rage for 1 minute. Advantage on STR checks/saves, bonus melee damage, resistance to bludgeoning/piercing/slashing. 2 rages at 1st level, 3 at 3rd, 4 at 6th, 5 at 12th, 6 at 17th, unlimited at 20th.",
+      "metadata": {
+        "effect": "rage"
+      },
       "icon": "flame",
       "levelTable": {
         "levelOf": "Barbarian",

@@ -14,10 +14,13 @@ import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.Charge;
+import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.RollMode;
 import com.tabletophelper.rules.combat.Resolver;
 import com.tabletophelper.rules.combat.WeaponRules;
+import com.tabletophelper.encounter.state.TurnEconomy;
+import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +45,11 @@ import java.util.UUID;
  * first attack opens with the attacker's action; an off-hand attack with a light melee weapon as a bonus action once
  * the Attack action is taken, without a positive ability modifier to its damage (PHB p.195); or an opportunity attack
  * as a reaction, which a player may make on another creature's turn.
+ *
+ * <p>Class features (M17): a raging barbarian adds its Rage Damage to melee weapon attacks using Strength, a flat bonus
+ * that a critical hit doesn't double (PHB p.48, p.196). A barbarian with Reckless Attack may attack recklessly on the
+ * first attack of its turn, giving its melee Strength attacks advantage for the rest of the turn and attacks against it
+ * advantage until its next (PHB p.48). Every attack records that its attacker attacked, which keeps a rage going.
  */
 @Service
 @RequiredArgsConstructor
@@ -58,9 +66,10 @@ public class AttackService {
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
 
-    // An attack ready to resolve: its Effect, how its entry reads, and the Manual Modifiers it uses
+    // An attack ready to resolve: its Effect, how its entry reads, the Manual Modifiers it uses, and whether it starts
+    // the attacker's Reckless Attack for the turn (PHB p.48)
     private record Prepared(Effect effect, String action, String preposition, String subject,
-                            List<ManualModifiers.Use> modifiers) {
+                            List<ManualModifiers.Use> modifiers, boolean startsReckless) {
     }
 
     /**
@@ -77,7 +86,7 @@ public class AttackService {
         EncounterParticipant actor = actorParticipantId != null
                 ? CombatAccess.participant(encounter, actorParticipantId) : null;
         boolean offHand = cost == AttackCost.BONUS_ACTION;
-        Prepared attack = request.getWeapon() != null ? weaponAttack(actor, request, offHand)
+        Prepared attack = request.getWeapon() != null ? weaponAttack(encounter, actor, request, offHand)
                 : enteredAttack(actor, request);
         manualModifiers.require(encounter, userId, attack.modifiers());
         EncounterParticipant target = CombatAccess.target(encounter, request.getTargetId(), userId);
@@ -86,6 +95,10 @@ public class AttackService {
         if (actor != null) {
             economy.charge(encounter, actor, charge(encounter, actor, cost), userId,
                     new ActionEconomyKeeper.Command(CombatActionType.ATTACK, attack.subject() + costNote));
+            effectApplier.markAttackedOrDamaged(actor);
+            if (attack.startsReckless()) {
+                effectApplier.attackRecklessly(encounter, actor);
+            }
         }
 
         EffectApplier.Use use = new EffectApplier.Use(actor, actor != null ? actor.getDisplayName() : "DM",
@@ -126,8 +139,10 @@ public class AttackService {
             powerAttack = new AttackOption.PowerAttackOption(held.powerAttack().featName(), traded.attackBonus(),
                     traded.damage().toString());
         }
+        boolean reckless = FeatureEffects.hasFeature(character, ClassFeatures.RECKLESS_ATTACK)
+                && ClassFeatures.meleeStrengthAttack(weapon.ranged(), numbers.ability());
         return new AttackOption(weapon.name(), numbers.ability(), held.proficient(), numbers.attackBonus(),
-                numbers.damage().toString(), weapon.damageType(), weapon.ranged(), powerAttack);
+                numbers.damage().toString(), weapon.damageType(), weapon.ranged(), powerAttack, reckless);
     }
 
     // What the attack charges: an attack of the Attack action, opening it when none is going; an off-hand attack;
@@ -153,7 +168,8 @@ public class AttackService {
 
     // A player character's attack with a weapon they hold: the numbers are the server's, and what is added to them
     // by hand is a Manual Modifier. An off-hand attack needs a light melee weapon (PHB p.195)
-    private Prepared weaponAttack(EncounterParticipant actor, AttackRollRequest request, boolean offHand) {
+    private Prepared weaponAttack(Encounter encounter, EncounterParticipant actor, AttackRollRequest request,
+                                  boolean offHand) {
         if (request.getAttackBonus() != null || request.getDamageDice() != null || request.getDamageType() != null) {
             throw new ValidationException("A weapon attack takes its numbers from the weapon: add a magic bonus as an "
                     + "extra attack bonus or extra damage");
@@ -177,11 +193,24 @@ public class AttackService {
         }
 
         WeaponRules.Numbers numbers = characterWeapons.numbers(character, held, powerAttack, offHand);
+        boolean meleeStrength = ClassFeatures.meleeStrengthAttack(weapon.ranged(), numbers.ability());
+        boolean ownTurn = EncounterTurns.isCurrentTurn(encounter, actor.getId());
+        List<String> conditions = CreatureStats.conditionNames(actor);
+        boolean alreadyReckless = ClassFeatures.reckless(conditions);
+        boolean startsReckless = Boolean.TRUE.equals(request.getRecklessAttack()) && !alreadyReckless;
+        if (Boolean.TRUE.equals(request.getRecklessAttack())) {
+            requireReckless(actor, weapon, meleeStrength, ownTurn, alreadyReckless);
+        }
+        boolean reckless = ownTurn && meleeStrength && (alreadyReckless || startsReckless);
+        int rageDamage = ClassFeatures.raging(conditions) && meleeStrength
+                ? rageDamage(FeatureEffects.classLevel(character, "Barbarian")) : 0;
+        Dice weaponDamage = rageDamage == 0 ? numbers.damage() : new Dice(numbers.damage().count(),
+                numbers.damage().sides(), numbers.damage().modifier() + rageDamage);
         Dice extraDamage = extraDamage(request);
         String extraType = extraDamage == null ? null
                 : request.getExtraDamageType() != null && !request.getExtraDamageType().isBlank()
                         ? request.getExtraDamageType().trim().toLowerCase() : weapon.damageType();
-        List<Effect.DamagePart> damage = new ArrayList<>(List.of(new Effect.DamagePart(numbers.damage(),
+        List<Effect.DamagePart> damage = new ArrayList<>(List.of(new Effect.DamagePart(weaponDamage,
                 weapon.damageType())));
         if (extraDamage != null) {
             damage.add(new Effect.DamagePart(extraDamage, extraType));
@@ -191,15 +220,51 @@ public class AttackService {
         // There is no map: a melee weapon attacks from within 5 feet, and a ranged one from beyond (D161)
         boolean withinFiveFeet = request.getWithin5Ft() != null ? request.getWithin5Ft() : !weapon.ranged();
         boolean forcedCritical = Boolean.TRUE.equals(request.getForceCrit());
-        String label = weapon.name() + (powerAttack ? " (" + held.powerAttack().featName() + ")" : "");
+        List<String> notes = new ArrayList<>();
+        if (powerAttack) notes.add(held.powerAttack().featName());
+        if (reckless) notes.add(ClassFeatures.RECKLESS_ATTACK);
+        if (rageDamage > 0) notes.add("Rage +" + rageDamage);
+        String label = weapon.name() + (notes.isEmpty() ? "" : " (" + String.join(", ", notes) + ")");
 
         // Every weapon attack uses STR or DEX, so armour worn without proficiency gives it disadvantage (PHB p.144):
-        // one more source, combined with the attacker's choice and the target's conditions at once (PHB p.173)
-        List<RollMode> armour = stats.armourPenalty(actor) ? List.of(RollMode.DISADVANTAGE) : List.of();
+        // one more source, combined with the attacker's choice and the target's conditions at once (PHB p.173), as is
+        // Reckless Attack's advantage (PHB p.48)
+        List<RollMode> sources = new ArrayList<>();
+        if (stats.armourPenalty(actor)) sources.add(RollMode.DISADVANTAGE);
+        if (reckless) sources.add(RollMode.ADVANTAGE);
         Effect effect = new Effect(label, new Effect.Attack(attackBonus, SpellEffects.rollMode(request.getAdvantage()),
-                withinFiveFeet, forcedCritical, null, armour), damage, null, List.of(), false, null);
+                withinFiveFeet, forcedCritical, null, sources), damage, null, List.of(), false, null);
         return new Prepared(effect, "uses " + label, "on", actor.getDisplayName() + "'s " + weapon.name() + " attack",
-                ManualModifiers.forWeaponAttack(request.getExtraAttackBonus(), extraDamage, extraType, forcedCritical));
+                ManualModifiers.forWeaponAttack(request.getExtraAttackBonus(), extraDamage, extraType, forcedCritical),
+                startsReckless);
+    }
+
+    // Reckless Attack is the barbarian's, with a melee weapon attack using Strength, chosen on the first attack of its
+    // own turn (PHB p.48); once chosen, the turn's later attacks may say so again
+    private static void requireReckless(EncounterParticipant actor, WeaponRules.Weapon weapon, boolean meleeStrength,
+                                        boolean ownTurn, boolean alreadyReckless) {
+        if (!FeatureEffects.hasFeature(actor.getCharacter(), ClassFeatures.RECKLESS_ATTACK)) {
+            throw new ValidationException(actor.getDisplayName() + " doesn't have Reckless Attack");
+        }
+        if (!meleeStrength) {
+            throw new ValidationException("Reckless Attack is for melee weapon attacks using Strength, and "
+                    + (weapon == WeaponRules.UNARMED_STRIKE ? "this unarmed strike" : "this " + weapon.name()
+                    + " attack") + " isn't one");
+        }
+        if (!ownTurn) {
+            throw new ConflictException("Reckless Attack is chosen on an attack on " + actor.getDisplayName()
+                    + "'s own turn");
+        }
+        TurnEconomy economy = actor.getTurnEconomy() != null ? actor.getTurnEconomy() : TurnEconomy.fresh();
+        if (!alreadyReckless && economy.attackActionTaken()) {
+            throw new ConflictException("Reckless Attack is chosen on the first attack of the turn, and "
+                    + actor.getDisplayName() + " has already attacked");
+        }
+    }
+
+    // The Rage Damage of the barbarian's level (PHB p.46); none for a creature raging without barbarian levels
+    private static int rageDamage(int barbarianLevel) {
+        return barbarianLevel >= 1 ? ClassFeatures.rageDamage(Math.min(20, barbarianLevel)) : 0;
     }
 
     // An attack whose numbers are all entered by hand: a Manual Modifier as a whole
@@ -212,6 +277,9 @@ public class AttackService {
             throw new ValidationException("Great Weapon Master, Sharpshooter and extra bonuses go with a weapon attack; "
                     + "an attack entered by hand includes them in its numbers");
         }
+        if (Boolean.TRUE.equals(request.getRecklessAttack())) {
+            throw new ValidationException("Reckless Attack goes with a weapon attack, whose numbers the server works out");
+        }
         Dice damage = Dice.parse(request.getDamageDice());
         String damageType = request.getDamageType() != null && !request.getDamageType().isBlank()
                 ? request.getDamageType().trim().toLowerCase() : null;
@@ -222,7 +290,7 @@ public class AttackService {
                 List.of(new Effect.DamagePart(damage, damageType)), null, List.of(), false, null);
         String subject = actor != null ? actor.getDisplayName() + "'s attack" : "The DM's attack";
         return new Prepared(effect, "attacks", "", subject,
-                ManualModifiers.forEnteredAttack(request.getAttackBonus(), damage, damageType, forcedCritical));
+                ManualModifiers.forEnteredAttack(request.getAttackBonus(), damage, damageType, forcedCritical), false);
     }
 
     // The extra damage entered for a weapon attack, such as "1d6" or "+1"; a type alone is a 400

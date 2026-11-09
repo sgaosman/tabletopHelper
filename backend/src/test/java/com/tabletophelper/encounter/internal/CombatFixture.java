@@ -124,10 +124,11 @@ class CombatFixture {
     final LegendaryResistanceService legendaryResistance = new LegendaryResistanceService(access, effectApplier,
             resourcePoolService, combatLogRepository, combatCommandRepository, combatLog, encounterRepository,
             encounterService);
-    final PoolUseService poolUse = new PoolUseService(access, economy, combatLog, encounterRepository,
+    final FeatureEffects featureEffects = new FeatureEffects(effectApplier, stats, dice);
+    final PoolUseService poolUse = new PoolUseService(access, economy, combatLog, featureEffects, encounterRepository,
             encounterService);
     final StandardActionService standardActions = new StandardActionService(access, economy, resolver, stats,
-            combatLog, objectMapper, encounterRepository, encounterService);
+            combatLog, effectApplier, objectMapper, encounterRepository, encounterService);
     final TurnEconomyEditService turnEconomyEdit = new TurnEconomyEditService(access, combatLog, encounterRepository,
             encounterService);
     final TurnProcessor turnProcessor = new TurnProcessor(effectApplier, combatLog);

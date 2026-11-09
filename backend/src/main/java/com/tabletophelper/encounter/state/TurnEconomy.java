@@ -25,6 +25,9 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param disengaged            it has taken the Disengage action (advisory)
  * @param actionSurgeUsed       it has used Action Surge this turn, which it may only once (PHB p.72). Written only
  *                              when true, so a record stored before it existed reads back unchanged, as false
+ * @param attackedOrDamaged     it has attacked or taken damage since its own last turn ended, which keeps a Rage going
+ *                              (PHB p.48, M17). The start of its turn keeps it and the end of that turn clears it.
+ *                              Written only when true, as actionSurgeUsed is
  */
 public record TurnEconomy(
         @Schema(requiredMode = REQUIRED) int actions,
@@ -38,8 +41,19 @@ public record TurnEconomy(
         @Schema(requiredMode = REQUIRED) boolean otherSpellCast,
         @Schema(requiredMode = REQUIRED) boolean dashed,
         @Schema(requiredMode = REQUIRED) boolean disengaged,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean actionSurgeUsed
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean actionSurgeUsed,
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean attackedOrDamaged
 ) {
+
+    /** An economy that records no attack or damage since the creature's last turn. */
+    public TurnEconomy(int actions, int actionsUsed, boolean attackActionTaken, int attacksLeft,
+                       boolean bonusActionUsed, boolean reactionUsed, boolean objectInteractionUsed,
+                       boolean bonusActionSpellCast, boolean otherSpellCast, boolean dashed, boolean disengaged,
+                       boolean actionSurgeUsed) {
+        this(actions, actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed, reactionUsed,
+                objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged, actionSurgeUsed,
+                false);
+    }
 
     /** The economy at the start of a turn: one action and nothing spent. V30's column default is this record. */
     public static TurnEconomy fresh() {
@@ -51,12 +65,19 @@ public record TurnEconomy(
         return new TurnEconomy(budget.actions(), budget.actionsUsed(), budget.attackActionTaken(),
                 budget.attacksLeft(), budget.bonusActionUsed(), budget.reactionUsed(), budget.objectInteractionUsed(),
                 budget.bonusActionSpellCast(), budget.otherSpellCast(), budget.dashed(), budget.disengaged(),
-                budget.actionSurgeUsed());
+                budget.actionSurgeUsed(), budget.attackedOrDamaged());
+    }
+
+    /** The same economy, recording whether the creature has attacked or taken damage since its last turn. */
+    public TurnEconomy withAttackedOrDamaged(boolean value) {
+        return new TurnEconomy(actions, actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed, reactionUsed,
+                objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged, actionSurgeUsed, value);
     }
 
     /** This economy as the rules module's budget. */
     public TurnBudget budget() {
         return new TurnBudget(actions, actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed, reactionUsed,
-                objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged, actionSurgeUsed);
+                objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged, actionSurgeUsed,
+                attackedOrDamaged);
     }
 }

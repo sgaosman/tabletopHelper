@@ -11,6 +11,7 @@ import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ProficiencyBonus;
+import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.Resolver;
@@ -162,7 +163,8 @@ public class CreatureStats {
      * stat block, where only plain damage type names count: a conditional entry, such as resistance to
      * nonmagical attacks, is the DM's call. A player character's come from its sheet, read live: the
      * resistances and immunities its race, features and feats give, and the DM's DEFENCE adjustments, the
-     * only source of its vulnerabilities, so one added during the encounter applies at once (D161).
+     * only source of its vulnerabilities, so one added during the encounter applies at once (D161). Either resists
+     * bludgeoning, piercing and slashing damage while it rages (PHB p.48, M17).
      */
     public Set<Defence> defences(EncounterParticipant participant, String damageType) {
         if (damageType == null || damageType.isBlank()) {
@@ -184,6 +186,10 @@ public class CreatureStats {
             }
         } else if (participant.getCharacter() != null) {
             defences.addAll(DmAdjustments.defences(participant.getCharacter(), type));
+        }
+        // A raging creature resists bludgeoning, piercing and slashing damage (PHB p.48); resistances don't stack
+        if (ClassFeatures.raging(conditionNames(participant)) && ClassFeatures.rageResists(type)) {
+            defences.add(Defence.RESISTANCE);
         }
         return defences;
     }

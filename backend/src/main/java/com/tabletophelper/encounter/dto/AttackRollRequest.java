@@ -48,6 +48,11 @@ public class AttackRollRequest {
     // attack as a bonus action, or an opportunity attack as a reaction, which may be made on another creature's turn
     private AttackCost cost;
 
+    // Reckless Attack (PHB p.48): a barbarian with the feature chooses it on the first attack of its turn, a melee weapon
+    // attack using Strength, for advantage on those attacks this turn and advantage for attacks against it until its
+    // next turn. Once chosen, the turn's other melee Strength attacks have advantage without it
+    private Boolean recklessAttack;
+
     // Whether the attacker is within 5 feet of the target, which makes a hit on an unconscious or paralyzed
     // target a critical hit (D161). There is no map, so leaving it out counts as true, except for a ranged weapon.
     private Boolean within5Ft;

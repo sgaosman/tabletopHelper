@@ -45,4 +45,15 @@ describe('ConditionChips', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Roll CON save' })).toBeInTheDocument());
     expect(screen.getAllByRole('button')).toHaveLength(1);
   });
+
+  it("shows Rage and Reckless Attack as the creature's own features, with what they do (M17)", () => {
+    const grog = makeMockParticipant('p', 'Grog', 'PLAYER', { activeConditions: [
+      makeMockCondition('raging', { duration: 10, appliedRound: 2, sourceSpellName: 'Rage' }),
+      makeMockCondition('reckless', { sourceSpellName: 'Reckless Attack' }),
+    ] });
+    plainRender(<ConditionChips participant={grog} roundNumber={4} />);
+
+    expect(screen.getByText('Raging (8)')).toHaveAttribute('title', expect.stringContaining('resistance to bludgeoning'));
+    expect(screen.getByText('Reckless').getAttribute('title')).toContain('attacks against it have advantage');
+  });
 });

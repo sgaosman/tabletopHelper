@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw';
 import type { ComponentProps } from 'react';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
-import { makeMockEncounter, makeMockParticipant } from '../../test/mocks/handlers';
+import { makeMockAttackOption, makeMockCondition, makeMockEncounter, makeMockParticipant } from '../../test/mocks/handlers';
 import type { EncounterParticipant } from '../../types/encounter';
 import { EncounterProvider } from '../../context/EncounterContext';
 import { queryKeys } from '../../queries/keys';
@@ -156,6 +156,40 @@ describe('WeaponAttackForm', () => {
       rerender(ui(rogue({ turnEconomy: { ...SPENT_ATTACK, actionsUsed: 0, attackActionTaken: false } })));
       rerender(ui(rogue({ turnEconomy: SPENT_ATTACK })));
       expect(screen.getByLabelText('Cost')).toHaveValue('ACTION');
+    });
+  });
+
+  describe('Reckless Attack (PHB p.48)', () => {
+    const barbarianOptions = () => server.use(http.get('/api/encounters/:id/combat/attack-options', () =>
+      HttpResponse.json([makeMockAttackOption('Greataxe', { recklessAttack: true }), makeMockAttackOption('Rapier')])));
+
+    it('offers the toggle only where the server does, and sends it with the first attack', async () => {
+      barbarianOptions();
+      const bodies = attackRequests();
+      const { user } = await renderForm({ attacker: rogue({ turnEconomy: FRESH }) });
+
+      await user.click(await screen.findByRole('button', { name: 'Reckless' }));
+      await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+
+      await waitFor(() => expect(bodies).toHaveLength(1));
+      expect(bodies[0]).toMatchObject({ weapon: 'Greataxe', recklessAttack: true });
+      await user.selectOptions(screen.getByLabelText('Weapon'), 'Rapier');
+      expect(screen.queryByRole('button', { name: 'Reckless' })).not.toBeInTheDocument();
+    });
+
+    it("greys the toggle once the turn's first attack is made", async () => {
+      barbarianOptions();
+      await renderForm({ attacker: rogue({ turnEconomy: { ...FRESH, attackActionTaken: true, attacksLeft: 1 } }) });
+      expect(await screen.findByRole('button', { name: 'Reckless' })).toBeDisabled();
+    });
+
+    it('shows the advantage a reckless barbarian already has this turn', async () => {
+      barbarianOptions();
+      await renderForm({ attacker: rogue({
+        turnEconomy: { ...FRESH, attackActionTaken: true, attacksLeft: 1 },
+        activeConditions: [makeMockCondition('reckless')],
+      }) });
+      expect(await screen.findByText('Reckless: advantage')).toBeInTheDocument();
     });
   });
 });

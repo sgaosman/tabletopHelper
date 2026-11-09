@@ -232,8 +232,9 @@ function PlayerSessionView() {
             the turn (D174) */}
         {myCharacter && (
           <ResourcePoolDisplay pools={myCharacter.resourcePoolsCurrent} participant={myCharacter}
+            targets={encounter.participants}
             onUse={isActive && myCharacter.lifeState === 'ALIVE'
-              ? poolId => actions.usePool({ participantId: myCharacter.id, poolId }) : undefined} />
+              ? (poolId, options) => actions.usePool({ participantId: myCharacter.id, poolId, ...options }) : undefined} />
         )}
 
         {/* Player self-action buttons */}

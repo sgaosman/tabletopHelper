@@ -24,6 +24,7 @@ import com.tabletophelper.encounter.state.SpellSource;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.CastingTime;
 import com.tabletophelper.rules.combat.Charge;
+import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.SpellTrigger;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
@@ -115,7 +116,8 @@ public class SpellcastingService {
         return response(encounter, result, payment.castLevel(), payment.source());
     }
 
-    // A creature wearing armour or a shield it isn't proficient with can't cast spells (PHB p.144)
+    // A creature wearing armour or a shield it isn't proficient with can't cast spells (PHB p.144), nor can one that
+    // rages (PHB p.48)
     private void requireCanCast(EncounterParticipant caster) {
         String reason = castingBan(caster);
         if (reason != null) {
@@ -123,8 +125,12 @@ public class SpellcastingService {
         }
     }
 
-    // Why the caster can't cast spells at all, or null: armour or a shield worn without proficiency (PHB p.144)
+    // Why the caster can't cast spells at all, or null: it rages (PHB p.48), or wears armour or a shield without
+    // proficiency (PHB p.144)
     private String castingBan(EncounterParticipant caster) {
+        if (ClassFeatures.raging(CreatureStats.conditionNames(caster))) {
+            return caster.getDisplayName() + " can't cast spells while raging";
+        }
         List<String> notProficient = stats.armour(caster).notProficient().stream().map(item -> item.getName()).toList();
         return notProficient.isEmpty() ? null : caster.getDisplayName() + " can't cast spells while wearing "
                 + String.join(" and ", notProficient) + " without proficiency";

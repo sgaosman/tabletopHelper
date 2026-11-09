@@ -14,12 +14,14 @@ import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
+import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
 import com.tabletophelper.rules.combat.DamageRules;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.Outcome;
 import com.tabletophelper.rules.combat.Resolver;
+import com.tabletophelper.rules.combat.StandardActions;
 import com.tabletophelper.rules.combat.Vitals;
 import com.tabletophelper.rules.combat.VitalsChange;
 import lombok.RequiredArgsConstructor;
@@ -59,6 +61,12 @@ import java.util.stream.Collectors;
  *   <li>At the turn boundaries {@link TurnProcessor} reaches, it ends conditions, rolls Repeat Saves or waits
  *       for the player's, gives a creature its turn's actions and pools back, and marks a death save due
  *       (D162, D163).</li>
+ *   <li>The class features a creature turns on for itself (M17) are entries among its conditions that only the rules
+ *       read, as the Dodge action's is (D174): Rage ({@link ClassFeatures#RAGING}), which ends its concentration when
+ *       it starts and ends when the creature drops to 0 HP, falls unconscious or dies, or at the end of a turn in which
+ *       it hasn't attacked or taken damage since its last (PHB p.48); and Reckless Attack
+ *       ({@link ClassFeatures#RECKLESS}). Damage the creature takes after its defences records that it was damaged,
+ *       for Rage.</li>
  * </ul>
  */
 @Component
@@ -71,6 +79,8 @@ public class EffectApplier {
     // The conditions that include being incapacitated, which ends concentration (PHB p.203, appendix A)
     private static final Set<String> INCAPACITATING =
             Set.of("incapacitated", "paralyzed", "petrified", "stunned", "unconscious");
+
+    private static final String UNCONSCIOUS = "unconscious";
 
     private final Resolver resolver;
     private final CreatureStats stats;
@@ -224,6 +234,27 @@ public class EffectApplier {
     }
 
     /**
+     * Healing a class feature gives (M17), such as Second Wind or Lay on Hands, written as one HEAL entry that says
+     * where it came from: "Vex regains 12 HP (Second Wind: 1d10(7) + 5)", or for another creature "Aria heals Vex for
+     * 10 HP (Lay on Hands)". The dead regain nothing (D161).
+     */
+    public void heal(Encounter encounter, EncounterParticipant actor, EncounterParticipant target, int amount,
+                     String source) {
+        Vitals before = vitals(target);
+        VitalsChange change = DamageRules.heal(before, amount);
+        setVitals(target, change.vitals());
+        int healed = change.vitals().hp() - before.hp();
+
+        String description = actor == target
+                ? target.getDisplayName() + " regains " + healed + " HP (" + source + ")"
+                : actor.getDisplayName() + " heals " + target.getDisplayName() + " for " + healed + " HP (" + source
+                        + ")";
+        combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.HEAL, description), actor,
+                target).healingDone(healed));
+        afterHealing(encounter, target, change);
+    }
+
+    /**
      * The DM's Set HP / revive (D161): a correction, or the only way back from Dead, with the hit points the
      * revival gives. Temporary hit points are set exactly when given. Dropping a creature to 0 this way has
      * the same consequences as damage, except massive damage.
@@ -323,6 +354,9 @@ public class EffectApplier {
                 + (duration != null ? " (" + duration + " rounds)" : ""), null, target);
         if (INCAPACITATING.contains(name)) {
             endConcentration(encounter, target, name);
+        }
+        if (UNCONSCIOUS.equals(name)) {
+            endRage(encounter, target, UNCONSCIOUS);
         }
     }
 
@@ -436,7 +470,8 @@ public class EffectApplier {
      * each spent Recharge ability, logging the roll (M12, D146).
      */
     public void refreshTurn(Encounter encounter, EncounterParticipant participant) {
-        participant.setTurnEconomy(TurnEconomy.fresh());
+        // Rage asks whether it attacked or took damage since its last turn ended, which the new turn doesn't reset
+        participant.setTurnEconomy(TurnEconomy.fresh().withAttackedOrDamaged(economy(participant).attackedOrDamaged()));
 
         List<ResourcePoolEntry> pools = participant.getResourcePoolsCurrent();
         if (pools == null || pools.isEmpty()) {
@@ -631,6 +666,93 @@ public class EffectApplier {
                 .orElse(0);
     }
 
+    // ── Class features (M17) ─────────────────────────────────────
+
+    /**
+     * The Dodge action's entry, replacing one left from earlier, ending at the start of the dodger's next turn (PHB
+     * p.192, D162, D174), whether it came from the action or from Patient Defense (PHB p.78).
+     *
+     * @param source what took it, which the entry records, such as "Dodge" or "Patient Defense"
+     */
+    public void dodge(Encounter encounter, EncounterParticipant participant, String source) {
+        List<ConditionEntry> conditions = conditions(participant);
+        conditions.removeIf(c -> StandardActions.DODGING.equalsIgnoreCase(c.name()));
+        conditions.add(new ConditionEntry(UUID.randomUUID(), StandardActions.DODGING, null,
+                encounter.getRoundNumber(), source, participant.getId(), null, null,
+                EndRule.startOfTurn(participant.getId()), null));
+        participant.setActiveConditions(conditions);
+    }
+
+    /**
+     * The barbarian starts raging (PHB p.48): its {@link ClassFeatures#RAGING} entry lasts 1 minute, ending at the start
+     * of its turn ten rounds on, and its concentration ends, since a raging creature can't concentrate on spells. The
+     * caller logs the use.
+     */
+    public void startRage(Encounter encounter, EncounterParticipant barbarian) {
+        endConcentration(encounter, barbarian, "starts raging");
+        List<ConditionEntry> conditions = conditions(barbarian);
+        conditions.removeIf(c -> ClassFeatures.RAGING.equalsIgnoreCase(c.name()));
+        conditions.add(new ConditionEntry(UUID.randomUUID(), ClassFeatures.RAGING, ClassFeatures.RAGE_ROUNDS,
+                encounter.getRoundNumber(), "Rage", barbarian.getId(), null, null,
+                EndRule.afterRounds(barbarian.getId()), null));
+        barbarian.setActiveConditions(conditions);
+    }
+
+    /**
+     * Ends the participant's rage, if it rages, writing why, as in "Rage ends on Grog (unconscious)". Nothing happens
+     * when it doesn't rage.
+     */
+    public void endRage(Encounter encounter, EncounterParticipant barbarian, String why) {
+        List<ConditionEntry> conditions = conditions(barbarian);
+        if (!conditions.removeIf(c -> ClassFeatures.RAGING.equalsIgnoreCase(c.name()))) {
+            return;
+        }
+        barbarian.setActiveConditions(conditions.isEmpty() ? null : conditions);
+        combatLog.write(encounter, CombatActionType.CONDITION_REMOVE,
+                "Rage ends on " + barbarian.getDisplayName() + " (" + why + ")", null, barbarian);
+    }
+
+    /**
+     * The barbarian attacks recklessly this turn (PHB p.48): its {@link ClassFeatures#RECKLESS} entry gives its melee
+     * Strength attacks advantage for the rest of the turn and attacks against it advantage, ending at the start of its
+     * next turn. Nothing happens when it already attacks recklessly.
+     */
+    public void attackRecklessly(Encounter encounter, EncounterParticipant barbarian) {
+        List<ConditionEntry> conditions = conditions(barbarian);
+        if (conditions.stream().anyMatch(c -> ClassFeatures.RECKLESS.equalsIgnoreCase(c.name()))) {
+            return;
+        }
+        conditions.add(new ConditionEntry(UUID.randomUUID(), ClassFeatures.RECKLESS, null,
+                encounter.getRoundNumber(), ClassFeatures.RECKLESS_ATTACK, barbarian.getId(), null, null,
+                EndRule.startOfTurn(barbarian.getId()), null));
+        barbarian.setActiveConditions(conditions);
+    }
+
+    /** Records that the participant attacked or took damage, which keeps its rage going past its turn (PHB p.48). */
+    public void markAttackedOrDamaged(EncounterParticipant participant) {
+        TurnEconomy economy = economy(participant);
+        if (!economy.attackedOrDamaged()) {
+            participant.setTurnEconomy(economy.withAttackedOrDamaged(true));
+        }
+    }
+
+    /**
+     * The end of the participant's own turn for Rage (PHB p.48): a rage ends when the creature hasn't attacked a
+     * creature or taken damage since its last turn ended, and the count starts again for the next turn.
+     */
+    public void endTurnForRage(Encounter encounter, EncounterParticipant participant) {
+        TurnEconomy economy = economy(participant);
+        if (!economy.attackedOrDamaged()) {
+            endRage(encounter, participant, "it neither attacked nor took damage since its last turn");
+            return;
+        }
+        participant.setTurnEconomy(economy.withAttackedOrDamaged(false));
+    }
+
+    private static TurnEconomy economy(EncounterParticipant participant) {
+        return participant.getTurnEconomy() != null ? participant.getTurnEconomy() : TurnEconomy.fresh();
+    }
+
     // ── Vitals ───────────────────────────────────────────────────
 
     /** The participant's hit points and life state as the rules read them (D161). */
@@ -671,10 +793,16 @@ public class EffectApplier {
     // and concentration ending at 0 HP or being tested by a CON save
     private void afterDamage(Encounter encounter, EncounterParticipant target, Vitals before, VitalsChange change,
                              int damage) {
+        if (damage > 0) {
+            markAttackedOrDamaged(target);
+        }
         if (change.addUnconsciousAndProne()) {
             addUnconsciousAndProne(encounter, target);
         }
         logLifeChange(encounter, target, before, change);
+        if (change.died()) {
+            endRage(encounter, target, "dead");
+        }
         if (change.concentrationEnds()) {
             endConcentrationAtZero(encounter, target);
         } else if (damage > 0 && target.getConcentration() != null && target.getLifeState() == LifeState.ALIVE) {
@@ -725,6 +853,9 @@ public class EffectApplier {
                 .filter(INCAPACITATING::contains)
                 .findFirst()
                 .ifPresent(name -> endConcentration(encounter, target, name));
+        if (added.stream().anyMatch(c -> UNCONSCIOUS.equalsIgnoreCase(c.name()))) {
+            endRage(encounter, target, UNCONSCIOUS);
+        }
     }
 
     private void concentrationCheck(Encounter encounter, EncounterParticipant target, int damage) {
@@ -757,6 +888,8 @@ public class EffectApplier {
             conditions.add(ConditionEntry.manual("prone", null, encounter.getRoundNumber()));
         }
         target.setActiveConditions(conditions);
+        // Rage ends when the barbarian is knocked unconscious (PHB p.48)
+        endRage(encounter, target, UNCONSCIOUS);
     }
 
     private static void removeUnconsciousFromZeroHp(EncounterParticipant target) {

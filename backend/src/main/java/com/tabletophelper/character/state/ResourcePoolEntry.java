@@ -32,7 +32,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param metadata         extra JSONB data: {@code die}, the pool's die from its level table, such as "d8";
  *                         {@code unlimited}, true for a pool with no limit, such as Rage at Barbarian 20, whose
  *                         spending is never refused; {@code recovers}, the pool a use of this one gives a use back
- *                         to, such as a psionic recovery's Psionic Energy dice (D169)
+ *                         to, such as a psionic recovery's Psionic Energy dice (D169); {@code effect}, what a use
+ *                         does in an encounter beyond spending, such as "rage" or "second-wind" (M17)
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ResourcePoolEntry(

@@ -80,4 +80,13 @@ class SaveRulesTest {
     void dodgeAndArmourCancel() {
         assertEquals(RollMode.NORMAL, SaveRules.rollMode(Ability.DEX, List.of(StandardActions.DODGING), true));
     }
+
+    @Test
+    @DisplayName("A raging creature has advantage on STR saves only (PHB p.48), cancelled by armour's disadvantage")
+    void ragingStrengthSaves() {
+        assertEquals(RollMode.ADVANTAGE, SaveRules.rollMode(Ability.STR, List.of(ClassFeatures.RAGING)));
+        assertEquals(RollMode.NORMAL, SaveRules.rollMode(Ability.DEX, List.of(ClassFeatures.RAGING)));
+        assertEquals(RollMode.NORMAL, SaveRules.rollMode(Ability.CON, List.of(ClassFeatures.RAGING)));
+        assertEquals(RollMode.NORMAL, SaveRules.rollMode(Ability.STR, List.of(ClassFeatures.RAGING), true));
+    }
 }

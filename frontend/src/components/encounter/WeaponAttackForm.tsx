@@ -6,6 +6,7 @@ import { useAttackOptions, useEncounterAction } from '../../queries/encounters';
 import type { AttackOption, AttackRollRequest } from '../../types/combat';
 import type { EncounterParticipant } from '../../types/encounter';
 import { chargeBlock } from '../../utils/turnEconomy';
+import { isReckless, RECKLESS_TEXT } from '../../utils/classFeatures';
 
 const DAMAGE_TYPES = [
   'bludgeoning', 'piercing', 'slashing', 'acid', 'cold', 'fire',
@@ -45,6 +46,8 @@ interface AttackRow {
   cost: AttackCost | null;
   weapon: string;
   powerAttack: boolean;
+  /** Reckless Attack, chosen on the first attack of the barbarian's turn (PHB p.48). */
+  reckless: boolean;
   advantage: boolean | null;
   within5Ft: boolean;
   forceCrit: boolean;
@@ -59,7 +62,7 @@ interface AttackRow {
 // A ranged weapon attacks from beyond 5 feet unless the player says otherwise; there is no map (D161)
 function newRow(option: AttackOption | undefined, cost: AttackCost | null): AttackRow {
   return {
-    cost, weapon: option?.weapon ?? ENTERED, powerAttack: false, advantage: null, within5Ft: !(option?.ranged ?? false),
+    cost, weapon: option?.weapon ?? ENTERED, powerAttack: false, reckless: false, advantage: null, within5Ft: !(option?.ranged ?? false),
     forceCrit: false, extraAttackBonus: '', extraDamageDice: '', extraDamageType: '',
     attackBonus: '', damageDice: '', damageType: '',
   };
@@ -104,6 +107,7 @@ function attackRequest(row: AttackRow & { cost: AttackCost }, option: AttackOpti
     ...common,
     weapon: row.weapon,
     powerAttack: option?.powerAttack && row.powerAttack ? true : undefined,
+    recklessAttack: option?.recklessAttack && row.reckless ? true : undefined,
     extraAttackBonus: extraBonus ? extraBonus : undefined,
     extraDamageDice: extraDamage || undefined,
     extraDamageType: extraDamage && row.extraDamageType ? row.extraDamageType : undefined,
@@ -152,8 +156,14 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
   // A new weapon brings its own reach and drops a trade it doesn't allow
   function chooseWeapon(index: number, weapon: string) {
     const option = optionFor(weapon);
-    update(index, { weapon, powerAttack: false, within5Ft: !(option?.ranged ?? false) });
+    update(index, { weapon, powerAttack: false, reckless: false, within5Ft: !(option?.ranged ?? false) });
   }
+
+  // Reckless Attack is chosen on the first attack of the barbarian's own turn, and lasts the turn (PHB p.48)
+  const alreadyReckless = attacker.isCurrentTurn && isReckless(attacker);
+  const recklessBlock = !attacker.isCurrentTurn ? 'Reckless Attack is chosen on your own turn'
+    : attacker.turnEconomy?.attackActionTaken && !alreadyReckless
+      ? 'Reckless Attack is chosen on the first attack of the turn' : null;
 
   function addRow() {
     if (current.length < 5) setRows([...current, newRow(options[0], defaultCost ?? null)]);
@@ -265,6 +275,18 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
                   -5 / +10
                 </IconButton>
               )}
+              {/* Reckless Attack, where the server offers it: a barbarian's melee attack using Strength (PHB p.48) */}
+              {option?.recklessAttack && (alreadyReckless ? (
+                <span className="self-center px-2 font-body text-[12.5px] font-semibold text-buff" title={RECKLESS_TEXT}>
+                  Reckless: advantage
+                </span>
+              ) : (
+                <button type="button" onClick={() => update(i, { reckless: !row.reckless })} aria-pressed={row.reckless}
+                  disabled={recklessBlock !== null} title={recklessBlock ?? RECKLESS_TEXT}
+                  className={`px-2 py-2 font-body text-[12.5px] font-semibold disabled:opacity-40 ${row.reckless ? 'bg-buff text-card' : TOGGLE_OFF}`}>
+                  Reckless
+                </button>
+              ))}
               {/* A hit on an unconscious or paralyzed target is a critical hit only from within 5 feet (D161) */}
               <button type="button" onClick={() => update(i, { within5Ft: !row.within5Ft })} aria-pressed={row.within5Ft}
                 className={`px-2 py-2 font-body text-[12.5px] font-semibold ${row.within5Ft ? 'bg-cls-wizard text-card' : TOGGLE_OFF}`}>Within 5 ft</button>

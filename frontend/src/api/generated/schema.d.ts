@@ -1892,6 +1892,7 @@ export interface components {
             powerAttack?: components["schemas"]["PowerAttackOption"] | null;
             proficient: boolean;
             ranged: boolean;
+            recklessAttack: boolean;
             weapon: string;
         };
         AttackRollRequest: {
@@ -1908,6 +1909,7 @@ export interface components {
             extraDamageType?: string | null;
             forceCrit?: boolean | null;
             powerAttack?: boolean | null;
+            recklessAttack?: boolean | null;
             /** Format: uuid */
             targetId: string;
             weapon?: string | null;
@@ -3446,6 +3448,7 @@ export interface components {
             /** Format: int32 */
             actionsUsed: number;
             attackActionTaken: boolean;
+            attackedOrDamaged?: boolean | null;
             /** Format: int32 */
             attacksLeft: number;
             bonusActionSpellCast: boolean;
@@ -3499,9 +3502,11 @@ export interface components {
             summary: string;
         };
         UsePoolRequest: {
+            option?: string | null;
             /** Format: uuid */
             participantId: string;
             poolId: string;
+            targetIds?: string[] | null;
             /** Format: int32 */
             uses?: number | null;
         };

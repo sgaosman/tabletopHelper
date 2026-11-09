@@ -27,9 +27,9 @@ import java.util.UUID;
  * starts the next, which past the end of the order starts a new round. Going back only moves the marker,
  * redoing and undoing nothing. The Lair's turn has no processing at either end.
  *
- * <p>The turn that ends: conditions that end at the end of that creature's turn end, on whoever has them,
- * and the creature repeats the save of each of its conditions that has one. The server rolls it, unless the
- * creature is a PC and the campaign prompts players, when the condition waits for the player's roll.
+ * <p>The turn that ends: conditions that end at the end of that creature's turn end, on whoever has them; its
+ * rage ends if it neither attacked nor took damage since its last turn (PHB p.48, M17); and the creature repeats
+ * the save of each of its conditions that has one. The server rolls it, unless the creature is a PC and the campaign prompts players, when the condition waits for the player's roll.
  *
  * <p>The turn that starts: the creature's Concentration Instance ends if its duration has run out, taking
  * its conditions and Spell Effects with it, and so does any other Spell Effect of its whose duration has run out,
@@ -134,6 +134,8 @@ public class TurnProcessor {
                 }
             }
         }
+        // A rage ends with a turn in which the barbarian neither attacked nor took damage since its last (PHB p.48)
+        effectApplier.endTurnForRage(encounter, creature);
 
         if (creature.getLifeState() == LifeState.DEAD) {
             return;

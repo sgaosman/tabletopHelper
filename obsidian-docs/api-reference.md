@@ -1555,6 +1555,8 @@ It costs the pool's `spendActionType`: `ACTION`, `BONUS_ACTION` or `REPLACE_ATTA
 - `403` — a player using another participant's pool, or one that costs an action or bonus action off the participant's turn ("You can only take that action on your turn")
 - `409` — the pool hasn't the uses; the pool it recovers has none to regain; a player's use the turn can't pay for, or a second Action Surge in a turn; or the encounter isn't ACTIVE
 
+**Class features (M17, D178):** the body also takes `option` and `targetIds`, and `uses` may be up to 100. A pool whose definition names an effect applies it: Rage (`option: "end"` ends it early as a bonus action; 409 in heavy armour), Second Wind heals 1d10 + fighter level, Lay on Hands heals the target by `uses` points or with `option: "cure"` spends 5 per cure (400 for undead and constructs, 409 for the dead), and Ki with `option` `dodge`, `dash` or `disengage` is Patient Defense or Step of the Wind. The weapon attack request gains `recklessAttack`.
+
 ### POST /encounters/{id}/combat/standard-action
 
 Take one of the standard actions of PHB p.192–193 other than Attack and Cast a Spell (M13, D174). The DM may act for any participant, a player only for their own and only on its turn (403 "You can only take that action on your turn").

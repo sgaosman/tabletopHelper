@@ -31,6 +31,10 @@ import java.util.UUID;
  * turn (PHB p.72). The spend follows the one rule the sheet uses too (ResourcePoolService.spend): an unlimited pool is
  * never refused, and Psionic Recovery gives back a die of the pool it names, refused when none is expended.
  * <p>
+ * A pool whose metadata names an {@code effect} also does what its class feature does (M17, {@link FeatureEffects}):
+ * Rage starts or ends a rage, Second Wind and Lay on Hands heal, and Ki's options take the Dodge, Dash or Disengage
+ * action as a bonus action. The feature's refusals come before anything is charged, as the pool's own do.
+ * <p>
  * Pools spent inside other commands, such as a monster's legendary actions or a recharge, are charged with their
  * command and never come through here.
  */
@@ -41,6 +45,7 @@ public class PoolUseService {
     private final CombatAccess access;
     private final ActionEconomyKeeper economy;
     private final CombatLogWriter combatLog;
+    private final FeatureEffects featureEffects;
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
 
@@ -48,9 +53,11 @@ public class PoolUseService {
      * Uses the pool: everything is checked, and the use charged to the participant's turn economy, before the pool
      * changes.
      *
-     * @throws ValidationException for a pool the participant hasn't, or more than one use of Action Surge at once
+     * @throws ValidationException for a pool the participant hasn't, more than one use of Action Surge at once, or
+     *                             an option or target its feature doesn't take (FeatureEffects)
      * @throws com.tabletophelper.shared.ConflictException when the pool hasn't the uses, the pool it recovers has
-     *                                                     none to regain, or a player's use is over budget
+     *                                                     none to regain, its feature refuses, or a player's use is
+     *                                                     over budget
      */
     @Transactional
     public EncounterResponse usePool(UUID encounterId, UsePoolRequest request, UUID userId) {
@@ -59,7 +66,8 @@ public class PoolUseService {
         Encounter encounter = access.beginFor(encounterId, request.participantId(), userId);
         EncounterParticipant participant = CombatAccess.participant(encounter, request.participantId());
         ResourcePoolEntry pool = pool(participant, request.poolId());
-        ActionCost cost = costOf(pool);
+        FeatureEffects.Plan plan = featureEffects.plan(encounter, participant, pool, request, userId, costOf(pool));
+        ActionCost cost = plan.cost();
         boolean grantsAction = grantsAction(pool);
         // Action Surge is used on the participant's own turn, though it costs nothing from it
         access.requireTurnForActionCost(encounter, participant.getId(), userId,
@@ -67,8 +75,11 @@ public class PoolUseService {
         if (grantsAction && uses != 1) {
             throw new ValidationException(pool.displayName() + " can be used only once at a time");
         }
-        List<ResourcePoolEntry> spent = ResourcePoolService.spend(participant.getResourcePoolsCurrent(),
-                pool.poolId(), uses, participant.getDisplayName());
+        // Ending a rage spends nothing
+        List<ResourcePoolEntry> spent = plan.spend() > 0
+                ? ResourcePoolService.spend(participant.getResourcePoolsCurrent(), pool.poolId(), plan.spend(),
+                        participant.getDisplayName())
+                : participant.getResourcePoolsCurrent();
 
         boolean ownTurn = EncounterTurns.isCurrentTurn(encounter, participant.getId());
         String costNote = costNote(cost);
@@ -82,8 +93,12 @@ public class PoolUseService {
         }
         participant.setResourcePoolsCurrent(spent);
 
-        combatLog.write(encounter, CombatActionType.POOL_USE, describe(participant, pool, uses, costNote, spent,
-                grantsAction), participant, null);
+        String description = plan.spend() == 0
+                ? participant.getDisplayName() + " ends their " + pool.displayName() + costNote
+                : describe(participant, pool, plan.spend(), costNote, spent, grantsAction, plan.note());
+        combatLog.write(encounter, CombatActionType.POOL_USE, description, participant,
+                plan.target() != participant ? plan.target() : null);
+        featureEffects.apply(encounter, participant, plan);
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 
@@ -139,13 +154,13 @@ public class PoolUseService {
 
     // Such as "Vex uses Psionic Recovery (bonus action) and regains a use of Psionic Energy Dice (4/4); 0/1 left"
     private static String describe(EncounterParticipant participant, ResourcePoolEntry pool, int uses, String costNote,
-                                   List<ResourcePoolEntry> spent, boolean grantsAction) {
+                                   List<ResourcePoolEntry> spent, boolean grantsAction, String note) {
         StringBuilder text = new StringBuilder(participant.getDisplayName()).append(" uses ")
                 .append(pool.displayName());
         if (uses > 1) {
             text.append(" ×").append(uses);
         }
-        text.append(costNote);
+        text.append(costNote).append(note);
         if (grantsAction) {
             text.append(" and takes an additional action");
         }
