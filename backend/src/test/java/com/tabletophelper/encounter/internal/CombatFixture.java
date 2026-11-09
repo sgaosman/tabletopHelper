@@ -131,6 +131,8 @@ class CombatFixture {
             combatLog, effectApplier, objectMapper, encounterRepository, encounterService);
     final TurnEconomyEditService turnEconomyEdit = new TurnEconomyEditService(access, combatLog, encounterRepository,
             encounterService);
+    final HitFollowUpService hitFollowUps = new HitFollowUpService(access, resolver, stats, effectApplier, economy,
+            combatLog, encounterRepository, encounterService);
     final TurnProcessor turnProcessor = new TurnProcessor(effectApplier, combatLog);
     final TurnService turns = new TurnService(access, turnProcessor, encounterRepository, encounterService);
     final UndoService undoService = new UndoService(encounterCommands, commandRecorder, combatLog, combatLogRepository,
@@ -339,6 +341,13 @@ class CombatFixture {
                 : "{\"tags\": [" + String.join(", ", Arrays.stream(tags).map(tag -> "\"" + tag + "\"").toList()) + "]}";
         return Item.builder().id(UUID.randomUUID()).name(name).type(type).subtype(category).damageDice(dice)
                 .damageType(damageType).properties(properties).source("PHB").build();
+    }
+
+    /** A versatile weapon row, its two-handed damage kept as ItemLoader keeps 5etools' dmg2. */
+    static Item versatileWeapon(String name, String category, String dice, String twoHanded, String damageType) {
+        return Item.builder().id(UUID.randomUUID()).name(name).type("Melee Weapon").subtype(category).damageDice(dice)
+                .damageType(damageType).properties("{\"tags\": [\"V\"], \"versatile_damage\": \"" + twoHanded + "\"}")
+                .source("PHB").build();
     }
 
     /** A level history entry recording a feat taken instead of an Ability Score Improvement. */

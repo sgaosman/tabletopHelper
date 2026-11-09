@@ -5,10 +5,14 @@ import com.tabletophelper.encounter.CombatCommand;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.EncounterStatus;
+import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.SpellSlot;
+import com.tabletophelper.encounter.dto.AttackRollRequest;
 import com.tabletophelper.encounter.dto.CastSpellRequest;
 import com.tabletophelper.encounter.dto.ConditionRequest;
 import com.tabletophelper.encounter.dto.DamageRequest;
+import com.tabletophelper.encounter.dto.DivineSmiteRequest;
 import com.tabletophelper.encounter.dto.UndoRequest;
 import com.tabletophelper.encounter.state.ParticipantCombatState;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
@@ -100,6 +104,39 @@ class UndoServiceTest {
         assertTrue(CombatFixture.conditionNames(fighter).isEmpty());
         assertEquals(3, f.entries(CombatActionType.UNDO).size());
         assertTrue(f.commandRecorder.undoInfo(f.encounter).isEmpty());
+    }
+
+    @Test
+    @DisplayName("Undoing Divine Smite gives back the slot and the hit's damage, and the hit may be smitten again (M17)")
+    void undoesDivineSmite() {
+        goblin.setHpMax(40);
+        goblin.setHpCurrent(40);
+        fighter.getCharacter().setMulticlassEntries(List.of(new ClassEntry(
+                UUID.randomUUID(), "Paladin", null, null, 5)));
+        fighter.getCharacter().setStrength(16);
+        fighter.getCharacter().setWeaponProficiencies(List.of("martial"));
+        fighter.getCharacter().setEquipment(List.of(new InventoryItem("Longsword", 1,
+                null, null, null, null)));
+        f.weapons(CombatFixture.weapon("Longsword", "Melee Weapon", "martial", "1d8", "slashing"));
+        fighter.setSpellSlotsCurrent(Map.of("1", new SpellSlot(2, 0)));
+        f.turnOf(fighter);
+        AttackRollRequest attack = new AttackRollRequest();
+        attack.setTargetId(goblin.getId());
+        attack.setWeapon("Longsword");
+        f.dice.script(15, 4);
+        f.inTransaction(() -> f.attacks.rollAttack(f.encounterId(), attack, fighter.getId(), f.dmUserId));
+        int afterHit = goblin.getHpCurrent();
+        f.dice.script(3, 5);
+        f.inTransaction(() -> f.hitFollowUps.divineSmite(f.encounterId(),
+                new DivineSmiteRequest(fighter.getId(), 1, null, null), f.dmUserId));
+        assertEquals(afterHit - 8, goblin.getHpCurrent());
+        assertTrue(fighter.getTurnEconomy().lastMeleeHit().smitten());
+
+        undo(1);
+
+        assertEquals(afterHit, goblin.getHpCurrent());
+        assertEquals(new SpellSlot(2, 0), fighter.getSpellSlotsCurrent().get("1"));
+        assertFalse(fighter.getTurnEconomy().lastMeleeHit().smitten());
     }
 
     @Test

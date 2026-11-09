@@ -745,6 +745,24 @@ class CharacterStatsTest {
         }
 
         @Test
+        @DisplayName("The Defense fighting style adds 1 while armour is worn (PHB p.72): Chain Mail 16 + 1, but not "
+                + "unarmoured or with a shield alone")
+        void defenseStyle() {
+            PlayerCharacter pc = armoured(equipped(chainMail));
+            pc.setStrength(13);
+            pc.setFeatures(List.of(new Feature("Fighting Style: Defense", "+1 AC in armour", "Fighter")));
+
+            assertThat(stats.derive(pc).armourClass()).isEqualTo(17);
+            assertThat(stats.armourClassBreakdown(pc).parts()).containsExactly(
+                    new ArmourClassBreakdown.Part("Chain Mail", 16), new ArmourClassBreakdown.Part("Defense", 1));
+
+            pc.setEquipment(List.of(equipped(shield)));
+            assertThat(stats.derive(pc).armourClass()).isEqualTo(14);
+            pc.setEquipment(List.of());
+            assertThat(stats.derive(pc).armourClass()).isEqualTo(12);
+        }
+
+        @Test
         @DisplayName("An entry not linked to an item is matched by name, \"studded leather\" meaning Studded Leather Armor: 12 + DEX 2")
         void matchedByName() {
             PlayerCharacter pc = armoured(new InventoryItem("studded leather", 1, null, null, true, null));

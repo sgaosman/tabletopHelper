@@ -36,16 +36,18 @@ import java.util.regex.Pattern;
  * meet now, which it keeps (D159). A character with no stored spellcasting ability whose classes cast gets its first
  * casting class's, recorded on the level that gave the class its spellcasting when the level history has it, as
  * levelling into a first casting class now does (D159). A character whose sheet can't be worked out is skipped with
- * a warning. An active AC adjustment whose reason names armour or a shield is a warning too: the armour class
- * now counts the armour worn, so the adjustment may count it twice. Dry run by default; {@code --maintenance.apply=true}
- * writes.
+ * a warning. An active AC adjustment whose reason names armour, a shield or the Defense fighting style is a warning
+ * too: the armour class now counts the armour worn and Defense (M17), so the adjustment may count it twice. Dry run by
+ * default; {@code --maintenance.apply=true} writes.
  */
 @Component
 @RequiredArgsConstructor
 public class RecomputeCharactersJob implements MaintenanceJob {
 
-    // An AC adjustment's reason that suggests the DM entered armour by hand before armour was modelled
-    static final Pattern ARMOUR_REASON = Pattern.compile("armou?r|shield|mail|plate|leather", Pattern.CASE_INSENSITIVE);
+    // An AC adjustment's reason that suggests the DM entered armour, or the Defense fighting style (M17), by hand before
+    // either was modelled
+    static final Pattern ARMOUR_REASON = Pattern.compile("armou?r|shield|mail|plate|leather|defen[cs]e|fighting style",
+            Pattern.CASE_INSENSITIVE);
 
     private final CharacterRepository characterRepository;
     private final CharacterService characterService;
@@ -80,8 +82,8 @@ public class RecomputeCharactersJob implements MaintenanceJob {
                     + ", which it wouldn't qualify for now; kept"));
             // The reason is the DM's own text, so the report names the adjustment by ID, as its log does (D158)
             armourAdjustments(pc).forEach(adjustment -> warnings.add(who + ": has an AC adjustment of "
-                    + signed(adjustment.amount()) + " (" + adjustment.id() + ") whose reason names armour, which the "
-                    + "armour class now counts from the inventory, so it may count twice; kept"));
+                    + signed(adjustment.amount()) + " (" + adjustment.id() + ") whose reason names armour or the Defense "
+                    + "style, which the armour class now counts, so it may count twice; kept"));
 
             List<String> diffs = new ArrayList<>();
             Optional<CharacterService.MissingSpellcastingAbility> ability;

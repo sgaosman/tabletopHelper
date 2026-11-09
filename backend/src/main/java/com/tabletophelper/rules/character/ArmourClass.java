@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A character's Armour Class under the 2014 rules, before the DM's adjustments (M13.5), with the parts it adds up from.
@@ -99,6 +100,18 @@ public final class ArmourClass {
         public Result {
             parts = List.copyOf(parts);
         }
+    }
+
+    /** What the Defense fighting style adds while the character wears armour (PHB p.72). */
+    public static final int DEFENSE_BONUS = 1;
+
+    /**
+     * The Defense fighting style's +1 AC, which applies only while the character wears armour (PHB p.72): a shield
+     * alone isn't armour for it. Empty without the style or without armour.
+     */
+    public static Optional<Bonus> defense(boolean hasStyle, Armour armour) {
+        return hasStyle && armour != null ? Optional.of(new Bonus("Defense", DEFENSE_BONUS))
+                : Optional.empty();
     }
 
     /** The default unarmoured formula, 10 + DEX, which everyone has (PHB p.14). */

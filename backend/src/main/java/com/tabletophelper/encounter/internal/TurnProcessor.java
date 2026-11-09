@@ -125,10 +125,14 @@ public class TurnProcessor {
             return;
         }
         EncounterParticipant creature = ending.get();
+        int round = encounter.getRoundNumber();
         for (EncounterParticipant participant : List.copyOf(encounter.getParticipants())) {
             for (ConditionEntry condition : conditions(participant)) {
+                // One with a duration ends at the end of the named creature's turn once that many rounds have
+                // passed, as a stun "until the end of your next turn" given on the monk's own turn does (PHB p.79)
                 if (condition.endRule().type() == EndRule.Type.END_OF_TURN
-                        && creature.getId().equals(turnCounter(encounter, participant, condition))) {
+                        && creature.getId().equals(turnCounter(encounter, participant, condition))
+                        && (condition.duration() == null || round - condition.appliedRound() >= condition.duration())) {
                     effectApplier.endCondition(encounter, participant, condition.id(),
                             "end of " + creature.getDisplayName() + "'s turn");
                 }
@@ -184,7 +188,8 @@ public class TurnProcessor {
                 if (condition.endRule().type() == EndRule.Type.START_OF_TURN) {
                     effectApplier.endCondition(encounter, participant, condition.id(),
                             "start of " + creature.getDisplayName() + "'s turn");
-                } else if (condition.duration() != null && round - condition.appliedRound() >= condition.duration()) {
+                } else if (condition.endRule().type() != EndRule.Type.END_OF_TURN && condition.duration() != null
+                        && round - condition.appliedRound() >= condition.duration()) {
                     effectApplier.endCondition(encounter, participant, condition.id(), "its duration ends");
                 }
             }

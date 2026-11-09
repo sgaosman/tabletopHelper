@@ -49,13 +49,29 @@ public final class WeaponRules {
      * @param heavy    a heavy weapon, as Great Weapon Master needs
      * @param light    a light weapon, as two-weapon fighting needs (PHB p.195)
      * @param damage   its damage dice, or a flat amount
+     * @param twoHanded       a two-handed weapon, which needs both hands to attack with (PHB p.147)
+     * @param reach           a reach weapon, which attacks in melee from 10 feet (PHB p.147)
+     * @param versatileDamage a versatile weapon's damage used with two hands, such as a longsword's 1d10 (PHB p.147);
+     *                        null for a weapon that isn't versatile
      */
     public record Weapon(String name, Category category, boolean ranged, boolean finesse, boolean heavy,
-                         boolean light, Dice damage, String damageType) {
+                         boolean light, Dice damage, String damageType, boolean twoHanded, boolean reach,
+                         Dice versatileDamage) {
 
         public Weapon {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(damage, "damage");
+        }
+
+        /** A weapon that is neither two-handed, reach nor versatile. */
+        public Weapon(String name, Category category, boolean ranged, boolean finesse, boolean heavy, boolean light,
+                      Dice damage, String damageType) {
+            this(name, category, ranged, finesse, heavy, light, damage, damageType, false, false, null);
+        }
+
+        /** Whether it is versatile, used with one or two hands (PHB p.147). */
+        public boolean versatile() {
+            return versatileDamage != null;
         }
     }
 
@@ -141,8 +157,8 @@ public final class WeaponRules {
 
     /**
      * As {@link #attack(Weapon, int, int, int, boolean, boolean)}, and for an off-hand attack (two-weapon fighting,
-     * PHB p.195) the damage adds the ability modifier only when it is negative. Fighting styles that change this
-     * aren't modelled; the DM adds them as a Manual Modifier.
+     * PHB p.195) the damage adds the ability modifier only when it is negative. Class features and fighting styles
+     * that change the numbers are {@link AttackFeatures}'.
      */
     public static Numbers attack(Weapon weapon, int strength, int dexterity, int proficiencyBonus, boolean proficient,
                                  boolean powerAttack, boolean offHand) {

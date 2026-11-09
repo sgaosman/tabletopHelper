@@ -127,6 +127,16 @@ class DiceTest {
     }
 
     @Test
+    @DisplayName("Rolling with a reroll threshold rolls each die at or under it once more, and 0 rerolls nothing")
+    void rerollLowDice() {
+        Dice dice = Dice.parse("3d6");
+        assertEquals(3 + 5 + 4, dice.rollDice(Rng.scripted(3, 2, 5, 1, 4), 2));
+        assertEquals(1 + 2 + 3, dice.rollDice(Rng.scripted(1, 2, 3), 0));
+        assertEquals(4.5, Dice.parse("1d8").average());
+        assertEquals(10.0, Dice.parse("2d6 + 3").average());
+    }
+
+    @Test
     @DisplayName("Rng.scripted returns its rolls in order and counts what is left")
     void scriptedReturnsRollsInOrder() {
         var rng = Rng.scripted(3, 20, 1);

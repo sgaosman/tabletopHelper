@@ -113,11 +113,12 @@ public class EffectApplier {
      * @param legendaryResistanceOffered   it failed a save and has Legendary Resistance left (D163)
      * @param legendaryResistanceRemaining its Legendary Resistance uses left
      * @param description                  the entry written for it
+     * @param logEntryId                   that entry's ID, as the log gave it
      */
     public record Applied(EncounterParticipant target, Resolver.TargetOutcome outcome, int damageTaken,
                           String damageType, int healed, List<ConditionEntry> conditionsAdded,
                           boolean legendaryResistanceOffered, int legendaryResistanceRemaining,
-                          String description) {
+                          String description, UUID logEntryId) {
 
         public List<String> conditionNames() {
             return conditionsAdded.stream().map(ConditionEntry::name).toList();
@@ -186,14 +187,14 @@ public class EffectApplier {
                     .lrSuccessDamage(defended(target, outcome.successDamage()).total())
                     .lrConditionIds(fromSave.stream().map(ConditionEntry::id).toList());
         }
-        combatLog.save(entry);
+        CombatLog saved = combatLog.save(entry);
 
         afterDamage(encounter, target, before, damageChange, damage.total());
         afterHealing(encounter, target, healingChange);
         afterConditions(encounter, target, added);
 
         return new Applied(target, outcome, damage.total(), damage.firstType(), healed, added, offered, remaining,
-                description);
+                description, saved != null ? saved.getId() : null);
     }
 
     // ── Hit points ───────────────────────────────────────────────
@@ -915,8 +916,12 @@ public class EffectApplier {
                     : effect.durationRounds();
             RepeatSave repeatSave = end != null && end.repeatSave() != null
                     ? new RepeatSave(end.repeatSave().ability(), end.repeatSave().dc(), false) : null;
-            ConditionEntry entry = ConditionEntry.fromEffect(name, duration, encounter.getRoundNumber(),
-                    use.conditionSource(), sourceId, use.instance(), repeatSave);
+            // A condition that lasts until the end of its user's turn, as Stunning Strike's stun does (PHB p.79)
+            ConditionEntry entry = end != null && end.endOfUsersTurn() && sourceId != null
+                    ? new ConditionEntry(UUID.randomUUID(), name, end.durationRounds(), encounter.getRoundNumber(),
+                            use.conditionSource(), sourceId, null, null, EndRule.endOfTurn(sourceId), null)
+                    : ConditionEntry.fromEffect(name, duration, encounter.getRoundNumber(),
+                            use.conditionSource(), sourceId, use.instance(), repeatSave);
             boolean duplicate = conditions.stream().anyMatch(c -> c.name().equalsIgnoreCase(name)
                     && Objects.equals(c.sourceParticipantId(), entry.sourceParticipantId())
                     && Objects.equals(c.sourceSpellName(), entry.sourceSpellName())

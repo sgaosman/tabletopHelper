@@ -6,6 +6,8 @@ import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse.ParticipantResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse.TurnResponse;
 import com.tabletophelper.encounter.dto.MonsterActionResponse;
+import com.tabletophelper.encounter.state.TurnEconomy;
+import com.tabletophelper.encounter.state.WeaponHit;
 
 import java.util.HashMap;
 import java.util.List;
@@ -86,14 +88,19 @@ public final class EncounterViews {
             }
         }
 
+        Set<UUID> hidden = dmView.getParticipants().stream()
+                .map(ParticipantResponse::getId)
+                .filter(id -> !visible.contains(id))
+                .collect(Collectors.toSet());
         List<ParticipantResponse> participants = dmView.getParticipants().stream()
                 .filter(p -> visible.contains(p.getId()))
                 .map(p -> ParticipantType.MONSTER.name().equals(p.getParticipantType())
                         ? monsterForPlayers(p, dmView.isShowExactMonsterHp())
-                        : p)
+                        : p.toBuilder().turnEconomy(turnEconomyForPlayers(p.getTurnEconomy(), hidden)).build())
                 .map(p -> p.toBuilder().sortOrder(places.get(p.getId())).build())
                 .toList();
         return dmView.toBuilder()
+                .turnStamp(maskTurn(dmView.getTurnStamp(), hidden))
                 .participants(participants)
                 .turnOrder(turns)
                 .currentTurnIndex(current)
@@ -205,6 +212,33 @@ public final class EncounterViews {
     // The log stores the turn's participant by name only
     private static boolean namesHiddenParticipant(String name, Map<UUID, String> hiddenParticipants) {
         return name != null && hiddenParticipants.containsValue(name);
+    }
+
+    /**
+     * A player character's turn economy as players see it (M17): its records of a turn name a hidden participant's turn
+     * only as "<round>:hidden", and a melee hit on a hidden participant is left out (D157).
+     */
+    static TurnEconomy turnEconomyForPlayers(TurnEconomy economy, Set<UUID> hidden) {
+        if (economy == null || hidden.isEmpty()) {
+            return economy;
+        }
+        WeaponHit hit = economy.lastMeleeHit();
+        WeaponHit shown = hit == null || hidden.contains(hit.targetId()) ? null
+                : new WeaponHit(maskTurn(hit.turn(), hidden), hit.attackLogId(), hit.targetId(), hit.weapon(),
+                        hit.critical(), hit.divineSmiteOffered(), hit.stunningStrikeOffered(), hit.smitten(),
+                        hit.stunningStrikeUsed());
+        return economy.withSneakAttackTurn(maskTurn(economy.sneakAttackTurn(), hidden)).withLastMeleeHit(shown);
+    }
+
+    // A turn's stamp, "<round>:<participant id>", with a hidden participant's ID replaced
+    private static String maskTurn(String turn, Set<UUID> hidden) {
+        if (turn == null) {
+            return null;
+        }
+        int colon = turn.indexOf(':');
+        String whose = colon >= 0 ? turn.substring(colon + 1) : "";
+        return hidden.stream().anyMatch(id -> id.toString().equals(whose)) ? turn.substring(0, colon + 1) + "hidden"
+                : turn;
     }
 
     private static ParticipantResponse monsterForPlayers(ParticipantResponse monster, boolean showExactHp) {

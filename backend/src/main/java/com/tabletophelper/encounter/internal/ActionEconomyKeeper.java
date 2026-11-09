@@ -62,7 +62,8 @@ public class ActionEconomyKeeper {
                         + lowerFirst(reason.get()), actor, null);
             }
         }
-        actor.setTurnEconomy(TurnEconomy.of(ActionEconomy.spend(budget, charge)));
+        TurnEconomy economy = actor.getTurnEconomy() != null ? actor.getTurnEconomy() : TurnEconomy.fresh();
+        actor.setTurnEconomy(economy.withBudget(ActionEconomy.spend(budget, charge)));
     }
 
     private static TurnBudget budget(EncounterParticipant actor) {

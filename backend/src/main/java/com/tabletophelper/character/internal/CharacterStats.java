@@ -13,6 +13,7 @@ import com.tabletophelper.character.dto.ClassSpellcasting;
 import com.tabletophelper.character.state.AppliedFeatEffects;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.DmAdjustment.Stat;
+import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.LevelHistoryEntry;
@@ -33,6 +34,7 @@ import com.tabletophelper.rules.character.ClassProgression;
 import com.tabletophelper.rules.character.ClassTables;
 import com.tabletophelper.rules.character.CurrentHitPoints;
 import com.tabletophelper.rules.character.HitPoints;
+import com.tabletophelper.rules.combat.AttackFeatures;
 import com.tabletophelper.shared.ConflictException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -42,6 +44,7 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
@@ -466,6 +469,11 @@ public class CharacterStats {
             }
             speedExempt = effect(race.getEffects(), HEAVY_ARMOUR_SPEED_EXEMPT, of) == 1;
         }
+        // The Defense fighting style, chosen as the feature "Fighting Style: Defense" (D159), while armour is worn
+        boolean defense = character.getFeatures() != null && AttackFeatures.FightingStyle.of(character.getFeatures()
+                .stream().filter(Objects::nonNull).map(Feature::name).toList())
+                .contains(AttackFeatures.FightingStyle.DEFENSE);
+        ArmourClass.defense(defense, armour).ifPresent(bonuses::add);
         ArmourClass.Result result = ArmourClass.of(armour, shield, modifiers, formulas, bonuses);
 
         List<String> warnings = new ArrayList<>();

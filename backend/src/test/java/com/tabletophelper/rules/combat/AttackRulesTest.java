@@ -52,6 +52,16 @@ class AttackRulesTest {
     @DisplayName("The roll must be a d20's")
     void rollMustBeAD20s() {
         assertThrows(IllegalArgumentException.class, () -> AttackRules.outcome(0, 5, 10, false));
+    }
+
+    @Test
+    @DisplayName("A critical range below 20 makes those rolls critical hits, which hit whatever the AC (PHB p.72)")
+    void critRange() {
+        // A Champion's 19 is a critical hit and so a hit, whatever the AC; an 18 isn't; a 1 still misses (PHB p.72)
+        assertEquals(Outcome.CRITICAL, AttackRules.outcome(19, 0, 30, false, 19));
+        assertEquals(Outcome.MISS, AttackRules.outcome(18, 0, 30, false, 19));
+        assertEquals(Outcome.CRITICAL, AttackRules.outcome(18, 0, 30, false, 18));
+        assertEquals(Outcome.MISS, AttackRules.outcome(1, 30, 2, false, 18));
         assertThrows(IllegalArgumentException.class, () -> AttackRules.outcome(21, 5, 10, false));
     }
 

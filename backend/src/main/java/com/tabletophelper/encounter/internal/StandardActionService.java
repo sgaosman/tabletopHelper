@@ -110,11 +110,12 @@ public class StandardActionService {
         String taken = name + " takes the " + action.label() + " action" + costNote;
         switch (action) {
             case DASH -> {
-                participant.setTurnEconomy(TurnEconomy.of(ActionEconomy.dash(budget(participant))));
+                participant.setTurnEconomy(economyOf(participant).withBudget(ActionEconomy.dash(budget(participant))));
                 log(encounter, taken + ", gaining extra movement equal to its speed this turn.", participant, null);
             }
             case DISENGAGE -> {
-                participant.setTurnEconomy(TurnEconomy.of(ActionEconomy.disengage(budget(participant))));
+                participant.setTurnEconomy(economyOf(participant)
+                        .withBudget(ActionEconomy.disengage(budget(participant))));
                 log(encounter, taken + ": its movement doesn't provoke opportunity attacks for the rest of the turn.",
                         participant, null);
             }
@@ -149,7 +150,8 @@ public class StandardActionService {
         economy.charge(encounter, participant, Charge.of(ActionCost.FREE, ownTurn), overReason, userId,
                 new ActionEconomyKeeper.Command(CombatActionType.OBJECT_INTERACTION,
                         participant.getDisplayName() + "'s object interaction"));
-        participant.setTurnEconomy(TurnEconomy.of(ActionEconomy.objectInteraction(budget(participant))));
+        participant.setTurnEconomy(economyOf(participant)
+                .withBudget(ActionEconomy.objectInteraction(budget(participant))));
         log(encounter, CombatActionType.OBJECT_INTERACTION, participant.getDisplayName() + " interacts with an object: "
                 + request.description().trim(), participant, null);
         return encounterService.toResponse(encounterRepository.save(encounter));
@@ -233,8 +235,11 @@ public class StandardActionService {
     }
 
     private static TurnBudget budget(EncounterParticipant participant) {
-        TurnEconomy economy = participant.getTurnEconomy();
-        return (economy != null ? economy : TurnEconomy.fresh()).budget();
+        return economyOf(participant).budget();
+    }
+
+    private static TurnEconomy economyOf(EncounterParticipant participant) {
+        return participant.getTurnEconomy() != null ? participant.getTurnEconomy() : TurnEconomy.fresh();
     }
 
     private static String suffix(String note) {

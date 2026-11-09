@@ -10,6 +10,7 @@ import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.character.CombatSnapshot;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.CombatResultPreview;
+import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
@@ -25,6 +26,7 @@ import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.Ability;
+import com.tabletophelper.rules.combat.AttackFeatures;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.TurnOrder;
 import com.tabletophelper.reference.dto.RepeatCost;
@@ -566,6 +568,7 @@ public class EncounterService {
                         .turnEconomy(p.getTurnEconomy())
                         .attacksPerAction(TurnEconomies.attacksPerAction(p))
                         .speed(TurnEconomies.speed(p, objectMapper))
+                        .fightingStyles(fightingStyles(p))
                         .build())
                 .toList();
 
@@ -579,6 +582,7 @@ public class EncounterService {
                 .status(encounter.getStatus().name())
                 .currentTurnIndex(current >= 0 ? current : null)
                 .roundNumber(encounter.getRoundNumber())
+                .turnStamp(EncounterTurns.stamp(encounter))
                 .sessionCode(encounter.getSessionCode())
                 .participants(participantResponses)
                 .turnOrder(turns)
@@ -644,6 +648,19 @@ public class EncounterService {
     }
 
     // Whether the monster's action templates list any lair actions, so it can fight in its lair (D163)
+    // A player character's PHB Fighting Styles by name, from its features (M17); null for a monster
+    private static List<String> fightingStyles(EncounterParticipant participant) {
+        PlayerCharacter character = participant.getCharacter();
+        if (character == null) {
+            return null;
+        }
+        List<String> names = character.getFeatures() == null ? List.of() : character.getFeatures().stream()
+                .filter(feature -> feature != null && feature.name() != null)
+                .map(Feature::name)
+                .toList();
+        return AttackFeatures.FightingStyle.of(names).stream().map(AttackFeatures.FightingStyle::styleName).toList();
+    }
+
     private boolean hasLairActions(EncounterParticipant participant) {
         Monster monster = participant.getMonster();
         return monster != null && MonsterTemplates.of(monster).hasLairActions();

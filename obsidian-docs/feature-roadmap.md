@@ -29,7 +29,7 @@
 | 14 | Undo System | Implemented (2026-11-09) | Before-state snapshots on every combat action, DM-only rollback with cascade support |
 | 15 | Persistent Spell Effects as Companion Participants | Implemented (2026-11-09) | Spiritual Weapon, Flaming Sphere etc. as sub-cards beneath the caster |
 | 16 | Short/Long Rest System | Complete (in M9) | Implemented as part of M9 character sheet — hit dice spending, HP recovery, spell slot reset on long rest |
-| 17 | Class Feature Automation | In progress (A done 2026-11-09) | Second Wind, Channel Divinity, Action Surge, Bardic Inspiration, Wild Shape, Ki Points, Rage, etc. |
+| 17 | Class Feature Automation | In progress (A and B done 2026-11-09) | Second Wind, Channel Divinity, Action Surge, Bardic Inspiration, Wild Shape, Ki Points, Rage, etc. |
 | 18 | Sorcerer Metamagic | Not started | Twinned, Quickened, Subtle, Heightened Spell, Sorcery Point tracking |
 | 19 | Glossary Tooltips | Not started | Clickable bolded D&D terms open a definitions modal with plain-English explanations |
 | 20 | Feat Automation on Level-Up | Complete | Full mechanical automation of feats: spells, actions, ability scores, proficiencies, passive stats, speed, resistances, expertise, resource pools |
@@ -609,7 +609,7 @@ Phase 3 — Multiclass at creation:
 
 ## Milestone 17: Class Feature Automation
 
-**Status (2026-11-09):** workstream A is implemented: Rage, Reckless Attack, Second Wind healing, Lay on Hands and Patient Defense / Step of the Wind, through `use-pool` rather than a new endpoint ([[decisions-log#D178]]). B (fighting styles, Sneak Attack, Divine Smite, Martial Arts and Flurry, Stunning Strike, Improved Critical) and C (Channel Divinity, Disciple of Life, Bardic Inspiration, Arcane Recovery) are next; Wild Shape and reaction features are deferred.
+**Status (2026-11-09):** workstream A is implemented: Rage, Reckless Attack, Second Wind healing, Lay on Hands and Patient Defense / Step of the Wind, through `use-pool` rather than a new endpoint ([[decisions-log#D178]]). B is implemented too: fighting styles, Sneak Attack, Divine Smite, Martial Arts and Flurry, Stunning Strike and Improved Critical. C (Channel Divinity, Disciple of Life, Bardic Inspiration, Arcane Recovery) are next; Wild Shape and reaction features are deferred.
 
 **Goal:** Automate common class features used in combat encounters. Builds on M24.5 (Generic Resource Pool) for resource tracking and M13 (action economy) for spend action type validation.
 

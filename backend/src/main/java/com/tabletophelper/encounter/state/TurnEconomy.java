@@ -28,6 +28,16 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param attackedOrDamaged     it has attacked or taken damage since its own last turn ended, which keeps a Rage going
  *                              (PHB p.48, M17). The start of its turn keeps it and the end of that turn clears it.
  *                              Written only when true, as actionSurgeUsed is
+ * @param sneakAttackTurn       the turn of the encounter on which it last dealt Sneak Attack damage, as EncounterTurns'
+ *                              stamp names it: Sneak Attack is once per turn, anyone's turn (PHB p.96, M17), so an
+ *                              opportunity attack on another creature's turn may have it again. Written only when set
+ * @param martialArtsAttack     it has taken the Attack action this turn with an unarmed strike or a monk weapon, which
+ *                              Martial Arts' bonus-action unarmed strike and Flurry of Blows follow (PHB p.78, M17).
+ *                              Written only when true
+ * @param flurryStrikesLeft     the unarmed strikes left from the Flurry of Blows it started this turn (PHB p.78, M17).
+ *                              Written only when more than 0
+ * @param lastMeleeHit          its latest melee weapon hit, which Divine Smite and Stunning Strike may follow on the
+ *                              same turn (PHB p.85, p.79, M17); null after a miss or before any. Written only when set
  */
 public record TurnEconomy(
         @Schema(requiredMode = REQUIRED) int actions,
@@ -42,8 +52,22 @@ public record TurnEconomy(
         @Schema(requiredMode = REQUIRED) boolean dashed,
         @Schema(requiredMode = REQUIRED) boolean disengaged,
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean actionSurgeUsed,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean attackedOrDamaged
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean attackedOrDamaged,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String sneakAttackTurn,
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean martialArtsAttack,
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) int flurryStrikesLeft,
+        @JsonInclude(JsonInclude.Include.NON_NULL) WeaponHit lastMeleeHit
 ) {
+
+    /** An economy with none of the class features' records of the turn (M17). */
+    public TurnEconomy(int actions, int actionsUsed, boolean attackActionTaken, int attacksLeft,
+                       boolean bonusActionUsed, boolean reactionUsed, boolean objectInteractionUsed,
+                       boolean bonusActionSpellCast, boolean otherSpellCast, boolean dashed, boolean disengaged,
+                       boolean actionSurgeUsed, boolean attackedOrDamaged) {
+        this(actions, actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed, reactionUsed,
+                objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged, actionSurgeUsed,
+                attackedOrDamaged, null, false, 0, null);
+    }
 
     /** An economy that records no attack or damage since the creature's last turn. */
     public TurnEconomy(int actions, int actionsUsed, boolean attackActionTaken, int attacksLeft,
@@ -60,7 +84,10 @@ public record TurnEconomy(
         return of(TurnBudget.fresh());
     }
 
-    /** The same economy as the rules module's budget. */
+    /**
+     * The same economy as the rules module's budget, with none of the class features' records of the turn; to keep
+     * them, use {@link #withBudget}.
+     */
     public static TurnEconomy of(TurnBudget budget) {
         return new TurnEconomy(budget.actions(), budget.actionsUsed(), budget.attackActionTaken(),
                 budget.attacksLeft(), budget.bonusActionUsed(), budget.reactionUsed(), budget.objectInteractionUsed(),
@@ -68,10 +95,51 @@ public record TurnEconomy(
                 budget.actionSurgeUsed(), budget.attackedOrDamaged());
     }
 
+    /**
+     * The budget's economy, keeping this one's records of the turn the budget doesn't have: Sneak Attack's turn, Martial
+     * Arts, Flurry of Blows and the last melee hit (M17).
+     */
+    public TurnEconomy withBudget(TurnBudget budget) {
+        return new TurnEconomy(budget.actions(), budget.actionsUsed(), budget.attackActionTaken(),
+                budget.attacksLeft(), budget.bonusActionUsed(), budget.reactionUsed(), budget.objectInteractionUsed(),
+                budget.bonusActionSpellCast(), budget.otherSpellCast(), budget.dashed(), budget.disengaged(),
+                budget.actionSurgeUsed(), budget.attackedOrDamaged(), sneakAttackTurn, martialArtsAttack,
+                flurryStrikesLeft, lastMeleeHit);
+    }
+
     /** The same economy, recording whether the creature has attacked or taken damage since its last turn. */
     public TurnEconomy withAttackedOrDamaged(boolean value) {
         return new TurnEconomy(actions, actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed, reactionUsed,
-                objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged, actionSurgeUsed, value);
+                objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged, actionSurgeUsed, value,
+                sneakAttackTurn, martialArtsAttack, flurryStrikesLeft, lastMeleeHit);
+    }
+
+    /** The same economy, recording that Sneak Attack was dealt on the turn the stamp names (PHB p.96). */
+    public TurnEconomy withSneakAttackTurn(String turn) {
+        return new TurnEconomy(actions, actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed, reactionUsed,
+                objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged, actionSurgeUsed,
+                attackedOrDamaged, turn, martialArtsAttack, flurryStrikesLeft, lastMeleeHit);
+    }
+
+    /** The same economy, recording an Attack action with an unarmed strike or a monk weapon (PHB p.78). */
+    public TurnEconomy withMartialArtsAttack(boolean value) {
+        return new TurnEconomy(actions, actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed, reactionUsed,
+                objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged, actionSurgeUsed,
+                attackedOrDamaged, sneakAttackTurn, value, flurryStrikesLeft, lastMeleeHit);
+    }
+
+    /** The same economy with this many Flurry of Blows strikes left (PHB p.78). */
+    public TurnEconomy withFlurryStrikesLeft(int strikes) {
+        return new TurnEconomy(actions, actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed, reactionUsed,
+                objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged, actionSurgeUsed,
+                attackedOrDamaged, sneakAttackTurn, martialArtsAttack, strikes, lastMeleeHit);
+    }
+
+    /** The same economy with this latest melee weapon hit, or none after a miss. */
+    public TurnEconomy withLastMeleeHit(WeaponHit hit) {
+        return new TurnEconomy(actions, actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed, reactionUsed,
+                objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged, actionSurgeUsed,
+                attackedOrDamaged, sneakAttackTurn, martialArtsAttack, flurryStrikesLeft, hit);
     }
 
     /** This economy as the rules module's budget. */

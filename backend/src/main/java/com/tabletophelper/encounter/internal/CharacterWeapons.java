@@ -5,6 +5,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.DmAdjustments;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
+import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.LevelHistoryEntry;
@@ -13,6 +14,7 @@ import com.tabletophelper.reference.ItemRepository;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.ProficiencyBonus;
+import com.tabletophelper.rules.combat.AttackFeatures;
 import com.tabletophelper.rules.combat.WeaponRules.PowerAttack;
 import com.tabletophelper.rules.combat.WeaponRules;
 import lombok.RequiredArgsConstructor;
@@ -56,6 +58,12 @@ class CharacterWeapons {
     private static final Pattern FIREARMS = Pattern.compile("^firearms?$");
     // A note in brackets at the end of a name, as in "Sharpshooter (feat)"
     private static final Pattern NOTE = Pattern.compile("\\s*\\([^()]*\\)\\s*$");
+
+    private static final String MONK = "Monk";
+    private static final String FIGHTER = "Fighter";
+    private static final String CHAMPION = "Champion";
+    private static final String IMPROVED_CRITICAL = "Improved Critical";
+    private static final String SUPERIOR_CRITICAL = "Superior Critical";
 
     private final ItemRepository itemRepository;
     private final ObjectMapper objectMapper;
@@ -122,6 +130,47 @@ class CharacterWeapons {
         return WeaponRules.attack(held.weapon(), DmAdjustments.abilityScore(character, Ability.STR),
                 DmAdjustments.abilityScore(character, Ability.DEX), proficiencyBonus(character), held.proficient(),
                 powerAttack, offHand);
+    }
+
+    /**
+     * The character as its weapon attacks see it (M17): its STR and DEX with the DM's adjustments, its proficiency
+     * bonus, its Fighting Styles (the features "Fighting Style: X", D159), its Monk level for Martial Arts while it
+     * wears no armour and carries no shield (PHB p.78), and a Champion's critical range (PHB p.72-73), from its Fighter
+     * levels with the Champion subclass or the features Improved Critical and Superior Critical.
+     *
+     * @param armoured whether it wears armour or carries a shield, which stops Martial Arts
+     */
+    AttackFeatures.Attacker attacker(PlayerCharacter character, boolean armoured) {
+        List<String> featureNames = orEmpty(character.getFeatures()).stream()
+                .filter(feature -> feature != null && feature.name() != null)
+                .map(Feature::name)
+                .toList();
+        int monkLevel = Math.min(20, FeatureEffects.classLevel(character, MONK));
+        int critRange = AttackFeatures.critRange(championLevel(character));
+        if (FeatureEffects.hasFeature(character, SUPERIOR_CRITICAL)) {
+            critRange = Math.min(critRange, AttackFeatures.critRange(AttackFeatures.SUPERIOR_CRITICAL_LEVEL));
+        } else if (FeatureEffects.hasFeature(character, IMPROVED_CRITICAL)) {
+            critRange = Math.min(critRange, AttackFeatures.critRange(AttackFeatures.IMPROVED_CRITICAL_LEVEL));
+        }
+        return new AttackFeatures.Attacker(DmAdjustments.abilityScore(character, Ability.STR),
+                DmAdjustments.abilityScore(character, Ability.DEX), proficiencyBonus(character),
+                AttackFeatures.FightingStyle.of(featureNames), armoured ? 0 : monkLevel, critRange);
+    }
+
+    /** The attack's numbers with the attacker's class features and Fighting Styles (M17). */
+    AttackFeatures.Numbers numbers(Held held, AttackFeatures.Attacker attacker, boolean powerAttack, boolean offHand,
+                                   AttackFeatures.Grip grip) {
+        return AttackFeatures.numbers(held.weapon(), attacker, held.proficient(), powerAttack, offHand, grip);
+    }
+
+    // The character's Fighter levels when its Fighter subclass is the Champion; 0 otherwise
+    private static int championLevel(PlayerCharacter character) {
+        return orEmpty(character.getMulticlassEntries()).stream()
+                .filter(entry -> entry != null && entry.className() != null && entry.subclassName() != null
+                        && entry.className().trim().equalsIgnoreCase(FIGHTER)
+                        && entry.subclassName().trim().equalsIgnoreCase(CHAMPION))
+                .mapToInt(ClassEntry::level)
+                .sum();
     }
 
     /** The feats among the character's whose attacks can take the trade. */
@@ -193,7 +242,9 @@ class CharacterWeapons {
                 .orElse(null);
     }
 
-    // The weapon an item row describes, when its damage reads as one group of dice or a flat amount
+    // The weapon an item row describes, when its damage reads as one group of dice or a flat amount. Its properties
+    // are 5etools' tags (PHB p.146-147): F finesse, H heavy, L light, 2H two-handed, R reach and V versatile, whose
+    // two-handed damage ItemLoader keeps as versatile_damage
     private Optional<WeaponRules.Weapon> weapon(Item item) {
         Optional<List<Dice>> damage = TemplateDice.read(item.getDamageDice());
         if (damage.isEmpty() || damage.get().size() != 1) {
@@ -204,7 +255,16 @@ class CharacterWeapons {
                 ? WeaponRules.Category.MARTIAL : WeaponRules.Category.SIMPLE;
         return Optional.of(new WeaponRules.Weapon(item.getName(), category, "Ranged Weapon".equals(item.getType()),
                 tags.contains("F"), tags.contains("H"), tags.contains("L"), damage.get().getFirst(),
-                item.getDamageType() != null ? item.getDamageType().trim().toLowerCase(Locale.ROOT) : null));
+                item.getDamageType() != null ? item.getDamageType().trim().toLowerCase(Locale.ROOT) : null,
+                tags.contains("2H"), tags.contains("R"), tags.contains("V") ? versatileDamage(item) : null));
+    }
+
+    // A versatile weapon's two-handed damage, or null when the row doesn't give one that reads as dice
+    private Dice versatileDamage(Item item) {
+        String text = StoredJson.read(objectMapper, item.getProperties(), item.getName() + "'s properties")
+                .path("versatile_damage").asString("");
+        Optional<List<Dice>> dice = text.isBlank() ? Optional.empty() : TemplateDice.read(text);
+        return dice.isPresent() && dice.get().size() == 1 ? dice.get().getFirst() : null;
     }
 
     // A firearm's ammunition tag, as the DMG's renaissance, modern and futuristic weapons have

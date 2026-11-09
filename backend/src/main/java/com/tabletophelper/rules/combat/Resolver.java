@@ -178,7 +178,8 @@ public final class Resolver {
         };
         Outcome outcome = attack.forcedCritical()
                 ? Outcome.CRITICAL
-                : AttackRules.outcome(d20, attack.bonus(), target.armourClass(), setup.hitIsCritical());
+                : AttackRules.outcome(d20, attack.bonus(), target.armourClass(), setup.hitIsCritical(),
+                        attack.critRange());
         int total = d20 + attack.bonus();
         if (outcome == Outcome.MISS) {
             return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
@@ -222,12 +223,13 @@ public final class Resolver {
                 .toList();
     }
 
-    // Each part rolled once, its dice doubled on a critical hit, then totalled by type in the parts' order
+    // Each part rolled once, its dice doubled on a critical hit and those it rerolls rolled again (Great Weapon
+    // Fighting), then totalled by type in the parts' order
     private List<Damage> rollDamage(List<Effect.DamagePart> parts, boolean critical) {
         Map<String, Integer> byType = new LinkedHashMap<>();
         for (Effect.DamagePart part : parts) {
             Dice dice = critical ? part.dice().doubled() : part.dice();
-            byType.merge(part.type(), dice.roll(rng), Integer::sum);
+            byType.merge(part.type(), dice.total(dice.rollDice(rng, part.rerollUpTo())), Integer::sum);
         }
         return byType.entrySet().stream().map(e -> new Damage(e.getKey(), e.getValue())).toList();
     }

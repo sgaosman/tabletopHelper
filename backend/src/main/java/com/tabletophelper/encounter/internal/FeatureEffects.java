@@ -160,9 +160,9 @@ public class FeatureEffects {
                 if (PATIENT_DEFENSE.equals(plan.option())) {
                     effectApplier.dodge(encounter, user, "Patient Defense");
                 } else if (STEP_DASH.equals(plan.option())) {
-                    user.setTurnEconomy(TurnEconomy.of(ActionEconomy.dash(economy(user).budget())));
+                    user.setTurnEconomy(economy(user).withBudget(ActionEconomy.dash(economy(user).budget())));
                 } else if (STEP_DISENGAGE.equals(plan.option())) {
-                    user.setTurnEconomy(TurnEconomy.of(ActionEconomy.disengage(economy(user).budget())));
+                    user.setTurnEconomy(economy(user).withBudget(ActionEconomy.disengage(economy(user).budget())));
                 }
             }
             default -> throw new IllegalStateException("Unknown effect " + plan.effect());

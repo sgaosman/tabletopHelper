@@ -74,13 +74,24 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
      *                       null when a hit gives them all
      * @param otherSources   the attacker's other sources of advantage or disadvantage, such as armour worn without
      *                       proficiency (PHB p.144); they combine with rollMode and the target's once (PHB p.173)
+     * @param critRange      the lowest d20 that is a critical hit: 20, or 19 with the Champion's Improved Critical
+     *                       (PHB p.72) and 18 with its Superior Critical (PHB p.73)
      */
     public record Attack(int bonus, RollMode rollMode, boolean withinFiveFeet, boolean forcedCritical,
-                         HitSave hitSave, List<RollMode> otherSources) implements Delivery {
+                         HitSave hitSave, List<RollMode> otherSources, int critRange) implements Delivery {
 
         public Attack {
             Objects.requireNonNull(rollMode, "rollMode");
             otherSources = List.copyOf(otherSources);
+            if (critRange < 2 || critRange > 20) {
+                throw new IllegalArgumentException("A critical hit needs a d20 of 2 to 20, not " + critRange);
+            }
+        }
+
+        /** An attack that is a critical hit only on a 20. */
+        public Attack(int bonus, RollMode rollMode, boolean withinFiveFeet, boolean forcedCritical, HitSave hitSave,
+                      List<RollMode> otherSources) {
+            this(bonus, rollMode, withinFiveFeet, forcedCritical, hitSave, otherSources, AttackRules.CRITICAL_D20);
         }
 
         /** An attack whose only source of its own is rollMode. */
@@ -135,11 +146,24 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
     public record Self() implements Delivery {
     }
 
-    /** Damage of one type. type is null for untyped damage, which no defence changes. */
-    public record DamagePart(Dice dice, String type) {
+    /**
+     * Damage of one type. type is null for untyped damage, which no defence changes.
+     *
+     * @param rerollUpTo a die that shows this or less is rolled once more and the new roll kept, as Great Weapon
+     *                   Fighting does with 1s and 2s (PHB p.72); 0 rerolls nothing
+     */
+    public record DamagePart(Dice dice, String type, int rerollUpTo) {
 
         public DamagePart {
             Objects.requireNonNull(dice, "dice");
+            if (rerollUpTo < 0) {
+                throw new IllegalArgumentException("A reroll needs a die face of 0 or more, not " + rerollUpTo);
+            }
+        }
+
+        /** Damage whose dice are never rolled again. */
+        public DamagePart(Dice dice, String type) {
+            this(dice, type, 0);
         }
     }
 
@@ -150,12 +174,21 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
      * @param repeatSave     the save its creature repeats at the end of each of its turns to end it, or null
      * @param escapeDc       the DC of the check that escapes it, as a grapple's escape DC, which the combat log
      *                       shows; never a saving throw, so nothing rolls against it; null for none
+     * @param endOfUsersTurn it ends at the end of a turn of the creature that used the Effect, once durationRounds
+     *                       rounds have passed (at the next such end when null), not at the start of one, as
+     *                       Stunning Strike's stun lasts until the end of the monk's next turn (PHB p.79)
      */
-    public record ConditionEnd(Integer durationRounds, RepeatSave repeatSave, Integer escapeDc) {
+    public record ConditionEnd(Integer durationRounds, RepeatSave repeatSave, Integer escapeDc,
+                               boolean endOfUsersTurn) {
 
-        /** An end with no escape DC. */
+        /** An end with an escape DC, at the start of a turn. */
+        public ConditionEnd(Integer durationRounds, RepeatSave repeatSave, Integer escapeDc) {
+            this(durationRounds, repeatSave, escapeDc, false);
+        }
+
+        /** An end with no escape DC, at the start of a turn. */
         public ConditionEnd(Integer durationRounds, RepeatSave repeatSave) {
-            this(durationRounds, repeatSave, null);
+            this(durationRounds, repeatSave, null, false);
         }
     }
 

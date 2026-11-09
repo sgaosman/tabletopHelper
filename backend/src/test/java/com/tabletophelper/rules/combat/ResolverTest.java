@@ -95,6 +95,38 @@ class ResolverTest {
         }
 
         @Test
+        @DisplayName("With a critical range of 19 (Improved Critical, PHB p.72) a 19 is a critical hit even below the AC, "
+                + "and an 18 isn't")
+        void critRange() {
+            Effect champion = new Effect("Longsword", new Effect.Attack(0, RollMode.NORMAL, true, false, null,
+                    List.of(), 19), List.of(part("1d8 + 3", "slashing")), null, List.of(), false, null);
+
+            var nineteen = new Resolver(Rng.scripted(19, 4, 5)).resolve(champion, List.of(target(GOBLIN, 25, 0)))
+                    .getFirst();
+            var eighteen = new Resolver(Rng.scripted(18)).resolve(champion, List.of(target(GOBLIN, 25, 0)))
+                    .getFirst();
+
+            assertEquals(Outcome.CRITICAL, nineteen.outcome());
+            assertEquals(List.of(new Resolver.Damage("slashing", 12)), nineteen.damage());
+            assertEquals(Outcome.MISS, eighteen.outcome());
+        }
+
+        @Test
+        @DisplayName("A damage part that rerolls 1s and 2s (Great Weapon Fighting, PHB p.72) rolls each such die once "
+                + "more and keeps the new roll, a second 1 included")
+        void rerollLowDice() {
+            Effect greatsword = new Effect("Greatsword", new Effect.Attack(5, RollMode.NORMAL, true, false),
+                    List.of(new Effect.DamagePart(Dice.parse("2d6 + 3"), "slashing", 2)), null, List.of(), false, null);
+
+            var dice = Rng.scripted(15, 1, 1, 2, 6);
+            var outcome = new Resolver(dice).resolve(greatsword, List.of(target(GOBLIN, 10, 0))).getFirst();
+
+            // 1 is rolled again as 1 and kept; 2 is rolled again as 6
+            assertEquals(List.of(new Resolver.Damage("slashing", 1 + 6 + 3)), outcome.damage());
+            assertEquals(0, dice.remaining());
+        }
+
+        @Test
         @DisplayName("A natural 1 misses whatever the total (was: natural 1)")
         void naturalOne() {
             var outcome = new Resolver(Rng.scripted(1)).resolve(attack(20, RollMode.NORMAL, false, false,

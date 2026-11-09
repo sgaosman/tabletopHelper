@@ -51,8 +51,11 @@ public class TurnEconomyEditService {
         requireCount("attacksLeft", after.attacksLeft());
         EncounterParticipant participant = CombatAccess.participant(encounter, request.participantId());
         TurnEconomy before = participant.getTurnEconomy() != null ? participant.getTurnEconomy() : TurnEconomy.fresh();
-        participant.setTurnEconomy(after);
-        List<String> changes = changes(before, after);
+        // The edit is of the budget; the class features' records of the turn (M17), such as Sneak Attack's turn and the
+        // last melee hit, stay as they are, so the log never names them or a hidden participant's turn
+        TurnEconomy edited = before.withBudget(after.budget());
+        participant.setTurnEconomy(edited);
+        List<String> changes = changes(before, edited);
         combatLog.write(encounter, CombatActionType.TURN_ECONOMY_SET, "The DM sets " + participant.getDisplayName()
                 + "'s turn economy: " + (changes.isEmpty() ? "no change" : String.join(", ", changes)), null,
                 participant);

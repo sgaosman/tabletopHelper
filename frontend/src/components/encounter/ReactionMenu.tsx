@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ShieldAlert, Sparkles, Swords } from 'lucide-react';
+import { Shield, ShieldAlert, Sparkles, Swords } from 'lucide-react';
+import { apiErrorMessage } from '../../api/errors';
 import { useEncounterAction } from '../../queries/encounters';
 import type { EncounterParticipant } from '../../types/encounter';
 import { chargeBlock, poolCost, type CastingTime } from '../../utils/turnEconomy';
@@ -39,6 +40,21 @@ export default function ReactionMenu({
   const reactionPools = (participant.resourcePoolsCurrent ?? []).filter(pool => poolCost(pool) === 'REACTION');
   const isMonster = participant.participantType === 'MONSTER';
   const casts = (participant.spellsKnown?.length ?? 0) > 0;
+  // The Protection fighting style's reaction, for a creature within 5 feet of the defender (PHB p.72, M17)
+  const protects = (participant.fightingStyles ?? []).includes('Protection');
+  const [protectedId, setProtectedId] = useState('');
+  const [protectionError, setProtectionError] = useState('');
+
+  async function protect() {
+    if (!protectedId) return;
+    setProtectionError('');
+    try {
+      await actions.protection({ participantId: participant.id, protectedId });
+      onClose();
+    } catch (err: unknown) {
+      setProtectionError(apiErrorMessage(err));
+    }
+  }
 
   if (castingSpell) {
     return (
@@ -78,6 +94,32 @@ export default function ReactionMenu({
               allowManualModifiers={allowManualModifiers} onDone={onClose} defaultCost="REACTION" />
           )}
         </section>
+
+        {protects && (
+          <section aria-label="Protection" className="space-y-2">
+            <h3 className="font-heading text-[15px] font-semibold text-ink flex items-center gap-1.5">
+              <Shield className="w-4 h-4 text-cls-fighter" /> Protection
+            </h3>
+            <p className="font-body text-[13px] font-semibold text-muted">
+              With a shield, give disadvantage to an attack against a creature within 5 ft of you; the DM rolls it so.
+            </p>
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <label htmlFor="protection-target" className={FIELD_LABEL}>Protect</label>
+                <select id="protection-target" value={protectedId} disabled={refused}
+                  onChange={e => setProtectedId(e.target.value)} className={FIELD_INPUT}>
+                  <option value="">Choose the creature attacked...</option>
+                  {targets.map(p => <option key={p.id} value={p.id}>{p.displayName}</option>)}
+                </select>
+              </div>
+              <button type="button" onClick={() => { void protect(); }} disabled={refused || !protectedId}
+                className="px-3 py-2 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-ink font-heading text-[12px] font-semibold tracking-[0.02em] border border-cls-fighter/30 disabled:opacity-50">
+                Use Protection
+              </button>
+            </div>
+            {protectionError && <p role="alert" className="font-body text-[13px] font-semibold text-debuff">{protectionError}</p>}
+          </section>
+        )}
 
         {casts && (
           <section aria-label="Reaction spells">

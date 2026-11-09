@@ -611,7 +611,8 @@ export function makeMockEncounter(overrides: Partial<Encounter> = {}): Encounter
 export function makeMockAttackOption(weapon: string, overrides: Partial<AttackOption> = {}): AttackOption {
   const option = {
     weapon, ability: 'STR', proficient: true, attackBonus: 5, damage: '1d8 + 3', damageType: 'slashing',
-    ranged: false, powerAttack: null, recklessAttack: false,
+    ranged: false, powerAttack: null, recklessAttack: false, twoHanded: false, versatileDamage: null, features: [],
+    critRange: 20, sneakAttack: null, martialArts: false,
   } satisfies AttackOption;
   return { ...option, ...overrides };
 }

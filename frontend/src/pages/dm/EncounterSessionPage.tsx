@@ -31,6 +31,7 @@ import ManualAttackForm from '../../components/encounter/ManualAttackForm';
 import InlineMonsterActions, { type MonsterActionTab } from '../../components/encounter/InlineMonsterActions';
 import StandardActionMenu from '../../components/encounter/StandardActionMenu';
 import ReactionMenu from '../../components/encounter/ReactionMenu';
+import HitFollowUps from '../../components/encounter/HitFollowUps';
 import { FIELD_INPUT, FIELD_LABEL, SUBMIT_BUTTON } from '../../components/encounter/formStyles';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import Button from '../../components/ui/Button';
@@ -683,6 +684,10 @@ function DmSessionView() {
                     variant="row"
                     onEdit={isActive ? turnEconomy => attemptTurnChange(() => actions.setTurnEconomy({ participantId: p.id, turnEconomy })) : undefined}
                   />
+                  {/* Divine Smite or Stunning Strike after a player character's melee weapon hit this turn (M17) */}
+                  {isActive && p.participantType === 'PLAYER' && (
+                    <HitFollowUps participant={p} participants={encounter.participants} turnStamp={encounter.turnStamp} />
+                  )}
                   <ConditionChips
                     participant={p}
                     roundNumber={encounter.roundNumber}

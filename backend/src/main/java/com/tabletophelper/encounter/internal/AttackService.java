@@ -2,6 +2,7 @@ package com.tabletophelper.encounter.internal;
 
 import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
@@ -11,15 +12,20 @@ import com.tabletophelper.encounter.dto.AttackCost;
 import com.tabletophelper.encounter.dto.AttackOption;
 import com.tabletophelper.encounter.dto.AttackRollRequest;
 import com.tabletophelper.encounter.dto.EncounterResponse;
+import com.tabletophelper.encounter.state.TurnEconomy;
+import com.tabletophelper.encounter.state.WeaponHit;
+import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.ActionCost;
+import com.tabletophelper.rules.combat.AttackFeatures;
+import com.tabletophelper.rules.combat.AttackRules;
 import com.tabletophelper.rules.combat.Charge;
 import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.Effect;
-import com.tabletophelper.rules.combat.RollMode;
+import com.tabletophelper.rules.combat.Outcome;
 import com.tabletophelper.rules.combat.Resolver;
+import com.tabletophelper.rules.combat.RollMode;
 import com.tabletophelper.rules.combat.WeaponRules;
-import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
@@ -43,17 +49,28 @@ import java.util.UUID;
  *
  * <p>An attack is charged to its attacker's turn economy (D174): by default an attack of the Attack action, which the
  * first attack opens with the attacker's action; an off-hand attack with a light melee weapon as a bonus action once
- * the Attack action is taken, without a positive ability modifier to its damage (PHB p.195); or an opportunity attack
- * as a reaction, which a player may make on another creature's turn.
+ * the Attack action is taken, without a positive ability modifier to its damage (PHB p.195); an opportunity attack as a
+ * reaction, which a player may make on another creature's turn; or a monk's bonus-action unarmed strike from Martial
+ * Arts or Flurry of Blows (PHB p.78).
  *
  * <p>Class features (M17): a raging barbarian adds its Rage Damage to melee weapon attacks using Strength, a flat bonus
  * that a critical hit doesn't double (PHB p.48, p.196). A barbarian with Reckless Attack may attack recklessly on the
  * first attack of its turn, giving its melee Strength attacks advantage for the rest of the turn and attacks against it
  * advantage until its next (PHB p.48). Every attack records that its attacker attacked, which keeps a rage going.
+ * Fighting Styles, Martial Arts and a Champion's critical range change the numbers ({@link AttackFeatures}); Sneak
+ * Attack adds its dice to a hit once per turn (PHB p.96); and a melee weapon hit is recorded on the attacker's turn
+ * economy, for Divine Smite and Stunning Strike to follow on the same turn ({@link HitFollowUpService}).
  */
 @Service
 @RequiredArgsConstructor
 public class AttackService {
+
+    /** The pool whose points Flurry of Blows spends (PHB p.78). */
+    static final String KI_POOL = "class:monk-ki";
+
+    private static final String ROGUE = "Rogue";
+    private static final String MONK = "Monk";
+    private static final String PALADIN = "Paladin";
 
     private final CombatAccess access;
     private final AccessPolicy accessPolicy;
@@ -66,10 +83,22 @@ public class AttackService {
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
 
-    // An attack ready to resolve: its Effect, how its entry reads, the Manual Modifiers it uses, and whether it starts
-    // the attacker's Reckless Attack for the turn (PHB p.48)
+    /**
+     * An attack ready to resolve: its Effect, how its entry reads, the Manual Modifiers it uses, whether it starts the
+     * attacker's Reckless Attack for the turn (PHB p.48), and what the class features record once it is rolled.
+     *
+     * @param weapon      the weapon, or null for an attack entered by hand
+     * @param melee       a melee attack, which Divine Smite and Stunning Strike can follow
+     * @param sneakAttack it carries Sneak Attack's dice, spent for the turn only on a hit
+     * @param martialArts Martial Arts applies to it, so an Attack action with it lets a monk strike as a bonus action
+     */
     private record Prepared(Effect effect, String action, String preposition, String subject,
-                            List<ManualModifiers.Use> modifiers, boolean startsReckless) {
+                            List<ManualModifiers.Use> modifiers, boolean startsReckless, WeaponRules.Weapon weapon,
+                            boolean melee, boolean sneakAttack, boolean martialArts) {
+    }
+
+    /** What an attack charges its attacker's turn, why it is over budget whatever the turn says, and ki it spends. */
+    private record Cost(Charge charge, String overReason, List<ResourcePoolEntry> poolsAfter) {
     }
 
     /**
@@ -85,16 +114,20 @@ public class AttackService {
         Encounter encounter = access.beginForCost(encounterId, actorParticipantId, userId, cost.actionCost());
         EncounterParticipant actor = actorParticipantId != null
                 ? CombatAccess.participant(encounter, actorParticipantId) : null;
-        boolean offHand = cost == AttackCost.BONUS_ACTION;
-        Prepared attack = request.getWeapon() != null ? weaponAttack(encounter, actor, request, offHand)
-                : enteredAttack(actor, request);
-        manualModifiers.require(encounter, userId, attack.modifiers());
         EncounterParticipant target = CombatAccess.target(encounter, request.getTargetId(), userId);
+        Prepared attack = request.getWeapon() != null ? weaponAttack(encounter, actor, target, request, cost)
+                : enteredAttack(actor, request, cost);
+        manualModifiers.require(encounter, userId, attack.modifiers());
         CombatAccess.requireNotDead(List.of(target));
         String costNote = costNote(cost);
         if (actor != null) {
-            economy.charge(encounter, actor, charge(encounter, actor, cost), userId,
+            Cost charged = cost(encounter, actor, cost, attack);
+            economy.charge(encounter, actor, charged.charge(), charged.overReason(), userId,
                     new ActionEconomyKeeper.Command(CombatActionType.ATTACK, attack.subject() + costNote));
+            if (charged.poolsAfter() != null) {
+                actor.setResourcePoolsCurrent(charged.poolsAfter());
+            }
+            afterCharge(actor, cost, attack);
             effectApplier.markAttackedOrDamaged(actor);
             if (attack.startsReckless()) {
                 effectApplier.attackRecklessly(encounter, actor);
@@ -104,8 +137,11 @@ public class AttackService {
         EffectApplier.Use use = new EffectApplier.Use(actor, actor != null ? actor.getDisplayName() : "DM",
                 CombatActionType.ATTACK, attack.action() + costNote, attack.preposition(), "", null);
         manualModifiers.log(encounter, CombatActionType.ATTACK, actor, attack.subject(), userId, attack.modifiers());
-        effectApplier.apply(encounter, use, attack.effect(),
+        List<EffectApplier.Applied> applied = effectApplier.apply(encounter, use, attack.effect(),
                 resolver.resolve(attack.effect(), List.of(stats.target(target, attack.effect()))));
+        if (actor != null) {
+            recordHit(encounter, actor, target, attack, applied.getFirst());
+        }
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 
@@ -127,34 +163,75 @@ public class AttackService {
         if (character == null) {
             return List.of();
         }
-        return characterWeapons.of(character).stream().map(held -> option(character, held)).toList();
+        AttackFeatures.Attacker attacker = characterWeapons.attacker(character, armoured(participant));
+        return characterWeapons.of(character).stream().map(held -> option(character, attacker, held)).toList();
     }
 
-    private AttackOption option(PlayerCharacter character, CharacterWeapons.Held held) {
+    private AttackOption option(PlayerCharacter character, AttackFeatures.Attacker attacker,
+                                CharacterWeapons.Held held) {
         WeaponRules.Weapon weapon = held.weapon();
-        WeaponRules.Numbers numbers = characterWeapons.numbers(character, held, false);
+        AttackFeatures.Grip grip = AttackFeatures.defaultGrip(weapon, false);
+        AttackFeatures.Numbers numbers = characterWeapons.numbers(held, attacker, false, false, grip);
         AttackOption.PowerAttackOption powerAttack = null;
         if (held.powerAttack() != null) {
-            WeaponRules.Numbers traded = characterWeapons.numbers(character, held, true);
+            AttackFeatures.Numbers traded = characterWeapons.numbers(held, attacker, true, false, grip);
             powerAttack = new AttackOption.PowerAttackOption(held.powerAttack().featName(), traded.attackBonus(),
                     traded.damage().toString());
         }
+        String versatile = weapon.versatile() && !weapon.twoHanded()
+                ? characterWeapons.numbers(held, attacker, false, false, AttackFeatures.Grip.TWO_HANDED).damage()
+                        .toString() : null;
         boolean reckless = FeatureEffects.hasFeature(character, ClassFeatures.RECKLESS_ATTACK)
                 && ClassFeatures.meleeStrengthAttack(weapon.ranged(), numbers.ability());
+        int rogueLevel = Math.min(20, FeatureEffects.classLevel(character, ROGUE));
+        String sneakAttack = rogueLevel >= 1 && AttackFeatures.sneakAttackWeapon(weapon)
+                ? AttackFeatures.sneakAttack(rogueLevel).toString() : null;
         return new AttackOption(weapon.name(), numbers.ability(), held.proficient(), numbers.attackBonus(),
-                numbers.damage().toString(), weapon.damageType(), weapon.ranged(), powerAttack, reckless);
+                numbers.damage().toString(), weapon.damageType(), weapon.ranged(), powerAttack, reckless,
+                weapon.twoHanded(), versatile, numbers.notes(), numbers.critRange(), sneakAttack, numbers.martialArts());
     }
 
-    // What the attack charges: an attack of the Attack action, opening it when none is going; an off-hand attack;
-    // or an opportunity attack
-    private static Charge charge(Encounter encounter, EncounterParticipant actor, AttackCost cost) {
+    // ── What an attack costs ─────────────────────────────────────
+
+    // What the attack charges: an attack of the Attack action, opening it when none is going; an off-hand attack; an
+    // opportunity attack; or a monk's bonus-action unarmed strike, Flurry of Blows' first spending a ki point
+    private Cost cost(Encounter encounter, EncounterParticipant actor, AttackCost cost, Prepared attack) {
         boolean ownTurn = EncounterTurns.isCurrentTurn(encounter, actor.getId());
+        TurnEconomy turn = economyOf(actor);
         return switch (cost) {
-            case ACTION -> new Charge(ActionCost.ACTION, true, Charge.SpellKind.NONE, ownTurn,
-                    TurnEconomies.attacksPerAction(actor));
-            case BONUS_ACTION -> new Charge(ActionCost.BONUS_ACTION, true, Charge.SpellKind.NONE, ownTurn, 1);
-            case REACTION -> Charge.reactionAttack(ownTurn);
+            case ACTION -> new Cost(new Charge(ActionCost.ACTION, true, Charge.SpellKind.NONE, ownTurn,
+                    TurnEconomies.attacksPerAction(actor)), null, null);
+            case BONUS_ACTION -> new Cost(new Charge(ActionCost.BONUS_ACTION, true, Charge.SpellKind.NONE, ownTurn, 1),
+                    null, null);
+            case REACTION -> new Cost(Charge.reactionAttack(ownTurn), null, null);
+            // Martial Arts: after the Attack action with an unarmed strike or a monk weapon, without armour or a
+            // shield (PHB p.78)
+            case MARTIAL_ARTS -> new Cost(Charge.of(ActionCost.BONUS_ACTION, ownTurn),
+                    !attack.martialArts() ? "Martial Arts needs no armour and no shield"
+                            : !turn.martialArtsAttack() ? "Martial Arts' bonus unarmed strike follows the Attack action "
+                            + "taken with an unarmed strike or a monk weapon this turn" : null,
+                    null);
+            // Flurry of Blows: the second strike costs nothing more; the first needs the Attack action this turn and
+            // spends 1 ki point and the bonus action (PHB p.78)
+            case FLURRY_OF_BLOWS -> turn.flurryStrikesLeft() > 0
+                    ? new Cost(Charge.of(ActionCost.FREE, ownTurn), null, null)
+                    : new Cost(Charge.of(ActionCost.BONUS_ACTION, ownTurn),
+                            turn.attackActionTaken() ? null : "Flurry of Blows follows the Attack action this turn",
+                            ResourcePoolService.spend(actor.getResourcePoolsCurrent(), KI_POOL, 1,
+                                    actor.getDisplayName()));
         };
+    }
+
+    // What the class features record once the attack is charged: an Attack action with Martial Arts, which its bonus
+    // strike follows, and the Flurry of Blows strikes left
+    private static void afterCharge(EncounterParticipant actor, AttackCost cost, Prepared attack) {
+        TurnEconomy turn = economyOf(actor);
+        if (cost == AttackCost.ACTION && attack.martialArts() && !turn.martialArtsAttack()) {
+            actor.setTurnEconomy(turn.withMartialArtsAttack(true));
+        } else if (cost == AttackCost.FLURRY_OF_BLOWS) {
+            actor.setTurnEconomy(turn.withFlurryStrikesLeft(turn.flurryStrikesLeft() > 0
+                    ? turn.flurryStrikesLeft() - 1 : AttackFeatures.FLURRY_OF_BLOWS_STRIKES - 1));
+        }
     }
 
     // How the log names an attack's cost when it isn't the attack of the Attack action
@@ -163,13 +240,43 @@ public class AttackService {
             case ACTION -> "";
             case BONUS_ACTION -> " (bonus action)";
             case REACTION -> " (reaction)";
+            case MARTIAL_ARTS -> " (bonus action)";
+            case FLURRY_OF_BLOWS -> " (Flurry of Blows)";
         };
     }
 
+    // ── What a hit leaves ────────────────────────────────────────
+
+    // A hit spends the turn's Sneak Attack when it carried one (PHB p.96), and a melee weapon hit is what Divine Smite and
+    // Stunning Strike follow on the same turn (PHB p.85, p.79); a miss leaves nothing to follow
+    private static void recordHit(Encounter encounter, EncounterParticipant actor, EncounterParticipant target,
+                                  Prepared attack, EffectApplier.Applied applied) {
+        Outcome outcome = applied.outcome().outcome();
+        boolean hit = outcome == Outcome.HIT || outcome == Outcome.CRITICAL;
+        String turn = EncounterTurns.stamp(encounter);
+        TurnEconomy economy = economyOf(actor);
+        if (hit && attack.sneakAttack()) {
+            economy = economy.withSneakAttackTurn(turn);
+        }
+        WeaponHit followed = null;
+        if (hit && attack.melee() && attack.weapon() != null) {
+            PlayerCharacter character = actor.getCharacter();
+            // An unarmed strike is a melee weapon attack, so Divine Smite may follow it too (PHB p.195, p.85)
+            followed = WeaponHit.of(turn, applied.logEntryId(), target.getId(), attack.weapon().name(),
+                    outcome == Outcome.CRITICAL,
+                    FeatureEffects.classLevel(character, PALADIN) >= AttackFeatures.DIVINE_SMITE_LEVEL,
+                    FeatureEffects.classLevel(character, MONK) >= AttackFeatures.STUNNING_STRIKE_LEVEL);
+        }
+        actor.setTurnEconomy(economy.withLastMeleeHit(followed));
+    }
+
+    // ── Weapon attacks ───────────────────────────────────────────
+
     // A player character's attack with a weapon they hold: the numbers are the server's, and what is added to them
-    // by hand is a Manual Modifier. An off-hand attack needs a light melee weapon (PHB p.195)
-    private Prepared weaponAttack(Encounter encounter, EncounterParticipant actor, AttackRollRequest request,
-                                  boolean offHand) {
+    // by hand is a Manual Modifier. An off-hand attack needs a light melee weapon (PHB p.195), and a monk's bonus-action
+    // strikes are unarmed strikes (PHB p.78)
+    private Prepared weaponAttack(Encounter encounter, EncounterParticipant actor, EncounterParticipant target,
+                                  AttackRollRequest request, AttackCost cost) {
         if (request.getAttackBonus() != null || request.getDamageDice() != null || request.getDamageType() != null) {
             throw new ValidationException("A weapon attack takes its numbers from the weapon: add a magic bonus as an "
                     + "extra attack bonus or extra damage");
@@ -182,17 +289,25 @@ public class AttackService {
                 .orElseThrow(() -> new ValidationException(actor.getDisplayName() + " has no "
                         + request.getWeapon().trim() + " to attack with"));
         WeaponRules.Weapon weapon = held.weapon();
+        boolean offHand = cost == AttackCost.BONUS_ACTION;
         if (offHand && !WeaponRules.offHandWeapon(weapon)) {
             throw new ValidationException("An off-hand attack needs a light melee weapon, and "
                     + (weapon == WeaponRules.UNARMED_STRIKE ? "an unarmed strike" : "the " + weapon.name())
                     + " isn't one");
         }
+        requireMonkStrike(actor, weapon, cost);
         boolean powerAttack = Boolean.TRUE.equals(request.getPowerAttack());
         if (powerAttack && held.powerAttack() == null) {
             throw new ValidationException(powerAttackRefusal(actor, held));
         }
+        AttackFeatures.Grip grip = request.getGrip() != null ? request.getGrip()
+                : AttackFeatures.defaultGrip(weapon, offHand);
+        AttackFeatures.gripRefusal(weapon, grip, offHand).ifPresent(reason -> {
+            throw new ValidationException(reason);
+        });
 
-        WeaponRules.Numbers numbers = characterWeapons.numbers(character, held, powerAttack, offHand);
+        AttackFeatures.Numbers numbers = characterWeapons.numbers(held,
+                characterWeapons.attacker(character, armoured(actor)), powerAttack, offHand, grip);
         boolean meleeStrength = ClassFeatures.meleeStrengthAttack(weapon.ranged(), numbers.ability());
         boolean ownTurn = EncounterTurns.isCurrentTurn(encounter, actor.getId());
         List<String> conditions = CreatureStats.conditionNames(actor);
@@ -211,7 +326,7 @@ public class AttackService {
                 : request.getExtraDamageType() != null && !request.getExtraDamageType().isBlank()
                         ? request.getExtraDamageType().trim().toLowerCase() : weapon.damageType();
         List<Effect.DamagePart> damage = new ArrayList<>(List.of(new Effect.DamagePart(weaponDamage,
-                weapon.damageType())));
+                weapon.damageType(), numbers.rerollUpTo())));
         if (extraDamage != null) {
             damage.add(new Effect.DamagePart(extraDamage, extraType));
         }
@@ -219,12 +334,14 @@ public class AttackService {
                 + (request.getExtraAttackBonus() != null ? request.getExtraAttackBonus() : 0);
         // There is no map: a melee weapon attacks from within 5 feet, and a ranged one from beyond (D161)
         boolean withinFiveFeet = request.getWithin5Ft() != null ? request.getWithin5Ft() : !weapon.ranged();
+        // A melee weapon thrown from beyond 5 feet makes a ranged attack, unless it is a reach weapon (PHB p.195)
+        boolean melee = !weapon.ranged() && (withinFiveFeet || weapon.reach());
         boolean forcedCritical = Boolean.TRUE.equals(request.getForceCrit());
         List<String> notes = new ArrayList<>();
         if (powerAttack) notes.add(held.powerAttack().featName());
         if (reckless) notes.add(ClassFeatures.RECKLESS_ATTACK);
         if (rageDamage > 0) notes.add("Rage +" + rageDamage);
-        String label = weapon.name() + (notes.isEmpty() ? "" : " (" + String.join(", ", notes) + ")");
+        notes.addAll(numbers.notes());
 
         // Every weapon attack uses STR or DEX, so armour worn without proficiency gives it disadvantage (PHB p.144):
         // one more source, combined with the attacker's choice and the target's conditions at once (PHB p.173), as is
@@ -232,11 +349,81 @@ public class AttackService {
         List<RollMode> sources = new ArrayList<>();
         if (stats.armourPenalty(actor)) sources.add(RollMode.DISADVANTAGE);
         if (reckless) sources.add(RollMode.ADVANTAGE);
-        Effect effect = new Effect(label, new Effect.Attack(attackBonus, SpellEffects.rollMode(request.getAdvantage()),
-                withinFiveFeet, forcedCritical, null, sources), damage, null, List.of(), false, null);
+        Effect.Attack delivery = new Effect.Attack(attackBonus, SpellEffects.rollMode(request.getAdvantage()),
+                withinFiveFeet, forcedCritical, null, sources, numbers.critRange());
+
+        boolean sneakAttack = false;
+        Dice sneakDice = sneakAttack(encounter, actor, target, weapon, delivery, request.getSneakAttack(), notes);
+        if (sneakDice != null) {
+            damage.add(new Effect.DamagePart(sneakDice, weapon.damageType()));
+            sneakAttack = true;
+        }
+
+        String label = weapon.name() + (notes.isEmpty() ? "" : " (" + String.join(", ", notes) + ")");
+        Effect effect = new Effect(label, delivery, damage, null, List.of(), false, null);
         return new Prepared(effect, "uses " + label, "on", actor.getDisplayName() + "'s " + weapon.name() + " attack",
                 ManualModifiers.forWeaponAttack(request.getExtraAttackBonus(), extraDamage, extraType, forcedCritical),
-                startsReckless);
+                startsReckless, weapon, melee, sneakAttack, numbers.martialArts());
+    }
+
+    /**
+     * Sneak Attack's dice for this attack, or null (PHB p.96): a Rogue's, once per turn, with a finesse or ranged
+     * weapon, when the attack has advantage once every source counts or the player claims an ally of theirs next to the
+     * target, and never with disadvantage. Its note goes into the attack's label, or why a claim came to nothing.
+     *
+     * @throws ValidationException a claim without Rogue levels or with another weapon
+     * @throws ConflictException   a claim after Sneak Attack was dealt this turn
+     */
+    private Dice sneakAttack(Encounter encounter, EncounterParticipant actor, EncounterParticipant target,
+                             WeaponRules.Weapon weapon, Effect.Attack delivery, Boolean claim, List<String> notes) {
+        int rogueLevel = Math.min(20, FeatureEffects.classLevel(actor.getCharacter(), ROGUE));
+        boolean claimed = Boolean.TRUE.equals(claim);
+        if (claimed && rogueLevel < 1) {
+            throw new ValidationException(actor.getDisplayName() + " has no Rogue levels for Sneak Attack");
+        }
+        if (claimed && !AttackFeatures.sneakAttackWeapon(weapon)) {
+            throw new ValidationException("Sneak Attack needs a finesse or ranged weapon, and "
+                    + (weapon == WeaponRules.UNARMED_STRIKE ? "an unarmed strike" : "the " + weapon.name())
+                    + " is neither");
+        }
+        if (rogueLevel < 1 || !AttackFeatures.sneakAttackWeapon(weapon)) {
+            return null;
+        }
+        boolean used = EncounterTurns.stamp(encounter).equals(economyOf(actor).sneakAttackTurn());
+        if (used) {
+            if (claimed) {
+                throw new ConflictException(actor.getDisplayName() + " has already dealt Sneak Attack damage this "
+                        + "turn; it can be dealt once per turn");
+            }
+            return null;
+        }
+        RollMode mode = AttackRules.setup(delivery.attackerSources(), CreatureStats.conditionNames(target),
+                delivery.withinFiveFeet()).rollMode();
+        if (!AttackFeatures.sneakAttackApplies(claim, mode)) {
+            if (claimed) {
+                notes.add("no Sneak Attack with disadvantage");
+            }
+            return null;
+        }
+        Dice dice = AttackFeatures.sneakAttack(rogueLevel);
+        notes.add("Sneak Attack +" + dice);
+        return dice;
+    }
+
+    // Martial Arts' and Flurry of Blows' strikes are a monk's unarmed strikes (PHB p.78)
+    private static void requireMonkStrike(EncounterParticipant actor, WeaponRules.Weapon weapon, AttackCost cost) {
+        if (cost != AttackCost.MARTIAL_ARTS && cost != AttackCost.FLURRY_OF_BLOWS) {
+            return;
+        }
+        String feature = cost == AttackCost.MARTIAL_ARTS ? "Martial Arts" : "Flurry of Blows";
+        int needs = cost == AttackCost.MARTIAL_ARTS ? 1 : AttackFeatures.FLURRY_OF_BLOWS_LEVEL;
+        if (FeatureEffects.classLevel(actor.getCharacter(), MONK) < needs) {
+            throw new ValidationException(feature + " needs " + (needs == 1 ? "Monk levels" : "Monk level " + needs)
+                    + ", and " + actor.getDisplayName() + " hasn't " + (needs == 1 ? "any" : "it"));
+        }
+        if (weapon != WeaponRules.UNARMED_STRIKE) {
+            throw new ValidationException(feature + " strikes with unarmed strikes, not the " + weapon.name());
+        }
     }
 
     // Reckless Attack is the barbarian's, with a melee weapon attack using Strength, chosen on the first attack of its
@@ -255,7 +442,7 @@ public class AttackService {
             throw new ConflictException("Reckless Attack is chosen on an attack on " + actor.getDisplayName()
                     + "'s own turn");
         }
-        TurnEconomy economy = actor.getTurnEconomy() != null ? actor.getTurnEconomy() : TurnEconomy.fresh();
+        TurnEconomy economy = economyOf(actor);
         if (!alreadyReckless && economy.attackActionTaken()) {
             throw new ConflictException("Reckless Attack is chosen on the first attack of the turn, and "
                     + actor.getDisplayName() + " has already attacked");
@@ -267,8 +454,10 @@ public class AttackService {
         return barbarianLevel >= 1 ? ClassFeatures.rageDamage(Math.min(20, barbarianLevel)) : 0;
     }
 
+    // ── Attacks entered by hand ──────────────────────────────────
+
     // An attack whose numbers are all entered by hand: a Manual Modifier as a whole
-    private Prepared enteredAttack(EncounterParticipant actor, AttackRollRequest request) {
+    private Prepared enteredAttack(EncounterParticipant actor, AttackRollRequest request, AttackCost cost) {
         if (request.getAttackBonus() == null || request.getDamageDice() == null || request.getDamageDice().isBlank()) {
             throw new ValidationException("Choose a weapon, or enter the attack bonus and damage dice");
         }
@@ -277,8 +466,14 @@ public class AttackService {
             throw new ValidationException("Great Weapon Master, Sharpshooter and extra bonuses go with a weapon attack; "
                     + "an attack entered by hand includes them in its numbers");
         }
-        if (Boolean.TRUE.equals(request.getRecklessAttack())) {
-            throw new ValidationException("Reckless Attack goes with a weapon attack, whose numbers the server works out");
+        if (Boolean.TRUE.equals(request.getRecklessAttack()) || request.getGrip() != null
+                || request.getSneakAttack() != null) {
+            throw new ValidationException("Reckless Attack, a grip and Sneak Attack go with a weapon attack, whose "
+                    + "numbers the server works out");
+        }
+        if (cost == AttackCost.MARTIAL_ARTS || cost == AttackCost.FLURRY_OF_BLOWS) {
+            throw new ValidationException("Martial Arts and Flurry of Blows strike with an unarmed strike: choose it "
+                    + "as the weapon");
         }
         Dice damage = Dice.parse(request.getDamageDice());
         String damageType = request.getDamageType() != null && !request.getDamageType().isBlank()
@@ -290,7 +485,8 @@ public class AttackService {
                 List.of(new Effect.DamagePart(damage, damageType)), null, List.of(), false, null);
         String subject = actor != null ? actor.getDisplayName() + "'s attack" : "The DM's attack";
         return new Prepared(effect, "attacks", "", subject,
-                ManualModifiers.forEnteredAttack(request.getAttackBonus(), damage, damageType, forcedCritical), false);
+                ManualModifiers.forEnteredAttack(request.getAttackBonus(), damage, damageType, forcedCritical), false,
+                null, false, false, false);
     }
 
     // The extra damage entered for a weapon attack, such as "1d6" or "+1"; a type alone is a 400
@@ -318,5 +514,15 @@ public class AttackService {
                 .orElse("Great Weapon Master needs a heavy melee weapon and Sharpshooter a ranged weapon, and "
                         + (weapon == WeaponRules.UNARMED_STRIKE ? "an unarmed strike" : "the " + weapon.name())
                         + " is neither");
+    }
+
+    // Whether the participant wears armour or carries a shield, which stops Martial Arts (PHB p.78)
+    private boolean armoured(EncounterParticipant participant) {
+        var worn = stats.armour(participant);
+        return worn.armour() != null || worn.shield() != null;
+    }
+
+    private static TurnEconomy economyOf(EncounterParticipant participant) {
+        return participant.getTurnEconomy() != null ? participant.getTurnEconomy() : TurnEconomy.fresh();
     }
 }

@@ -10,6 +10,9 @@ import java.util.List;
  */
 public final class AttackRules {
 
+    /** The d20 that is a critical hit for every attacker (PHB p.194). */
+    public static final int CRITICAL_D20 = 20;
+
     /** How an attack is rolled against a target, and whether a hit on it is a critical hit. */
     public record Setup(RollMode rollMode, boolean hitIsCritical) {}
 
@@ -42,11 +45,19 @@ public final class AttackRules {
      * hitIsCritical says so.
      */
     public static Outcome outcome(int d20, int attackBonus, int armourClass, boolean hitIsCritical) {
+        return outcome(d20, attackBonus, armourClass, hitIsCritical, CRITICAL_D20);
+    }
+
+    /**
+     * As {@link #outcome(int, int, int, boolean)}, for an attacker who scores a critical hit on a d20 of critRange or
+     * more, as a Champion does on 19 or 20 (PHB p.72). Like a 20, such a roll hits whatever the total.
+     */
+    public static Outcome outcome(int d20, int attackBonus, int armourClass, boolean hitIsCritical, int critRange) {
         if (d20 < 1 || d20 > 20) {
             throw new IllegalArgumentException("A d20 rolls 1 to 20, not " + d20);
         }
         if (d20 == 1) return Outcome.MISS;
-        if (d20 == 20) return Outcome.CRITICAL;
+        if (d20 >= Math.min(CRITICAL_D20, Math.max(2, critRange))) return Outcome.CRITICAL;
         if (d20 + attackBonus < armourClass) return Outcome.MISS;
         return hitIsCritical ? Outcome.CRITICAL : Outcome.HIT;
     }

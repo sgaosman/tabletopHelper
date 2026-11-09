@@ -11,9 +11,12 @@ import type {
   MonsterActionResponse,
   MonsterActionTemplate,
   MultiattackOption,
+  DivineSmiteRequest,
   ObjectInteractionRequest,
+  ProtectionRequest,
   SpellOption,
   StandardActionRequest,
+  StunningStrikeRequest,
   TurnEconomyRequest,
   UndoRequest,
   UsePoolRequest,
@@ -28,6 +31,22 @@ export const combatApi = {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/attack`, request, {
       params: actorId ? { actorId } : undefined,
     });
+  },
+
+  // Divine Smite on the paladin's latest melee weapon hit this turn (PHB p.85, M17): costs nothing from the turn,
+  // spends the slot, and is refused (409) when there is no such hit or it was smitten already
+  divineSmite(encounterId: string, request: DivineSmiteRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/divine-smite`, request);
+  },
+
+  // Stunning Strike on the monk's latest melee weapon hit this turn, spending 1 ki (PHB p.79, M17)
+  stunningStrike(encounterId: string, request: StunningStrikeRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/stunning-strike`, request);
+  },
+
+  // The Protection fighting style's reaction, logged for the DM to apply (PHB p.72, M17)
+  protection(encounterId: string, request: ProtectionRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/protection`, request);
   },
 
   // The weapons the participant can attack with, and the numbers for each (D164)

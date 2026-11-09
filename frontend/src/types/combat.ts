@@ -12,6 +12,28 @@ export type AttackRollRequest = Schemas['AttackRollRequest'];
  */
 export type AttackOption = Schemas['AttackOption'];
 
+/**
+ * How an attacker holds its weapons for an attack (M17): one-handed, two-handed (a two-handed weapon always, a
+ * versatile one for its larger die) or a weapon in each hand. Dueling needs one-handed and Great Weapon Fighting
+ * two-handed (PHB p.72, p.147).
+ */
+export type AttackGrip = NonNullable<AttackRollRequest['grip']>;
+
+/**
+ * A participant's latest melee weapon hit, kept in its turn economy (M17), which Divine Smite (PHB p.85) and Stunning
+ * Strike (PHB p.79) may follow on the same turn, once each.
+ */
+export type WeaponHit = Schemas['WeaponHit'];
+
+/** Divine Smite on the paladin's latest melee weapon hit this turn, spending a spell slot (PHB p.85, M17). */
+export type DivineSmiteRequest = Schemas['DivineSmiteRequest'];
+
+/** Stunning Strike on the monk's latest melee weapon hit this turn, spending 1 ki (PHB p.79, M17). */
+export type StunningStrikeRequest = Schemas['StunningStrikeRequest'];
+
+/** The Protection fighting style's reaction for a creature within 5 feet, logged for the DM (PHB p.72, M17). */
+export type ProtectionRequest = Schemas['ProtectionRequest'];
+
 export type CastSpellRequest = Schemas['CastSpellRequest'];
 
 export type TargetOutcome = Schemas['TargetOutcome'];

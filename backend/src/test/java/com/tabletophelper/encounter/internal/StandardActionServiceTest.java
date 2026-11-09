@@ -546,6 +546,23 @@ class StandardActionServiceTest {
         }
 
         @Test
+        @DisplayName("The edit replaces the budget and keeps the class features' records of the turn, which the log "
+                + "never names (M17)")
+        void keepsFeatureRecords() {
+            fighter.setTurnEconomy(TurnEconomy.fresh().withSneakAttackTurn("1:" + fighter.getId())
+                    .withFlurryStrikesLeft(1));
+
+            set(fighter, new TurnEconomy(2, 0, false, 0, false, false, false, false, false, false, false, false),
+                    f.dmUserId);
+
+            assertEquals(2, economy(fighter).actions());
+            assertEquals("1:" + fighter.getId(), economy(fighter).sneakAttackTurn());
+            assertEquals(1, economy(fighter).flurryStrikesLeft());
+            assertEquals("The DM sets Fighter's turn economy: actions 1 → 2",
+                    f.entries(CombatActionType.TURN_ECONOMY_SET).getFirst().getDescription());
+        }
+
+        @Test
         @DisplayName("The DM sets any part, such as Haste's extra action, logged with what changed")
         void haste() {
             set(fighter, new TurnEconomy(2, 0, false, 0, true, false, false, false, false, false, false, false),

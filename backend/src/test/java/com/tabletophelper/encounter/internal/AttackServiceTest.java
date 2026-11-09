@@ -508,10 +508,12 @@ class AttackServiceTest {
             assertEquals(List.of(
                     new AttackOption("Longsword", Ability.STR, true, 5, "1d8 + 3", "slashing", false, null),
                     new AttackOption("Rapier", Ability.DEX, true, 6, "1d8 + 4", "piercing", false, null),
-                    new AttackOption("Greatsword", Ability.STR, true, 5, "2d6 + 3", "slashing", false, null),
+                    new AttackOption("Greatsword", Ability.STR, true, 5, "2d6 + 3", "slashing", false, null, false,
+                            true, null, List.of(), 20, null, false),
                     new AttackOption("Dagger", Ability.DEX, true, 6, "1d4 + 4", "piercing", false, null),
                     new AttackOption("Longbow", Ability.DEX, true, 6, "1d8 + 4", "piercing", true,
-                            new AttackOption.PowerAttackOption("Sharpshooter", 1, "1d8 + 14")),
+                            new AttackOption.PowerAttackOption("Sharpshooter", 1, "1d8 + 14"), false, true, null,
+                            List.of(), 20, null, false),
                     new AttackOption("Unarmed Strike", Ability.STR, true, 5, "4", "bludgeoning", false, null)), options);
             assertThrows(ForbiddenException.class,
                     () -> f.attacks.attackOptions(f.encounterId(), rogue.getId(), otherPlayer));

@@ -345,6 +345,10 @@ export function useEncounterAction() {
       usePool: change(combatApi.usePool),
       standardAction: change(combatApi.standardAction),
       objectInteraction: change(combatApi.objectInteraction),
+      // What follows a melee weapon hit, and the Protection reaction (M17)
+      divineSmite: change(combatApi.divineSmite),
+      stunningStrike: change(combatApi.stunningStrike),
+      protection: change(combatApi.protection),
     };
   }, [queryClient, encounterId, view, socketMessages]);
 }

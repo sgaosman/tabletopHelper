@@ -1726,6 +1726,47 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/divine-smite": {
+      "post": {
+        "operationId": "divineSmite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DivineSmiteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/heal": {
       "post": {
         "operationId": "applyHealing",
@@ -2067,6 +2108,47 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/protection": {
+      "post": {
+        "operationId": "protection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProtectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/repeat-save": {
       "post": {
         "operationId": "rollRepeatSave",
@@ -2343,6 +2425,47 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/StandardActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/stunning-strike": {
+      "post": {
+        "operationId": "stunningStrike",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StunningStrikeRequest"
               }
             }
           },
@@ -4625,10 +4748,14 @@
         "required": [
           "ability",
           "attackBonus",
+          "critRange",
           "damage",
+          "features",
+          "martialArts",
           "proficient",
           "ranged",
           "recklessAttack",
+          "twoHanded",
           "weapon"
         ],
         "type": "object",
@@ -4648,12 +4775,25 @@
             "type": "integer",
             "format": "int32"
           },
+          "critRange": {
+            "type": "integer",
+            "format": "int32"
+          },
           "damage": {
             "type": "string"
           },
           "damageType": {
             "type": "string",
             "nullable": true
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "martialArts": {
+            "type": "boolean"
           },
           "powerAttack": {
             "nullable": true,
@@ -4671,6 +4811,17 @@
           },
           "recklessAttack": {
             "type": "boolean"
+          },
+          "sneakAttack": {
+            "type": "string",
+            "nullable": true
+          },
+          "twoHanded": {
+            "type": "boolean"
+          },
+          "versatileDamage": {
+            "type": "string",
+            "nullable": true
           },
           "weapon": {
             "type": "string"
@@ -4698,7 +4849,9 @@
             "enum": [
               "ACTION",
               "BONUS_ACTION",
-              "REACTION"
+              "REACTION",
+              "MARTIAL_ARTS",
+              "FLURRY_OF_BLOWS"
             ]
           },
           "damageDice": {
@@ -4726,11 +4879,24 @@
             "type": "boolean",
             "nullable": true
           },
+          "grip": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "ONE_HANDED",
+              "TWO_HANDED",
+              "TWO_WEAPONS"
+            ]
+          },
           "powerAttack": {
             "type": "boolean",
             "nullable": true
           },
           "recklessAttack": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "sneakAttack": {
             "type": "boolean",
             "nullable": true
           },
@@ -6524,6 +6690,34 @@
           }
         }
       },
+      "DivineSmiteRequest": {
+        "required": [
+          "participantId",
+          "slotLevel"
+        ],
+        "type": "object",
+        "properties": {
+          "attackLogId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "pactSlot": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slotLevel": {
+            "maximum": 9,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "DmAdjustment": {
         "required": [
           "addedAt",
@@ -6786,6 +6980,10 @@
             "items": {
               "$ref": "#/components/schemas/TurnResponse"
             }
+          },
+          "turnStamp": {
+            "type": "string",
+            "nullable": true
           },
           "undo": {
             "nullable": true,
@@ -8797,6 +8995,13 @@
           "displayName": {
             "type": "string"
           },
+          "fightingStyles": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
           "hasLairActions": {
             "type": "boolean",
             "nullable": true
@@ -9204,6 +9409,23 @@
           "name": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "ProtectionRequest": {
+        "required": [
+          "participantId",
+          "protectedId"
+        ],
+        "type": "object",
+        "properties": {
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "protectedId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -10074,6 +10296,23 @@
           }
         }
       },
+      "StunningStrikeRequest": {
+        "required": [
+          "participantId"
+        ],
+        "type": "object",
+        "properties": {
+          "attackLogId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "Subclass": {
         "required": [
           "characterClass",
@@ -10344,6 +10583,23 @@
           "disengaged": {
             "type": "boolean"
           },
+          "flurryStrikesLeft": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "lastMeleeHit": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WeaponHit"
+              }
+            ]
+          },
+          "martialArtsAttack": {
+            "type": "boolean",
+            "nullable": true
+          },
           "objectInteractionUsed": {
             "type": "boolean"
           },
@@ -10352,6 +10608,10 @@
           },
           "reactionUsed": {
             "type": "boolean"
+          },
+          "sneakAttackTurn": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -10536,6 +10796,51 @@
         "properties": {
           "visible": {
             "type": "boolean"
+          }
+        }
+      },
+      "WeaponHit": {
+        "required": [
+          "critical",
+          "divineSmiteOffered",
+          "smitten",
+          "stunningStrikeOffered",
+          "stunningStrikeUsed",
+          "targetId",
+          "turn",
+          "weapon"
+        ],
+        "type": "object",
+        "properties": {
+          "attackLogId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "critical": {
+            "type": "boolean"
+          },
+          "divineSmiteOffered": {
+            "type": "boolean"
+          },
+          "smitten": {
+            "type": "boolean"
+          },
+          "stunningStrikeOffered": {
+            "type": "boolean"
+          },
+          "stunningStrikeUsed": {
+            "type": "boolean"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "turn": {
+            "type": "string"
+          },
+          "weapon": {
+            "type": "string"
           }
         }
       }

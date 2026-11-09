@@ -692,6 +692,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/divine-smite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["divineSmite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/heal": {
         parameters: {
             query?: never;
@@ -820,6 +836,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/protection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["protection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/repeat-save": {
         parameters: {
             query?: never;
@@ -926,6 +958,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["standardAction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/combat/stunning-strike": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stunningStrike"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1887,12 +1935,19 @@ export interface components {
             ability: "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
             /** Format: int32 */
             attackBonus: number;
+            /** Format: int32 */
+            critRange: number;
             damage: string;
             damageType?: string | null;
+            features: string[];
+            martialArts: boolean;
             powerAttack?: components["schemas"]["PowerAttackOption"] | null;
             proficient: boolean;
             ranged: boolean;
             recklessAttack: boolean;
+            sneakAttack?: string | null;
+            twoHanded: boolean;
+            versatileDamage?: string | null;
             weapon: string;
         };
         AttackRollRequest: {
@@ -1900,7 +1955,7 @@ export interface components {
             /** Format: int32 */
             attackBonus?: number | null;
             /** @enum {string|null} */
-            cost?: "ACTION" | "BONUS_ACTION" | "REACTION" | null;
+            cost?: "ACTION" | "BONUS_ACTION" | "REACTION" | "MARTIAL_ARTS" | "FLURRY_OF_BLOWS" | null;
             damageDice?: string | null;
             damageType?: string | null;
             /** Format: int32 */
@@ -1908,8 +1963,11 @@ export interface components {
             extraDamageDice?: string | null;
             extraDamageType?: string | null;
             forceCrit?: boolean | null;
+            /** @enum {string|null} */
+            grip?: "ONE_HANDED" | "TWO_HANDED" | "TWO_WEAPONS" | null;
             powerAttack?: boolean | null;
             recklessAttack?: boolean | null;
+            sneakAttack?: boolean | null;
             /** Format: uuid */
             targetId: string;
             weapon?: string | null;
@@ -2405,6 +2463,15 @@ export interface components {
             /** Format: uuid */
             participantId: string;
         };
+        DivineSmiteRequest: {
+            /** Format: uuid */
+            attackLogId?: string | null;
+            pactSlot?: boolean | null;
+            /** Format: uuid */
+            participantId: string;
+            /** Format: int32 */
+            slotLevel: number;
+        };
         DmAdjustment: {
             /** Format: date-time */
             addedAt: string;
@@ -2476,6 +2543,7 @@ export interface components {
             /** @enum {string} */
             status: "PREPARING" | "ACTIVE" | "PAUSED" | "COMPLETED";
             turnOrder: components["schemas"]["TurnResponse"][];
+            turnStamp?: string | null;
             undo?: components["schemas"]["UndoInfo"] | null;
         };
         EndEncounterRequest: {
@@ -3028,6 +3096,7 @@ export interface components {
             /** Format: int32 */
             deathSaveSuccesses: number;
             displayName: string;
+            fightingStyles?: string[] | null;
             hasLairActions?: boolean | null;
             /** @enum {string|null} */
             healthStatus?: "UNHARMED" | "INJURED" | "BLOODIED" | "DOWN" | null;
@@ -3137,6 +3206,12 @@ export interface components {
             /** @enum {string|null} */
             kind?: "ARMOR" | "WEAPON" | "WEAPON_GROUP" | null;
             name?: string | null;
+        };
+        ProtectionRequest: {
+            /** Format: uuid */
+            participantId: string;
+            /** Format: uuid */
+            protectedId: string;
         };
         Race: {
             abilityScoreBonuses?: string | null;
@@ -3378,6 +3453,12 @@ export interface components {
             /** Format: uuid */
             targetId?: string | null;
         };
+        StunningStrikeRequest: {
+            /** Format: uuid */
+            attackLogId?: string | null;
+            /** Format: uuid */
+            participantId: string;
+        };
         Subclass: {
             additionalProficiencies?: string | null;
             alwaysPreparedSpells?: string | null;
@@ -3455,9 +3536,14 @@ export interface components {
             bonusActionUsed: boolean;
             dashed: boolean;
             disengaged: boolean;
+            /** Format: int32 */
+            flurryStrikesLeft?: number | null;
+            lastMeleeHit?: components["schemas"]["WeaponHit"] | null;
+            martialArtsAttack?: boolean | null;
             objectInteractionUsed: boolean;
             otherSpellCast: boolean;
             reactionUsed: boolean;
+            sneakAttackTurn?: string | null;
         };
         TurnEconomyRequest: {
             /** Format: uuid */
@@ -3512,6 +3598,19 @@ export interface components {
         };
         VisibilityRequest: {
             visible: boolean;
+        };
+        WeaponHit: {
+            /** Format: uuid */
+            attackLogId?: string | null;
+            critical: boolean;
+            divineSmiteOffered: boolean;
+            smitten: boolean;
+            stunningStrikeOffered: boolean;
+            stunningStrikeUsed: boolean;
+            /** Format: uuid */
+            targetId: string;
+            turn: string;
+            weapon: string;
         };
     };
     responses: never;
@@ -4675,6 +4774,32 @@ export interface operations {
             };
         };
     };
+    divineSmite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DivineSmiteRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
     applyHealing: {
         parameters: {
             query?: {
@@ -4881,6 +5006,32 @@ export interface operations {
             };
         };
     };
+    protection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProtectionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
     rollRepeatSave: {
         parameters: {
             query?: never;
@@ -5049,6 +5200,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["StandardActionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    stunningStrike: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StunningStrikeRequest"];
             };
         };
         responses: {

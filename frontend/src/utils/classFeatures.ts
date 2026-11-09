@@ -1,6 +1,6 @@
 import type { ConditionEntry, EncounterParticipant, ResourcePoolEntry } from '../types/encounter';
-import type { UsePoolRequest } from '../types/combat';
-import { poolMetadata } from './turnEconomy';
+import type { UsePoolRequest, WeaponHit } from '../types/combat';
+import { chargeBlock, poolMetadata } from './turnEconomy';
 
 /**
  * The class features a pool's use does more than spend (M17), as the server names them in the pool's metadata.effect:
@@ -75,4 +75,84 @@ export function poolEffectText(effect: PoolEffect | null): string | null {
     case 'ki': return 'Patient Defense or Step of the Wind for 1 ki as a bonus action';
     default: return null;
   }
+}
+
+// ── Weapon attack riders (M17 workstream B) ─────────────────────────────
+
+/** The pool whose points Flurry of Blows and Stunning Strike spend (PHB p.78-79). */
+export const KI_POOL = 'class:monk-ki';
+
+/** What Sneak Attack asks of an attack (PHB p.96). */
+export const SNEAK_ATTACK_TEXT = 'Once per turn, on a hit with a finesse or ranged weapon: with advantage, or when '
+  + 'another enemy of the target is within 5 ft of it and not incapacitated, and never with disadvantage.';
+
+/** The ki points a participant has left, or null when it has no ki pool. */
+export function kiLeft(participant: Pick<EncounterParticipant, 'resourcePoolsCurrent'>): number | null {
+  const ki = (participant.resourcePoolsCurrent ?? []).find(pool => pool.poolId === KI_POOL);
+  if (!ki) return null;
+  return ki.currentUses;
+}
+
+/** Whether the participant has already dealt Sneak Attack damage on the turn the encounter is on (PHB p.96). */
+export function sneakAttackUsed(participant: EncounterParticipant, turnStamp: string | null | undefined): boolean {
+  const used = participant.turnEconomy?.sneakAttackTurn;
+  return !!used && !!turnStamp && used === turnStamp;
+}
+
+/**
+ * The participant's latest melee weapon hit when it was made on the turn the encounter is on, which is when Divine
+ * Smite and Stunning Strike may follow it (PHB p.85, p.79); null otherwise.
+ */
+export function followableHit(participant: EncounterParticipant, turnStamp: string | null | undefined): WeaponHit | null {
+  const hit = participant.turnEconomy?.lastMeleeHit;
+  return hit && turnStamp && hit.turn === turnStamp ? hit : null;
+}
+
+/** A spell slot Divine Smite can spend: a spell slot or a pact slot with one left. */
+export interface SmiteSlot {
+  key: string;
+  level: number;
+  pact: boolean;
+  remaining: number;
+}
+
+/** The participant's slots with one left, lowest level first, spell slots before pact slots of the same level. */
+export function smiteSlots(participant: Pick<EncounterParticipant, 'spellSlotsCurrent'>): SmiteSlot[] {
+  return Object.entries(participant.spellSlotsCurrent ?? {})
+    .map(([key, slot]) => {
+      const pact = key.startsWith('pact_');
+      return { key, level: Number(pact ? key.slice(5) : key), pact, remaining: slot.max - slot.used };
+    })
+    .filter(slot => Number.isInteger(slot.level) && slot.level >= 1 && slot.level <= 9 && slot.remaining > 0)
+    .sort((a, b) => a.level - b.level || Number(a.pact) - Number(b.pact));
+}
+
+/**
+ * Divine Smite's dice for a slot level (PHB p.85): 2d8, and 1d8 for each level above 1st to 5d8, doubled on a critical
+ * hit. An undead or a fiend takes 1d8 more, which the server adds.
+ */
+export function smiteDice(level: number, critical: boolean): string {
+  const dice = Math.min(5, level + 1);
+  return `${critical ? dice * 2 : dice}d8`;
+}
+
+/**
+ * Why a monk's bonus-action unarmed strike can't be made now, or null (PHB p.78), mirroring the server: Martial Arts'
+ * strike follows the Attack action taken with an unarmed strike or a monk weapon; Flurry of Blows' first strike
+ * follows the Attack action and spends 1 ki and the bonus action, and its second costs nothing more. The server stays
+ * the authority.
+ */
+export function monkStrikeBlock(attacker: EncounterParticipant, cost: 'MARTIAL_ARTS' | 'FLURRY_OF_BLOWS'): string | null {
+  const economy = attacker.turnEconomy;
+  if (!economy) return null;
+  if (!attacker.isCurrentTurn) return "Not this creature's turn: only a reaction can be taken";
+  if (cost === 'FLURRY_OF_BLOWS' && (economy.flurryStrikesLeft ?? 0) > 0) return null;
+  const budget = chargeBlock(attacker, { cost: 'BONUS_ACTION' });
+  if (budget) return budget;
+  if (cost === 'MARTIAL_ARTS') {
+    return economy.martialArtsAttack ? null
+      : 'Martial Arts\' bonus strike follows the Attack action taken with an unarmed strike or a monk weapon';
+  }
+  if (!economy.attackActionTaken) return 'Flurry of Blows follows the Attack action this turn';
+  return (kiLeft(attacker) ?? 0) < 1 ? 'No ki points left' : null;
 }

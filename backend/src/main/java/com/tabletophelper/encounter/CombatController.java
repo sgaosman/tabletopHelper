@@ -3,6 +3,7 @@ package com.tabletophelper.encounter;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.encounter.internal.AttackService;
 import com.tabletophelper.encounter.internal.ConditionService;
+import com.tabletophelper.encounter.internal.HitFollowUpService;
 import com.tabletophelper.encounter.internal.HitPointService;
 import com.tabletophelper.encounter.internal.LegendaryResistanceService;
 import com.tabletophelper.encounter.internal.MonsterActionService;
@@ -38,6 +39,7 @@ public class CombatController {
     private final TurnEconomyEditService turnEconomyEditService;
     private final ConditionService conditionService;
     private final HitPointService hitPointService;
+    private final HitFollowUpService hitFollowUpService;
     private final UndoService undoService;
     private final EncounterService encounterService;
 
@@ -50,6 +52,41 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = attackService.rollAttack(encounterId, request, actorId, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // Divine Smite on the paladin's latest melee weapon hit this turn, spending a spell slot (PHB p.85, M17): the DM
+    // for anyone, a player for their own participant, on any turn
+    @PostMapping("/divine-smite")
+    public ResponseEntity<EncounterResponse> divineSmite(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody DivineSmiteRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = hitFollowUpService.divineSmite(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // Stunning Strike on the monk's latest melee weapon hit this turn, spending 1 ki (PHB p.79, M17): the DM for
+    // anyone, a player for their own participant, on any turn
+    @PostMapping("/stunning-strike")
+    public ResponseEntity<EncounterResponse> stunningStrike(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody StunningStrikeRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = hitFollowUpService.stunningStrike(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // The Protection fighting style's reaction, logged for the DM to apply (PHB p.72, M17)
+    @PostMapping("/protection")
+    public ResponseEntity<EncounterResponse> protection(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody ProtectionRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = hitFollowUpService.protection(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 

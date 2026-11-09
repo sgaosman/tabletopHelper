@@ -3,10 +3,13 @@ import { Copy, Plus, X } from 'lucide-react';
 import IconButton from '../ui/IconButton';
 import { apiErrorMessage } from '../../api/errors';
 import { useAttackOptions, useEncounterAction } from '../../queries/encounters';
-import type { AttackOption, AttackRollRequest } from '../../types/combat';
+import type { AttackGrip, AttackOption, AttackRollRequest } from '../../types/combat';
 import type { EncounterParticipant } from '../../types/encounter';
+import { useEncounter } from '../../hooks/useEncounter';
 import { chargeBlock } from '../../utils/turnEconomy';
-import { isReckless, RECKLESS_TEXT } from '../../utils/classFeatures';
+import {
+  isReckless, kiLeft, monkStrikeBlock, RECKLESS_TEXT, SNEAK_ATTACK_TEXT, sneakAttackUsed,
+} from '../../utils/classFeatures';
 
 const DAMAGE_TYPES = [
   'bludgeoning', 'piercing', 'slashing', 'acid', 'cold', 'fire',
@@ -24,11 +27,30 @@ const TOGGLE_OFF = 'bg-page-alt text-muted border border-rule';
 type AttackCost = NonNullable<AttackRollRequest['cost']>;
 
 // An attack of the Attack action; an off-hand attack, the bonus action two-weapon fighting gives after the Attack
-// action (PHB p.195); or an opportunity attack, a reaction that may be made on another creature's turn
+// action (PHB p.195); an opportunity attack, a reaction that may be made on another creature's turn; and a monk's
+// bonus-action unarmed strikes, Martial Arts' and Flurry of Blows' (PHB p.78), offered only to a monk
 const COSTS: { value: AttackCost; label: string }[] = [
   { value: 'ACTION', label: 'Attack' },
   { value: 'BONUS_ACTION', label: 'Off-hand (bonus action)' },
   { value: 'REACTION', label: 'Opportunity attack (reaction)' },
+  { value: 'MARTIAL_ARTS', label: 'Martial Arts strike (bonus action)' },
+  { value: 'FLURRY_OF_BLOWS', label: 'Flurry of Blows (1 ki, two strikes)' },
+];
+
+const UNARMED = 'Unarmed Strike';
+
+/** Whether a cost is one of a monk's bonus-action unarmed strikes (PHB p.78). */
+function monkStrike(cost: AttackCost): cost is 'MARTIAL_ARTS' | 'FLURRY_OF_BLOWS' {
+  return cost === 'MARTIAL_ARTS' || cost === 'FLURRY_OF_BLOWS';
+}
+
+/** Sneak Attack as the player sets it (PHB p.96): left to the roll's advantage, claimed for an ally, or declined. */
+type SneakChoice = 'auto' | 'claim' | 'decline';
+
+const GRIPS: { value: AttackGrip; label: string }[] = [
+  { value: 'ONE_HANDED', label: 'One hand' },
+  { value: 'TWO_HANDED', label: 'Two hands' },
+  { value: 'TWO_WEAPONS', label: 'A weapon in each hand' },
 ];
 
 /**
@@ -36,7 +58,7 @@ const COSTS: { value: AttackCost; label: string }[] = [
  * attack, and off its turn an opportunity attack. When nothing can pay, Attack on its turn, so the row says why.
  */
 function automaticCost(attacker: EncounterParticipant): AttackCost {
-  const candidates: AttackCost[] = attacker.isCurrentTurn ? ['ACTION', 'BONUS_ACTION'] : ['REACTION'];
+  const candidates: ('ACTION' | 'BONUS_ACTION' | 'REACTION')[] = attacker.isCurrentTurn ? ['ACTION', 'BONUS_ACTION'] : ['REACTION'];
   return candidates.find(cost => chargeBlock(attacker, { cost, attack: true }) === null) ?? candidates[0];
 }
 
@@ -48,6 +70,10 @@ interface AttackRow {
   powerAttack: boolean;
   /** Reckless Attack, chosen on the first attack of the barbarian's turn (PHB p.48). */
   reckless: boolean;
+  /** How the weapons are held, or null for the server's default (M17). */
+  grip: AttackGrip | null;
+  /** Sneak Attack, for a rogue's finesse or ranged weapon (PHB p.96). */
+  sneak: SneakChoice;
   advantage: boolean | null;
   within5Ft: boolean;
   forceCrit: boolean;
@@ -62,7 +88,8 @@ interface AttackRow {
 // A ranged weapon attacks from beyond 5 feet unless the player says otherwise; there is no map (D161)
 function newRow(option: AttackOption | undefined, cost: AttackCost | null): AttackRow {
   return {
-    cost, weapon: option?.weapon ?? ENTERED, powerAttack: false, reckless: false, advantage: null, within5Ft: !(option?.ranged ?? false),
+    cost, weapon: option?.weapon ?? ENTERED, powerAttack: false, reckless: false, grip: null, sneak: 'auto',
+    advantage: null, within5Ft: !(option?.ranged ?? false),
     forceCrit: false, extraAttackBonus: '', extraDamageDice: '', extraDamageType: '',
     attackBonus: '', damageDice: '', damageType: '',
   };
@@ -72,12 +99,19 @@ function signed(value: number) {
   return value < 0 ? `${value}` : `+${value}`;
 }
 
-/** The numbers an option shows, with Great Weapon Master's or Sharpshooter's trade when the player takes it. */
-function summary(option: AttackOption, powerAttack: boolean) {
+/**
+ * The numbers an option shows, with Great Weapon Master's or Sharpshooter's trade when the player takes it, a versatile
+ * weapon's two-handed damage when held in two hands, and the class features in them, such as "Dueling +2" (M17).
+ */
+function summary(option: AttackOption, powerAttack: boolean, grip: AttackGrip | null) {
   const traded = powerAttack && option.powerAttack;
   const bonus = traded ? option.powerAttack!.attackBonus : option.attackBonus;
-  const damage = traded ? option.powerAttack!.damage : option.damage;
-  return `${signed(bonus)} to hit · ${damage}${option.damageType ? ` ${option.damageType}` : ''}`;
+  const twoHanded = grip === 'TWO_HANDED' && option.versatileDamage;
+  const damage = traded ? option.powerAttack!.damage : twoHanded ? option.versatileDamage : option.damage;
+  // The listed features are those of the usual grip; another grip changes Dueling and Great Weapon Fighting
+  const features = grip ? [] : option.features;
+  return `${signed(bonus)} to hit · ${damage}${option.damageType ? ` ${option.damageType}` : ''}`
+    + `${features.length ? ` (${features.join(', ')})` : ''}`;
 }
 
 /**
@@ -108,6 +142,8 @@ function attackRequest(row: AttackRow & { cost: AttackCost }, option: AttackOpti
     weapon: row.weapon,
     powerAttack: option?.powerAttack && row.powerAttack ? true : undefined,
     recklessAttack: option?.recklessAttack && row.reckless ? true : undefined,
+    grip: row.grip ?? undefined,
+    sneakAttack: !option?.sneakAttack || row.sneak === 'auto' ? undefined : row.sneak === 'claim',
     extraAttackBonus: extraBonus ? extraBonus : undefined,
     extraDamageDice: extraDamage || undefined,
     extraDamageType: extraDamage && row.extraDamageType ? row.extraDamageType : undefined,
@@ -132,6 +168,7 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
   defaultCost?: AttackCost;
 }) {
   const actions = useEncounterAction();
+  const { encounter } = useEncounter();
   const optionsQuery = useAttackOptions(attacker.id);
   const [rows, setRows] = useState<AttackRow[] | null>(null);
   const [rolling, setRolling] = useState(false);
@@ -148,15 +185,32 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
   const current = rows ?? [newRow(options[0], defaultCost ?? null)];
   const followed = automaticCost(attacker);
   const costOf = (row: AttackRow): AttackCost => row.cost ?? followed;
+  // A monk's bonus-action strikes: Martial Arts while it applies to the unarmed strike, Flurry of Blows with a ki pool
+  const martialArts = options.some(o => o.weapon === UNARMED && o.martialArts);
+  const flurry = kiLeft(attacker) !== null;
+  const costs = COSTS.filter(c => c.value === 'MARTIAL_ARTS' ? martialArts
+    : c.value === 'FLURRY_OF_BLOWS' ? flurry : true);
+  const sneakUsed = sneakAttackUsed(attacker, encounter?.turnStamp);
 
   function update(index: number, change: Partial<AttackRow>) {
     setRows(current.map((row, i) => i === index ? { ...row, ...change } : row));
   }
 
-  // A new weapon brings its own reach and drops a trade it doesn't allow
+  // A new weapon brings its own reach and drops a trade, grip and Sneak Attack choice it may not allow
   function chooseWeapon(index: number, weapon: string) {
     const option = optionFor(weapon);
-    update(index, { weapon, powerAttack: false, reckless: false, within5Ft: !(option?.ranged ?? false) });
+    update(index, {
+      weapon, powerAttack: false, reckless: false, grip: null, sneak: 'auto', within5Ft: !(option?.ranged ?? false),
+    });
+  }
+
+  // A monk's bonus-action strikes are unarmed strikes (PHB p.78)
+  function chooseCost(index: number, cost: AttackCost) {
+    if (monkStrike(cost)) {
+      update(index, { cost, weapon: UNARMED, powerAttack: false, reckless: false, grip: null, sneak: 'auto', within5Ft: true });
+    } else {
+      update(index, { cost });
+    }
   }
 
   // Reckless Attack is chosen on the first attack of the barbarian's own turn, and lasts the turn (PHB p.48)
@@ -205,21 +259,25 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
         const entered = row.weapon === ENTERED;
         // Why the attacker's turn can't pay for this attack, as far as the page can tell; the server decides (D174)
         const cost = costOf(row);
-        const blocked = chargeBlock(attacker, { cost, attack: true });
+        const blocked = monkStrike(cost) ? monkStrikeBlock(attacker, cost) : chargeBlock(attacker, { cost, attack: true });
+        // Grip matters for a melee weapon held in one hand or two, not for a two-handed weapon or an off-hand attack
+        const gripChoices = option && !option.ranged && option.weapon !== UNARMED && !option.twoHanded
+          && cost !== 'BONUS_ACTION' && !monkStrike(cost)
+          ? GRIPS.filter(g => g.value !== 'TWO_HANDED' || option.versatileDamage) : [];
         return (
           <div key={i} role="group" aria-label={`Attack ${i + 1}`} className="flex flex-wrap items-end gap-2 pb-3 border-b border-rule-light last:border-0">
             <div className="w-56">
               <label htmlFor={`cost-${i}`} className={LABEL}>Cost</label>
-              <select id={`cost-${i}`} value={cost} onChange={e => update(i, { cost: e.target.value as AttackCost })}
+              <select id={`cost-${i}`} value={cost} onChange={e => chooseCost(i, e.target.value as AttackCost)}
                 className={`${FIELD} h-[42px]`}>
-                {COSTS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                {costs.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
             </div>
 
             <div className="w-56">
               <label htmlFor={`weapon-${i}`} className={LABEL}>Weapon</label>
               <select id={`weapon-${i}`} value={row.weapon} onChange={e => chooseWeapon(i, e.target.value)}
-                className={`${FIELD} h-[42px]`}>
+                disabled={monkStrike(cost)} className={`${FIELD} h-[42px]`}>
                 {options.map(o => <option key={o.weapon} value={o.weapon}>{o.weapon}</option>)}
                 {allowManualModifiers && <option value={ENTERED}>Other: enter the numbers</option>}
               </select>
@@ -227,8 +285,37 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
 
             {option && (
               <p className="font-heading text-[13px] font-semibold text-ink pb-2.5">
-                {summary(option, row.powerAttack)}{!option.proficient && <span className="text-faint"> (not proficient)</span>}
+                {summary(option, row.powerAttack, row.grip)}{!option.proficient && <span className="text-faint"> (not proficient)</span>}
               </p>
+            )}
+
+            {gripChoices.length > 0 && (
+              <div className="w-44">
+                <label htmlFor={`grip-${i}`} className={LABEL}>Grip</label>
+                <select id={`grip-${i}`} value={row.grip ?? 'ONE_HANDED'}
+                  onChange={e => update(i, { grip: e.target.value as AttackGrip })} className={`${FIELD} h-[42px]`}>
+                  {gripChoices.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* Sneak Attack, where the server offers it: a rogue's finesse or ranged weapon (PHB p.96) */}
+            {option?.sneakAttack && (
+              <div className="w-56">
+                <label htmlFor={`sneak-${i}`} className={LABEL}>Sneak Attack {option.sneakAttack}</label>
+                {sneakUsed ? (
+                  <p className="font-body text-[13px] font-semibold text-faint py-2" title={SNEAK_ATTACK_TEXT}>
+                    Already dealt this turn
+                  </p>
+                ) : (
+                  <select id={`sneak-${i}`} value={row.sneak} title={SNEAK_ATTACK_TEXT}
+                    onChange={e => update(i, { sneak: e.target.value as SneakChoice })} className={`${FIELD} h-[42px]`}>
+                    <option value="auto">On a hit with advantage</option>
+                    <option value="claim">An ally is within 5 ft of the target</option>
+                    <option value="decline">Decline</option>
+                  </select>
+                )}
+              </div>
             )}
 
             {entered && (

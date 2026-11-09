@@ -25,6 +25,7 @@ import ConditionForm from '../../components/encounter/ConditionForm';
 import ConcentrationForm from '../../components/encounter/ConcentrationForm';
 import StandardActionMenu from '../../components/encounter/StandardActionMenu';
 import ReactionMenu from '../../components/encounter/ReactionMenu';
+import HitFollowUps from '../../components/encounter/HitFollowUps';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import IconButton from '../../components/ui/IconButton';
 import { healthLabel } from '../../utils/healthStatus';
@@ -191,6 +192,10 @@ function PlayerSessionView() {
 
         {/* What the player's own character has left this turn; the Player View carries no monster's (D157, D174) */}
         {myCharacter && myCharacter.lifeState === 'ALIVE' && <TurnEconomyBar participant={myCharacter} variant="card" />}
+        {/* Divine Smite or Stunning Strike after the character's melee weapon hit this turn (M17) */}
+        {myCharacter && isActive && myCharacter.lifeState === 'ALIVE' && (
+          <HitFollowUps participant={myCharacter} participants={encounter.participants} turnStamp={encounter.turnStamp} />
+        )}
 
         {/* Own character at 0 HP: death saves only while Dying (D161), one due as each turn starts (D163) */}
         {myCharacter?.lifeState === 'DYING' && (

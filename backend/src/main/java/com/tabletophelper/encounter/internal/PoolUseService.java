@@ -89,7 +89,8 @@ public class PoolUseService {
                 new ActionEconomyKeeper.Command(CombatActionType.POOL_USE,
                         participant.getDisplayName() + "'s " + pool.displayName() + costNote));
         if (grantsAction) {
-            participant.setTurnEconomy(TurnEconomy.of(ActionEconomy.actionSurge(economyOf(participant).budget())));
+            participant.setTurnEconomy(economyOf(participant)
+                    .withBudget(ActionEconomy.actionSurge(economyOf(participant).budget())));
         }
         participant.setResourcePoolsCurrent(spent);
 

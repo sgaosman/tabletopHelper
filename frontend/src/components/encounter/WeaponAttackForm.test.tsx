@@ -192,4 +192,72 @@ describe('WeaponAttackForm', () => {
       expect(await screen.findByText('Reckless: advantage')).toBeInTheDocument();
     });
   });
+
+  describe('class features on the attack (M17)', () => {
+    function serveOptions(...options: ReturnType<typeof makeMockAttackOption>[]) {
+      server.use(http.get('/api/encounters/:id/combat/attack-options', () => HttpResponse.json(options)));
+    }
+
+    it('sends a versatile weapon held in two hands, showing its two-handed damage', async () => {
+      serveOptions(makeMockAttackOption('Longsword', { versatileDamage: '1d10 + 3', features: ['Dueling +2'], damage: '1d8 + 5' }));
+      const bodies = attackRequests();
+      const { onDone, user } = await renderForm();
+
+      expect(await screen.findByText(/1d8 \+ 5 slashing \(Dueling \+2\)/)).toBeInTheDocument();
+      await user.selectOptions(screen.getByLabelText('Grip'), 'TWO_HANDED');
+      expect(screen.getByText(/1d10 \+ 3 slashing/)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+
+      await waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(bodies[0]).toMatchObject({ weapon: 'Longsword', grip: 'TWO_HANDED' });
+    });
+
+    it('leaves Sneak Attack to the roll by default, and sends a claim of an ally next to the target', async () => {
+      serveOptions(makeMockAttackOption('Rapier', { sneakAttack: '2d6' }));
+      const bodies = attackRequests();
+      const { onDone, user } = await renderForm();
+
+      await user.click(await screen.findByRole('button', { name: 'Roll Attack' }));
+      await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+      expect(bodies[0]).not.toHaveProperty('sneakAttack');
+
+      await user.selectOptions(screen.getByLabelText('Sneak Attack 2d6'), 'claim');
+      await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+      await waitFor(() => expect(onDone).toHaveBeenCalledTimes(2));
+      expect(bodies[1]).toMatchObject({ weapon: 'Rapier', sneakAttack: true });
+    });
+
+    it('says Sneak Attack was already dealt on this turn', async () => {
+      serveOptions(makeMockAttackOption('Rapier', { sneakAttack: '2d6' }));
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({ turnStamp: '1:part-rogue' }))));
+      await renderForm({ attacker: rogue({ turnEconomy: { ...FRESH, sneakAttackTurn: '1:part-rogue' } }) });
+
+      expect(await screen.findByText('Already dealt this turn')).toBeInTheDocument();
+    });
+
+    it('offers a monk Martial Arts and Flurry of Blows, which strike unarmed, and says when they must wait', async () => {
+      serveOptions(makeMockAttackOption('Quarterstaff'), makeMockAttackOption('Unarmed Strike', { martialArts: true }));
+      const bodies = attackRequests();
+      const monk = rogue({
+        turnEconomy: { ...FRESH, actionsUsed: 1, attackActionTaken: true, martialArtsAttack: true },
+        resourcePoolsCurrent: [{ poolId: 'class:monk-ki', displayName: 'Ki Points', sourceType: 'CLASS', currentUses: 5,
+          maxUses: 5, spendActionType: 'FREE' }],
+      });
+      const { onDone, user } = await renderForm({ attacker: monk });
+
+      await user.selectOptions(await screen.findByLabelText('Cost'), 'FLURRY_OF_BLOWS');
+      expect(screen.getByLabelText('Weapon')).toHaveValue('Unarmed Strike');
+      await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+
+      await waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(bodies[0]).toMatchObject({ weapon: 'Unarmed Strike', cost: 'FLURRY_OF_BLOWS' });
+    });
+
+    it('offers no monk strikes to a character without Martial Arts or ki', async () => {
+      await renderForm();
+      expect(await screen.findByLabelText('Cost')).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: /Martial Arts/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: /Flurry of Blows/ })).not.toBeInTheDocument();
+    });
+  });
 });

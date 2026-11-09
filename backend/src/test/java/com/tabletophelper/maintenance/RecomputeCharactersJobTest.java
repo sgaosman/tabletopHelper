@@ -118,8 +118,8 @@ class RecomputeCharactersJobTest {
         assertThat(report.warnings()).containsExactly(
                 who + ": has Leather Armor equipped too; only the first armour and shield in the inventory count; "
                         + "left unchanged",
-                who + ": has an AC adjustment of +6 (" + plate.id() + ") whose reason names armour, which the armour "
-                        + "class now counts from the inventory, so it may count twice; kept");
+                who + ": has an AC adjustment of +6 (" + plate.id() + ") whose reason names armour or the Defense "
+                        + "style, which the armour class now counts, so it may count twice; kept");
     }
 
     private static DmAdjustment acAdjustment(int amount, String reason, Instant removedAt) {

@@ -60,6 +60,28 @@ public record Dice(int count, int sides, int modifier) {
     }
 
     /**
+     * Rolls the dice and returns their sum, leaving out the modifier, rolling each die that shows rerollUpTo or less
+     * once more and keeping the new roll, as Great Weapon Fighting does with its 1s and 2s (PHB p.72). A rerollUpTo of
+     * 0 rerolls nothing.
+     */
+    public int rollDice(Rng rng, int rerollUpTo) {
+        int sum = 0;
+        for (int i = 0; i < count; i++) {
+            int roll = rng.roll(sides);
+            if (roll <= rerollUpTo) {
+                roll = rng.roll(sides);
+            }
+            sum += roll;
+        }
+        return sum;
+    }
+
+    /** The dice's average roll with the modifier, such as 4.5 for 1d8, to compare two damage dice. */
+    public double average() {
+        return count * (sides + 1) / 2.0 + modifier;
+    }
+
+    /**
      * The result when the dice show diceTotal: the modifier added, but never below 0. A penalty can bring
      * damage to 0, never below (PHB p.196).
      */

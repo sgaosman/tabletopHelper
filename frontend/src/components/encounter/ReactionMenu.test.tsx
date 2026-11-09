@@ -144,4 +144,24 @@ describe('ReactionMenu', () => {
     expect(onOpenMonsterReactions).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
   });
+
+  it("offers the Protection fighting style's reaction for another creature, and sends it (PHB p.72, M17)", async () => {
+    let body: unknown;
+    server.use(http.post('/api/encounters/:id/combat/protection', async ({ request }) => {
+      body = await request.json();
+      return HttpResponse.json(makeMockEncounter());
+    }));
+    const { menu, user, onClose } = await renderMenu({ participant: wizard({ fightingStyles: ['Protection'] }) });
+
+    await user.selectOptions(within(menu).getByLabelText('Protect'), 'Test Goblin');
+    await user.click(within(menu).getByRole('button', { name: 'Use Protection' }));
+
+    await waitFor(() => expect(body).toEqual({ participantId: 'part-wiz', protectedId: 'part-goblin' }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('offers Protection only with the style', async () => {
+    const { menu } = await renderMenu();
+    expect(within(menu).queryByRole('button', { name: 'Use Protection' })).not.toBeInTheDocument();
+  });
 });

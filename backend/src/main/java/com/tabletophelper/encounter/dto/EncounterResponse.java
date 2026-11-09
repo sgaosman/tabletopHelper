@@ -55,6 +55,11 @@ public class EncounterResponse {
     @Schema(requiredMode = REQUIRED)
     private Integer roundNumber;
 
+    // The turn the encounter is on, as the turn economies' records of a turn name it (M17): what Sneak Attack's turn and
+    // a melee hit's turn are compared with, to tell whether they are this turn's. In the Player View a hidden
+    // participant's turn reads as "<round>:hidden"
+    private String turnStamp;
+
     // Set when the encounter starts
     private String sessionCode;
 
@@ -186,6 +191,10 @@ public class EncounterResponse {
         // Its speeds in feet by kind ("walk", "fly", "swim", "climb", "burrow"), walking first; empty when unknown
         @Schema(requiredMode = REQUIRED)
         private Map<String, Integer> speed;
+
+        // A player character's Fighting Styles from the PHB, such as "Protection", chosen as its features (D159, M17),
+        // so the session pages can offer what they allow; null for a monster
+        private List<String> fightingStyles;
     }
 
     /**

@@ -10,6 +10,7 @@ import com.tabletophelper.encounter.dto.EncounterResponse.TurnResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
+import com.tabletophelper.encounter.state.WeaponHit;
 import com.tabletophelper.reference.dto.RepeatCost;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -183,6 +184,33 @@ class EncounterViewsTest {
             assertEquals(7, goblin.getHpMax());
             assertEquals(2, goblin.getHpTemp());
             assertNull(goblin.getHealthStatus());
+        }
+
+        @Test
+        @DisplayName("A player character's records of a hidden monster's turn read \"<round>:hidden\", and its melee hit "
+                + "on a hidden monster is left out (M17, D157)")
+        void hidesHiddenTurnsInTurnEconomies() {
+            String hiddenTurn = "2:" + bugbearId;
+            TurnEconomy economy = TurnEconomy.fresh().withSneakAttackTurn(hiddenTurn)
+                    .withLastMeleeHit(WeaponHit.of(hiddenTurn, UUID.randomUUID(), bugbearId, "Rapier", false, false,
+                            false));
+            EncounterResponse dmView = encounter(false, gimli().toBuilder().turnEconomy(economy).build(),
+                    bugbear(false)).toBuilder().turnStamp(hiddenTurn).build();
+
+            EncounterResponse view = EncounterViews.playerView(dmView);
+
+            assertEquals("2:hidden", view.getTurnStamp());
+            assertEquals("2:hidden", find(view, gimliId).getTurnEconomy().sneakAttackTurn());
+            assertNull(find(view, gimliId).getTurnEconomy().lastMeleeHit());
+            assertEquals(hiddenTurn, find(dmView, gimliId).getTurnEconomy().sneakAttackTurn());
+
+            // A hit on a visible goblin on the hidden bugbear's turn stays, its turn masked
+            TurnEconomy onGoblin = economy.withLastMeleeHit(WeaponHit.of(hiddenTurn, null, goblinId, "Rapier", true,
+                    false, false));
+            EncounterResponse withGoblin = encounter(false, gimli().toBuilder().turnEconomy(onGoblin).build(),
+                    goblin(7), bugbear(false));
+            assertEquals("2:hidden", find(EncounterViews.playerView(withGoblin), gimliId).getTurnEconomy()
+                    .lastMeleeHit().turn());
         }
 
         @Test

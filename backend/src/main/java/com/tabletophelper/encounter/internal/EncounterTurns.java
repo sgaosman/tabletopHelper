@@ -84,6 +84,16 @@ public final class EncounterTurns {
                 .orElse(TurnOrder.LAIR_ACTIONS);
     }
 
+    /**
+     * A name for the turn the encounter is on, the same for every command during it and different on any other turn:
+     * the round and whose turn it is, as "3:<participant id>" or "3:lair". What a feature allows once per turn, any
+     * creature's turn, is recorded against it, such as Sneak Attack (PHB p.96, M17).
+     */
+    public static String stamp(Encounter encounter) {
+        String whose = isLairTurn(encounter) ? "lair" : String.valueOf(encounter.getCurrentTurnParticipantId());
+        return encounter.getRoundNumber() + ":" + whose;
+    }
+
     /** Puts the encounter on the turn, or on none for null. */
     public static void moveTo(Encounter encounter, Turn turn) {
         encounter.setCurrentTurnParticipantId(turn != null && !turn.isLair() ? turn.combatant().id() : null);
