@@ -226,7 +226,7 @@ public final class EncounterViews {
         WeaponHit shown = hit == null || hidden.contains(hit.targetId()) ? null
                 : new WeaponHit(maskTurn(hit.turn(), hidden), hit.attackLogId(), hit.targetId(), hit.weapon(),
                         hit.critical(), hit.divineSmiteOffered(), hit.stunningStrikeOffered(), hit.smitten(),
-                        hit.stunningStrikeUsed());
+                        hit.stunningStrikeUsed(), hit.concentrationCheck());
         return economy.withSneakAttackTurn(maskTurn(economy.sneakAttackTurn(), hidden)).withLastMeleeHit(shown);
     }
 

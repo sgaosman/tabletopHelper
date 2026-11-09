@@ -6,6 +6,7 @@ import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.ParticipantType;
+import com.tabletophelper.encounter.state.ConcentrationCheck;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
@@ -115,11 +116,13 @@ public class EffectApplier {
      * @param legendaryResistanceRemaining its Legendary Resistance uses left
      * @param description                  the entry written for it
      * @param logEntryId                   that entry's ID, as the log gave it
+     * @param concentrationCheck           the concentration check its damage made the target roll, or the earlier one
+     *                                     it was judged by again (PHB p.203); null when it made none
      */
     public record Applied(EncounterParticipant target, Resolver.TargetOutcome outcome, int damageTaken,
                           String damageType, int healed, List<ConditionEntry> conditionsAdded,
                           boolean legendaryResistanceOffered, int legendaryResistanceRemaining,
-                          String description, UUID logEntryId) {
+                          String description, UUID logEntryId, ConcentrationCheck concentrationCheck) {
 
         public List<String> conditionNames() {
             return conditionsAdded.stream().map(ConditionEntry::name).toList();
@@ -136,7 +139,24 @@ public class EffectApplier {
     public List<Applied> apply(Encounter encounter, Use use, Effect effect, List<Resolver.TargetOutcome> outcomes) {
         List<Applied> applied = new ArrayList<>();
         for (Resolver.TargetOutcome outcome : outcomes) {
-            applied.add(applyTo(encounter, use, effect, outcome));
+            applied.add(applyTo(encounter, use, effect, outcome, null));
+        }
+        return applied;
+    }
+
+    /**
+     * Applies a resolved Effect whose damage is part of an earlier hit's damage, as Divine Smite's is (PHB p.85). A
+     * creature makes one concentration check against the damage a hit deals (PHB p.203), so when the hit already made
+     * it roll one for the same concentration, that roll is judged again against the DC of the hit's combined damage
+     * instead of a second save being rolled; otherwise the added damage makes it roll as any damage does.
+     *
+     * @param hitCheck the concentration check the hit's damage made the target roll, or null for none
+     */
+    public List<Applied> applyToHit(Encounter encounter, Use use, Effect effect, List<Resolver.TargetOutcome> outcomes,
+                                    ConcentrationCheck hitCheck) {
+        List<Applied> applied = new ArrayList<>();
+        for (Resolver.TargetOutcome outcome : outcomes) {
+            applied.add(applyTo(encounter, use, effect, outcome, hitCheck));
         }
         return applied;
     }
@@ -146,7 +166,8 @@ public class EffectApplier {
         combatLog.write(encounter, use.actionType(), description, use.actor(), null);
     }
 
-    private Applied applyTo(Encounter encounter, Use use, Effect effect, Resolver.TargetOutcome outcome) {
+    private Applied applyTo(Encounter encounter, Use use, Effect effect, Resolver.TargetOutcome outcome,
+                            ConcentrationCheck hitCheck) {
         EncounterParticipant target = CombatAccess.participant(encounter, outcome.targetId());
         Vitals before = vitals(target);
 
@@ -197,12 +218,12 @@ public class EffectApplier {
         }
         CombatLog saved = combatLog.save(entry);
 
-        afterDamage(encounter, target, before, damageChange, damage.total());
+        ConcentrationCheck check = afterDamage(encounter, target, before, damageChange, damage.total(), hitCheck);
         afterHealing(encounter, target, healingChange);
         afterConditions(encounter, target, added);
 
         return new Applied(target, outcome, damage.total(), damage.firstType(), healed, added, offered, remaining,
-                description, saved != null ? saved.getId() : null);
+                description, saved != null ? saved.getId() : null, check);
     }
 
     // ── Hit points ───────────────────────────────────────────────
@@ -225,7 +246,7 @@ public class EffectApplier {
                 + (type != null ? " (" + type + defenceNote(defences) + ")" : "");
         combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.DAMAGE, description),
                 actor, target).damageDealt(total));
-        afterDamage(encounter, target, before, change, total);
+        afterDamage(encounter, target, before, change, total, null);
     }
 
     /** The DM's healing by hand (D028). The dead regain nothing: only Set HP revives them (D161). */
@@ -807,8 +828,24 @@ public class EffectApplier {
      * Nothing happens to a creature already dead or to a player character.
      */
     public void destroy(Encounter encounter, EncounterParticipant target, String source) {
+        destroy(encounter, target, source, null);
+    }
+
+    /**
+     * A monster destroyed outright because it failed a save, as Destroy Undead destroys an undead that fails its save
+     * against Turn Undead (PHB p.59). A creature that uses Legendary Resistance on that save succeeds instead (D145,
+     * D163), so it is neither turned nor destroyed: the failed save's entry records the hit points the destruction took,
+     * and using Legendary Resistance on it gives them back, bringing the creature back as the save that killed it would.
+     *
+     * @param failedSave what the save did to the creature, with its entry; null when no save is involved
+     */
+    public void destroy(Encounter encounter, EncounterParticipant target, String source, Applied failedSave) {
         if (target.getParticipantType() == ParticipantType.PLAYER || target.getLifeState() == LifeState.DEAD) {
             return;
+        }
+        if (failedSave != null && failedSave.legendaryResistanceOffered()) {
+            Vitals before = vitals(target);
+            combatLog.addLegendaryResistanceLoss(failedSave.logEntryId(), before.hp() + before.tempHp());
         }
         target.setHpCurrent(0);
         target.setHpTemp(0);
@@ -861,9 +898,10 @@ public class EffectApplier {
     }
 
     // What follows damage: falling unconscious and prone, the log of dropping, dying or failing death saves,
-    // and concentration ending at 0 HP or being tested by a CON save
-    private void afterDamage(Encounter encounter, EncounterParticipant target, Vitals before, VitalsChange change,
-                             int damage) {
+    // and concentration ending at 0 HP or being tested by a CON save, or by the hit's own check for damage added to a
+    // hit; the concentration check it made or judged again, or null
+    private ConcentrationCheck afterDamage(Encounter encounter, EncounterParticipant target, Vitals before,
+                                           VitalsChange change, int damage, ConcentrationCheck hitCheck) {
         if (damage > 0) {
             markAttackedOrDamaged(target);
             endOnDamage(encounter, target);
@@ -879,8 +917,11 @@ public class EffectApplier {
         if (change.concentrationEnds()) {
             endConcentrationAtZero(encounter, target);
         } else if (damage > 0 && target.getConcentration() != null && target.getLifeState() == LifeState.ALIVE) {
-            concentrationCheck(encounter, target, damage);
+            return hitCheck != null && target.getConcentration().id().equals(hitCheck.instanceId())
+                    ? concentrationCheckAgain(encounter, target, hitCheck, damage)
+                    : concentrationCheck(encounter, target, damage);
         }
+        return null;
     }
 
     private void logLifeChange(Encounter encounter, EncounterParticipant target, Vitals before, VitalsChange change) {
@@ -941,8 +982,8 @@ public class EffectApplier {
         }
     }
 
-    private void concentrationCheck(Encounter encounter, EncounterParticipant target, int damage) {
-        int dc = Math.max(10, damage / 2);
+    private ConcentrationCheck concentrationCheck(Encounter encounter, EncounterParticipant target, int damage) {
+        int dc = ConcentrationCheck.dcFor(damage);
         int modifier = stats.saveModifier(target, Ability.CON);
         Resolver.SaveRoll roll = resolver.savingThrow(Ability.CON, modifier, dc, CreatureStats.conditionNames(target));
         String spell = target.getConcentration().spell();
@@ -951,9 +992,41 @@ public class EffectApplier {
                 + (roll.success() ? ", and maintains " + spell : ", and fails");
         combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.CONCENTRATION_CHECK,
                 description), null, target).rollValue(roll.d20()).rollTotal(roll.total()));
+        ConcentrationCheck check = new ConcentrationCheck(target.getConcentration().id(), damage, dc, roll.total(),
+                roll.success());
         if (!roll.success()) {
             endConcentration(encounter, target, "failed concentration check");
         }
+        return check;
+    }
+
+    /*
+     * Damage added to a hit whose damage already made the creature roll a concentration check, as Divine Smite's is
+     * (PHB p.85): the hit's damage is one amount, so the creature makes one save against it all (PHB p.203). The total
+     * it rolled is judged again against the DC of the combined damage, never rolled a second time, so it never has a
+     * second chance to fail or to succeed. A DC no higher than the first leaves the outcome as it was, unlogged; a higher
+     * one the total doesn't reach ends the concentration. The concentration is still held, so the first check succeeded.
+     */
+    private ConcentrationCheck concentrationCheckAgain(Encounter encounter, EncounterParticipant target,
+                                                       ConcentrationCheck hitCheck, int damage) {
+        int combined = hitCheck.damage() + damage;
+        int dc = Math.max(hitCheck.dc(), ConcentrationCheck.dcFor(combined));
+        boolean success = hitCheck.total() >= dc;
+        ConcentrationCheck check = new ConcentrationCheck(hitCheck.instanceId(), combined, dc, hitCheck.total(),
+                success);
+        if (dc == hitCheck.dc()) {
+            return check;
+        }
+        String spell = target.getConcentration().spell();
+        String description = target.getDisplayName() + "'s concentration check covers the hit's whole damage ("
+                + combined + "): its total of " + hitCheck.total() + " vs DC " + dc
+                + (success ? ", and maintains " + spell : ", and fails");
+        combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.CONCENTRATION_CHECK,
+                description), null, target).rollTotal(hitCheck.total()));
+        if (!success) {
+            endConcentration(encounter, target, "failed concentration check");
+        }
+        return check;
     }
 
     // Dropping to 0 or dying ends concentration (PHB p.203). A Spell Effect kept up without it, such as Spiritual

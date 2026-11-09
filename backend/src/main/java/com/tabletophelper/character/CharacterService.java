@@ -515,6 +515,111 @@ public class CharacterService {
         pendingChoices.storeMissingSubclassProficiencies(character);
     }
 
+    /**
+     * The class and subclass features on the character's sheet whose text the class data now gives differently, for
+     * the recompute-characters job; changes nothing. A sheet copies a feature's text when its level is gained, so a
+     * sheet made before the class loader's version 4 lacks the text of the features nested inside another, such as the
+     * Life Domain's Bonus Proficiency and Disciple of Life inside "Life Domain" (PHB p.60). A feature is matched by its
+     * name and source, the class or subclass that gave it, among the features of that class's levels the character
+     * has; a name the data gives several different texts is left alone, as is any other feature.
+     *
+     * @throws ConflictException when a class or subclass the character has can't be found or read
+     */
+    public List<OutdatedFeatureText> outdatedFeatureTexts(PlayerCharacter character) {
+        Map<String, Map<String, String>> texts = featureTexts(character);
+        List<OutdatedFeatureText> outdated = new ArrayList<>();
+        for (Feature feature : orEmpty(character.getFeatures())) {
+            if (feature == null || feature.name() == null || feature.source() == null) continue;
+            String text = texts.getOrDefault(feature.source(), Map.of()).get(feature.name());
+            if (text != null && !text.equals(feature.description())) {
+                outdated.add(new OutdatedFeatureText(feature.name(), feature.source(),
+                        feature.description() != null ? feature.description().length() : 0, text.length()));
+            }
+        }
+        return outdated;
+    }
+
+    /**
+     * Gives the features {@link #outdatedFeatureTexts} finds the class data's text, keeping their names, sources and
+     * places, so levelling down still finds them; the caller saves the character.
+     */
+    public void storeFeatureTexts(PlayerCharacter character) {
+        Map<String, Map<String, String>> texts = featureTexts(character);
+        List<Feature> features = new ArrayList<>();
+        for (Feature feature : orEmpty(character.getFeatures())) {
+            String text = feature == null || feature.name() == null || feature.source() == null ? null
+                    : texts.getOrDefault(feature.source(), Map.of()).get(feature.name());
+            features.add(text != null ? new Feature(feature.name(), text, feature.source()) : feature);
+        }
+        character.setFeatures(features);
+    }
+
+    /**
+     * A sheet feature whose text the class data now gives differently.
+     *
+     * @param name       the feature's name
+     * @param source     the class or subclass that gave it
+     * @param lengthNow  its text's length on the sheet
+     * @param lengthData the data's text's length
+     */
+    public record OutdatedFeatureText(String name, String source, int lengthNow, int lengthData) {}
+
+    // Each class's and subclass's feature texts by source and name, from the levels of it the character has, leaving out
+    // a name the data gives more than one text
+    private Map<String, Map<String, String>> featureTexts(PlayerCharacter character) {
+        List<ClassEntry> entries = orEmpty(character.getMulticlassEntries());
+        if (entries.isEmpty() && character.getClassRef() != null) {
+            CharacterClass only = character.getClassRef();
+            Subclass subclass = character.getSubclassRef();
+            entries = List.of(new ClassEntry(only.getId(), only.getName(), subclass != null ? subclass.getId() : null,
+                    subclass != null ? subclass.getName() : null,
+                    character.getLevel() != null ? character.getLevel() : 0));
+        }
+        Map<String, Map<String, Set<String>>> found = new HashMap<>();
+        for (ClassEntry entry : entries) {
+            if (entry == null || entry.classId() == null) continue;
+            CharacterClass characterClass = characterClassRepository.findById(entry.classId())
+                    .orElseThrow(() -> new ConflictException("The class " + entry.className() + " of "
+                            + character.getName() + " can't be found"));
+            addFeatureTexts(found, characterClass.getName(), characterClass.getFeatures(), entry.level(),
+                    "class " + characterClass.getName());
+            if (entry.subclassId() != null) {
+                Subclass subclass = subclassRepository.findById(entry.subclassId())
+                        .orElseThrow(() -> new ConflictException("The subclass " + entry.subclassName() + " of "
+                                + character.getName() + "'s " + entry.className() + " can't be found"));
+                addFeatureTexts(found, subclass.getName(), subclass.getFeatures(), entry.level(),
+                        "subclass " + subclass.getName());
+            }
+        }
+        Map<String, Map<String, String>> texts = new HashMap<>();
+        found.forEach((source, byName) -> byName.forEach((name, descriptions) -> {
+            if (descriptions.size() == 1) {
+                texts.computeIfAbsent(source, s -> new HashMap<>()).put(name, descriptions.iterator().next());
+            }
+        }));
+        return texts;
+    }
+
+    private void addFeatureTexts(Map<String, Map<String, Set<String>>> found, String source, String featureJson,
+                                 int classLevel, String what) {
+        if (featureJson == null || source == null) return;
+        JsonNode features;
+        try {
+            features = objectMapper.readTree(featureJson);
+        } catch (JacksonException e) {
+            throw new ConflictException("The features of the " + what + " can't be read");
+        }
+        if (!features.isArray()) {
+            throw new ConflictException("The features of the " + what + " can't be read");
+        }
+        for (JsonNode feature : features) {
+            String name = feature.path("name").asString(null);
+            if (name == null || feature.path("level").asInt(0) > classLevel) continue;
+            found.computeIfAbsent(source, s -> new HashMap<>()).computeIfAbsent(name, n -> new HashSet<>())
+                    .add(feature.path("description").asString(""));
+        }
+    }
+
     /** What the rules give the character now, beside what its sheet stores; changes nothing (D167). */
     public DerivedStats derivedStats(PlayerCharacter character) {
         return characterStats.derive(character);

@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.state;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.UUID;
@@ -22,6 +23,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param stunningStrikeOffered the attacker may follow it with Stunning Strike: a Monk of 5th level or more (PHB p.79)
  * @param smitten               Divine Smite has followed it
  * @param stunningStrikeUsed    Stunning Strike has followed it
+ * @param concentrationCheck    the concentration check the hit's damage made the creature hit roll, if it made one; damage
+ *                              added to the hit later, as Divine Smite's, is judged by this same save (PHB p.203)
  */
 public record WeaponHit(
         @Schema(requiredMode = REQUIRED) String turn,
@@ -32,24 +35,31 @@ public record WeaponHit(
         @Schema(requiredMode = REQUIRED) boolean divineSmiteOffered,
         @Schema(requiredMode = REQUIRED) boolean stunningStrikeOffered,
         @Schema(requiredMode = REQUIRED) boolean smitten,
-        @Schema(requiredMode = REQUIRED) boolean stunningStrikeUsed) {
+        @Schema(requiredMode = REQUIRED) boolean stunningStrikeUsed,
+        @JsonInclude(JsonInclude.Include.NON_NULL) ConcentrationCheck concentrationCheck) {
 
     /** A hit nothing has followed yet. */
     public static WeaponHit of(String turn, UUID attackLogId, UUID targetId, String weapon, boolean critical,
                                boolean divineSmiteOffered, boolean stunningStrikeOffered) {
         return new WeaponHit(turn, attackLogId, targetId, weapon, critical, divineSmiteOffered, stunningStrikeOffered,
-                false, false);
+                false, false, null);
+    }
+
+    /** The same hit, with the concentration check its damage made the creature hit roll, or null for none. */
+    public WeaponHit withConcentrationCheck(ConcentrationCheck check) {
+        return new WeaponHit(turn, attackLogId, targetId, weapon, critical, divineSmiteOffered, stunningStrikeOffered,
+                smitten, stunningStrikeUsed, check);
     }
 
     /** The same hit, once Divine Smite has followed it. */
     public WeaponHit smite() {
         return new WeaponHit(turn, attackLogId, targetId, weapon, critical, divineSmiteOffered, stunningStrikeOffered,
-                true, stunningStrikeUsed);
+                true, stunningStrikeUsed, concentrationCheck);
     }
 
     /** The same hit, once Stunning Strike has followed it. */
     public WeaponHit stunningStrike() {
         return new WeaponHit(turn, attackLogId, targetId, weapon, critical, divineSmiteOffered, stunningStrikeOffered,
-                smitten, true);
+                smitten, true, concentrationCheck);
     }
 }

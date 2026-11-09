@@ -4,6 +4,8 @@ import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
+import com.tabletophelper.encounter.CombatActionType;
+import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.dto.AttackCost;
 import com.tabletophelper.encounter.dto.AttackOption;
@@ -11,6 +13,8 @@ import com.tabletophelper.encounter.dto.AttackRollRequest;
 import com.tabletophelper.encounter.dto.DivineSmiteRequest;
 import com.tabletophelper.encounter.dto.ProtectionRequest;
 import com.tabletophelper.encounter.dto.StunningStrikeRequest;
+import com.tabletophelper.encounter.state.ConcentrationCheck;
+import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.WeaponHit;
@@ -233,6 +237,23 @@ class AttackRidersTest {
                             + "damage."),
                     f.entriesAbout(goblin).stream().map(e -> e.getDescription()).toList());
             assertEquals(EncounterTurns.stamp(f.encounter), sly.getTurnEconomy().sneakAttackTurn());
+        }
+
+        @Test
+        @DisplayName("Sneak Attack's dice are part of the hit's damage, so a concentrating target makes one check "
+                + "against the whole: 23 damage is DC 11 (PHB p.96, p.203)")
+        void oneConcentrationCheck() {
+            goblin.setConcentration(ConcentrationInstance.start("Hold Person", 2, 1, 10));
+            AttackRollRequest advantage = request(goblin, "Rapier");
+            advantage.setAdvantage(true);
+
+            // 8 + 3 for the rapier and 6 + 6 for Sneak Attack, then the check's d20 10
+            attack(sly, advantage, 4, 15, 8, 6, 6, 10);
+
+            List<CombatLog> checks = f.entries(CombatActionType.CONCENTRATION_CHECK);
+            assertEquals(1, checks.size());
+            assertTrue(checks.getFirst().getDescription().endsWith("= 10 vs DC 11, and fails"));
+            assertNull(goblin.getConcentration());
         }
 
         @Test
@@ -511,6 +532,87 @@ class AttackRidersTest {
             assertTrue(f.entriesAbout(goblin).getLast().getDescription().startsWith(
                     "Aria uses Divine Smite (2d8 radiant; level 1 spell slot, 3/4 left) after the Unarmed Strike hit"));
             assertEquals("Aria has already smitten with that hit", twice.getMessage());
+        }
+
+        @Nested
+        @DisplayName("A concentrating target makes one check against the hit and the smite together (PHB p.203)")
+        class Concentration {
+
+            @BeforeEach
+            void concentrating() {
+                goblin.setConcentration(ConcentrationInstance.start("Hold Person", 2, 1, 10));
+            }
+
+            private List<CombatLog> checks() {
+                return f.entries(CombatActionType.CONCENTRATION_CHECK);
+            }
+
+            @Test
+            @DisplayName("A check the hit's 8 damage passed with 12 fails against the 32 combined damage's DC 16, with "
+                    + "no second roll")
+            void higherDcFails() {
+                // The hit: d20 10 hits, 5 + 3 = 8 damage, then the check's d20 12 against DC 10
+                attack(aria, request(goblin, "Longsword"), 10, 5, 12);
+                assertEquals(new ConcentrationCheck(goblin.getConcentration().id(), 8, 10, 12, true),
+                        aria.getTurnEconomy().lastMeleeHit().concentrationCheck());
+                // A 2nd-level smite's 3d8 is 24; the dice script holds no d20, so a second save would fail the test
+                smite(2, null, 8, 8, 8);
+
+                assertNull(goblin.getConcentration());
+                assertEquals(2, checks().size());
+                assertEquals("Goblin's concentration check covers the hit's whole damage (32): its total of 12 vs DC "
+                        + "16, and fails", checks().getLast().getDescription());
+                assertEquals(12, checks().getLast().getRollTotal());
+                assertEquals(0, f.dice.remaining());
+            }
+
+            @Test
+            @DisplayName("A check whose total reaches the combined damage's higher DC keeps the concentration")
+            void higherDcHeld() {
+                attack(aria, request(goblin, "Longsword"), 10, 5, 18);
+                smite(2, null, 8, 8, 8);
+
+                assertEquals("Hold Person", goblin.getConcentration().spell());
+                assertEquals("Goblin's concentration check covers the hit's whole damage (32): its total of 18 vs DC "
+                        + "16, and maintains Hold Person", checks().getLast().getDescription());
+            }
+
+            @Test
+            @DisplayName("A smite that leaves the DC at 10 changes nothing and logs no second check")
+            void sameDc() {
+                attack(aria, request(goblin, "Longsword"), 10, 5, 11);
+                smite(1, null, 1, 1);
+
+                assertEquals("Hold Person", goblin.getConcentration().spell());
+                assertEquals(1, checks().size());
+                assertEquals(60 - 8 - 2, goblin.getHpCurrent());
+            }
+
+            @Test
+            @DisplayName("After the hit's check failed, the smite rolls no check: the concentration is already gone")
+            void hitCheckFailed() {
+                attack(aria, request(goblin, "Longsword"), 10, 5, 3);
+                assertNull(goblin.getConcentration());
+                smite(2, null, 8, 8, 8);
+
+                assertEquals(1, checks().size());
+                assertEquals(60 - 8 - 24, goblin.getHpCurrent());
+            }
+
+            @Test
+            @DisplayName("When the hit dealt no damage, so made no check, the smite's damage makes the one check")
+            void hitDealtNoDamage() {
+                goblin.getMonster().setDamageImmunities("[\"slashing\"]");
+
+                attack(aria, request(goblin, "Longsword"), 10, 5);
+                assertNull(aria.getTurnEconomy().lastMeleeHit().concentrationCheck());
+                // 3d8 for 24 radiant, then the check's d20 9 against DC 12
+                smite(2, null, 8, 8, 8, 9);
+
+                assertNull(goblin.getConcentration());
+                assertEquals(1, checks().size());
+                assertTrue(checks().getFirst().getDescription().endsWith("= 9 vs DC 12, and fails"));
+            }
         }
 
         @Test

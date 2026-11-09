@@ -261,7 +261,8 @@ public class ChannelDivinityEffects {
             if (result.outcome().outcome() == Outcome.SAVE_FAIL && target.getMonster() != null
                     && ChannelDivinity.destroys(classLevel, target.getMonster().getChallengeRating())) {
                 effectApplier.removeFeatureEntries(target, ChannelDivinity.TURNED, user.getId());
-                effectApplier.destroy(encounter, target, "Destroy Undead");
+                // Legendary Resistance on the failed save undoes the destruction too
+                effectApplier.destroy(encounter, target, "Destroy Undead", result);
             }
         }
     }

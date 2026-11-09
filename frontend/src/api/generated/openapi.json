@@ -6683,6 +6683,37 @@
           }
         }
       },
+      "ConcentrationCheck": {
+        "required": [
+          "damage",
+          "dc",
+          "instanceId",
+          "success",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "damage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dc": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "instanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "ConcentrationRequest": {
         "required": [
           "participantId"
@@ -11292,6 +11323,14 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          },
+          "concentrationCheck": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ConcentrationCheck"
+              }
+            ]
           },
           "critical": {
             "type": "boolean"

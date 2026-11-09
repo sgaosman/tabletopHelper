@@ -6,6 +6,7 @@ import com.tabletophelper.character.dto.CharacterCreateRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.state.AbilityBonus;
 import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.character.state.PendingChoice;
@@ -18,6 +19,7 @@ import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.FeatAbilityIncrease;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.reference.Spell;
+import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.NotFoundException;
@@ -680,6 +682,87 @@ class CharacterServiceTest {
                     .isInstanceOf(ForbiddenException.class)
                     .hasMessage("You are not a member of this campaign");
             verify(f.characterRepository, never()).save(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("Feature texts from the class data, for recompute-characters")
+    class FeatureTexts {
+
+        private static final String LIFE_DOMAIN_TEXT = "The Life domain.\nBonus Proficiency. Heavy armor.\n"
+                + "Disciple of Life. More healing.";
+
+        // The Life Domain as the class loader's version 4 gives it, with a name the data gives two texts
+        private final Subclass life = Subclass.builder().id(UUID.randomUUID()).name("Life Domain")
+                .characterClass(f.cleric)
+                .features("[{\"level\":1,\"name\":\"Life Domain\",\"description\":\""
+                        + LIFE_DOMAIN_TEXT.replace("\n", "\\n") + "\"},"
+                        + "{\"level\":2,\"name\":\"Channel Divinity: Preserve Life\",\"description\":\"Heal\"},"
+                        + "{\"level\":2,\"name\":\"Twice\",\"description\":\"One\"},"
+                        + "{\"level\":2,\"name\":\"Twice\",\"description\":\"Two\"},"
+                        + "{\"level\":8,\"name\":\"Divine Strike\",\"description\":\"1d8 radiant\"}]")
+                .build();
+
+        // A Cleric 2 of the Life Domain whose sheet copied the Life Domain's text before the nested features were in it
+        private PlayerCharacter tam(boolean withEntries) {
+            when(f.subclassRepository.findById(life.getId())).thenReturn(Optional.of(life));
+            return PlayerCharacter.builder()
+                    .name("Tam")
+                    .level(2)
+                    .classRef(f.cleric)
+                    .subclassRef(life)
+                    .multiclassEntries(withEntries
+                            ? List.of(new ClassEntry(f.cleric.getId(), "Cleric", life.getId(), "Life Domain", 2))
+                            : List.of())
+                    .features(List.of(
+                            new Feature("Life Domain", "The Life domain.", "Life Domain"),
+                            new Feature("Channel Divinity: Preserve Life", "Heal", "Life Domain"),
+                            new Feature("Twice", "Old", "Life Domain"),
+                            new Feature("Divine Strike", "Old", "Life Domain"),
+                            new Feature("Life Domain", "The Life domain.", "Feat")))
+                    .build();
+        }
+
+        @Test
+        @DisplayName("Only a class or subclass feature of the levels held whose data text is single and differs is "
+                + "outdated; another source's, another level's and a name with two texts aren't")
+        void outdated() {
+            assertThat(f.service.outdatedFeatureTexts(tam(true))).containsExactly(
+                    new CharacterService.OutdatedFeatureText("Life Domain", "Life Domain", 16,
+                            LIFE_DOMAIN_TEXT.length()));
+        }
+
+        @Test
+        @DisplayName("Storing gives the outdated feature the data's text, keeping every feature's name, source and place")
+        void stored() {
+            PlayerCharacter pc = tam(true);
+
+            f.service.storeFeatureTexts(pc);
+
+            assertThat(pc.getFeatures()).containsExactly(
+                    new Feature("Life Domain", LIFE_DOMAIN_TEXT, "Life Domain"),
+                    new Feature("Channel Divinity: Preserve Life", "Heal", "Life Domain"),
+                    new Feature("Twice", "Old", "Life Domain"),
+                    new Feature("Divine Strike", "Old", "Life Domain"),
+                    new Feature("Life Domain", "The Life domain.", "Feat"));
+            assertThat(f.service.outdatedFeatureTexts(pc)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("A single-class sheet without class entries is read from its class, subclass and level")
+        void withoutEntries() {
+            assertThat(f.service.outdatedFeatureTexts(tam(false))).extracting(CharacterService.OutdatedFeatureText::name)
+                    .containsExactly("Life Domain");
+        }
+
+        @Test
+        @DisplayName("A subclass that can't be found is a 409, which the job reports as a warning")
+        void missingSubclass() {
+            PlayerCharacter pc = tam(true);
+            when(f.subclassRepository.findById(life.getId())).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> f.service.outdatedFeatureTexts(pc)).isInstanceOf(ConflictException.class)
+                    .hasMessage("The subclass Life Domain of Tam's Cleric can't be found");
         }
     }
 }

@@ -282,4 +282,47 @@ class RecomputeCharactersJobTest {
                 + "subclass proficiencies skipped (The subclass Gone of Lost's Cleric can't be found)");
         assertThat(report.changes()).singleElement().asString().contains("initiative: +2 → +3");
     }
+
+    @Test
+    @DisplayName("A class or subclass feature whose text the class data now gives differently, as the Life Domain's "
+            + "with Disciple of Life nested in it (PHB p.60), is reported with both lengths and takes the data's text "
+            + "only with apply")
+    void refreshesFeatureTexts() {
+        PlayerCharacter tam = barbarian("Tam");
+        PlayerCharacter settled = barbarian("Settled");
+        when(characterRepository.findAll()).thenReturn(List.of(settled, tam));
+        when(characterService.derivedStats(any())).thenReturn(derived(65, 2, List.of(RAGE), List.of()));
+        when(characterService.outdatedFeatureTexts(tam)).thenReturn(List.of(
+                new CharacterService.OutdatedFeatureText("Life Domain", "Life Domain", 1203, 1645)));
+
+        MaintenanceReport dryRun = job().run(false);
+
+        assertThat(dryRun.changes()).singleElement().asString().startsWith("Tam (")
+                .contains("feature text: Life Domain (Life Domain), 1203 → 1645 characters");
+        verify(characterService, never()).storeFeatureTexts(any());
+        verify(characterRepository, never()).save(any());
+
+        job().run(true);
+
+        verify(characterService).storeFeatureTexts(tam);
+        verify(characterService, never()).storeFeatureTexts(settled);
+        verify(characterRepository).save(tam);
+        verify(characterRepository, never()).save(settled);
+    }
+
+    @Test
+    @DisplayName("Class data that can't be read for the feature texts is a warning, and the other changes go ahead")
+    void featureTextsSkipped() {
+        PlayerCharacter lost = barbarian("Lost");
+        when(characterRepository.findAll()).thenReturn(List.of(lost));
+        when(characterService.derivedStats(lost)).thenReturn(derived(65, 3, List.of(RAGE), List.of()));
+        when(characterService.outdatedFeatureTexts(lost))
+                .thenThrow(new ConflictException("The features of the class Cleric can't be read"));
+
+        MaintenanceReport report = job().run(false);
+
+        assertThat(report.warnings()).containsExactly("Lost (" + lost.getId() + ", level 6 Barbarian, deleted): "
+                + "feature texts skipped (The features of the class Cleric can't be read)");
+        assertThat(report.changes()).singleElement().asString().contains("initiative: +2 → +3");
+    }
 }

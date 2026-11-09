@@ -6,6 +6,7 @@ import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.CombatActionType;
+import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.dto.AttackOption;
 import com.tabletophelper.encounter.dto.AttackRollRequest;
@@ -195,6 +196,47 @@ class ChannelDivinityEffectsTest {
 
             assertNull(entry(ghoul, ChannelDivinity.TURNED));
             assertTrue(descriptions(CombatActionType.CONDITION_REMOVE).contains("turned ends on Ghoul (it takes damage)"));
+        }
+
+        @Test
+        @DisplayName("An undead that uses Legendary Resistance on the failed save succeeds instead, so it is neither "
+                + "destroyed nor turned, and keeps its hit points (D163)")
+        void legendaryResistanceUndoesTheDestruction() {
+            EncounterParticipant zombie = undead("Zombie", "1/4", 6);
+            zombie.setResourcePoolsCurrent(CombatFixture.legendaryResistance(1));
+            zombie.setHpCurrent(15);
+            f.dice.script(5);
+
+            channel(tam, CLERIC_CD, "turn-undead", zombie);
+            assertEquals(LifeState.DEAD, zombie.getLifeState());
+            CombatLog failedSave = f.entriesAbout(zombie).stream()
+                    .filter(entry -> Boolean.TRUE.equals(entry.getLegendaryResistanceEligible()))
+                    .findFirst()
+                    .orElseThrow();
+            assertEquals(15, failedSave.getLrDamageDealt());
+
+            f.legendaryResistance.useLegendaryResistance(f.encounterId(), failedSave.getId(), f.dmUserId);
+
+            assertEquals(LifeState.ALIVE, zombie.getLifeState());
+            assertEquals(15, zombie.getHpCurrent());
+            assertNull(entry(zombie, ChannelDivinity.TURNED));
+            assertEquals(0, EffectApplier.legendaryResistanceRemaining(zombie));
+            assertEquals(List.of("Zombie uses Legendary Resistance and succeeds on the save instead: is back with 15 "
+                    + "HP (0 remaining)"), descriptions(CombatActionType.LEGENDARY_RESISTANCE_USED));
+        }
+
+        @Test
+        @DisplayName("An undead with Legendary Resistance that doesn't use it stays destroyed")
+        void legendaryResistanceUnused() {
+            EncounterParticipant zombie = undead("Zombie", "1/4", 6);
+            zombie.setResourcePoolsCurrent(CombatFixture.legendaryResistance(1));
+            f.dice.script(5);
+
+            channel(tam, CLERIC_CD, "turn-undead", zombie);
+
+            assertEquals(LifeState.DEAD, zombie.getLifeState());
+            assertEquals(0, zombie.getHpCurrent());
+            assertEquals(1, EffectApplier.legendaryResistanceRemaining(zombie));
         }
 
         @Test
@@ -678,6 +720,53 @@ class ChannelDivinityEffectsTest {
 
             assertEquals(11, vex.getHpCurrent());
             assertFalse(descriptions(CombatActionType.SPELL_CAST).getFirst().contains("Disciple of Life"));
+        }
+
+        @Test
+        @DisplayName("Supreme Healing: a Cleric 17's healing dice use their maximum, nothing rolled, with Disciple of "
+                + "Life's bonus on top (PHB p.60)")
+        void supremeHealing() {
+            classes(tam, "Cleric", 17, "Life Domain");
+            vex.setHpCurrent(1);
+            // No dice are scripted, so any roll fails the test
+
+            cast(2);
+
+            // 2d8 as 16, + 2 + 2
+            assertEquals(21, vex.getHpCurrent());
+            assertTrue(descriptions(CombatActionType.SPELL_CAST).getFirst()
+                    .contains("(Disciple of Life +4; Supreme Healing: 2d8 as 16)"));
+        }
+
+        @Test
+        @DisplayName("A Cleric 16 of the Life Domain still rolls its healing dice")
+        void beforeSupremeHealing() {
+            classes(tam, "Cleric", 16, "Life Domain");
+            f.dice.script(1, 2);
+
+            cast(2);
+
+            assertEquals(5 + 3 + 4, vex.getHpCurrent());
+            assertFalse(descriptions(CombatActionType.SPELL_CAST).getFirst().contains("Supreme Healing"));
+        }
+
+        @Test
+        @DisplayName("A feature named Supreme Healing counts too, and another domain's 17th-level cleric rolls")
+        void supremeHealingByFeatureName() {
+            classes(tam, "Cleric", 17, "Light Domain");
+            f.dice.script(1);
+
+            cast(1);
+
+            assertEquals(6, vex.getHpCurrent());
+
+            tam.getCharacter().setFeatures(List.of(new Feature(ClassFeatures.SUPREME_HEALING, null, "Life Domain")));
+            vex.setHpCurrent(5);
+            f.dice.script();
+
+            cast(1);
+
+            assertEquals(13, vex.getHpCurrent());
         }
 
         @Test

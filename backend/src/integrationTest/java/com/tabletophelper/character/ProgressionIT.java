@@ -234,6 +234,39 @@ class ProgressionIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("recompute-characters reports a feature whose text the class data now gives differently, as the class "
+            + "loader's version 4 gives nested features' text, writes nothing on a dry run, and stores the data's text "
+            + "with apply, after which levelling down still removes the level's features")
+    void recomputeFeatureTexts() {
+        UUID id = createCharacter(player.accessToken(), insertRace("Human"), fighterId);
+        levelUp(id.toString(), fighterId);
+        String longer = "Heal.\nSecond Breath. More healing.";
+        jdbcTemplate.update("UPDATE character_classes SET features = CAST(? AS jsonb) WHERE id = ?",
+                "[{\"level\":1,\"name\":\"Second Wind\",\"description\":\"" + longer.replace("\n", "\\n") + "\"},"
+                        + "{\"level\":2,\"name\":\"Action Surge\",\"description\":\"Act again\"}]", fighterId);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+
+        MaintenanceReport dryRun = transaction.execute(status -> recomputeCharactersJob.run(false));
+
+        assertThat(dryRun.changes()).singleElement().asString()
+                .contains("feature text: Second Wind (Fighter), 4 → " + longer.length() + " characters");
+        assertThat(get(id.toString()).get("features").get(0).get("description").asString()).isEqualTo("Heal");
+
+        transaction.execute(status -> recomputeCharactersJob.run(true));
+
+        JsonNode features = get(id.toString()).get("features");
+        assertThat(features.get(0).get("name").asString()).isEqualTo("Second Wind");
+        assertThat(features.get(0).get("description").asString()).isEqualTo(longer);
+        assertThat(features.get(1).get("description").asString()).isEqualTo("Act again");
+        assertThat(transaction.execute(status -> recomputeCharactersJob.run(false)).changes()).isEmpty();
+
+        JsonNode back = levelDown(id.toString());
+        List<String> names = new ArrayList<>();
+        back.get("features").forEach(feature -> names.add(feature.get("name").asString()));
+        assertThat(names).containsExactly("Second Wind");
+    }
+
+    @Test
     @DisplayName("A level-table pool (V27, D169): Rage follows the barbarian level, recompute-characters reports a stored copy the table disagrees with, and spending it at 20th is never refused")
     void levelTablePool() {
         CharacterClass barbarian = characterClassRepository.save(CharacterClass.builder().name("Barbarian")

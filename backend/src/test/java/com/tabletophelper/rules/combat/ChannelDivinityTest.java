@@ -126,6 +126,14 @@ class ChannelDivinityTest {
     }
 
     @Test
+    @DisplayName("Supreme Healing uses each die's highest number: 2d6 restores 12, as the PHB's example (p.60)")
+    void supremeHealing() {
+        assertEquals(new Dice(0, 0, 12), ClassFeatures.supremeHealing(new Dice(2, 6, 0)));
+        assertEquals(new Dice(0, 0, 20), ClassFeatures.supremeHealing(new Dice(2, 8, 4)));
+        assertEquals(new Dice(0, 0, 70), ClassFeatures.supremeHealing(new Dice(0, 0, 70)));
+    }
+
+    @Test
     @DisplayName("Disciple of Life adds 2 + the spell's level, nothing to a cantrip (PHB p.60)")
     void discipleOfLife() {
         assertEquals(0, ClassFeatures.discipleOfLife(0));

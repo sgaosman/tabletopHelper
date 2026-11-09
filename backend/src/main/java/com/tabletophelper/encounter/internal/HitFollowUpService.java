@@ -43,7 +43,9 @@ import java.util.UUID;
  *   <li>Divine Smite (Paladin 2, PHB p.85): a spell slot for radiant damage to the creature hit, 2d8 and 1d8 for each
  *       slot level above 1st to 5d8, 1d8 more against an undead or a fiend, every die doubled when the hit was a critical
  *       hit (PHB p.196). Any melee weapon attack's hit will do, an unarmed strike's included, since an unarmed strike is
- *       a melee weapon attack (PHB p.195). The damage goes through the target's defences as any other does.</li>
+ *       a melee weapon attack (PHB p.195). The damage goes through the target's defences as any other does. It is
+ *       part of the hit's damage, so a concentrating target makes one concentration check against the two together,
+ *       judged by the roll the hit's damage made it roll (PHB p.203).</li>
  *   <li>Stunning Strike (Monk 5, PHB p.79): 1 ki point; the creature hit makes a Constitution save against the ki save
  *       DC (8 + proficiency bonus + WIS modifier, PHB p.78) or is stunned until the end of the monk's next turn. A
  *       creature with Legendary Resistance is offered it, as for any failed save (D163).</li>
@@ -113,7 +115,9 @@ public class HitFollowUpService {
         EffectApplier.Use use = new EffectApplier.Use(paladin, paladin.getDisplayName(), CombatActionType.ATTACK,
                 "uses Divine Smite (" + dice + " radiant; " + note + ") after the " + hit.weapon() + " hit", "on",
                 "Divine Smite", null);
-        effectApplier.apply(encounter, use, effect, resolver.resolve(effect, List.of(stats.target(target, effect))));
+        // The smite's damage is part of the hit's, so a concentrating target makes one check against both (PHB p.203)
+        effectApplier.applyToHit(encounter, use, effect, resolver.resolve(effect, List.of(stats.target(target, effect))),
+                hit.concentrationCheck());
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 

@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /** Writes combat log entries, each stamped with the encounter's round and whose turn it is. */
 @Component
@@ -45,6 +46,23 @@ public class CombatLogWriter {
         CombatLog saved = combatLogRepository.save(entry.build());
         command.ifPresent(recording -> recording.written(saved));
         return saved;
+    }
+
+    /**
+     * Adds hit points to what Legendary Resistance gives back on a failed save's entry (D163), for a loss that followed
+     * the failure in the same command, as Destroy Undead's destruction does (PHB p.59). An entry not offered Legendary
+     * Resistance, or not found, is left as it is.
+     */
+    public void addLegendaryResistanceLoss(UUID entryId, int lost) {
+        if (entryId == null || lost <= 0) {
+            return;
+        }
+        combatLogRepository.findById(entryId)
+                .filter(entry -> Boolean.TRUE.equals(entry.getLegendaryResistanceEligible()))
+                .ifPresent(entry -> {
+                    entry.setLrDamageDealt((entry.getLrDamageDealt() != null ? entry.getLrDamageDealt() : 0) + lost);
+                    combatLogRepository.save(entry);
+                });
     }
 
     /** Writes an entry about an actor and a target, either of which may be null. */

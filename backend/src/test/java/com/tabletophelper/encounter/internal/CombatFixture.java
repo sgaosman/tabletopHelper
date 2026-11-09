@@ -180,6 +180,10 @@ class CombatFixture {
             }
             return entry;
         });
+        // An entry the log holds, found by its ID; a test may stub an entry of its own
+        lenient().when(combatLogRepository.findById(any(UUID.class))).thenAnswer(inv -> log.stream()
+                .filter(entry -> inv.getArgument(0).equals(entry.getId()))
+                .findFirst());
     }
 
     UUID encounterId() {

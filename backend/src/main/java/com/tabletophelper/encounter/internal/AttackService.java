@@ -385,7 +385,8 @@ public class AttackService {
             followed = WeaponHit.of(turn, applied.logEntryId(), target.getId(), attack.weapon().name(),
                     outcome == Outcome.CRITICAL,
                     FeatureEffects.classLevel(character, PALADIN) >= AttackFeatures.DIVINE_SMITE_LEVEL,
-                    FeatureEffects.classLevel(character, MONK) >= AttackFeatures.STUNNING_STRIKE_LEVEL);
+                    FeatureEffects.classLevel(character, MONK) >= AttackFeatures.STUNNING_STRIKE_LEVEL)
+                    .withConcentrationCheck(applied.concentrationCheck());
         }
         actor.setTurnEconomy(economy.withLastMeleeHit(followed));
     }

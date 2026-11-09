@@ -104,11 +104,8 @@ public class SpellCaster {
         if (plan.verbal() && silenced(caster) && !metamagic.has(Metamagic.Option.SUBTLE)) {
             throw new ConflictException("Cannot cast spells with verbal components while silenced");
         }
-        Effect effect = discipleOfLife(caster, plan.effect(), plan.spellLevel(), slotLevel);
-        if (effect != plan.effect()) {
-            lead += " (" + ClassFeatures.DISCIPLE_OF_LIFE + " +"
-                    + (effect.healing().modifier() - plan.effect().healing().modifier()) + ")";
-        }
+        Effect effect = lifeDomainHealing(caster, plan.effect(), plan.spellLevel(), slotLevel);
+        lead += lifeDomainNote(caster, plan.effect(), plan.spellLevel(), slotLevel);
         List<EncounterParticipant> reached = effect.delivery() instanceof Effect.Self ? List.of(caster) : targets;
         CombatAccess.requireNotDead(reached);
 
@@ -234,11 +231,8 @@ public class SpellCaster {
             return new CastResult(spellName, plan.spellLevel(), false, plan.manualReason(), summary, List.of());
         }
         CombatAccess.requireNotDead(targets);
-        Effect effect = discipleOfLife(caster, plan.effect(), plan.spellLevel(), spellEffect.castLevel());
-        if (effect != plan.effect()) {
-            lead += " (" + ClassFeatures.DISCIPLE_OF_LIFE + " +"
-                    + (effect.healing().modifier() - plan.effect().healing().modifier()) + ")";
-        }
+        Effect effect = lifeDomainHealing(caster, plan.effect(), plan.spellLevel(), spellEffect.castLevel());
+        lead += lifeDomainNote(caster, plan.effect(), plan.spellLevel(), spellEffect.castLevel());
         effectApplier.summary(encounter, use, lead + ".");
         List<EffectApplier.Applied> applied = new ArrayList<>();
         for (int i = 0; i < times; i++) {
@@ -276,6 +270,49 @@ public class SpellCaster {
         return FeatureEffects.subclassLevel(caster.getCharacter(), ClassFeatures.CLERIC, ClassFeatures.LIFE_DOMAIN)
                 >= ClassFeatures.DISCIPLE_OF_LIFE_LEVEL
                 || FeatureEffects.hasFeature(caster.getCharacter(), ClassFeatures.DISCIPLE_OF_LIFE);
+    }
+
+    /**
+     * Supreme Healing (Life Domain 17, PHB p.60): the dice a spell cast by a cleric with the feature rolls to restore hit
+     * points use their highest number instead, so the healing is a fixed amount, Disciple of Life's bonus included. Any
+     * spell's healing dice count, a cantrip's too, unlike Disciple of Life's. The Effect unchanged for anything else.
+     */
+    static Effect supremeHealing(EncounterParticipant caster, Effect effect) {
+        if (effect.healing() == null || effect.healing().count() == 0 || !hasSupremeHealing(caster)) {
+            return effect;
+        }
+        return new Effect(effect.name(), effect.delivery(), effect.damage(),
+                ClassFeatures.supremeHealing(effect.healing()), effect.conditions(), effect.concentration(),
+                effect.durationRounds(), effect.conditionEnds());
+    }
+
+    // A Life Domain cleric of 17th level or higher (PHB p.60), or a sheet with the feature by name
+    private static boolean hasSupremeHealing(EncounterParticipant caster) {
+        return FeatureEffects.subclassLevel(caster.getCharacter(), ClassFeatures.CLERIC, ClassFeatures.LIFE_DOMAIN)
+                >= ClassFeatures.SUPREME_HEALING_LEVEL
+                || FeatureEffects.hasFeature(caster.getCharacter(), ClassFeatures.SUPREME_HEALING);
+    }
+
+    // The Life Domain's healing: Disciple of Life's bonus, then Supreme Healing's maximum dice
+    private static Effect lifeDomainHealing(EncounterParticipant caster, Effect effect, int spellLevel, int slotLevel) {
+        return supremeHealing(caster, discipleOfLife(caster, effect, spellLevel, slotLevel));
+    }
+
+    // What the log adds for the Life Domain's healing, such as " (Disciple of Life +4; Supreme Healing: 2d8 as 16)"
+    private static String lifeDomainNote(EncounterParticipant caster, Effect effect, int spellLevel, int slotLevel) {
+        Effect disciple = discipleOfLife(caster, effect, spellLevel, slotLevel);
+        Effect supreme = supremeHealing(caster, disciple);
+        List<String> notes = new ArrayList<>();
+        if (disciple != effect) {
+            notes.add(ClassFeatures.DISCIPLE_OF_LIFE + " +"
+                    + (disciple.healing().modifier() - effect.healing().modifier()));
+        }
+        if (supreme != disciple) {
+            Dice dice = disciple.healing();
+            notes.add(ClassFeatures.SUPREME_HEALING + ": " + dice.count() + "d" + dice.sides() + " as "
+                    + dice.count() * dice.sides());
+        }
+        return notes.isEmpty() ? "" : " (" + String.join("; ", notes) + ")";
     }
 
     /**

@@ -165,16 +165,48 @@ class CharacterClassLoaderIT extends IntegrationTest {
 
     @Test
     @DisplayName("After loading, a Life Domain's only 1st-level feature is the one named after the subclass, so no "
-            + "character has a feature named Disciple of Life")
+            + "character has a feature named Disciple of Life, and its text holds Bonus Proficiency's and Disciple of "
+            + "Life's, each led by its name (PHB p.60)")
     void lifeDomainHoldsDiscipleOfLifeInsideItsFirstFeature() {
         load();
 
         var features = objectMapper.readTree(cleric("Life Domain").getFeatures());
         var firstLevel = new java.util.ArrayList<String>();
+        var description = new StringBuilder();
         features.forEach(feature -> {
-            if (feature.path("level").asInt() == 1) firstLevel.add(feature.path("name").asString());
+            if (feature.path("level").asInt() == 1) {
+                firstLevel.add(feature.path("name").asString());
+                description.append(feature.path("description").asString());
+            }
         });
         assertThat(firstLevel).containsExactly("Life Domain");
+        assertThat(description.toString())
+                .startsWith("The Life domain focuses on the vibrant positive energy")
+                .contains("\nBonus Proficiency. When you choose this domain at 1st level, you gain proficiency with "
+                        + "heavy armor.")
+                .endsWith("\nDisciple of Life. Also starting at 1st level, your healing spells are more effective. "
+                        + "Whenever you use a spell of 1st level or higher to restore hit points to a creature, the "
+                        + "creature regains additional hit points equal to 2 + the spell's level.");
+    }
+
+    @Test
+    @DisplayName("After loading, class features nested inside another reach its text too: the Monk's Ki holds Flurry "
+            + "of Blows, Patient Defense and Step of the Wind (PHB p.78), and its feature list doesn't gain them")
+    void kiHoldsItsNestedFeatures() {
+        load();
+
+        CharacterClass monk = characterClassRepository.findAll().stream()
+                .filter(found -> found.getName().equals("Monk"))
+                .findFirst()
+                .orElseThrow();
+        var names = new java.util.ArrayList<String>();
+        var ki = new StringBuilder();
+        objectMapper.readTree(monk.getFeatures()).forEach(feature -> {
+            names.add(feature.path("name").asString());
+            if (feature.path("name").asString().equals("Ki")) ki.append(feature.path("description").asString());
+        });
+        assertThat(names).doesNotContain("Flurry of Blows", "Patient Defense", "Step of the Wind");
+        assertThat(ki.toString()).contains("\nFlurry of Blows. ", "\nPatient Defense. ", "\nStep of the Wind. ");
     }
 
     private Subclass cleric(String name) {

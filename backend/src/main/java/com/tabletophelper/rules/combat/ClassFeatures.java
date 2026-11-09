@@ -56,6 +56,12 @@ public final class ClassFeatures {
     /** The cleric level that gives Disciple of Life (PHB p.60). */
     public static final int DISCIPLE_OF_LIFE_LEVEL = 1;
 
+    /** The feature that maxes a Life cleric's spell healing dice (PHB p.60). */
+    public static final String SUPREME_HEALING = "Supreme Healing";
+
+    /** The cleric level that gives Supreme Healing, with the Life Domain (PHB p.60). */
+    public static final int SUPREME_HEALING_LEVEL = 17;
+
     /** The feature that lets a barbarian attack recklessly (Barbarian 2, PHB p.48). */
     public static final String RECKLESS_ATTACK = "Reckless Attack";
 
@@ -143,6 +149,17 @@ public final class ClassFeatures {
      */
     public static int discipleOfLife(int spellLevel) {
         return spellLevel >= 1 ? 2 + spellLevel : 0;
+    }
+
+    /**
+     * Supreme Healing (Life Domain 17, PHB p.60): dice a spell would roll to restore hit points use the highest number
+     * each can show instead, so 2d6 restores 12; what is added to the dice stays. Healing with no dice is unchanged.
+     */
+    public static Dice supremeHealing(Dice healing) {
+        if (healing.count() == 0) {
+            return healing;
+        }
+        return new Dice(0, 0, healing.count() * healing.sides() + healing.modifier());
     }
 
     /**

@@ -55,11 +55,23 @@ public class CharacterClassLoader implements ContentLoader {
     }
 
     // The slot progressions and subclass levels come from the class tables, which files() lists; version 2 writes
-    // the subclass effects overlay, and version 3 the subclasses' bonus proficiencies
+    // the subclass effects overlay, version 3 the subclasses' bonus proficiencies, and version 4 the text of the
+    // features nested inside another, such as the Life Domain's Disciple of Life
     @Override
     public int version() {
-        return 3;
+        return 4;
     }
+
+    // The 5etools entries that place another feature's text inside a feature, such as the Life Domain's Bonus
+    // Proficiency and Disciple of Life (PHB p.60) or the Monk's Flurry of Blows inside Ki (PHB p.78)
+    static final String REF_CLASS_FEATURE = "refClassFeature";
+    static final String REF_SUBCLASS_FEATURE = "refSubclassFeature";
+
+    // How deep features nested inside nested features are followed, so a reference back to a parent can't loop
+    private static final int MAX_NESTING = 4;
+
+    // 5etools leaves a reference's sources blank for the Player's Handbook
+    private static final String DEFAULT_SOURCE = "PHB";
 
     /** Loads the classes, then the subclasses under them. */
     @Override
@@ -87,16 +99,17 @@ public class CharacterClassLoader implements ContentLoader {
 
             Map<String, JsonNode> classFeatureMap = buildFeatureMap(root.get("classFeature"));
             Map<String, JsonNode> subclassFeatureMap = buildSubclassFeatureMap(root.get("subclassFeature"));
+            NestedFeatures nested = NestedFeatures.of(root.get("classFeature"), root.get("subclassFeature"));
 
             for (JsonNode classNode : classArray) {
                 allClasses.add(LoadContext.reading(filename + ": class " + classNode.path("name").asString("?") + "|"
-                        + classNode.path("source").asString(""), () -> parseClass(classNode, classFeatureMap)));
+                        + classNode.path("source").asString(""), () -> parseClass(classNode, classFeatureMap, nested)));
             }
 
             JsonNode subclassArray = root.get("subclass");
             if (subclassArray != null && subclassArray.isArray()) {
                 for (JsonNode scNode : subclassArray) {
-                    allSubclassData.add(new SubclassData(filename, scNode, subclassFeatureMap));
+                    allSubclassData.add(new SubclassData(filename, scNode, subclassFeatureMap, nested));
                 }
             }
         }
@@ -187,7 +200,8 @@ public class CharacterClassLoader implements ContentLoader {
                 + LoadContext.nameAndSource(subclass.getName(), subclass.getSource());
     }
 
-    private CharacterClass parseClass(JsonNode node, Map<String, JsonNode> featureMap) throws Exception {
+    private CharacterClass parseClass(JsonNode node, Map<String, JsonNode> featureMap, NestedFeatures nested)
+            throws Exception {
         String name = node.path("name").asString("");
         String source = node.path("source").asString("");
         int hitDice = node.path("hd").path("faces").asInt(8);
@@ -212,7 +226,7 @@ public class CharacterClassLoader implements ContentLoader {
 
         String primaryAbility = inferPrimaryAbility(name, node);
         String spellSlotProgression = buildSpellSlotProgression(name, casterProgression);
-        String features = parseClassFeatures(node, featureMap);
+        String features = parseClassFeatures(node, featureMap, nested);
         String startingEquipment = node.has("startingEquipment")
                 ? objectMapper.writeValueAsString(node.get("startingEquipment")) : null;
 
@@ -248,7 +262,7 @@ public class CharacterClassLoader implements ContentLoader {
         String name = node.path("name").asString("");
         String source = node.path("source").asString("");
 
-        String features = parseSubclassFeatures(node, scd.featureMap);
+        String features = parseSubclassFeatures(node, scd.featureMap, scd.nested);
         String alwaysPreparedSpells = parseAlwaysPreparedSpells(node);
         String expandedSpellList = parseExpandedSpellList(node);
 
@@ -429,7 +443,8 @@ public class CharacterClassLoader implements ContentLoader {
         return abilities;
     }
 
-    private String parseClassFeatures(JsonNode classNode, Map<String, JsonNode> featureMap) throws Exception {
+    private String parseClassFeatures(JsonNode classNode, Map<String, JsonNode> featureMap, NestedFeatures nested)
+            throws Exception {
         JsonNode refs = classNode.get("classFeatures");
         if (refs == null || !refs.isArray()) return null;
 
@@ -451,7 +466,7 @@ public class CharacterClassLoader implements ContentLoader {
 
             int level = featureNode.path("level").asInt(0);
             String featureName = featureNode.path("name").asString("");
-            String description = flattenEntries(featureNode.get("entries"));
+            String description = flattenEntries(featureNode.get("entries"), nested, 0);
 
             ObjectNode feat = objectMapper.createObjectNode();
             feat.put("level", level);
@@ -463,7 +478,8 @@ public class CharacterClassLoader implements ContentLoader {
         return features.isEmpty() ? null : objectMapper.writeValueAsString(features);
     }
 
-    private String parseSubclassFeatures(JsonNode scNode, Map<String, JsonNode> featureMap) throws Exception {
+    private String parseSubclassFeatures(JsonNode scNode, Map<String, JsonNode> featureMap, NestedFeatures nested)
+            throws Exception {
         JsonNode refs = scNode.get("subclassFeatures");
         if (refs == null || !refs.isArray()) return null;
 
@@ -476,7 +492,7 @@ public class CharacterClassLoader implements ContentLoader {
 
             int level = featureNode.path("level").asInt(0);
             String featureName = featureNode.path("name").asString("");
-            String description = flattenEntries(featureNode.get("entries"));
+            String description = flattenEntries(featureNode.get("entries"), nested, 0);
 
             ObjectNode feat = objectMapper.createObjectNode();
             feat.put("level", level);
@@ -585,7 +601,13 @@ public class CharacterClassLoader implements ContentLoader {
         return map;
     }
 
-    private String flattenEntries(JsonNode entries) {
+    /**
+     * A feature's entries as plain text, a paragraph to a line. A feature nested inside it by reference, as the Life
+     * Domain holds Bonus Proficiency and Disciple of Life (PHB p.60), adds its own paragraphs, the first led by its name,
+     * as the book prints it: "Disciple of Life. Also starting at 1st level, ...". Optional features a reference lists,
+     * such as maneuvers or fighting styles, are left out: they are choices, each with its own text.
+     */
+    String flattenEntries(JsonNode entries, NestedFeatures nested, int depth) {
         if (entries == null) return null;
         StringBuilder sb = new StringBuilder();
         for (JsonNode entry : entries) {
@@ -596,8 +618,16 @@ public class CharacterClassLoader implements ContentLoader {
                 String type = entry.path("type").asString("");
                 if ("entries".equals(type) && entry.has("entries")) {
                     if (!sb.isEmpty()) sb.append("\n");
-                    String nested = flattenEntries(entry.get("entries"));
-                    if (nested != null) sb.append(nested);
+                    String inner = flattenEntries(entry.get("entries"), nested, depth);
+                    if (inner != null) sb.append(inner);
+                } else if ((REF_CLASS_FEATURE.equals(type) || REF_SUBCLASS_FEATURE.equals(type))
+                        && depth < MAX_NESTING) {
+                    JsonNode feature = nested.resolve(entry);
+                    if (feature == null) continue;
+                    String text = flattenEntries(feature.get("entries"), nested, depth + 1);
+                    if (!sb.isEmpty()) sb.append("\n");
+                    sb.append(FiveEToolsMarkupParser.parse(feature.path("name").asString("")));
+                    if (text != null) sb.append(". ").append(text);
                 } else if ("list".equals(type) && entry.has("items")) {
                     for (JsonNode item : entry.get("items")) {
                         if (!sb.isEmpty()) sb.append("\n");
@@ -606,8 +636,8 @@ public class CharacterClassLoader implements ContentLoader {
                         } else if (item.isObject() && item.has("entry")) {
                             sb.append("- ").append(FiveEToolsMarkupParser.parse(item.path("entry").asString("")));
                         } else if (item.isObject() && item.has("entries")) {
-                            String nested = flattenEntries(item.get("entries"));
-                            if (nested != null) sb.append("- ").append(nested);
+                            String inner = flattenEntries(item.get("entries"), nested, depth);
+                            if (inner != null) sb.append("- ").append(inner);
                         }
                     }
                 } else if ("table".equals(type) && entry.has("rows")) {
@@ -622,10 +652,10 @@ public class CharacterClassLoader implements ContentLoader {
                         }
                     }
                 } else if ("options".equals(type) && entry.has("entries")) {
-                    String nested = flattenEntries(entry.get("entries"));
-                    if (nested != null) {
+                    String inner = flattenEntries(entry.get("entries"), nested, depth);
+                    if (inner != null) {
                         if (!sb.isEmpty()) sb.append("\n");
-                        sb.append(nested);
+                        sb.append(inner);
                     }
                 }
             }
@@ -661,5 +691,75 @@ public class CharacterClassLoader implements ContentLoader {
             "Sleight of Hand", "Stealth", "Survival"
     );
 
-    private record SubclassData(String filename, JsonNode node, Map<String, JsonNode> featureMap) {}
+    private record SubclassData(String filename, JsonNode node, Map<String, JsonNode> featureMap,
+                                NestedFeatures nested) {}
+
+    /**
+     * A class file's class and subclass features by the references that nest one inside another: "name|class|class
+     * source|level|source" for a class feature, and "name|class|class source|subclass short name|subclass source|level|
+     * source" for a subclass feature, a blank source being the Player's Handbook, or the class's or subclass's source.
+     */
+    record NestedFeatures(Map<String, JsonNode> classFeatures, Map<String, JsonNode> subclassFeatures) {
+
+        static NestedFeatures of(JsonNode classFeatureArray, JsonNode subclassFeatureArray) {
+            Map<String, JsonNode> classFeatures = new HashMap<>();
+            if (classFeatureArray != null && classFeatureArray.isArray()) {
+                for (JsonNode f : classFeatureArray) {
+                    classFeatures.put(classKey(f.path("name").asString(""), f.path("className").asString(""),
+                            f.path("classSource").asString(""), f.path("level").asString(""),
+                            f.path("source").asString("")), f);
+                }
+            }
+            Map<String, JsonNode> subclassFeatures = new HashMap<>();
+            if (subclassFeatureArray != null && subclassFeatureArray.isArray()) {
+                for (JsonNode f : subclassFeatureArray) {
+                    subclassFeatures.put(subclassKey(f.path("name").asString(""), f.path("className").asString(""),
+                            f.path("classSource").asString(""), f.path("subclassShortName").asString(""),
+                            f.path("subclassSource").asString(""), f.path("level").asString(""),
+                            f.path("source").asString("")), f);
+                }
+            }
+            return new NestedFeatures(classFeatures, subclassFeatures);
+        }
+
+        /** The feature a reference entry names, or null when the file has none by that reference. */
+        JsonNode resolve(JsonNode entry) {
+            String type = entry.path("type").asString("");
+            if (REF_CLASS_FEATURE.equals(type)) {
+                String[] p = parts(entry.path("classFeature").asString(""), 5);
+                return classFeatures.get(classKey(p[0], p[1], p[2], p[3], p[4]));
+            }
+            if (REF_SUBCLASS_FEATURE.equals(type)) {
+                String[] p = parts(entry.path("subclassFeature").asString(""), 7);
+                return subclassFeatures.get(subclassKey(p[0], p[1], p[2], p[3], p[4], p[5], p[6]));
+            }
+            return null;
+        }
+
+        private static String classKey(String name, String className, String classSource, String level,
+                                       String source) {
+            String cs = orPhb(classSource);
+            return String.join("|", name, className, cs, level, source.isBlank() ? cs : source);
+        }
+
+        private static String subclassKey(String name, String className, String classSource, String shortName,
+                                          String subclassSource, String level, String source) {
+            String ss = orPhb(subclassSource);
+            return String.join("|", name, className, orPhb(classSource), shortName, ss, level,
+                    source.isBlank() ? ss : source);
+        }
+
+        private static String orPhb(String source) {
+            return source == null || source.isBlank() ? DEFAULT_SOURCE : source;
+        }
+
+        private static String[] parts(String reference, int size) {
+            String[] split = reference.split("\\|", -1);
+            String[] parts = new String[size];
+            for (int i = 0; i < size; i++) {
+                parts[i] = i < split.length ? split[i].trim() : "";
+            }
+            return parts;
+        }
+    }
 }

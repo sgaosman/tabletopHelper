@@ -2474,6 +2474,17 @@ export interface components {
             maxTargets?: number | null;
             name: string;
         };
+        ConcentrationCheck: {
+            /** Format: int32 */
+            damage: number;
+            /** Format: int32 */
+            dc: number;
+            /** Format: uuid */
+            instanceId: string;
+            success: boolean;
+            /** Format: int32 */
+            total: number;
+        };
         ConcentrationRequest: {
             /** Format: uuid */
             participantId: string;
@@ -3734,6 +3745,7 @@ export interface components {
         WeaponHit: {
             /** Format: uuid */
             attackLogId?: string | null;
+            concentrationCheck?: components["schemas"]["ConcentrationCheck"] | null;
             critical: boolean;
             divineSmiteOffered: boolean;
             smitten: boolean;

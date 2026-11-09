@@ -41,7 +41,10 @@ import java.util.regex.Pattern;
  * too: the armour class now counts the armour worn and Defense (M17), so the adjustment may count it twice. A character
  * whose subclass grants bonus proficiencies its sheet lacks, such as a Life Domain cleric's heavy armour (PHB p.60),
  * gets them, recorded on the level that records the subclass when the level history has one, as choosing a subclass now
- * does. Dry run by default; {@code --maintenance.apply=true} writes.
+ * does. A class or subclass feature whose text on the sheet differs from the class data's takes the data's, as the
+ * features nested inside another, such as the Life Domain's Disciple of Life (PHB p.60), reach the data only from the
+ * class loader's version 4; names, sources and order stay, so levelling down still removes them. Dry run by default;
+ * {@code --maintenance.apply=true} writes.
  */
 @Component
 @RequiredArgsConstructor
@@ -107,6 +110,15 @@ public class RecomputeCharactersJob implements MaintenanceJob {
                 proficiencies = List.of();
             }
             proficiencies.forEach(missing -> diffs.add(subclassProficiencies(missing)));
+            List<CharacterService.OutdatedFeatureText> texts;
+            try {
+                texts = characterService.outdatedFeatureTexts(pc);
+            } catch (RuntimeException e) {
+                warnings.add(who + ": feature texts skipped (" + (e instanceof ConflictException ? ""
+                        : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
+                texts = List.of();
+            }
+            texts.forEach(text -> diffs.add(featureText(text)));
             diffs.addAll(differences(pc, derived));
             if (diffs.isEmpty()) continue;
             changes.add(who + String.join("", diffs.stream().map(diff -> "\n      " + diff).toList()));
@@ -116,6 +128,9 @@ public class RecomputeCharactersJob implements MaintenanceJob {
                 }
                 if (!proficiencies.isEmpty()) {
                     characterService.storeMissingSubclassProficiencies(pc);
+                }
+                if (!texts.isEmpty()) {
+                    characterService.storeFeatureTexts(pc);
                 }
                 characterService.recalculate(pc);
                 characterRepository.save(pc);
@@ -138,6 +153,12 @@ public class RecomputeCharactersJob implements MaintenanceJob {
                 + (missing.recorded() ? "recorded on " + missing.className() + " " + missing.classLevel()
                         : "not recorded: no level records the subclass, so levelling down won't remove them")
                 + ")";
+    }
+
+    // Such as "feature text: Life Domain (Life Domain), 1203 → 1645 characters"
+    private static String featureText(CharacterService.OutdatedFeatureText text) {
+        return "feature text: " + text.name() + " (" + text.source() + "), " + text.lengthNow() + " → "
+                + text.lengthData() + " characters";
     }
 
     private static String describe(PlayerCharacter pc) {
