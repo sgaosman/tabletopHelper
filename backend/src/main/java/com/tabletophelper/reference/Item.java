@@ -69,6 +69,29 @@ public class Item {
     @Column(name = "damage_type", length = 50)
     private String damageType;
 
+    /** The kind of armour the item is, which decides how its AC adds up (PHB p.144); null for anything else. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "armour_category", length = 10)
+    private ArmourCategory armourCategory;
+
+    /** An armour's base AC, or a shield's bonus of 2; null for anything that isn't armour. */
+    @Column(name = "armour_class_base")
+    private Integer armourClassBase;
+
+    /** The Strength score heavy armour needs before it stops slowing its wearer (PHB p.144); null for none. */
+    @Column(name = "strength_requirement")
+    private Integer strengthRequirement;
+
+    /** Whether the armour gives disadvantage on Dexterity (Stealth) checks (PHB p.144). */
+    @Schema(requiredMode = REQUIRED)
+    @Column(name = "stealth_disadvantage", nullable = false)
+    @Builder.Default
+    private Boolean stealthDisadvantage = false;
+
+    /** A magic armour's or shield's bonus to AC, such as Elven Chain's +1; null for none or for other items. */
+    @Column(name = "bonus_ac")
+    private Integer bonusAc;
+
     @Column(length = 100)
     private String source;
 
@@ -87,4 +110,9 @@ public class Item {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    /** The armour categories of PHB p.144, a shield among them. */
+    public enum ArmourCategory {
+        LIGHT, MEDIUM, HEAVY, SHIELD
+    }
 }

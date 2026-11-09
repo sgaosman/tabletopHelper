@@ -32,6 +32,7 @@ import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.Item;
 import com.tabletophelper.reference.ItemRepository;
+import com.tabletophelper.character.EquippedArmour;
 import com.tabletophelper.reference.MonsterPoolTriggerRepository;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
@@ -77,7 +78,7 @@ class CombatFixture {
     final ObjectMapper objectMapper = JacksonDefaults.mapper();
     final ScriptedDice dice = new ScriptedDice();
     final Resolver resolver = new Resolver(dice);
-    final CreatureStats stats = new CreatureStats(objectMapper);
+    final CreatureStats stats = new CreatureStats(objectMapper, new EquippedArmour(itemRepository));
     final CombatLogWriter combatLog = new CombatLogWriter(combatLogRepository);
     final ResourcePoolService resourcePoolService =
             new ResourcePoolService(mock(ClassFeaturePoolRepository.class), JacksonDefaults.mapper());
@@ -102,7 +103,7 @@ class CombatFixture {
             effectApplier, economy, manualModifiers, encounterRepository, encounterService);
     final SpellcastingService spellcasting = new SpellcastingService(access, accessPolicy, casterSpells, spellCaster,
             spellEffects, effectApplier, economy, manualModifiers, combatLog, encounterRepository, encounterService,
-            characterService);
+            characterService, stats);
     final MonsterActionService monsterActions = new MonsterActionService(access, accessPolicy, monsterEffects, resolver,
             stats, effectApplier, economy, resourcePoolService, objectMapper, encounterRepository, encounterService);
     final LegendaryResistanceService legendaryResistance = new LegendaryResistanceService(access, effectApplier,
@@ -285,6 +286,25 @@ class CombatFixture {
     }
 
     // ── Weapons ──────────────────────────────────────────────────
+
+    // ── Armour ───────────────────────────────────────────────────
+
+    /** An armour or shield row as ItemLoader writes one (M13.5). */
+    static Item armour(String name, Item.ArmourCategory category, int base, boolean stealthDisadvantage) {
+        return Item.builder().id(UUID.randomUUID()).name(name).source("PHB").armourCategory(category)
+                .armourClassBase(base).stealthDisadvantage(stealthDisadvantage).build();
+    }
+
+    /** Equips the player character with the armour, linked to its rows in the items table. */
+    void wears(EncounterParticipant pc, Item... items) {
+        List<InventoryItem> equipment = new ArrayList<>(pc.getCharacter().getEquipment() != null
+                ? pc.getCharacter().getEquipment() : List.of());
+        for (Item item : items) {
+            lenient().when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+            equipment.add(new InventoryItem(item.getName(), 1, null, item.getId(), true, null));
+        }
+        pc.getCharacter().setEquipment(equipment);
+    }
 
     /** Makes the items table hold these mundane weapons (D164). */
     void weapons(Item... items) {

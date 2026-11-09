@@ -5,8 +5,10 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.DerivedStats;
 import com.tabletophelper.character.DmAdjustments;
+import com.tabletophelper.character.EquippedArmour;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.AbilityScoreMaximums;
+import com.tabletophelper.character.dto.ArmourClassBreakdown;
 import com.tabletophelper.character.dto.ClassSpellcasting;
 import com.tabletophelper.character.state.AppliedFeatEffects;
 import com.tabletophelper.character.state.ClassEntry;
@@ -17,6 +19,7 @@ import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.CharacterClassRepository;
+import com.tabletophelper.reference.Item;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
@@ -25,6 +28,7 @@ import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ProficiencyBonus;
 import com.tabletophelper.rules.SpellSlotCalculator;
 import com.tabletophelper.rules.character.AbilityScores;
+import com.tabletophelper.rules.character.ArmourClass;
 import com.tabletophelper.rules.character.ClassProgression;
 import com.tabletophelper.rules.character.ClassTables;
 import com.tabletophelper.rules.character.CurrentHitPoints;
@@ -38,6 +42,7 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
 import java.util.function.Function;
@@ -58,17 +63,36 @@ import java.util.function.Function;
  * come from the effects in the data (R7): a feat's recorded {@code hpPerLevel}, such as Tough's, and the race's
  * {@code hpPerLevel}, such as the Hill Dwarf's, for every character level, and a subclass's {@code hpPerClassLevel},
  * such as the Draconic Bloodline's, for every level in its class. The class tables come from the content module.
+ * <p>
+ * The armour class (M13.5) comes from the armour and shield the character wears (EquippedArmour), or else the best of
+ * its unarmoured formulas: 10 + DEX, the Barbarian's or Monk's Unarmored Defense, and the formulas the effects in the
+ * data give a subclass, such as Draconic Resilience, or a race's natural armour ({@code unarmouredAcBase}, with
+ * {@code unarmouredAcDex} and {@code unarmouredAcCon} 1 when it adds that modifier, and
+ * {@code unarmouredAcWithArmour} 1 when it may stand in for worn armour giving less), plus a race's flat
+ * {@code acBonus}, such as the Warforged's. Heavy armour without the Strength it needs takes 10 feet off the speed,
+ * unless the race's {@code heavyArmourSpeedExempt} is 1, as a dwarf's is.
  */
 @Component
 @RequiredArgsConstructor
 public class CharacterStats {
 
     static final String BARBARIAN = "Barbarian";
+    static final String MONK = "Monk";
 
     // The effects that add hit points for every level: a race's for every character level, a subclass's for every
     // level in its class
     static final String HP_PER_LEVEL = "hpPerLevel";
     static final String HP_PER_CLASS_LEVEL = "hpPerClassLevel";
+    // The armour effects (M13.5): an unarmoured formula's base AC, whether it adds DEX and CON and whether it may stand
+    // in for worn armour that gives less (1 for yes), a flat bonus to AC, and an exemption from heavy armour's Strength
+    // requirement (1 for exempt)
+    static final String UNARMOURED_AC_BASE = "unarmouredAcBase";
+    static final String UNARMOURED_AC_DEX = "unarmouredAcDex";
+    static final String UNARMOURED_AC_CON = "unarmouredAcCon";
+    static final String UNARMOURED_AC_WITH_ARMOUR = "unarmouredAcWithArmour";
+    static final String AC_BONUS = "acBonus";
+    static final String HEAVY_ARMOUR_SPEED_EXEMPT = "heavyArmourSpeedExempt";
+    static final String DM_ADJUSTMENTS_PART = "DM adjustments";
 
     private static final int PRIMAL_CHAMPION_LEVEL = 20;
     private static final int DEFAULT_SPEED = 30;
@@ -83,6 +107,7 @@ public class CharacterStats {
     private final ResourcePoolService resourcePoolService;
     private final ObjectMapper objectMapper;
     private final ClassTables classTables;
+    private final EquippedArmour equippedArmour;
 
     /** One of the character's classes: its class entry and the class it names. */
     private record ClassLevel(ClassEntry entry, CharacterClass characterClass) {
@@ -90,6 +115,14 @@ public class CharacterStats {
         String name() {
             return characterClass.getName();
         }
+    }
+
+    /**
+     * The armour worked out: the AC and its parts, what heavy armour takes off the speed, what the armour costs the
+     * character, and the further armour equipped that doesn't count.
+     */
+    private record WornArmour(ArmourClass.Result result, int speedPenalty, List<String> warnings,
+                              List<String> ignored) {
     }
 
     // ── Deriving ─────────────────────────────────────────────────
@@ -109,6 +142,11 @@ public class CharacterStats {
         Integer mainModifier = mainAbility != null
                 ? Ability.modifier(scores.get(Ability.parse(mainAbility).orElseThrow())) : null;
 
+        WornArmour armour = armour(character, classes, scores);
+        List<String> warnings = new ArrayList<>(warnings(character, spellcasting));
+        armour.ignored().forEach(name -> warnings.add("has " + name + " equipped too; only the first armour and "
+                + "shield in the inventory count"));
+
         Map<String, Integer> poolContext = resourcePoolService.buildCharacterContext(character);
         poolContext.put("proficiencyBonus", proficiencyBonus);
 
@@ -120,7 +158,8 @@ public class CharacterStats {
                         + DmAdjustments.total(character, Stat.INITIATIVE),
                 // A speed taken below 0 stops there
                 Math.max(0, raceSpeed(character.getRaceRef()) + featBonus(character, AppliedFeatEffects::speedBonus)
-                        + DmAdjustments.total(character, Stat.SPEED)),
+                        - armour.speedPenalty() + DmAdjustments.total(character, Stat.SPEED)),
+                armour.result().total(),
                 scores,
                 abilityScoreMaximums(classes),
                 spellSlots(character, classes),
@@ -132,7 +171,7 @@ public class CharacterStats {
                 mainModifier != null
                         ? proficiencyBonus + mainModifier + DmAdjustments.total(character, Stat.SPELL_ATTACK_BONUS) : null,
                 resourcePoolService.reconciledPools(character, poolContext),
-                warnings(character, spellcasting));
+                List.copyOf(warnings));
     }
 
     /**
@@ -152,12 +191,32 @@ public class CharacterStats {
         character.setHpCurrent(newCurrent);
         character.setInitiativeBonus(stats.initiativeBonus());
         character.setSpeed(stats.speed());
+        character.setArmourClass(stats.armourClass());
         character.setSpellSlots(stats.spellSlots());
         character.setHitDice(stats.hitDice());
         character.setSpellSaveDc(stats.spellSaveDc());
         character.setSpellAttackBonus(stats.spellAttackBonus());
         character.setResourcePools(stats.resourcePools());
         return stats;
+    }
+
+    /**
+     * How the character's armour class adds up now (M13.5): the derived AC's parts, then the DM's AC adjustments as
+     * one part, what the armour worn costs it, such as armour worn without proficiency, and which inventory entries are
+     * armour or a shield.
+     *
+     * @throws ConflictException when a class, subclass or race the character has can't be read
+     */
+    public ArmourClassBreakdown armourClassBreakdown(PlayerCharacter character) {
+        WornArmour armour = armour(character, classes(character), abilityScores(character));
+        List<ArmourClassBreakdown.Part> parts = new ArrayList<>();
+        armour.result().parts().forEach(part -> parts.add(new ArmourClassBreakdown.Part(part.label(), part.amount())));
+        int adjustments = DmAdjustments.total(character, Stat.ARMOUR_CLASS);
+        if (adjustments != 0) {
+            parts.add(new ArmourClassBreakdown.Part(DM_ADJUSTMENTS_PART, adjustments));
+        }
+        return new ArmourClassBreakdown(armour.result().total() + adjustments, parts, armour.warnings(),
+                equippedArmour.armourEntries(character.getEquipment()));
     }
 
     /** What each of the character's classes casts with, in the order the classes were taken. */
@@ -358,6 +417,94 @@ public class CharacterStats {
             // Falls through to the 409 below
         }
         throw new ConflictException("The speed of the race " + race.getName() + " can't be read: " + race.getSpeed());
+    }
+
+    // ── Armour class ─────────────────────────────────────────────
+
+    // The AC from what the character wears, or its best unarmoured formula, and what the armour costs it
+    private WornArmour armour(PlayerCharacter character, List<ClassLevel> classes, Map<Ability, Integer> scores) {
+        EquippedArmour.Worn worn = equippedArmour.of(character);
+        Map<Ability, Integer> modifiers = new EnumMap<>(Ability.class);
+        scores.forEach((ability, score) -> modifiers.put(ability, Ability.modifier(score)));
+
+        ArmourClass.Armour armour = worn.armour() != null ? new ArmourClass.Armour(worn.armour().getName(),
+                category(worn.armour()), orZero(worn.armour().getArmourClassBase()), orZero(worn.armour().getBonusAc()))
+                : null;
+        ArmourClass.Shield shield = worn.shield() != null ? new ArmourClass.Shield(worn.shield().getName(),
+                orZero(worn.shield().getArmourClassBase()), orZero(worn.shield().getBonusAc())) : null;
+
+        List<ArmourClass.Unarmoured> formulas = new ArrayList<>();
+        // Unarmored Defense from the first of the two classes taken: it can't be gained again from the other (PHB p.164)
+        for (ClassLevel c : classes) {
+            if (BARBARIAN.equals(c.name())) {
+                formulas.add(ArmourClass.barbarianUnarmouredDefence());
+                break;
+            }
+            if (MONK.equals(c.name())) {
+                formulas.add(ArmourClass.monkUnarmouredDefence());
+                break;
+            }
+        }
+        for (ClassLevel c : classes) {
+            UUID subclassId = c.entry().subclassId();
+            if (subclassId == null) continue;
+            Subclass subclass = subclassRepository.findById(subclassId)
+                    .orElseThrow(() -> new ConflictException("The subclass " + c.entry().subclassName()
+                            + " that the character has can't be found"));
+            unarmoured(subclass.getEffects(), subclass.getName(), "subclass " + subclass.getName())
+                    .ifPresent(formulas::add);
+        }
+        Race race = character.getRaceRef();
+        List<ArmourClass.Bonus> bonuses = new ArrayList<>();
+        boolean speedExempt = false;
+        if (race != null) {
+            String of = "race " + race.getName();
+            unarmoured(race.getEffects(), race.getName() + " natural armour", of).ifPresent(formulas::add);
+            int bonus = effect(race.getEffects(), AC_BONUS, of);
+            if (bonus != 0) {
+                bonuses.add(new ArmourClass.Bonus(race.getName(), bonus));
+            }
+            speedExempt = effect(race.getEffects(), HEAVY_ARMOUR_SPEED_EXEMPT, of) == 1;
+        }
+        ArmourClass.Result result = ArmourClass.of(armour, shield, modifiers, formulas, bonuses);
+
+        List<String> warnings = new ArrayList<>();
+        for (Item item : worn.notProficient()) {
+            warnings.add("Not proficient with " + item.getName()
+                    + ": disadvantage on STR and DEX rolls, and can't cast spells");
+        }
+        Integer requirement = worn.armour() != null ? worn.armour().getStrengthRequirement() : null;
+        int speedPenalty = ArmourClass.speedPenalty(armour, requirement, scores.get(Ability.STR), speedExempt);
+        if (speedPenalty > 0) {
+            warnings.add(worn.armour().getName() + " needs STR " + requirement + ": speed -" + speedPenalty + " ft");
+        }
+        return new WornArmour(result, speedPenalty, warnings, worn.ignored());
+    }
+
+    // The unarmoured formula a race's or subclass's effects give, such as {"unarmouredAcBase": 13, "unarmouredAcDex": 1}
+    private Optional<ArmourClass.Unarmoured> unarmoured(String effects, String name, String of) {
+        int base = effect(effects, UNARMOURED_AC_BASE, of);
+        if (base == 0) {
+            return Optional.empty();
+        }
+        List<Ability> abilities = new ArrayList<>();
+        if (effect(effects, UNARMOURED_AC_DEX, of) == 1) abilities.add(Ability.DEX);
+        if (effect(effects, UNARMOURED_AC_CON, of) == 1) abilities.add(Ability.CON);
+        return Optional.of(new ArmourClass.Unarmoured(name, base, abilities, true,
+                effect(effects, UNARMOURED_AC_WITH_ARMOUR, of) == 1));
+    }
+
+    private static ArmourClass.Category category(Item armour) {
+        return switch (armour.getArmourCategory()) {
+            case LIGHT -> ArmourClass.Category.LIGHT;
+            case MEDIUM -> ArmourClass.Category.MEDIUM;
+            case HEAVY -> ArmourClass.Category.HEAVY;
+            case SHIELD -> throw new IllegalArgumentException(armour.getName() + " is a shield, not body armour");
+        };
+    }
+
+    private static int orZero(Integer value) {
+        return value != null ? value : 0;
     }
 
     // ── Spell slots and Hit Dice ─────────────────────────────────

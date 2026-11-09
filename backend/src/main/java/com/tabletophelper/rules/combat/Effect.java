@@ -3,6 +3,7 @@ package com.tabletophelper.rules.combat;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -71,12 +72,27 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
      * @param forcedCritical the DM's override: the attack is a critical hit whatever the roll
      * @param hitSave        the saving throw a target it hits makes against some of the Effect's conditions, or
      *                       null when a hit gives them all
+     * @param otherSources   the attacker's other sources of advantage or disadvantage, such as armour worn without
+     *                       proficiency (PHB p.144); they combine with rollMode and the target's once (PHB p.173)
      */
     public record Attack(int bonus, RollMode rollMode, boolean withinFiveFeet, boolean forcedCritical,
-                         HitSave hitSave) implements Delivery {
+                         HitSave hitSave, List<RollMode> otherSources) implements Delivery {
 
         public Attack {
             Objects.requireNonNull(rollMode, "rollMode");
+            otherSources = List.copyOf(otherSources);
+        }
+
+        /** An attack whose only source of its own is rollMode. */
+        public Attack(int bonus, RollMode rollMode, boolean withinFiveFeet, boolean forcedCritical, HitSave hitSave) {
+            this(bonus, rollMode, withinFiveFeet, forcedCritical, hitSave, List.of());
+        }
+
+        /** Every source of advantage or disadvantage the attacker brings: its own choice, then the others. */
+        public List<RollMode> attackerSources() {
+            List<RollMode> sources = new ArrayList<>(List.of(rollMode));
+            sources.addAll(otherSources);
+            return sources;
         }
 
         /** An attack whose hit gives every condition of its Effect. */

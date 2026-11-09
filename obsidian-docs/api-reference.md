@@ -222,7 +222,7 @@ Create a new player character owned by the authenticated user. Uses FK reference
 - `racialAbilityBonuses` entries are `{ability, bonus}`, with the ability abbreviated, such as `"INT"`, or `null` until the player assigns it.
 - `featResources` is gone since R6 workstream D (D158): a feat's limited uses, such as Lucky's luck points, are a `feat:<feat>` pool in `resourcePools`, such as `feat:lucky`.
 
-The request no longer takes the stats the server works out (R6 workstream C, D158, D167): `hpMax`, `armourClass`, `initiativeBonus`, `speed`, `proficiencyBonus`, `spellSlots`, `spellSaveDc`, `spellAttackBonus` and `hitDice`. Armour class starts at 10 + the DEX modifier, because armour isn't modelled, and speed is the race's walking speed. `spellcastingAbility` is only the ability race and feat spells are cast with, such as a Fairy's choice of INT, WIS or CHA; a class's own spells use the class's ability.
+The request no longer takes the stats the server works out (R6 workstream C, D158, D167): `hpMax`, `armourClass`, `initiativeBonus`, `speed`, `proficiencyBonus`, `spellSlots`, `spellSaveDc`, `spellAttackBonus` and `hitDice`. Armour class is worked out from the equipped armour and shield (M13.5, D175), 10 + the DEX modifier without any, and speed is the race's walking speed, less 10 feet in heavy armour without the STR it needs. `spellcastingAbility` is only the ability race and feat spells are cast with, such as a Fairy's choice of INT, WIS or CHA; a class's own spells use the class's ability.
 
 For multiclass characters (level >= 2), the `multiclassClassEntries` field contains a JSON array of class entries with `classId`, `level`, and optional `subclassId`. The server builds `multiclassEntries` and `levelHistory` from this data with `LevelUpCalculator.buildMulticlassProgression()`, each level with its `hitDieResult`, and works out `hitDice` and HP from them. The class levels must add up to `level`, or the request answers `400`. The `characterClass` field is auto-set to "ClassName1 / ClassName2" format. The choices the levels bring are made after creation through `POST /characters/{characterId}/apply-choices`, and since R6 workstream F each is a Pending Choice that the server records on the level that owes it, so levelling down reverses the right one (D159).
 
@@ -308,8 +308,11 @@ Replace the character's whole inventory and coins. Both fields are required.
 
 Each entry needs a name, which is trimmed, and its quantity can't be below 0. `itemId` is optional and links the entry to an item: weapon attacks try it before the entry's name, so an entry linked to a mundane weapon is that weapon, whatever it is called (D164). Creation checks `equipment` and `currency` the same way.
 
+Since M13.5 (D175) an equipped entry that is armour or a shield, by `itemId` or by name, sets the character's AC, and only one suit of armour and one shield can be equipped.
+
 **Errors:**
 - `400` — An entry without a name, a quantity or coin below 0, or an `itemId` that names no item
+- `400` — A second suit of armour or a second shield equipped, such as "Only one suit of armour can be worn at a time: unequip Chain Mail before equipping Plate Armor"
 
 ### POST /characters/{characterId}/hp
 
@@ -472,6 +475,9 @@ Get a specific character by ID. Only its owner, or the DM of the campaign it bel
 **Errors:**
 - `404` — Character not found
 - `403` — Neither the owner nor the campaign's DM
+
+
+**Armour Class breakdown (M13.5, D175):** every character response has `armourClassBreakdown`: `parts`, a list of `{label, amount}` such as `{"label": "Chain Mail", "amount": 16}`, `{"label": "Shield", "amount": 2}` or `{"label": "DM adjustments", "amount": 1}`, adding up to `armourClass`; `warnings`, such as "Not proficient with Chain Mail: disadvantage on STR and DEX rolls, and can't cast spells" or "Chain Mail needs STR 13: speed -10 ft"; and `armourEntries`, the inventory positions read as armour or a shield. In an encounter a spell option gains `unavailableReason` when the caster wears armour without proficiency, and casting answers 409 with the same text.
 
 ### DELETE /characters/{characterId}
 

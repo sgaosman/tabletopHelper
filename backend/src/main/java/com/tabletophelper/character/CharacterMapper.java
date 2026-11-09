@@ -3,6 +3,7 @@ package com.tabletophelper.character;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
+import com.tabletophelper.character.dto.ArmourClassBreakdown;
 import com.tabletophelper.character.dto.BaseAbilityScores;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.internal.CharacterStats;
@@ -25,7 +26,8 @@ import java.util.UUID;
 /**
  * A character as the API returns it: its sheet, with what each class casts with and the ability score maximums
  * worked out by CharacterStats, since the sheet stores neither (D158, D167), and whether it is in an encounter that
- * is under way and whether it has died (D166). The ability scores, armour class and damage defences include the active
+ * is under way and whether it has died (D166). The armour class is worked out from the armour worn, with how it adds
+ * up (M13.5). The ability scores, armour class and damage defences include the active
  * DM Adjustments, as the stored Derived Stats do, and the adjustments themselves come with them, the removed ones as
  * the record. So do the Pending Choices its levels still owe (D159).
  */
@@ -42,6 +44,7 @@ public class CharacterMapper {
     private final LiveEncounters liveEncounters;
 
     public CharacterResponse toResponse(PlayerCharacter c) {
+        ArmourClassBreakdown armourClass = characterStats.armourClassBreakdown(c);
         return CharacterResponse.builder()
                 .id(c.getId())
                 .userId(c.getUser().getId())
@@ -76,7 +79,8 @@ public class CharacterMapper {
                 .hpMax(c.getHpMax())
                 .hpCurrent(c.getHpCurrent())
                 .hpTemp(c.getHpTemp())
-                .armourClass(DmAdjustments.armourClass(c))
+                .armourClass(armourClass.total())
+                .armourClassBreakdown(armourClass)
                 .initiativeBonus(c.getInitiativeBonus())
                 .speed(c.getSpeed())
                 .proficiencyBonus(c.getProficiencyBonus())

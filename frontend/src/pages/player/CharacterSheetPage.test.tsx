@@ -399,6 +399,32 @@ describe('CharacterSheetPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Gimli needs at least 1 hit point to benefit from a long rest');
   });
 
+  it("shows the AC breakdown, and the server's message when it refuses a second armour (M13.5)", async () => {
+    server.use(
+      http.get('/api/characters/:id', () => HttpResponse.json({
+        ...hurtFighter,
+        equipment: [{ name: 'Chain Mail', quantity: 1, equipped: true }, { name: 'Leather Armor', quantity: 1 }],
+        armourClass: 18,
+        armourClassBreakdown: {
+          total: 18, parts: [{ label: 'Chain Mail', amount: 16 }, { label: 'Shield', amount: 2 }], warnings: [],
+          armourEntries: [0, 1],
+        },
+      })),
+      http.put('/api/characters/:id/inventory', () => HttpResponse.json(
+        { error: 'Only one suit of armour can be worn at a time: unequip Chain Mail before equipping Leather Armor' },
+        { status: 400 })),
+    );
+    renderSheet();
+    const user = userEvent.setup();
+
+    expect(await screen.findByText('Chain Mail 16 + Shield 2 = 18')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'Inventory' }));
+    await user.click(await screen.findByRole('button', { name: 'Equip Leather Armor' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Only one suit of armour can be worn at a time: unequip Chain Mail before equipping Leather Armor');
+  });
+
   it('shows the server\'s message when the character cannot be loaded', async () => {
     server.use(
       http.get('/api/characters/:id', () =>

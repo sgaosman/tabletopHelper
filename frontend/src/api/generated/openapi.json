@@ -4397,6 +4397,56 @@
           }
         }
       },
+      "ArmourClassBreakdown": {
+        "required": [
+          "armourEntries",
+          "parts",
+          "total",
+          "warnings"
+        ],
+        "type": "object",
+        "properties": {
+          "armourEntries": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArmourClassPart"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ArmourClassPart": {
+        "required": [
+          "amount",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
       "AsiChoice": {
         "type": "object",
         "properties": {
@@ -5320,6 +5370,7 @@
         "required": [
           "abilityScoreMaximums",
           "armourClass",
+          "armourClassBreakdown",
           "baseAbilityScores",
           "charisma",
           "constitution",
@@ -5376,6 +5427,9 @@
           "armourClass": {
             "type": "integer",
             "format": "int32"
+          },
+          "armourClassBreakdown": {
+            "$ref": "#/components/schemas/ArmourClassBreakdown"
           },
           "background": {
             "type": "string",
@@ -7507,12 +7561,33 @@
           "id",
           "isHomebrew",
           "name",
-          "requiresAttunement"
+          "requiresAttunement",
+          "stealthDisadvantage"
         ],
         "type": "object",
         "properties": {
+          "armourCategory": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "LIGHT",
+              "MEDIUM",
+              "HEAVY",
+              "SHIELD"
+            ]
+          },
+          "armourClassBase": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "attunementCondition": {
             "type": "string",
+            "nullable": true
+          },
+          "bonusAc": {
+            "type": "integer",
+            "format": "int32",
             "nullable": true
           },
           "cost": {
@@ -7564,6 +7639,14 @@
           },
           "source": {
             "type": "string",
+            "nullable": true
+          },
+          "stealthDisadvantage": {
+            "type": "boolean"
+          },
+          "strengthRequirement": {
+            "type": "integer",
+            "format": "int32",
             "nullable": true
           },
           "subtype": {
@@ -9527,6 +9610,10 @@
             "items": {
               "$ref": "#/components/schemas/SourceOption"
             }
+          },
+          "unavailableReason": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

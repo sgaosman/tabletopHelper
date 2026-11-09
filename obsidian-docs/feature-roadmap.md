@@ -25,7 +25,7 @@
 | 12 | Monster Actions, Legendary Actions & Resistance | Complete | All CRs, lair actions, structured action data, DM action panel, legendary action pool, combat-log-based legendary resistance undo, recharge logging, lair action cards |
 | 12.5 | CR 11-15 Monster Data Expansion | Eliminated — merged into M12 (D129) | Extend structured monster actions from CR 10 to CR 15, required for M6 release trigger |
 | 13 | Enhanced Action Economy | Implemented (2026-11-06) | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, bonus-action-spell rule, pools in encounters (D174); 2,096 backend unit, 235 integration and 851 frontend tests. Item use moved out; V30 applied to the local database on 2026-11-07 |
-| 13.5 | Armour and Armour Class | Not started | AC worked out from equipped armour and shield, Unarmoured Defence and similar features, heavy armour's Strength speed penalty, Stealth disadvantage, the penalties for armour without proficiency; changes D158 |
+| 13.5 | Armour and Armour Class | Implemented (2026-11-09) | AC worked out from equipped armour and shield, Unarmoured Defence and similar features, heavy armour's Strength speed penalty, Stealth disadvantage, the penalties for armour without proficiency; changes D158 |
 | 14 | Undo System | Not started | Before-state snapshots on every combat action, DM-only rollback with cascade support |
 | 15 | Persistent Spell Effects as Companion Participants | Not started | Spiritual Weapon, Flaming Sphere etc. as sub-cards beneath the caster |
 | 16 | Short/Long Rest System | Complete (in M9) | Implemented as part of M9 character sheet — hit dice spending, HP recovery, spell slot reset on long rest |
@@ -516,6 +516,8 @@ Phase 3 — Multiclass at creation:
 **Out of scope / later:** item use with charges and attunement; automatic reaction prompts and reactions such as Shield or Parry rewriting a hit already rolled; a movement counter or grid; surprise; Haste and Slow automation (the DM's budget edit covers them); spells longer than a turn in combat; Martial Arts, Flurry of Blows, Thirsting Blade and fighting styles (M17); Quickened Spell (M18); Counterspell's ability check; Ready triggers beyond a logged reaction; restoring the budget on undo (M14); companions' bonus-action attacks (M15).
 
 ## Milestone 13.5: Armour and Armour Class
+
+**Status (2026-11-09):** implemented ([[decisions-log#D175]]). The local database takes V31 and the item reload at its next start, followed by a `recompute-characters` dry run. The wizard AC preview was dropped because the wizard sends no starting equipment; everything else below is done.
 
 **Goal:** a player character's AC comes from what they wear, not a fixed value set at creation. Today AC is 10 + DEX from creation plus DM Adjustments, because armour isn't modelled ([[decisions-log#D158]]). Scheduled before M14 because every attack against a player character reads AC, and M6's trigger counts the DM setting AC by hand as a manual ruling.
 

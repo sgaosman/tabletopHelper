@@ -39,6 +39,47 @@ describe('StatsTab', () => {
     expect(screen.queryByText('Damage Resistances')).not.toBeInTheDocument();
   });
 
+  it('shows how the AC adds up, as the server worked it out (M13.5)', () => {
+    const armoured = {
+      ...char,
+      armourClass: 19,
+      armourClassBreakdown: {
+        total: 19,
+        parts: [{ label: 'Chain Mail', amount: 16 }, { label: 'Shield', amount: 2 }, { label: 'DM adjustments', amount: 1 }],
+        warnings: [],
+        armourEntries: [0, 1],
+      },
+    };
+    render(<StatsTab {...defaultProps} char={armoured} />);
+
+    const section = screen.getByRole('region', { name: 'Armour Class' });
+    expect(within(section).getByText('19')).toBeInTheDocument();
+    expect(within(section).getByText('Chain Mail 16 + Shield 2 + DM adjustments 1 = 19')).toBeInTheDocument();
+    expect(within(section).queryByRole('listitem')).not.toBeInTheDocument();
+  });
+
+  it('lists what the armour worn costs, such as armour without proficiency or the Strength it needs', () => {
+    const burdened = {
+      ...char,
+      armourClassBreakdown: {
+        total: 16,
+        parts: [{ label: 'Chain Mail', amount: 16 }],
+        warnings: [
+          "Not proficient with Chain Mail: disadvantage on STR and DEX rolls, and can't cast spells",
+          'Chain Mail needs STR 13: speed -10 ft',
+        ],
+        armourEntries: [0],
+      },
+    };
+    render(<StatsTab {...defaultProps} char={burdened} />);
+
+    const items = within(screen.getByRole('region', { name: 'Armour Class' })).getAllByRole('listitem');
+    expect(items.map(item => item.textContent)).toEqual([
+      "Not proficient with Chain Mail: disadvantage on STR and DEX rolls, and can't cast spells",
+      'Chain Mail needs STR 13: speed -10 ft',
+    ]);
+  });
+
   it('renders stat grid cards', () => {
     render(<StatsTab {...defaultProps} />);
     expect(screen.getByText('XP')).toBeInTheDocument();

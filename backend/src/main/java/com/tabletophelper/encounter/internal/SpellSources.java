@@ -151,7 +151,7 @@ final class SpellSources {
         if (level == 0 || entries.stream().anyMatch(Known::atWill)) {
             sources.add(new SourceOption(SpellSource.NONE, List.of(level), null, null));
         }
-        return new SpellOption(first.name(), level, castingTime(first), reactionTrigger(first), sources);
+        return new SpellOption(first.name(), level, castingTime(first), reactionTrigger(first), sources, null);
     }
 
     /**

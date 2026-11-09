@@ -1,3 +1,17 @@
 {
-  "Hill Dwarf|PHB": { "hpPerLevel": 1 }
+  "Hill Dwarf|PHB": { "hpPerLevel": 1, "heavyArmourSpeedExempt": 1 },
+  "Dwarf|PHB": { "heavyArmourSpeedExempt": 1 },
+  "Mountain Dwarf|PHB": { "heavyArmourSpeedExempt": 1 },
+  "Duergar Dwarf|MTF": { "heavyArmourSpeedExempt": 1 },
+  "Mark of Warding Dwarf|ERLW": { "heavyArmourSpeedExempt": 1 },
+  "Dwarf (Kaladesh)|PSK": { "heavyArmourSpeedExempt": 1 },
+  "Lizardfolk|VGM": { "unarmouredAcBase": 13, "unarmouredAcDex": 1, "unarmouredAcWithArmour": 1 },
+  "Lizardfolk|MPMM": { "unarmouredAcBase": 13, "unarmouredAcDex": 1, "unarmouredAcWithArmour": 1 },
+  "Locathah|LR": { "unarmouredAcBase": 12, "unarmouredAcDex": 1, "unarmouredAcWithArmour": 1 },
+  "Loxodon|GGR": { "unarmouredAcBase": 12, "unarmouredAcCon": 1, "unarmouredAcWithArmour": 1 },
+  "Autognome|AAG": { "unarmouredAcBase": 13, "unarmouredAcDex": 1 },
+  "Thri-kreen|AAG": { "unarmouredAcBase": 13, "unarmouredAcDex": 1 },
+  "Tortle|TTP": { "unarmouredAcBase": 17 },
+  "Tortle|MPMM": { "unarmouredAcBase": 17 },
+  "Warforged|ERLW": { "acBonus": 1 }
 }

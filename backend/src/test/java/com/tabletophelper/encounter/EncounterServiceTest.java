@@ -1,5 +1,7 @@
 package com.tabletophelper.encounter;
 
+import com.tabletophelper.character.EquippedArmour;
+import com.tabletophelper.reference.ItemRepository;
 import com.tabletophelper.shared.JacksonDefaults;
 import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.campaign.AccessPolicy;
@@ -76,7 +78,7 @@ class EncounterServiceTest {
         ObjectMapper objectMapper = JacksonDefaults.mapper();
         CombatLogWriter combatLog = new CombatLogWriter(combatLogRepository);
         TurnProcessor turnProcessor = new TurnProcessor(new EffectApplier(new Resolver(Rng.random()),
-                new CreatureStats(objectMapper), combatLog, resourcePoolService), combatLog);
+                new CreatureStats(objectMapper, new EquippedArmour(mock(ItemRepository.class))), combatLog, resourcePoolService), combatLog);
         encounterService = new EncounterService(encounterRepository, participantRepository, campaignRepository,
                 characterRepository, monsterRepository, objectMapper, monsterPools, accessPolicy,
                 new EncounterCommands(encounterRepository, accessPolicy, eventPublisher),

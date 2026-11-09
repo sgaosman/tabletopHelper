@@ -141,7 +141,7 @@ Added in V13 (D156). One row per refresh token. The browser holds the random tok
 | hp_temp | INTEGER | DEFAULT 0 | |
 | hit_dice_total (dropped by V29 on 2026-11-06) | VARCHAR(20) | | e.g. "8d10" — **DEPRECATED**, unmapped since V19 (R6, D168): the sheet builds the text from `hit_dice`. R7 drops it. |
 | hit_dice_remaining (dropped by V29 on 2026-11-06) | VARCHAR(20) | | **DEPRECATED**, unmapped since V19 (R6, D168). R7 drops it. |
-| armour_class | INTEGER | NOT NULL | The AC the character was created with, 10 + its DEX modifier then, because armour isn't modelled. Since R6 workstream E it holds the value without DM Adjustments: the AC the API returns, and an encounter copies, is this plus the active AC adjustments, worked out when read (D158). |
+| armour_class | INTEGER | NOT NULL | The AC worked out from the equipped armour and shield, without DM Adjustments (M13.5, D175); before M13.5 it was the creation value, 10 + DEX. Since R6 workstream E the AC the API returns, and an encounter copies, is this plus the active AC adjustments, worked out when read (D158). |
 | initiative_bonus | INTEGER | DEFAULT 0 | |
 | speed | INTEGER | DEFAULT 30 | |
 | proficiency_bonus | INTEGER | DEFAULT 2 | |
@@ -320,6 +320,11 @@ What each content loader last loaded (V25, D169). One row per loader.
 | damage_dice, damage_type | VARCHAR | |
 | source | VARCHAR | |
 | is_homebrew | BOOLEAN | |
+| armour_category | VARCHAR(10) | V31 (M13.5, D175). `LIGHT`, `MEDIUM`, `HEAVY` or `SHIELD` (check constraint), NULL for anything else; 70 rows |
+| armour_class_base | INTEGER | V31. The armour's base AC, or 2 for a shield |
+| strength_requirement | INTEGER | V31. The STR heavy armour needs; below it speed drops by 10 feet |
+| stealth_disadvantage | BOOLEAN | V31. NOT NULL DEFAULT FALSE. Disadvantage on Stealth checks, including Hide |
+| bonus_ac | INTEGER | V31. A magic armour's or shield's bonus, from 5etools `bonusAc` |
 | created_at | TIMESTAMPTZ | |
 
 **Count:** 1,723 items (zero NULL types)

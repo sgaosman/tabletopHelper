@@ -387,6 +387,7 @@ export const referenceHandlers = [
       id: params.id as string, name: 'Longsword', type: 'M', subtype: null, rarity: 'none',
       description: 'A versatile martial weapon.', properties: null, requiresAttunement: false, attunementCondition: null,
       weight: 3, cost: '15 gp', damageDice: '1d8', damageType: 'slashing', source: 'PHB', isHomebrew: false,
+      stealthDisadvantage: false,
     } satisfies Item);
   }),
   http.get(`${BASE}/reference/items/filters/types`, async () => {
@@ -473,6 +474,13 @@ export function makeMockCharacter(id: string, name: string, cls: string, level: 
     baseAbilityScores: { strength: 14, dexterity: 12, constitution: 14, intelligence: 10, wisdom: 12, charisma: 10 },
     hpMax: 30, hpCurrent: 30, hpTemp: 0,
     armourClass: 16, initiativeBonus: 1, speed: 30, proficiencyBonus: 3,
+    // How the server worked the AC out (M13.5): a chain shirt and DEX, with nothing equipped in the inventory listed
+    armourClassBreakdown: {
+      total: 16,
+      parts: [{ label: 'Chain Shirt', amount: 13 }, { label: 'DEX (max 2)', amount: 1 }, { label: 'Shield', amount: 2 }],
+      warnings: [],
+      armourEntries: [],
+    },
     savingThrowProficiencies: ['str', 'con'],
     skillProficiencies: ['athletics', 'perception'],
     skillExpertises: null,

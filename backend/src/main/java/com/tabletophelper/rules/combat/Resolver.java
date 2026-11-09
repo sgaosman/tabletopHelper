@@ -34,12 +34,20 @@ public final class Resolver {
      * @param armourClass  its AC, for attack rolls
      * @param saveModifier its modifier for the Effect's saving throw, when it has one ({@link Effect#saveAbility})
      * @param conditions   its conditions by name, which can change attack rolls and fail saves (D161)
+     * @param strDexDisadvantage whether it makes Strength and Dexterity saves with disadvantage, as it does wearing
+     *                     armour or a shield it isn't proficient with (PHB p.144)
      */
-    public record Target(UUID id, int armourClass, int saveModifier, Collection<String> conditions) {
+    public record Target(UUID id, int armourClass, int saveModifier, Collection<String> conditions,
+                         boolean strDexDisadvantage) {
 
         public Target {
             Objects.requireNonNull(id, "id");
             conditions = List.copyOf(conditions);
+        }
+
+        /** A target whose saves nothing but its conditions changes. */
+        public Target(UUID id, int armourClass, int saveModifier, Collection<String> conditions) {
+            this(id, armourClass, saveModifier, conditions, false);
         }
     }
 
@@ -128,10 +136,19 @@ public final class Resolver {
      * means nothing special on a save.
      */
     public SaveRoll savingThrow(Ability ability, int modifier, int dc, Collection<String> conditions) {
+        return savingThrow(ability, modifier, dc, conditions, false);
+    }
+
+    /**
+     * As {@link #savingThrow(Ability, int, int, Collection)}, with disadvantage on a Strength or Dexterity save when
+     * strDexDisadvantage is true, as for a creature in armour it isn't proficient with (PHB p.144).
+     */
+    public SaveRoll savingThrow(Ability ability, int modifier, int dc, Collection<String> conditions,
+                                boolean strDexDisadvantage) {
         if (SaveRules.autoFails(ability, conditions)) {
             return new SaveRoll(null, null, false, true);
         }
-        RollMode mode = SaveRules.rollMode(ability, conditions);
+        RollMode mode = SaveRules.rollMode(ability, conditions, strDexDisadvantage);
         if (mode == RollMode.NORMAL) {
             int d20 = rng.roll(20);
             int total = d20 + modifier;
@@ -149,7 +166,7 @@ public final class Resolver {
     }
 
     private TargetOutcome attack(Effect effect, Effect.Attack attack, Target target) {
-        AttackRules.Setup setup = AttackRules.setup(List.of(attack.rollMode()), target.conditions(),
+        AttackRules.Setup setup = AttackRules.setup(attack.attackerSources(), target.conditions(),
                 attack.withinFiveFeet());
         List<Integer> d20s = setup.rollMode() == RollMode.NORMAL
                 ? List.of(rng.roll(20))
@@ -175,7 +192,8 @@ public final class Resolver {
                     damage, List.of(), healing, effect.conditions(), null);
         }
         // The save decides only the conditions it guards, so a success would leave all of the damage
-        SaveRoll save = savingThrow(hitSave.ability(), target.saveModifier(), hitSave.dc(), target.conditions());
+        SaveRoll save = savingThrow(hitSave.ability(), target.saveModifier(), hitSave.dc(), target.conditions(),
+                target.strDexDisadvantage());
         List<String> conditions = effect.conditions().stream()
                 .filter(condition -> !save.success() || !hitSave.conditions().contains(condition))
                 .toList();
@@ -184,7 +202,8 @@ public final class Resolver {
     }
 
     private TargetOutcome save(Effect effect, Effect.Save save, Target target, List<Damage> damage, int healing) {
-        SaveRoll roll = savingThrow(save.ability(), target.saveModifier(), save.dc(), target.conditions());
+        SaveRoll roll = savingThrow(save.ability(), target.saveModifier(), save.dc(), target.conditions(),
+                target.strDexDisadvantage());
         List<Damage> onSuccess = save.halfDamageOnSuccess() ? halved(damage) : List.of();
         if (roll.success()) {
             return new TargetOutcome(target.id(), Outcome.SAVE_SUCCESS, roll.d20s(), roll.d20(), roll.total(),

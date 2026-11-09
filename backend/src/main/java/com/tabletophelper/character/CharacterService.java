@@ -211,8 +211,6 @@ public class CharacterService {
                 .intelligence(request.getIntelligence())
                 .wisdom(request.getWisdom())
                 .charisma(request.getCharisma())
-                // Armour isn't modelled, so the armour class starts at 10 + DEX and changes only through the DM (D158)
-                .armourClass(10 + abilityMod(request.getDexterity()))
                 .savingThrowProficiencies(request.getSavingThrowProficiencies())
                 .skillProficiencies(request.getSkillProficiencies())
                 .skillExpertises(request.getSkillExpertises())

@@ -25,6 +25,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import com.tabletophelper.reference.Item;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -384,6 +385,34 @@ class StandardActionServiceTest {
                     + "= 19; the DM decides whether it is hidden.", entry.getDescription());
             assertEquals(12, entry.getRollValue());
             assertEquals(19, entry.getRollTotal());
+        }
+
+        @Test
+        @DisplayName("Hide has disadvantage in armour that hinders stealth, and in armour worn without proficiency, but not in armour that doesn't (M13.5, PHB p.144-145)")
+        void hideInArmour() {
+            rogue.getCharacter().setArmorProficiencies(List.of("light", "medium", "heavy"));
+            f.wears(rogue, CombatFixture.armour("Chain Mail", Item.ArmourCategory.HEAVY, 16, true));
+            f.dice.script(14, 6);
+
+            bonus(rogue, Action.HIDE, player);
+
+            assertEquals("Rogue takes the Hide action (bonus action, Cunning Action): Dexterity (Stealth) 2d20(14, 6) "
+                    + "with disadvantage from armour → 6 + 0 = 6; the DM decides whether it is hidden.",
+                    f.entries(CombatActionType.STANDARD_ACTION).getFirst().getDescription());
+            assertEquals(6, f.entries(CombatActionType.STANDARD_ACTION).getFirst().getRollValue());
+
+            rogue.getCharacter().setEquipment(List.of());
+            f.wears(rogue, CombatFixture.armour("Vanrak's Mithral Shirt", Item.ArmourCategory.MEDIUM, 13, false));
+            CombatFixture.newTurn(rogue);
+            f.dice.script(14);
+            bonus(rogue, Action.HIDE, player);
+            assertEquals(14, f.entries(CombatActionType.STANDARD_ACTION).getLast().getRollValue());
+
+            rogue.getCharacter().setArmorProficiencies(List.of());
+            CombatFixture.newTurn(rogue);
+            f.dice.script(14, 6);
+            bonus(rogue, Action.HIDE, player);
+            assertEquals(6, f.entries(CombatActionType.STANDARD_ACTION).getLast().getRollValue());
         }
 
         @Test

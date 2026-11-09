@@ -58,8 +58,8 @@ public final class DmAdjustments {
     }
 
     /**
-     * The armour class: the one the character was created with, 10 + its DEX modifier then, plus the active AC
-     * adjustments. Armour isn't modelled, so only the DM changes it (D158).
+     * The armour class: the stored one, which CharacterStats derives from the armour worn (M13.5), plus the active AC
+     * adjustments (D158).
      */
     public static int armourClass(PlayerCharacter character) {
         int created = character.getArmourClass() != null ? character.getArmourClass() : 10;

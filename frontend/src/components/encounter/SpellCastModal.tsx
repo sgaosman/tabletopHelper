@@ -300,6 +300,8 @@ function SpellSelectionStep({ cantrips, leveled, search, onSearch, onSelect, blo
 /**
  * A spell to pick. One whose every source is spent stays listed, so the caster can see why it can't be cast, and so
  * does one the caster's turn can't pay for, with the reason: greyed out for a player, a warning for the DM (D174).
+ * One the server says the caster can't cast at all, such as in armour it isn't proficient with (PHB p.144), is greyed
+ * out for the DM too, with the server's reason.
  */
 function SpellRow({ spell, blocked, asDm, onClick }: {
   spell: SpellOption;
@@ -307,7 +309,8 @@ function SpellRow({ spell, blocked, asDm, onClick }: {
   asDm: boolean;
   onClick: () => void;
 }) {
-  const castable = spell.sources.some(s => s.levels.length > 0) && (asDm || !blocked);
+  const refused = spell.unavailableReason ?? null;
+  const castable = !refused && spell.sources.some(s => s.levels.length > 0) && (asDm || !blocked);
   const atWill = spell.level > 0 && spell.sources.some(s => s.source === 'NONE');
   const innate = spell.sources.find(s => s.source === 'INNATE');
   const reasonId = `spell-block-${spell.name.replace(/[^A-Za-z0-9]+/g, '-')}`;
@@ -316,7 +319,7 @@ function SpellRow({ spell, blocked, asDm, onClick }: {
       type="button"
       onClick={onClick}
       disabled={!castable}
-      aria-describedby={blocked ? reasonId : undefined}
+      aria-describedby={refused || blocked ? reasonId : undefined}
       className={`w-full flex items-center justify-between px-3 py-2 text-left transition-colors group ${
         castable ? 'bg-page-alt hover:bg-rule' : 'bg-page-alt/50 opacity-50 cursor-not-allowed'
       }`}
@@ -326,7 +329,9 @@ function SpellRow({ spell, blocked, asDm, onClick }: {
           <Zap className="w-3.5 h-3.5 text-ink shrink-0" />
           <span className="font-body text-[15px] font-semibold text-ink">{spell.name}</span>
         </div>
-        {blocked && (
+        {refused ? (
+          <p id={reasonId} className="font-body text-[12.5px] font-semibold ml-5 text-debuff">{refused}</p>
+        ) : blocked && (
           <p id={reasonId} className={`font-body text-[12.5px] font-semibold ml-5 ${asDm ? 'text-cls-fighter' : 'text-debuff'}`}>
             {overBudget(blocked, asDm)}
           </p>

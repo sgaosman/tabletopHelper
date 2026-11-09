@@ -3,6 +3,7 @@ package com.tabletophelper.character;
 import com.tabletophelper.shared.JacksonDefaults;
 import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.AbilityScoreMaximums;
+import com.tabletophelper.character.dto.ArmourClassBreakdown;
 import com.tabletophelper.character.dto.BaseAbilityScores;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.ClassSpellcasting;
@@ -35,6 +36,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,6 +59,9 @@ class CharacterMapperTest {
     @BeforeEach
     void setUp() {
         mapper = new CharacterMapper(objectMapper, subclassRepository, characterStats, liveEncounters);
+        // The breakdown is CharacterStats' (CharacterStatsTest); here its total is the stored AC with the adjustments
+        lenient().when(characterStats.armourClassBreakdown(any())).thenAnswer(invocation -> new ArmourClassBreakdown(
+                DmAdjustments.armourClass(invocation.getArgument(0)), List.of(), List.of(), List.of()));
     }
 
     private User testUser() {

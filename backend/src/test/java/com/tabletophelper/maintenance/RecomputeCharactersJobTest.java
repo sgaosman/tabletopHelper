@@ -6,6 +6,7 @@ import com.tabletophelper.character.FeatEligibility;
 import com.tabletophelper.character.DerivedStats;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.AbilityScoreMaximums;
+import com.tabletophelper.character.state.DmAdjustment;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,14 +48,14 @@ class RecomputeCharactersJobTest {
     // A Barbarian 6 as stored: 65 hit points, +2 initiative, Rage only
     private static PlayerCharacter barbarian(String name) {
         return PlayerCharacter.builder().id(UUID.randomUUID()).name(name).characterClass("Barbarian").level(6)
-                .isActive(false).hpMax(65).hpCurrent(65).proficiencyBonus(3).initiativeBonus(2).speed(30)
+                .isActive(false).hpMax(65).hpCurrent(65).proficiencyBonus(3).initiativeBonus(2).speed(30).armourClass(12)
                 .hitDice(Map.of("Barbarian", new HitDicePool(12, 6, 6))).resourcePools(List.of(RAGE))
                 .build();
     }
 
     // What the rules give it: the stored stats unless changed
     private static DerivedStats derived(int hpMax, int initiative, List<ResourcePoolEntry> pools, List<String> warnings) {
-        return new DerivedStats(3, hpMax, initiative, 30, Map.of(), new AbilityScoreMaximums(20, 20, 20, 20, 20, 20),
+        return new DerivedStats(3, hpMax, initiative, 30, 12, Map.of(), new AbilityScoreMaximums(20, 20, 20, 20, 20, 20),
                 null, Map.of("Barbarian", new HitDicePool(12, 6, 6)), List.of(), null, null, null, pools, warnings);
     }
 
@@ -92,6 +94,38 @@ class RecomputeCharactersJobTest {
         MaintenanceReport report = job().run(false);
 
         assertThat(report.changes()).singleElement().asString().contains("hit points: 40/65 → 46/71");
+    }
+
+    @Test
+    @DisplayName("An armour class the armour worn changes is reported before and after, and an AC adjustment whose reason names armour is a warning, by ID (M13.5)")
+    void armourClass() {
+        PlayerCharacter knight = barbarian("Sir Plate");
+        DmAdjustment plate = acAdjustment(6, "Plate armour", null);
+        DmAdjustment ring = acAdjustment(1, "Ring of Protection", null);
+        DmAdjustment removedShield = acAdjustment(2, "Shield", Instant.parse("2026-11-04T10:00:00Z"));
+        knight.setDmAdjustments(List.of(plate, ring, removedShield));
+        when(characterRepository.findAll()).thenReturn(List.of(knight));
+        DerivedStats armoured = new DerivedStats(3, 65, 2, 30, 18, Map.of(), new AbilityScoreMaximums(20, 20, 20, 20,
+                20, 20), null, Map.of("Barbarian", new HitDicePool(12, 6, 6)), List.of(), null, null, null,
+                List.of(RAGE), List.of("has Leather Armor equipped too; only the first armour and shield in the "
+                        + "inventory count"));
+        when(characterService.derivedStats(knight)).thenReturn(armoured);
+
+        MaintenanceReport report = job().run(false);
+
+        assertThat(report.changes()).singleElement().asString().contains("armour class: 12 → 18");
+        String who = "Sir Plate (" + knight.getId() + ", level 6 Barbarian, deleted)";
+        assertThat(report.warnings()).containsExactly(
+                who + ": has Leather Armor equipped too; only the first armour and shield in the inventory count; "
+                        + "left unchanged",
+                who + ": has an AC adjustment of +6 (" + plate.id() + ") whose reason names armour, which the armour "
+                        + "class now counts from the inventory, so it may count twice; kept");
+    }
+
+    private static DmAdjustment acAdjustment(int amount, String reason, Instant removedAt) {
+        return new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.STAT, "ARMOUR_CLASS", amount, null, null, null,
+                reason, UUID.randomUUID(), Instant.parse("2026-11-03T10:00:00Z"), removedAt != null
+                ? UUID.randomUUID() : null, removedAt);
     }
 
     @Test

@@ -3,6 +3,10 @@ package com.tabletophelper.character.internal;
 import com.tabletophelper.shared.JacksonDefaults;
 import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.DerivedStats;
+import com.tabletophelper.character.dto.ArmourClassBreakdown;
+import com.tabletophelper.character.state.InventoryItem;
+import com.tabletophelper.reference.Item;
+import com.tabletophelper.character.EquippedArmour;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.AbilityScoreMaximums;
 import com.tabletophelper.character.dto.ClassSpellcasting;
@@ -20,6 +24,7 @@ import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.CharacterClassRepository;
+import com.tabletophelper.reference.ItemRepository;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.reference.Subclass;
@@ -37,11 +42,13 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -61,9 +68,10 @@ class CharacterStatsTest {
     private final CharacterClassRepository classRepository = mock(CharacterClassRepository.class);
     private final SubclassRepository subclassRepository = mock(SubclassRepository.class);
     private final ClassFeaturePoolRepository featurePools = mock(ClassFeaturePoolRepository.class);
+    private final ItemRepository itemRepository = mock(ItemRepository.class);
     private final CharacterStats stats = new CharacterStats(classRepository, subclassRepository,
             new ResourcePoolService(featurePools, JacksonDefaults.mapper()), JacksonDefaults.mapper(),
-            TestClassTables.load());
+            TestClassTables.load(), new EquippedArmour(itemRepository));
 
     private final CharacterClass fighter = caster("Fighter", 10, null, false);
     private final CharacterClass wizard = caster("Wizard", 6, "INT", false);
@@ -670,6 +678,197 @@ class CharacterStatsTest {
 
             assertThatThrownBy(() -> stats.apply(pc)).isInstanceOf(ConflictException.class)
                     .hasMessage("The class Psion that the character has can't be found");
+        }
+    }
+
+    @Nested
+    @DisplayName("Armour class (M13.5)")
+    class ArmourClassGroup {
+
+        private final Item chainMail = Item.builder().id(UUID.randomUUID()).name("Chain Mail").source("PHB")
+                .armourCategory(Item.ArmourCategory.HEAVY).armourClassBase(16).strengthRequirement(13)
+                .stealthDisadvantage(true).build();
+        private final Item studdedLeather = Item.builder().id(UUID.randomUUID()).name("Studded Leather Armor")
+                .source("PHB").armourCategory(Item.ArmourCategory.LIGHT).armourClassBase(12).build();
+        private final Item shield = Item.builder().id(UUID.randomUUID()).name("Shield").source("PHB")
+                .armourCategory(Item.ArmourCategory.SHIELD).armourClassBase(2).build();
+
+        @BeforeEach
+        void knowTheArmour() {
+            for (Item item : List.of(chainMail, studdedLeather, shield)) {
+                lenient().when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+            }
+            lenient().when(itemRepository.findArmourByLowerNames(any())).thenAnswer(call -> {
+                Collection<String> names = call.getArgument(0);
+                return Stream.of(chainMail, studdedLeather, shield)
+                        .filter(item -> names.contains(item.getName().toLowerCase())).toList();
+            });
+        }
+
+        private InventoryItem equipped(Item item) {
+            return new InventoryItem(item.getName(), 1, null, item.getId(), true, null);
+        }
+
+        // A Fighter 1 proficient with all armour and shields: STR 10, DEX 14
+        private PlayerCharacter armoured(InventoryItem... equipment) {
+            PlayerCharacter pc = character(fighter, 1);
+            pc.setArmorProficiencies(List.of("light", "medium", "heavy", "shield"));
+            pc.setEquipment(List.of(equipment));
+            return pc;
+        }
+
+        private DmAdjustment adjustment(String stat, int amount) {
+            return new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.STAT, stat, amount, null, null, null,
+                    "A magic item", UUID.randomUUID(), Instant.parse("2026-11-03T10:00:00Z"), null, null);
+        }
+
+        @Test
+        @DisplayName("Without armour, 10 + DEX: 12 with DEX 14")
+        void unarmoured() {
+            assertThat(stats.derive(character(fighter, 1)).armourClass()).isEqualTo(12);
+        }
+
+        @Test
+        @DisplayName("Chain Mail and a shield, linked to their items, give 16 + 2 = 18, and apply stores it")
+        void chainMailAndShield() {
+            PlayerCharacter pc = armoured(equipped(chainMail), equipped(shield));
+            pc.setStrength(13);
+
+            stats.apply(pc);
+
+            assertThat(pc.getArmourClass()).isEqualTo(18);
+            ArmourClassBreakdown breakdown = stats.armourClassBreakdown(pc);
+            assertThat(breakdown.parts()).containsExactly(new ArmourClassBreakdown.Part("Chain Mail", 16),
+                    new ArmourClassBreakdown.Part("Shield", 2));
+            assertThat(breakdown.total()).isEqualTo(18);
+            assertThat(breakdown.warnings()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("An entry not linked to an item is matched by name, \"studded leather\" meaning Studded Leather Armor: 12 + DEX 2")
+        void matchedByName() {
+            PlayerCharacter pc = armoured(new InventoryItem("studded leather", 1, null, null, true, null));
+
+            assertThat(stats.derive(pc).armourClass()).isEqualTo(14);
+        }
+
+        @Test
+        @DisplayName("Armour carried but not equipped, or with none left, doesn't count")
+        void notEquipped() {
+            PlayerCharacter pc = armoured(new InventoryItem("Chain Mail", 1, null, chainMail.getId(), false, null),
+                    new InventoryItem("Shield", 0, null, shield.getId(), true, null),
+                    new InventoryItem("Rope", 1, null, null, true, null),
+                    new InventoryItem("Studded Leather", 1, null, null, false, null));
+
+            assertThat(stats.derive(pc).armourClass()).isEqualTo(12);
+            // The carried armour, equipped or not, is what the sheet offers to equip: not the shield with none left
+            assertThat(stats.armourClassBreakdown(pc).armourEntries()).containsExactly(0, 3);
+        }
+
+        @Test
+        @DisplayName("The DM's AC adjustments are a part of the breakdown and its total, but not of the stored AC")
+        void dmAdjustments() {
+            PlayerCharacter pc = armoured(equipped(chainMail), equipped(shield));
+            pc.setStrength(13);
+            pc.setDmAdjustments(List.of(adjustment("ARMOUR_CLASS", 1)));
+
+            stats.apply(pc);
+
+            assertThat(pc.getArmourClass()).isEqualTo(18);
+            ArmourClassBreakdown breakdown = stats.armourClassBreakdown(pc);
+            assertThat(breakdown.parts()).last().isEqualTo(new ArmourClassBreakdown.Part("DM adjustments", 1));
+            assertThat(breakdown.total()).isEqualTo(19);
+        }
+
+        @Test
+        @DisplayName("Chain Mail with STR 10, below its 13, takes 10 feet off the speed (PHB p.144), and says so")
+        void speedPenalty() {
+            PlayerCharacter pc = armoured(equipped(chainMail));
+
+            assertThat(stats.derive(pc).speed()).isEqualTo(20);
+            assertThat(stats.armourClassBreakdown(pc).warnings())
+                    .containsExactly("Chain Mail needs STR 13: speed -10 ft");
+        }
+
+        @Test
+        @DisplayName("The DM's STR adjustment counts for the requirement: STR 10 + 3 wears Chain Mail at full speed")
+        void adjustedStrength() {
+            PlayerCharacter pc = armoured(equipped(chainMail));
+            pc.setDmAdjustments(List.of(adjustment("STR", 3)));
+
+            assertThat(stats.derive(pc).speed()).isEqualTo(30);
+        }
+
+        @Test
+        @DisplayName("A dwarf isn't slowed by heavy armour (PHB p.20): a Hill Dwarf keeps 25 feet in Chain Mail with STR 10")
+        void dwarfExempt() {
+            PlayerCharacter pc = armoured(equipped(chainMail));
+            pc.setRaceRef(Race.builder().id(UUID.randomUUID()).name("Hill Dwarf").speed("{\"walk\": 25}")
+                    .effects("{\"hpPerLevel\": 1, \"heavyArmourSpeedExempt\": 1}").build());
+
+            assertThat(stats.derive(pc).speed()).isEqualTo(25);
+            assertThat(stats.armourClassBreakdown(pc).warnings()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Armour and a shield worn without proficiency are warned of, each by name")
+        void notProficient() {
+            PlayerCharacter pc = armoured(equipped(studdedLeather), equipped(shield));
+            pc.setArmorProficiencies(List.of());
+
+            assertThat(stats.armourClassBreakdown(pc).warnings()).containsExactly(
+                    "Not proficient with Studded Leather Armor: disadvantage on STR and DEX rolls, and can't cast spells",
+                    "Not proficient with Shield: disadvantage on STR and DEX rolls, and can't cast spells");
+        }
+
+        @Test
+        @DisplayName("A Barbarian's Unarmored Defense: 10 + DEX 2 + CON 2 = 14 (PHB p.48)")
+        void barbarianUnarmouredDefence() {
+            assertThat(stats.derive(character(barbarian, 1)).armourClass()).isEqualTo(14);
+        }
+
+        @Test
+        @DisplayName("A Draconic Bloodline sorcerer's 13 + DEX from its subclass's effects (PHB p.102): 15")
+        void draconicResilience() {
+            PlayerCharacter pc = character(sorcerer, 1);
+            UUID draconic = UUID.randomUUID();
+            when(subclassRepository.findById(draconic)).thenReturn(Optional.of(Subclass.builder().id(draconic)
+                    .name("Draconic Bloodline")
+                    .effects("{\"hpPerClassLevel\": 1, \"unarmouredAcBase\": 13, \"unarmouredAcDex\": 1}").build()));
+            pc.setMulticlassEntries(List.of(new ClassEntry(sorcerer.getId(), "Sorcerer", draconic,
+                    "Draconic Bloodline", 1)));
+
+            assertThat(stats.derive(pc).armourClass()).isEqualTo(15);
+            assertThat(stats.armourClassBreakdown(pc).parts()).first()
+                    .isEqualTo(new ArmourClassBreakdown.Part("Draconic Bloodline", 13));
+        }
+
+        @Test
+        @DisplayName("A race's natural armour and flat bonus from its effects: a Loxodon's 12 + CON 2 = 14, a Warforged's 12 + 1 = 13")
+        void raceEffects() {
+            PlayerCharacter loxodon = character(fighter, 1);
+            loxodon.setRaceRef(Race.builder().id(UUID.randomUUID()).name("Loxodon").speed("{\"walk\": 30}")
+                    .effects("{\"unarmouredAcBase\": 12, \"unarmouredAcCon\": 1, \"unarmouredAcWithArmour\": 1}")
+                    .build());
+            loxodon.setDexterity(10);
+            PlayerCharacter warforged = character(fighter, 1);
+            warforged.setRaceRef(Race.builder().id(UUID.randomUUID()).name("Warforged").speed("{\"walk\": 30}")
+                    .effects("{\"acBonus\": 1}").build());
+
+            assertThat(stats.derive(loxodon).armourClass()).isEqualTo(14);
+            assertThat(stats.derive(warforged).armourClass()).isEqualTo(13);
+        }
+
+        @Test
+        @DisplayName("A second armour equipped in data saved before the check is ignored, the first counting, and warned of")
+        void secondArmourIgnored() {
+            PlayerCharacter pc = armoured(equipped(studdedLeather), equipped(chainMail));
+
+            DerivedStats derived = stats.derive(pc);
+
+            assertThat(derived.armourClass()).isEqualTo(14);
+            assertThat(derived.warnings()).containsExactly(
+                    "has Chain Mail equipped too; only the first armour and shield in the inventory count");
         }
     }
 }

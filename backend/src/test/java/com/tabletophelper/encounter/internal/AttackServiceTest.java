@@ -10,6 +10,7 @@ import com.tabletophelper.encounter.dto.AttackRollRequest;
 import com.tabletophelper.encounter.dto.StandardActionRequest;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.LifeState;
+import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.rules.combat.StandardActions;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
@@ -19,6 +20,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import com.tabletophelper.reference.Item;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -754,6 +757,69 @@ class AttackServiceTest {
                     entryAbout(goblin));
             assertEquals("It has already taken its reaction; it comes back at the start of its turn", ex.getMessage());
             assertEquals(0, rogue.getTurnEconomy().actionsUsed());
+        }
+    }
+
+    @Nested
+    @DisplayName("Armour worn without proficiency (M13.5, PHB p.144)")
+    class ArmourPenalty {
+
+        private final Item chainMail = CombatFixture.armour("Chain Mail", Item.ArmourCategory.HEAVY, 16, true);
+
+        @Test
+        @DisplayName("A weapon attack, which uses STR or DEX, has disadvantage")
+        void weaponAttackHasDisadvantage() {
+            EncounterParticipant goblin = f.monster("Goblin", 20, 10);
+            CombatFixture.carries(rogue, List.of("martial"), "Longsword");
+            f.wears(rogue, chainMail);
+
+            attack(weaponRequest(goblin, "Longsword"), 15, 3);
+
+            String entry = entryAbout(goblin);
+            assertTrue(entry.contains("2d20(15, 3) with disadvantage"), entry);
+            assertTrue(entry.contains("miss"), entry);
+        }
+
+        @Test
+        @DisplayName("Advantage the attacker has cancels it, so one d20 is rolled")
+        void advantageCancels() {
+            EncounterParticipant goblin = f.monster("Goblin", 20, 10);
+            CombatFixture.carries(rogue, List.of("martial"), "Longsword");
+            f.wears(rogue, chainMail);
+            AttackRollRequest request = weaponRequest(goblin, "Longsword");
+            request.setAdvantage(true);
+
+            attack(request, 15, 5);
+
+            assertTrue(entryAbout(goblin).startsWith("Rogue uses Longsword on Goblin: d20(15)"), entryAbout(goblin));
+        }
+
+        @Test
+        @DisplayName("Every source cancels at once (PHB p.173): the attacker's advantage, the armour's disadvantage and a Dodging target's disadvantage roll one d20")
+        void allSourcesCancelTogether() {
+            EncounterParticipant goblin = f.monster("Goblin", 20, 10);
+            goblin.setActiveConditions(new ArrayList<>(List.of(ConditionEntry.manual(StandardActions.DODGING, null, 1))));
+            CombatFixture.carries(rogue, List.of("martial"), "Longsword");
+            f.wears(rogue, chainMail);
+            AttackRollRequest request = weaponRequest(goblin, "Longsword");
+            request.setAdvantage(true);
+
+            attack(request, 15, 5);
+
+            assertTrue(entryAbout(goblin).startsWith("Rogue uses Longsword on Goblin: d20(15)"), entryAbout(goblin));
+        }
+
+        @Test
+        @DisplayName("Proficiency with the armour removes it")
+        void proficientArmour() {
+            EncounterParticipant goblin = f.monster("Goblin", 20, 10);
+            CombatFixture.carries(rogue, List.of("martial"), "Longsword");
+            f.wears(rogue, chainMail);
+            rogue.getCharacter().setArmorProficiencies(List.of("Heavy Armor"));
+
+            attack(weaponRequest(goblin, "Longsword"), 15, 5);
+
+            assertTrue(entryAbout(goblin).startsWith("Rogue uses Longsword on Goblin: d20(15)"), entryAbout(goblin));
         }
     }
 }

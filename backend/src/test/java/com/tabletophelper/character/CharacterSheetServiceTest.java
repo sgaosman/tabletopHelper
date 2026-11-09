@@ -14,6 +14,7 @@ import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.reference.ClassFeaturePool;
+import com.tabletophelper.reference.Item;
 import com.tabletophelper.reference.PoolLevelTable;
 import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.shared.ConflictException;
@@ -238,6 +239,45 @@ class CharacterSheetServiceTest {
                     .isInstanceOf(ValidationException.class)
                     .hasMessage("A character can't carry fewer than 0 coins of any kind");
             assertThat(pc.getEquipment()).isNull();
+        }
+
+        @Test
+        @DisplayName("Equipping a second body armour or a second shield is a 400 that changes nothing; one of each, and armour carried unequipped, are fine (M13.5)")
+        void oneArmourAndOneShield() {
+            PlayerCharacter pc = fighter(1);
+            Item chainMail = armour("Chain Mail", Item.ArmourCategory.HEAVY, 16);
+            Item leather = armour("Leather Armor", Item.ArmourCategory.LIGHT, 11);
+            Item shield = armour("Shield", Item.ArmourCategory.SHIELD, 2);
+            Item sentinel = armour("Sentinel Shield", Item.ArmourCategory.SHIELD, 2);
+            for (Item item : List.of(chainMail, leather, shield, sentinel)) {
+                when(f.itemRepository.existsById(item.getId())).thenReturn(true);
+                when(f.itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+            }
+
+            assertThatThrownBy(() -> f.sheet.updateInventory(pc.getId(), inventory(
+                    linked(chainMail, true), linked(leather, true)), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Only one suit of armour can be worn at a time: unequip Chain Mail before equipping "
+                            + "Leather Armor");
+            assertThatThrownBy(() -> f.sheet.updateInventory(pc.getId(), inventory(
+                    linked(shield, true), linked(sentinel, true)), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Only one shield can be equipped at a time: unequip Shield before equipping "
+                            + "Sentinel Shield");
+            assertThat(pc.getEquipment()).isNull();
+
+            CharacterResponse response = f.sheet.updateInventory(pc.getId(), inventory(linked(chainMail, true),
+                    linked(leather, false), linked(shield, true)), f.userId);
+            assertThat(response.getEquipment()).hasSize(3);
+        }
+
+        private static Item armour(String name, Item.ArmourCategory category, int base) {
+            return Item.builder().id(UUID.randomUUID()).name(name).source("PHB").armourCategory(category)
+                    .armourClassBase(base).build();
+        }
+
+        private static InventoryItem linked(Item item, boolean equipped) {
+            return new InventoryItem(item.getName(), 1, null, item.getId(), equipped, null);
         }
 
         private static InventoryRequest inventory(InventoryItem... entries) {

@@ -50,6 +50,13 @@ export type SpellbookRequest = Schemas['SpellbookRequest'];
  */
 export type PlayerCharacter = Schemas['CharacterResponse'];
 
+/**
+ * How a character's AC adds up (M13.5): the armour or unarmoured formula, the abilities, the shield, flat bonuses and
+ * the DM's adjustments as parts, what the armour worn costs (warnings), and the positions of the inventory entries the
+ * server reads as armour or a shield, which the sheet offers to equip.
+ */
+export type ArmourClassBreakdown = Schemas['ArmourClassBreakdown'];
+
 /** A level gained: the character, and the names of the features the level brought. */
 export type LevelUpResponse = Schemas['LevelUpResponse'];
 

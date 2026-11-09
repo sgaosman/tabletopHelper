@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,6 +41,13 @@ public interface ItemRepository extends JpaRepository<Item, UUID> {
     @Query("SELECT i FROM Item i WHERE i.subtype IN ('simple', 'martial') AND i.damageDice IS NOT NULL "
             + "AND (i.rarity IS NULL OR i.rarity = 'unknown')")
     List<Item> findMundaneWeapons();
+
+    /**
+     * The armour and shields with one of these names, lower case (M13.5): an inventory entry not linked to an item is
+     * matched to its armour by name.
+     */
+    @Query("SELECT i FROM Item i WHERE i.armourCategory IS NOT NULL AND LOWER(i.name) IN :names")
+    List<Item> findArmourByLowerNames(@Param("names") Collection<String> names);
 
     @Query("SELECT DISTINCT i.type FROM Item i WHERE i.type IS NOT NULL ORDER BY i.type")
     List<String> findDistinctTypes();

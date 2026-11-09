@@ -453,6 +453,18 @@ describe('SpellCastModal and the turn economy (D174)', () => {
     expect(screen.getByText('Cast as a reaction, which you take when you are hit by an attack')).toBeInTheDocument();
   });
 
+  it("greys out every spell, for the DM too, with the server's reason when armour worn without proficiency stops casting (M13.5)", async () => {
+    const reason = "Elminster can't cast spells while wearing Chain Mail without proficiency";
+    spellOptions(CLERIC_OPTIONS.map(option => ({ ...option, unavailableReason: reason })));
+    await renderModal({ caster: cleric(), asDm: true });
+
+    await screen.findByRole('button', { name: /^Sacred Flame/ });
+    for (const name of ['Sacred Flame', 'Healing Word', 'Guiding Bolt', 'Shield']) {
+      expect(spellButton(name)).toBeDisabled();
+      expect(spellButton(name)).toHaveAccessibleDescription(reason);
+    }
+  });
+
   it('lets the DM cast over the action economy, with the reason as a warning', async () => {
     spellOptions(CLERIC_OPTIONS);
     targeting();

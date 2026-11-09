@@ -109,6 +109,10 @@ public class CharacterResponse {
     @Schema(requiredMode = REQUIRED)
     private Integer armourClass;
 
+    /** How the armour class adds up, and what the armour worn costs (M13.5). */
+    @Schema(requiredMode = REQUIRED)
+    private ArmourClassBreakdown armourClassBreakdown;
+
     @Schema(requiredMode = REQUIRED)
     private Integer initiativeBonus;
 

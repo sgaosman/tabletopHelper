@@ -33,8 +33,9 @@ function recordInventories() {
   return sent;
 }
 
-function renderTab(items: InventoryItem[] = equipment, run: RunCommand = runCommand) {
-  return render(<InventoryTab characterId="char-001" equipment={items} currency={currency} runCommand={run} />);
+function renderTab(items: InventoryItem[] = equipment, run: RunCommand = runCommand, armourEntries: number[] = []) {
+  return render(<InventoryTab characterId="char-001" equipment={items} currency={currency}
+    armourEntries={armourEntries} runCommand={run} />);
 }
 
 describe('InventoryTab', () => {
@@ -93,7 +94,7 @@ describe('InventoryTab', () => {
     const longsword = {
       id: 'item-longsword', name: 'Longsword', type: 'M', subtype: 'martial', rarity: 'none', description: null,
       properties: null, requiresAttunement: false, attunementCondition: null, weight: 3, cost: '15 gp',
-      damageDice: '1d8', damageType: 'slashing', source: 'PHB', isHomebrew: false,
+      damageDice: '1d8', damageType: 'slashing', source: 'PHB', isHomebrew: false, stealthDisadvantage: false,
     } satisfies Item;
     server.use(http.get('/api/reference/items', () => HttpResponse.json({
       content: [longsword], totalElements: 1, totalPages: 1, number: 0, size: 8,
@@ -113,6 +114,58 @@ describe('InventoryTab', () => {
     await user.click(screen.getByRole('button', { name: 'Unlink Longsword from its item' }));
     await waitFor(() => expect(sent).toHaveLength(2));
     expect(sent[1].equipment[0]).toEqual({ name: 'Longsword', quantity: 1, itemId: null });
+  });
+
+  it('offers to equip only the entries the server reads as armour or a shield, and sends the change (M13.5)', async () => {
+    const sent = recordInventories();
+    const items: InventoryItem[] = [
+      { name: 'Longsword', quantity: 1 },
+      { name: 'Chain Mail', quantity: 1, itemId: 'item-chain-mail' },
+      { name: 'Shield', quantity: 1, equipped: true },
+    ];
+    renderTab(items, runCommand, [1, 2]);
+    const user = userEvent.setup();
+
+    expect(screen.queryByRole('button', { name: /Equip Longsword|Take off Longsword/ })).not.toBeInTheDocument();
+    expect(screen.getByTitle('Worn')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Take off Shield' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Equip Chain Mail' }));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].equipment[1]).toEqual({ name: 'Chain Mail', quantity: 1, itemId: 'item-chain-mail', equipped: true });
+    expect(sent[0].equipment[0]).toEqual({ name: 'Longsword', quantity: 1 });
+
+    await user.click(screen.getByRole('button', { name: 'Take off Shield' }));
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[1].equipment[2]).toEqual({ name: 'Shield', quantity: 1, equipped: false });
+  });
+
+  it("says what was equipped, and passes the server's refusal of a second armour to the sheet", async () => {
+    const messages: string[] = [];
+    const run: RunCommand = async (command, done) => {
+      try {
+        await command;
+        messages.push(typeof done === 'string' ? done : 'Saved');
+        return true;
+      } catch (err) {
+        messages.push((err as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'failed');
+        return false;
+      }
+    };
+    recordInventories();
+    const { unmount } = renderTab([{ name: 'Leather Armor', quantity: 1 }], run, [0]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Equip Leather Armor' }));
+    await waitFor(() => expect(messages).toEqual(['Leather Armor equipped']));
+    unmount();
+
+    server.use(http.put('/api/characters/:id/inventory', () => HttpResponse.json(
+      { error: 'Only one suit of armour can be worn at a time: unequip Chain Mail before equipping Leather Armor' },
+      { status: 400 })));
+    renderTab([{ name: 'Chain Mail', quantity: 1, equipped: true }, { name: 'Leather Armor', quantity: 1 }], run, [0, 1]);
+    await user.click(screen.getByRole('button', { name: 'Equip Leather Armor' }));
+    await waitFor(() => expect(messages).toHaveLength(2));
+    expect(messages[1]).toBe('Only one suit of armour can be worn at a time: unequip Chain Mail before equipping Leather Armor');
   });
 
   it('shows nothing changed when the server refuses the inventory', async () => {

@@ -185,12 +185,23 @@ public class StandardActionService {
         participant.setActiveConditions(conditions);
     }
 
-    // Dexterity (Stealth) from the sheet or the stat block, for the DM to judge against whoever is looking
+    // Dexterity (Stealth) from the sheet or the stat block, for the DM to judge against whoever is looking. Armour
+    // that hinders stealth, or armour worn without proficiency, gives the check disadvantage (PHB p.144-145)
     private void hide(Encounter encounter, EncounterParticipant participant, String taken) {
         int modifier = stats.skillModifier(participant, STEALTH, Ability.DEX);
-        int d20 = resolver.d20();
+        String dice;
+        int d20;
+        if (stats.armour(participant).stealthDisadvantage()) {
+            int first = resolver.d20();
+            int second = resolver.d20();
+            d20 = Math.min(first, second);
+            dice = "2d20(" + first + ", " + second + ") with disadvantage from armour → " + d20;
+        } else {
+            d20 = resolver.d20();
+            dice = "d20(" + d20 + ")";
+        }
         int total = d20 + modifier;
-        String description = taken + ": Dexterity (Stealth) d20(" + d20 + ")" + signed(modifier) + " = " + total
+        String description = taken + ": Dexterity (Stealth) " + dice + signed(modifier) + " = " + total
                 + "; the DM decides whether it is hidden.";
         combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.STANDARD_ACTION,
                 description), participant, null).rollValue(d20).rollTotal(total));

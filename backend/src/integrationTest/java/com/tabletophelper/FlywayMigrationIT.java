@@ -44,13 +44,13 @@ class FlywayMigrationIT extends IntegrationTest {
     private EntityManagerFactory entityManagerFactory;
 
     @Test
-    @DisplayName("Flyway applied V0–V6 and V8–V30 to the empty database; V7 was never used")
+    @DisplayName("Flyway applied V0–V6 and V8–V31 to the empty database; V7 was never used")
     void appliedVersionsMatchMigrationFiles() {
         List<String> versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
 
         assertThat(versions).containsExactly("0", "1", "2", "3", "4", "5", "6", "8", "9", "10", "11", "12", "13", "14", "15",
-                "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30");
+                "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31");
     }
 
     @Test
@@ -99,6 +99,22 @@ class FlywayMigrationIT extends IntegrationTest {
                 + "WHERE conname = 'combat_logs_action_type_check'", String.class))
                 .contains("'HP_SET'", "'REPEAT_SAVE'", "'POOL_USE'", "'STANDARD_ACTION'", "'OBJECT_INTERACTION'",
                         "'TURN_ECONOMY_SET'", "'REACTION_TAKEN'");
+    }
+
+    @Test
+    @DisplayName("V31 adds the items' armour columns, stealth_disadvantage NOT NULL and false by default, and limits armour_category to the four categories")
+    void armourColumns() {
+        Map<String, String> expected = Map.of("armour_category", "character varying", "armour_class_base", "integer",
+                "strength_requirement", "integer", "stealth_disadvantage", "boolean", "bonus_ac", "integer");
+        expected.forEach((column, type) -> assertThat(jdbcTemplate.queryForMap("SELECT data_type, is_nullable "
+                + "FROM information_schema.columns WHERE table_name = 'items' AND column_name = ?", column))
+                .as(column).isEqualTo(Map.of("data_type", type,
+                        "is_nullable", "stealth_disadvantage".equals(column) ? "NO" : "YES")));
+        assertThat(jdbcTemplate.queryForObject("SELECT column_default::text FROM information_schema.columns "
+                + "WHERE table_name = 'items' AND column_name = 'stealth_disadvantage'", String.class)).isEqualTo("false");
+        assertThat(jdbcTemplate.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                + "WHERE conname = 'items_armour_category_check'", String.class))
+                .contains("'LIGHT'", "'MEDIUM'", "'HEAVY'", "'SHIELD'");
     }
 
     @Test

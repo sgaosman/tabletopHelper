@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { PlayerCharacter } from '../../../types/character';
 import { ABILITIES, ABILITY_ABBR, SKILLS, abilityMod, formatMod } from '../../../utils/dndRules';
 import { activeAdjustments, describeAdjustment } from '../../../utils/dmAdjustments';
+import { formatArmourClass } from '../../../utils/armourClass';
 import StatCard from './StatCard';
 
 export default function StatsTab({ char, savingThrows, skillProfs, skillExpertises, resistances }: {
@@ -42,6 +43,22 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
           <p className="font-body text-[13px] text-faint mt-2">Your DM added these; the numbers on your sheet include them.</p>
         </section>
       )}
+
+      {/* Armour Class: how the server worked it out from the armour worn (M13.5), and what the armour costs */}
+      <section aria-label="Armour Class" className="bg-card border border-rule p-4">
+        <h3 className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-2">Armour Class</h3>
+        <p className="font-body text-[15px] font-semibold text-muted">
+          <span className="font-heading text-[20px] font-bold text-ink mr-2">{char.armourClassBreakdown.total}</span>
+          {formatArmourClass(char.armourClassBreakdown)}
+        </p>
+        {char.armourClassBreakdown.warnings.length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {char.armourClassBreakdown.warnings.map(warning => (
+              <li key={warning} className="font-body text-[14px] font-semibold text-debuff">{warning}</li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* Ability Scores */}
       <div className="grid grid-cols-6 gap-3">

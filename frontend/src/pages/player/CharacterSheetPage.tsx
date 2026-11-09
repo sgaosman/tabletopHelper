@@ -479,7 +479,8 @@ export default function CharacterSheetPage() {
           <SpellsTab char={char} spellsKnown={spellsKnown} spellSlots={spellSlots} runCommand={runCommand} />
         )}
         {activeTab === 'Inventory' && (
-          <InventoryTab characterId={char.id} equipment={equipment} currency={currency} runCommand={runCommand} />
+          <InventoryTab characterId={char.id} equipment={equipment} currency={currency}
+            armourEntries={char.armourClassBreakdown.armourEntries} runCommand={runCommand} />
         )}
         {activeTab === 'Features' && (
           <FeaturesTab features={features} char={char} />

@@ -1820,6 +1820,18 @@ export interface components {
             subclassId?: string | null;
             swap?: components["schemas"]["SpellSwap"] | null;
         };
+        ArmourClassBreakdown: {
+            armourEntries: number[];
+            parts: components["schemas"]["ArmourClassPart"][];
+            /** Format: int32 */
+            total: number;
+            warnings: string[];
+        };
+        ArmourClassPart: {
+            /** Format: int32 */
+            amount: number;
+            label: string;
+        };
         AsiChoice: {
             expertiseSkillChoices?: string[] | null;
             featAbility?: string | null;
@@ -2064,6 +2076,7 @@ export interface components {
             armorProficiencies?: string[] | null;
             /** Format: int32 */
             armourClass: number;
+            armourClassBreakdown: components["schemas"]["ArmourClassBreakdown"];
             background?: string | null;
             /** Format: uuid */
             backgroundId?: string | null;
@@ -2658,7 +2671,13 @@ export interface components {
             equipment: components["schemas"]["InventoryItem"][];
         };
         Item: {
+            /** @enum {string|null} */
+            armourCategory?: "LIGHT" | "MEDIUM" | "HEAVY" | "SHIELD" | null;
+            /** Format: int32 */
+            armourClassBase?: number | null;
             attunementCondition?: string | null;
+            /** Format: int32 */
+            bonusAc?: number | null;
             cost?: string | null;
             /** Format: date-time */
             createdAt?: string | null;
@@ -2675,6 +2694,9 @@ export interface components {
             rarity?: string | null;
             requiresAttunement: boolean;
             source?: string | null;
+            stealthDisadvantage: boolean;
+            /** Format: int32 */
+            strengthRequirement?: number | null;
             subtype?: string | null;
             type?: string | null;
             /** Format: date-time */
@@ -3224,6 +3246,7 @@ export interface components {
             name: string;
             reactionTrigger?: string | null;
             sources: components["schemas"]["SourceOption"][];
+            unavailableReason?: string | null;
         };
         SpellSlot: {
             /** Format: int32 */

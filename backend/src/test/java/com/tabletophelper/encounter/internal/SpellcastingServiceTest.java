@@ -27,6 +27,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import com.tabletophelper.reference.Item;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -1080,6 +1081,55 @@ class SpellcastingServiceTest {
             }
             assertEquals(16 - 6, goblin.getHpCurrent());
             assertEquals(0, wizard.getTurnEconomy().actionsUsed());
+        }
+    }
+
+    @Nested
+    @DisplayName("Armour worn without proficiency (M13.5, PHB p.144)")
+    class ArmourPenalty {
+
+        private final Item chainMail = CombatFixture.armour("Chain Mail", Item.ArmourCategory.HEAVY, 16, true);
+
+        @Test
+        @DisplayName("A caster in armour it isn't proficient with can't cast, a 409 that spends no slot")
+        void cannotCast() {
+            f.wears(wizard, chainMail);
+            f.spell("Fireball", 3, FIREBALL);
+
+            ConflictException ex = assertThrows(ConflictException.class, () -> cast("Fireball", 3, List.of(goblin)));
+
+            assertEquals("Wizard can't cast spells while wearing Chain Mail without proficiency", ex.getMessage());
+            assertEquals(0, wizard.getSpellSlotsCurrent().get("3").used());
+        }
+
+        @Test
+        @DisplayName("The options of a caster in armour it isn't proficient with each say why it can't cast, for the DM too; without the armour they say nothing")
+        void optionsGiveTheReason() {
+            f.spell("Fire Bolt", 0, FIRE_BOLT);
+            f.knows(wizard, "Fire Bolt");
+            assertNull(f.spellcasting.spellOptions(f.encounterId(), wizard.getId(), f.dmUserId).getFirst()
+                    .unavailableReason());
+
+            f.wears(wizard, chainMail);
+            List<SpellOption> options = f.spellcasting.spellOptions(f.encounterId(), wizard.getId(), f.dmUserId);
+
+            assertEquals(List.of("Wizard can't cast spells while wearing Chain Mail without proficiency"),
+                    options.stream().map(SpellOption::unavailableReason).toList());
+        }
+
+        @Test
+        @DisplayName("A target in armour it isn't proficient with makes its DEX save with disadvantage")
+        void targetSavesWithDisadvantage() {
+            EncounterParticipant fighter = f.player("Fighter", 30, 16);
+            f.wears(fighter, chainMail);
+            f.spell("Fireball", 3, FIREBALL);
+
+            // 8d6 of 3s, then the two d20s of the save: 18 and 4 keep 4, short of DC 15
+            CastSpellResponse response = cast("Fireball", 3, List.of(fighter), 3, 3, 3, 3, 3, 3, 3, 3, 18, 4);
+
+            assertEquals("failed_save", response.getTargets().getFirst().getOutcome());
+            assertEquals(4, response.getTargets().getFirst().getSaveRoll());
+            assertEquals(6, fighter.getHpCurrent());
         }
     }
 }

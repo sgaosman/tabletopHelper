@@ -55,9 +55,10 @@ public class ItemLoader implements ContentLoader {
         return List.of("data/5etools/items-base.json", "data/5etools/items.json");
     }
 
+    // Version 2 writes the armour columns (M13.5) and reads "stealth": false as no disadvantage
     @Override
     public int version() {
-        return 1;
+        return 2;
     }
 
     @Override
@@ -121,6 +122,7 @@ public class ItemLoader implements ContentLoader {
             attunementCondition = i.path("reqAttune").asString("");
         }
 
+        Item.ArmourCategory armourCategory = armourCategory(typeCode, i);
         return Item.builder()
                 .name(i.path("name").asString(""))
                 .type(type.isEmpty() ? null : type)
@@ -134,6 +136,11 @@ public class ItemLoader implements ContentLoader {
                 .cost(parseCost(i))
                 .damageDice(i.path("dmg1").asString(null))
                 .damageType(dmgType)
+                .armourCategory(armourCategory)
+                .armourClassBase(armourCategory != null ? i.path("ac").asInt(0) : null)
+                .strengthRequirement(armourCategory != null ? wholeNumber(i.get("strength")) : null)
+                .stealthDisadvantage(armourCategory != null && i.path("stealth").asBoolean(false))
+                .bonusAc(armourCategory != null ? wholeNumber(i.get("bonusAc")) : null)
                 .source(i.path("source").asString(null))
                 .isHomebrew(false)
                 .build();
@@ -153,8 +160,35 @@ public class ItemLoader implements ContentLoader {
         // stored items don't change (Vanrak's Mithral Shirt)
         if (i.has("strength")) props.put("strength_requirement",
                 i.path("strength").isNull() ? "null" : i.path("strength").asString(""));
-        if (i.has("stealth")) props.put("stealth_disadvantage", true);
+        // "stealth": false, as Vanrak's Mithral Shirt has, is no disadvantage
+        if (i.path("stealth").asBoolean(false)) props.put("stealth_disadvantage", true);
         return props.isEmpty() ? null : objectMapper.writeValueAsString(props);
+    }
+
+    /**
+     * The armour category of an item typed light, medium or heavy armour or a shield (5etools' LA, MA, HA and S) that
+     * gives an AC; null for anything else, armour without an AC in the data included.
+     */
+    static Item.ArmourCategory armourCategory(String typeCode, JsonNode i) {
+        if (!i.path("ac").isIntegralNumber()) return null;
+        return switch (typeCode) {
+            case "LA" -> Item.ArmourCategory.LIGHT;
+            case "MA" -> Item.ArmourCategory.MEDIUM;
+            case "HA" -> Item.ArmourCategory.HEAVY;
+            case "S" -> Item.ArmourCategory.SHIELD;
+            default -> null;
+        };
+    }
+
+    // A whole number the data gives as a number or as text such as "15" or "+1"; null for none or anything else
+    static Integer wholeNumber(JsonNode value) {
+        if (value == null || value.isNull()) return null;
+        if (value.isIntegralNumber() && value.canConvertToInt()) return value.asInt(0);
+        if (value.isString()) {
+            String text = value.asString("").trim();
+            if (text.matches("[+-]?\\d{1,3}")) return Integer.parseInt(text.startsWith("+") ? text.substring(1) : text);
+        }
+        return null;
     }
 
     private String parseCost(JsonNode i) {

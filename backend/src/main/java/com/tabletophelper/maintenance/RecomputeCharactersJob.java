@@ -3,8 +3,10 @@ package com.tabletophelper.maintenance;
 import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.character.CharacterService;
 import com.tabletophelper.character.DerivedStats;
+import com.tabletophelper.character.DmAdjustments;
 import com.tabletophelper.character.FeatEligibility;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.state.DmAdjustment;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
@@ -23,21 +25,27 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 /**
  * Works every character's Derived Stats out again with the R6 rules (D167): the hit point maximum from the recorded
- * Hit Die Results, the proficiency bonus, initiative, speed, spell slot and Hit Dice maximums, the main spell DC and
- * attack bonus, and the resource pools, innate uses included (D165). Each character that would change is reported
+ * Hit Die Results, the proficiency bonus, initiative, speed, armour class (M13.5), spell slot and Hit Dice maximums, the
+ * main spell DC and attack bonus, and the resource pools, innate uses included (D165). Each character that would change is reported
  * with each stat before and after, and what the sheet already has beyond the rules, such as more cantrips than its
  * class knows, is a warning that changes nothing, as is each feat the character has whose prerequisite it wouldn't
  * meet now, which it keeps (D159). A character with no stored spellcasting ability whose classes cast gets its first
  * casting class's, recorded on the level that gave the class its spellcasting when the level history has it, as
  * levelling into a first casting class now does (D159). A character whose sheet can't be worked out is skipped with
- * a warning. Dry run by default; {@code --maintenance.apply=true} writes.
+ * a warning. An active AC adjustment whose reason names armour or a shield is a warning too: the armour class
+ * now counts the armour worn, so the adjustment may count it twice. Dry run by default; {@code --maintenance.apply=true}
+ * writes.
  */
 @Component
 @RequiredArgsConstructor
 public class RecomputeCharactersJob implements MaintenanceJob {
+
+    // An AC adjustment's reason that suggests the DM entered armour by hand before armour was modelled
+    static final Pattern ARMOUR_REASON = Pattern.compile("armou?r|shield|mail|plate|leather", Pattern.CASE_INSENSITIVE);
 
     private final CharacterRepository characterRepository;
     private final CharacterService characterService;
@@ -70,6 +78,10 @@ public class RecomputeCharactersJob implements MaintenanceJob {
             derived.warnings().forEach(warning -> warnings.add(who + ": " + warning + "; left unchanged"));
             featEligibility.heldFeatsUnmet(pc).forEach(feat -> warnings.add(who + ": has the feat " + feat
                     + ", which it wouldn't qualify for now; kept"));
+            // The reason is the DM's own text, so the report names the adjustment by ID, as its log does (D158)
+            armourAdjustments(pc).forEach(adjustment -> warnings.add(who + ": has an AC adjustment of "
+                    + signed(adjustment.amount()) + " (" + adjustment.id() + ") whose reason names armour, which the "
+                    + "armour class now counts from the inventory, so it may count twice; kept"));
 
             List<String> diffs = new ArrayList<>();
             Optional<CharacterService.MissingSpellcastingAbility> ability;
@@ -120,12 +132,21 @@ public class RecomputeCharactersJob implements MaintenanceJob {
         compare(diffs, "proficiency bonus", signed(pc.getProficiencyBonus()), signed(derived.proficiencyBonus()));
         compare(diffs, "initiative", signed(pc.getInitiativeBonus()), signed(derived.initiativeBonus()));
         compare(diffs, "speed", pc.getSpeed() + " ft", derived.speed() + " ft");
+        compare(diffs, "armour class", String.valueOf(pc.getArmourClass()), String.valueOf(derived.armourClass()));
         compare(diffs, "spell save DC", String.valueOf(pc.getSpellSaveDc()), String.valueOf(derived.spellSaveDc()));
         compare(diffs, "spell attack bonus", signed(pc.getSpellAttackBonus()), signed(derived.spellAttackBonus()));
         compareEach(diffs, "slots", pc.getSpellSlots(), derived.spellSlots(), RecomputeCharactersJob::slot);
         compareEach(diffs, "Hit Dice", pc.getHitDice(), derived.hitDice(), RecomputeCharactersJob::hitDice);
         comparePools(diffs, pc.getResourcePools(), derived.resourcePools());
         return diffs;
+    }
+
+    // The active AC adjustments whose reason names armour or a shield
+    private static List<DmAdjustment> armourAdjustments(PlayerCharacter pc) {
+        return DmAdjustments.active(pc).stream()
+                .filter(adjustment -> adjustment.stat().filter(DmAdjustment.Stat.ARMOUR_CLASS::equals).isPresent())
+                .filter(adjustment -> adjustment.reason() != null && ARMOUR_REASON.matcher(adjustment.reason()).find())
+                .toList();
     }
 
     private static void compare(List<String> diffs, String what, String before, String after) {

@@ -23,7 +23,8 @@ public class RaceLoader implements ContentLoader {
     private static final String FILE = "data/5etools/races.json";
     // The effects the 5etools data doesn't give, such as the Hill Dwarf's hit points, by natural key (V28)
     static final String EFFECTS_FILE = "data/content/race-effects.json";
-    static final Set<String> EFFECTS = Set.of("hpPerLevel");
+    static final Set<String> EFFECTS = Set.of("hpPerLevel", "unarmouredAcBase", "unarmouredAcDex", "unarmouredAcCon",
+            "unarmouredAcWithArmour", "acBonus", "heavyArmourSpeedExempt");
 
     private final RaceRepository raceRepository;
     private final SpellRepository spellRepository;

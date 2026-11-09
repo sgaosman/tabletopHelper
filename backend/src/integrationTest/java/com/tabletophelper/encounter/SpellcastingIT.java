@@ -123,10 +123,11 @@ class SpellcastingIT extends IntegrationTest {
         JsonNode options = expect(HttpStatus.OK, spellOptions(hagId, dm.accessToken()));
         assertThat(options.toString()).isEqualTo("[{\"name\":\"Detect Magic\",\"level\":1,"
                 + "\"castingTime\":\"ACTION\",\"reactionTrigger\":null,\"sources\":["
-                + "{\"source\":\"NONE\",\"levels\":[1],\"usesLeft\":null,\"usesMax\":null}]},"
+                + "{\"source\":\"NONE\",\"levels\":[1],\"usesLeft\":null,\"usesMax\":null}],"
+                + "\"unavailableReason\":null},"
                 + "{\"name\":\"Thunderwave\",\"level\":1,\"castingTime\":\"ACTION\",\"reactionTrigger\":null,"
                 + "\"sources\":["
-                + "{\"source\":\"INNATE\",\"levels\":[1],\"usesLeft\":1,\"usesMax\":1}]}]");
+                + "{\"source\":\"INNATE\",\"levels\":[1],\"usesLeft\":1,\"usesMax\":1}],\"unavailableReason\":null}]");
 
         // 8 on 2d8, and Aria's CON save of 3 fails against DC 14
         dice.script(4, 4, 2);

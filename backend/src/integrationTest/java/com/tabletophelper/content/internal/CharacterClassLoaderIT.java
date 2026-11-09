@@ -111,14 +111,15 @@ class CharacterClassLoaderIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("After loading, only the Draconic Bloodline has effects, its hpPerClassLevel from subclass-effects.json")
+    @DisplayName("After loading, only the Draconic Bloodline has effects, its hpPerClassLevel and Draconic Resilience's 13 + DEX from subclass-effects.json")
     void subclassEffectsComeFromTheOverlay() {
         load();
 
         assertThat(subclassRepository.findAll()).filteredOn(subclass -> subclass.getEffects() != null)
                 .extracting(Subclass::getName, subclass -> subclass.getCharacterClass().getName(),
-                        Subclass::getEffects)
-                .containsExactly(tuple("Draconic Bloodline", "Sorcerer", "{\"hpPerClassLevel\": 1}"));
+                        subclass -> objectMapper.readTree(subclass.getEffects()))
+                .containsExactly(tuple("Draconic Bloodline", "Sorcerer", objectMapper.readTree(
+                        "{\"hpPerClassLevel\": 1, \"unarmouredAcBase\": 13, \"unarmouredAcDex\": 1}")));
     }
 
     @Test

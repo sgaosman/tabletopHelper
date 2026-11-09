@@ -3,6 +3,7 @@ package com.tabletophelper.rules.combat;
 import com.tabletophelper.rules.Ability;
 
 import java.util.Collection;
+import java.util.List;
 
 /** Saving throws under the 2014 rules (D161). */
 public final class SaveRules {
@@ -26,6 +27,19 @@ public final class SaveRules {
      * (PHB p.192, {@link StandardActions#dodging}), and anything else normally.
      */
     public static RollMode rollMode(Ability ability, Collection<String> conditions) {
-        return ability == Ability.DEX && StandardActions.dodging(conditions) ? RollMode.ADVANTAGE : RollMode.NORMAL;
+        return rollMode(ability, conditions, false);
+    }
+
+    /**
+     * As {@link #rollMode(Ability, Collection)}, with disadvantage on Strength and Dexterity saves when
+     * strDexDisadvantage is true, as for a creature wearing armour or a shield it isn't proficient with (PHB p.144).
+     * Advantage and disadvantage cancel (PHB p.173).
+     */
+    public static RollMode rollMode(Ability ability, Collection<String> conditions, boolean strDexDisadvantage) {
+        RollMode dodge = ability == Ability.DEX && StandardActions.dodging(conditions)
+                ? RollMode.ADVANTAGE : RollMode.NORMAL;
+        RollMode armour = strDexDisadvantage && (ability == Ability.STR || ability == Ability.DEX)
+                ? RollMode.DISADVANTAGE : RollMode.NORMAL;
+        return RollMode.combine(List.of(dodge, armour));
     }
 }

@@ -372,7 +372,7 @@ public class EffectApplier {
         RepeatSave save = condition.repeatSave();
         int modifier = stats.saveModifier(participant, save.ability());
         Resolver.SaveRoll roll = resolver.savingThrow(save.ability(), modifier, save.dc(),
-                CreatureStats.conditionNames(participant));
+                CreatureStats.conditionNames(participant), stats.armourPenalty(participant));
 
         String name = participant.getDisplayName();
         StringBuilder description = new StringBuilder(name).append(" repeats the ").append(save.ability().name())

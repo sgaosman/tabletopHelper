@@ -64,4 +64,20 @@ class SaveRulesTest {
         assertTrue(SaveRules.autoFails(Ability.STR, List.of("Paralyzed")));
         assertTrue(SaveRules.autoFails(Ability.DEX, List.of(" STUNNED ")));
     }
+
+    @Test
+    @DisplayName("Armour worn without proficiency gives disadvantage on STR and DEX saves only (PHB p.144)")
+    void armourPenaltyOnStrengthAndDexteritySaves() {
+        assertEquals(RollMode.DISADVANTAGE, SaveRules.rollMode(Ability.STR, List.of(), true));
+        assertEquals(RollMode.DISADVANTAGE, SaveRules.rollMode(Ability.DEX, List.of(), true));
+        assertEquals(RollMode.NORMAL, SaveRules.rollMode(Ability.CON, List.of(), true));
+        assertEquals(RollMode.NORMAL, SaveRules.rollMode(Ability.WIS, List.of(), true));
+        assertEquals(RollMode.NORMAL, SaveRules.rollMode(Ability.DEX, List.of(), false));
+    }
+
+    @Test
+    @DisplayName("The Dodge's advantage on DEX saves and the armour's disadvantage cancel (PHB p.173)")
+    void dodgeAndArmourCancel() {
+        assertEquals(RollMode.NORMAL, SaveRules.rollMode(Ability.DEX, List.of(StandardActions.DODGING), true));
+    }
 }

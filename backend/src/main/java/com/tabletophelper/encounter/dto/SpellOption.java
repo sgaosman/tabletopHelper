@@ -19,14 +19,22 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param reactionTrigger for a reaction spell, what it is cast in response to, as its casting time says ("which you
  *                        take when ..."); null for any other spell
  * @param sources         what can pay for it, in the order SLOT, PACT_SLOT, INNATE, NONE
+ * @param unavailableReason why the caster can't cast it at all now, such as armour worn without proficiency (PHB
+ *                        p.144), which casting refuses for the DM too; null when nothing stops it
  */
 public record SpellOption(
         @Schema(requiredMode = REQUIRED) String name,
         @Schema(requiredMode = REQUIRED) int level,
         @Schema(requiredMode = REQUIRED) CastingTime castingTime,
         String reactionTrigger,
-        @Schema(requiredMode = REQUIRED) List<SourceOption> sources
+        @Schema(requiredMode = REQUIRED) List<SourceOption> sources,
+        String unavailableReason
 ) {
+
+    /** The option with the reason the caster can't cast it. */
+    public SpellOption unavailable(String reason) {
+        return new SpellOption(name, level, castingTime, reactionTrigger, sources, reason);
+    }
 
     /**
      * One Spell Source for the spell.

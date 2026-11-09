@@ -15,6 +15,7 @@ import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.Charge;
 import com.tabletophelper.rules.combat.Effect;
+import com.tabletophelper.rules.combat.RollMode;
 import com.tabletophelper.rules.combat.Resolver;
 import com.tabletophelper.rules.combat.WeaponRules;
 import com.tabletophelper.shared.NotFoundException;
@@ -192,8 +193,11 @@ public class AttackService {
         boolean forcedCritical = Boolean.TRUE.equals(request.getForceCrit());
         String label = weapon.name() + (powerAttack ? " (" + held.powerAttack().featName() + ")" : "");
 
+        // Every weapon attack uses STR or DEX, so armour worn without proficiency gives it disadvantage (PHB p.144):
+        // one more source, combined with the attacker's choice and the target's conditions at once (PHB p.173)
+        List<RollMode> armour = stats.armourPenalty(actor) ? List.of(RollMode.DISADVANTAGE) : List.of();
         Effect effect = new Effect(label, new Effect.Attack(attackBonus, SpellEffects.rollMode(request.getAdvantage()),
-                withinFiveFeet, forcedCritical), damage, null, List.of(), false, null);
+                withinFiveFeet, forcedCritical, null, armour), damage, null, List.of(), false, null);
         return new Prepared(effect, "uses " + label, "on", actor.getDisplayName() + "'s " + weapon.name() + " attack",
                 ManualModifiers.forWeaponAttack(request.getExtraAttackBonus(), extraDamage, extraType, forcedCritical));
     }

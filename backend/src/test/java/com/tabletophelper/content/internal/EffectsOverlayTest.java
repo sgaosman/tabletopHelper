@@ -80,7 +80,7 @@ class EffectsOverlayTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    @DisplayName("The races loader gives the Hill Dwarf its hpPerLevel from race-effects.json, and no other race any effects")
+    @DisplayName("The races loader gives the rows race-effects.json names their effects: the Hill Dwarf's hpPerLevel, the dwarves' heavy armour exemption, natural armour and the Warforged's AC bonus, and no other race any")
     void raceLoaderAppliesTheOverlay() throws Exception {
         RaceRepository races = mock(RaceRepository.class);
         SpellRepository spells = mock(SpellRepository.class);
@@ -95,6 +95,21 @@ class EffectsOverlayTest {
         verify(races).saveAll(saved.capture());
         assertThat(saved.getValue()).filteredOn(race -> race.getEffects() != null)
                 .extracting(race -> race.getName() + "|" + race.getSource() + " " + race.getEffects())
-                .containsExactly("Hill Dwarf|PHB {\"hpPerLevel\":1}");
+                .containsExactlyInAnyOrder(
+                        "Hill Dwarf|PHB {\"hpPerLevel\":1,\"heavyArmourSpeedExempt\":1}",
+                        "Dwarf|PHB {\"heavyArmourSpeedExempt\":1}",
+                        "Mountain Dwarf|PHB {\"heavyArmourSpeedExempt\":1}",
+                        "Duergar Dwarf|MTF {\"heavyArmourSpeedExempt\":1}",
+                        "Mark of Warding Dwarf|ERLW {\"heavyArmourSpeedExempt\":1}",
+                        "Dwarf (Kaladesh)|PSK {\"heavyArmourSpeedExempt\":1}",
+                        "Lizardfolk|VGM {\"unarmouredAcBase\":13,\"unarmouredAcDex\":1,\"unarmouredAcWithArmour\":1}",
+                        "Lizardfolk|MPMM {\"unarmouredAcBase\":13,\"unarmouredAcDex\":1,\"unarmouredAcWithArmour\":1}",
+                        "Locathah|LR {\"unarmouredAcBase\":12,\"unarmouredAcDex\":1,\"unarmouredAcWithArmour\":1}",
+                        "Loxodon|GGR {\"unarmouredAcBase\":12,\"unarmouredAcCon\":1,\"unarmouredAcWithArmour\":1}",
+                        "Autognome|AAG {\"unarmouredAcBase\":13,\"unarmouredAcDex\":1}",
+                        "Thri-kreen|AAG {\"unarmouredAcBase\":13,\"unarmouredAcDex\":1}",
+                        "Tortle|TTP {\"unarmouredAcBase\":17}",
+                        "Tortle|MPMM {\"unarmouredAcBase\":17}",
+                        "Warforged|ERLW {\"acBonus\":1}");
     }
 }

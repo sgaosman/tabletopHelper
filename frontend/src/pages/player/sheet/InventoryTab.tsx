@@ -12,12 +12,16 @@ import type { RunCommand } from './types';
 /**
  * The character's coins and equipment. Each change sends the whole inventory to the server, which checks it (D158):
  * entries are added and removed, their quantities changed, and an entry can be linked to an item from the items list,
- * which weapon attacks match before the entry's name (D164).
+ * which weapon attacks match before the entry's name (D164). An entry the server reads as armour or a shield can be
+ * equipped or taken off, which changes the AC (M13.5); the server refuses a second armour or shield, and the sheet shows
+ * why.
  */
-export default function InventoryTab({ characterId, equipment, currency, runCommand }: {
+export default function InventoryTab({ characterId, equipment, currency, armourEntries = [], runCommand }: {
   characterId: string;
   equipment: InventoryItem[];
   currency: Currency;
+  /** The positions of the entries the server reads as armour or a shield. */
+  armourEntries?: number[];
   runCommand: RunCommand;
 }) {
   const updateInventory = useUpdateInventory();
@@ -29,10 +33,10 @@ export default function InventoryTab({ characterId, equipment, currency, runComm
 
   useEffect(() => { setCurrencyForm(currency); }, [currency]);
 
-  function save(nextEquipment: InventoryItem[], nextCurrency: Currency = currency) {
+  function save(nextEquipment: InventoryItem[], nextCurrency: Currency = currency, done?: string) {
     return runCommand(updateInventory.mutateAsync({
       characterId, inventory: { equipment: nextEquipment, currency: nextCurrency },
-    }));
+    }), done);
   }
 
   async function saveCurrency() {
@@ -52,6 +56,13 @@ export default function InventoryTab({ characterId, equipment, currency, runComm
 
   function setEntry(index: number, entry: InventoryItem) {
     return save(equipment.map((item, i) => (i === index ? entry : item)));
+  }
+
+  function toggleEquipped(index: number) {
+    const entry = equipment[index];
+    const equipped = !entry.equipped;
+    return save(equipment.map((item, i) => (i === index ? { ...entry, equipped } : item)), currency,
+      `${entry.name} ${equipped ? 'equipped' : 'taken off'}`);
   }
 
   async function link(index: number, item: Item | null) {
@@ -109,7 +120,18 @@ export default function InventoryTab({ characterId, equipment, currency, runComm
                           Linked
                         </span>
                       )}
+                      {armourEntries.includes(i) && item.equipped && (
+                        <span className="ml-2 font-heading text-[11px] font-semibold text-ink" title="Worn">
+                          Equipped
+                        </span>
+                      )}
                     </span>
+                    {armourEntries.includes(i) && (
+                      <Button size="sm" variant="secondary" disabled={busy} onClick={() => void toggleEquipped(i)}
+                        aria-label={`${item.equipped ? 'Take off' : 'Equip'} ${item.name}`}>
+                        {item.equipped ? 'Take off' : 'Equip'}
+                      </Button>
+                    )}
                     <IconButton label={`One fewer ${item.name}`} disabled={busy || count <= 0}
                       onClick={() => setEntry(i, { ...item, quantity: count - 1 })}
                       className="w-7 h-7 bg-page border border-rule text-muted font-body text-[15px] disabled:opacity-30 hover:bg-rule-light">

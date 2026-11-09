@@ -28,7 +28,8 @@ public class CharacterClassLoader implements ContentLoader {
     // The effects the 5etools data doesn't give, such as the Draconic Bloodline's hit points, by the subclass's
     // natural key (V28)
     static final String SUBCLASS_EFFECTS_FILE = "data/content/subclass-effects.json";
-    static final Set<String> SUBCLASS_EFFECTS = Set.of("hpPerClassLevel");
+    static final Set<String> SUBCLASS_EFFECTS = Set.of("hpPerClassLevel", "unarmouredAcBase", "unarmouredAcDex",
+            "unarmouredAcCon", "unarmouredAcWithArmour");
 
     // Class files we don't load: Mystic is unofficial playtest material, and sidekicks aren't player classes
     private static final Set<String> SKIP_FILES = Set.of("class-mystic.json", "class-sidekick.json");

@@ -3,6 +3,7 @@ package com.tabletophelper.encounter.internal;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.DmAdjustments;
+import com.tabletophelper.character.EquippedArmour;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.state.ConditionEntry;
@@ -24,8 +25,8 @@ import java.util.regex.Pattern;
 
 /**
  * A participant's numbers as the rules need them, read from its character sheet or its monster's stat block:
- * saving throw modifiers, defences against a damage type, the level that scales cantrips, and the
- * spellcasting modifier.
+ * saving throw modifiers, defences against a damage type, the level that scales cantrips, the
+ * spellcasting modifier, and the armour a player character wears (M13.5).
  */
 @Component
 @RequiredArgsConstructor
@@ -38,6 +39,7 @@ public class CreatureStats {
             Pattern.compile("^\\s*condition immunity:\\s*(.+)$", Pattern.CASE_INSENSITIVE);
 
     private final ObjectMapper objectMapper;
+    private final EquippedArmour equippedArmour;
 
     /** The condition names a participant has. */
     public static List<String> conditionNames(EncounterParticipant participant) {
@@ -47,11 +49,30 @@ public class CreatureStats {
 
     /**
      * The participant as the Resolver needs it for this Effect: AC, the modifier for the Effect's saving throw,
-     * the hit's save included, and conditions.
+     * the hit's save included, conditions, and whether armour it isn't proficient with gives it disadvantage on
+     * Strength and Dexterity saves (PHB p.144).
      */
     public Resolver.Target target(EncounterParticipant participant, Effect effect) {
         return new Resolver.Target(participant.getId(), participant.getArmourClass(),
-                saveModifier(participant, effect.saveAbility()), conditionNames(participant));
+                saveModifier(participant, effect.saveAbility()), conditionNames(participant),
+                armourPenalty(participant));
+    }
+
+    /**
+     * The armour a player character wears, read live from its sheet; nothing for a monster, whose stat block's AC
+     * already counts its armour.
+     */
+    public EquippedArmour.Worn armour(EncounterParticipant participant) {
+        PlayerCharacter character = participant.getCharacter();
+        return character != null ? equippedArmour.of(character) : EquippedArmour.Worn.nothing();
+    }
+
+    /**
+     * Whether the participant wears armour or a shield it isn't proficient with: disadvantage on every ability check,
+     * saving throw and attack roll that uses Strength or Dexterity, and no spellcasting (PHB p.144).
+     */
+    public boolean armourPenalty(EncounterParticipant participant) {
+        return armour(participant).penalised();
     }
 
     /** Each participant as the Resolver needs it for this Effect, in the same order. */

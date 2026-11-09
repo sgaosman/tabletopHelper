@@ -66,6 +66,7 @@ public class SpellcastingService {
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
     private final CharacterService characterService;
+    private final CreatureStats stats;
 
     /**
      * Casts a spell for a player character or a monster: everything is checked, and the cast charged to the
@@ -77,6 +78,7 @@ public class SpellcastingService {
                                        UUID userId) {
         Encounter encounter = access.beginFor(encounterId, actorParticipantId, userId);
         EncounterParticipant caster = CombatAccess.participant(encounter, actorParticipantId);
+        requireCanCast(caster);
         manualModifiers.require(encounter, userId, ManualModifiers.forSpell(caster,
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC()));
         SpellSources.Payment payment = casterSpells.payment(caster, request.getSpellName(), request.getSpellSource(),
@@ -113,9 +115,25 @@ public class SpellcastingService {
         return response(encounter, result, payment.castLevel(), payment.source());
     }
 
+    // A creature wearing armour or a shield it isn't proficient with can't cast spells (PHB p.144)
+    private void requireCanCast(EncounterParticipant caster) {
+        String reason = castingBan(caster);
+        if (reason != null) {
+            throw new ConflictException(reason);
+        }
+    }
+
+    // Why the caster can't cast spells at all, or null: armour or a shield worn without proficiency (PHB p.144)
+    private String castingBan(EncounterParticipant caster) {
+        List<String> notProficient = stats.armour(caster).notProficient().stream().map(item -> item.getName()).toList();
+        return notProficient.isEmpty() ? null : caster.getDisplayName() + " can't cast spells while wearing "
+                + String.join(" and ", notProficient) + " without proficiency";
+    }
+
     /**
-     * The spells a participant can cast now, with what can pay for each (D164, D165): the DM may read anyone's,
-     * a player only their own character's. It changes nothing, so it needs no lock and any status will do.
+     * The spells a participant can cast now, with what can pay for each (D164, D165), each with the reason when
+     * armour worn without proficiency stops all casting (PHB p.144): the DM may read anyone's, a player only their own
+     * character's. It changes nothing, so it needs no lock and any status will do.
      */
     @Transactional(readOnly = true)
     public List<SpellOption> spellOptions(UUID encounterId, UUID participantId, UUID userId) {
@@ -125,7 +143,9 @@ public class SpellcastingService {
         accessPolicy.requireMember(campaignId, userId);
         EncounterParticipant participant = CombatAccess.target(encounter, participantId, userId);
         accessPolicy.requireControls(campaignId, participant.getControlledByUserId(), userId);
-        return casterSpells.options(participant);
+        String ban = castingBan(participant);
+        List<SpellOption> options = casterSpells.options(participant);
+        return ban == null ? options : options.stream().map(option -> option.unavailable(ban)).toList();
     }
 
     /**
