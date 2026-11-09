@@ -8,10 +8,11 @@ import SummonGroupCard from './SummonGroupCard';
  * Moonbeam, indented beneath it (M15). `onUse` adds the caster's button to direct an effect, greyed with
  * `blockedBy`'s reason where the turn can't pay for it; `onEnd` adds the button that ends one by hand. A summoning's
  * effect has its creatures beneath it, found among `participants` (D182), where its End button goes, with the DM's
- * `onReplaceSummon` and `onDismissSummon`.
+ * `onReplaceSummon`, `onDismissSummon`, `onDismissAllSummons` and `onCommandSummons`.
  */
 export default function ActiveSpells({
   participant: p, roundNumber, onUse, blockedBy, onEnd, participants = [], onReplaceSummon, onDismissSummon,
+  onDismissAllSummons, onCommandSummons,
 }: {
   participant: EncounterParticipant;
   roundNumber: number;
@@ -21,6 +22,8 @@ export default function ActiveSpells({
   participants?: EncounterParticipant[];
   onReplaceSummon?: (effect: SpellEffect) => void;
   onDismissSummon?: (creature: EncounterParticipant) => void;
+  onDismissAllSummons?: (creatures: EncounterParticipant[]) => void;
+  onCommandSummons?: (creatures: EncounterParticipant[]) => void;
 }) {
   return (
     <>
@@ -36,6 +39,8 @@ export default function ActiveSpells({
             onEnd={onEnd ? () => onEnd(effect) : undefined}
             onReplace={onReplaceSummon ? () => onReplaceSummon(effect) : undefined}
             onDismiss={onDismissSummon}
+            onDismissAll={onDismissAllSummons}
+            onCommand={onCommandSummons}
           />
         </div>
       ) : (

@@ -53,6 +53,65 @@ describe('SummonGroupCard', () => {
     expect(onDismiss).toHaveBeenCalledWith(wolves[1]);
   });
 
+  it('gives the DM Dismiss all, sending every creature', async () => {
+    const onDismissAll = vi.fn();
+    const user = userEvent.setup();
+    render(<SummonGroupCard effect={conjure} creatures={wolves} onDismissAll={onDismissAll} />);
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss all' }));
+    expect(onDismissAll).toHaveBeenCalledWith(wolves);
+  });
+
+  it('has no Dismiss all for a single creature, whose own Dismiss does', () => {
+    render(<SummonGroupCard effect={conjure} creatures={[wolves[0]]} onDismiss={() => {}} onDismissAll={() => {}} />);
+
+    expect(screen.queryByRole('button', { name: 'Dismiss all' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Dismiss Wolf 1' })).toBeInTheDocument();
+  });
+
+  describe('Command (PHB p.212, XGE p.168)', () => {
+    const animate = makeMockSpellEffect('Animate Dead', {
+      id: 'effect-animate', summon: { optionId: 'skeleton-or-zombie', multiplier: 1, roll: null, status: 'PLACED' },
+      summonedParticipantIds: ['skeleton-1', 'skeleton-2', 'zombie-1'],
+    });
+    const undead = (id: string, name: string, extra: { commandedRound?: number; lifeState?: 'ALIVE' | 'DEAD' } = {}) =>
+      makeMockParticipant(id, name, 'COMPANION', {
+        hpMax: 13, hpCurrent: 13, lifeState: extra.lifeState ?? 'ALIVE', summonedByParticipantId: 'part-wizard',
+        summon: {
+          effectId: 'effect-animate', spell: 'Animate Dead', kind: 'ANIMATE_DEAD', initiativeMode: 'GROUP',
+          needsCommand: true, commandedRound: extra.commandedRound,
+        },
+      });
+
+    it('commands the uncommanded creatures that are still up, and marks the commanded', async () => {
+      const onCommand = vi.fn();
+      const user = userEvent.setup();
+      const skeletons = [undead('skeleton-1', 'Skeleton 1'), undead('skeleton-2', 'Skeleton 2'),
+        undead('zombie-1', 'Zombie', { commandedRound: 2 }), undead('skeleton-3', 'Skeleton 3', { lifeState: 'DEAD' })];
+      render(<SummonGroupCard effect={animate} creatures={skeletons} onCommand={onCommand} />);
+
+      expect(screen.getByText('Commanded')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Command 2 creatures' }));
+      expect(onCommand).toHaveBeenCalledWith([skeletons[0], skeletons[1]]);
+    });
+
+    it('offers no command once every creature is commanded, nor to creatures that need none', () => {
+      const { rerender } = render(<SummonGroupCard effect={animate}
+        creatures={[undead('skeleton-1', 'Skeleton 1', { commandedRound: 1 })]} onCommand={() => {}} />);
+      expect(screen.queryByRole('button', { name: /^Command/ })).not.toBeInTheDocument();
+
+      rerender(<SummonGroupCard effect={conjure} creatures={wolves} onCommand={() => {}} />);
+      expect(screen.queryByRole('button', { name: /^Command/ })).not.toBeInTheDocument();
+    });
+
+    it('gives a player no Command or Dismiss all here', () => {
+      render(<SummonGroupCard effect={animate} creatures={[undead('skeleton-1', 'Skeleton 1'), undead('skeleton-2', 'Skeleton 2')]} />);
+
+      expect(screen.queryByRole('button', { name: /^Command/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Dismiss all' })).not.toBeInTheDocument();
+    });
+  });
+
   it('shows a summoning waiting for the DM, with Summon Lesser Demons\' d6', () => {
     const demons = makeMockSpellEffect('Summon Lesser Demons', {
       summon: { optionId: '4xCR1/2', multiplier: 1, roll: 3, status: 'AWAITING_DM' }, summonedParticipantIds: [],

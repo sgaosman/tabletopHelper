@@ -305,22 +305,24 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      * @param saveToEndAbility  that save's ability, when it isn't the spell's
      * @param conditionalSave   whether the data makes that save conditional, as Fear's is on losing sight of the
      *                          caster, which leaves it to the DM
+     * @param endsOnAttackOrCast whether it ends for a creature that attacks or casts a spell, as Invisibility's does
+     *                          (PHB p.254)
      */
     public record ConditionInflicted(String condition, Integer durationRounds, boolean saveToEndEachTurn,
-                                     String saveToEndAbility, boolean conditionalSave) {
+                                     String saveToEndAbility, boolean conditionalSave, boolean endsOnAttackOrCast) {
 
         /** A condition as the data lists it: its name, or an object naming it. */
         @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
         public static ConditionInflicted of(JsonNode node) {
             if (node == null || !node.isObject()) {
                 return new ConditionInflicted(node != null && node.isString() ? node.asString("") : null,
-                        null, false, null, false);
+                        null, false, null, false, false);
             }
             JsonNode duration = node.path("durationRounds");
             return new ConditionInflicted(text(node, "condition"),
                     duration.isInt() && duration.asInt(0) > 0 ? duration.asInt(0) : null,
                     node.path("saveToEndEachTurn").asBoolean(false), text(node, "saveToEndAbility"),
-                    !node.path("saveToEndCondition").isMissingNode());
+                    !node.path("saveToEndCondition").isMissingNode(), node.path("endsOnAttackOrCast").asBoolean(false));
         }
 
         /** Its name in lower case, or null when it gives none. */

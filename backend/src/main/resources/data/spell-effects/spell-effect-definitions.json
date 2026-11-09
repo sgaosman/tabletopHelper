@@ -9304,7 +9304,8 @@
         "condition": "invisible",
         "saveToAvoid": null,
         "durationRounds": 600,
-        "durationText": "1 hour"
+        "durationText": "1 hour",
+        "endsOnAttackOrCast": true
       }
     ],
     "healing": null,

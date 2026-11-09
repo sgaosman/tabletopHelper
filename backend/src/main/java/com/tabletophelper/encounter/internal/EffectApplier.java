@@ -35,6 +35,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -139,12 +140,19 @@ public class EffectApplier {
 
     // ── Effects ──────────────────────────────────────────────────
 
-    /** Applies a resolved Effect to each target in turn, writing one entry per target. */
+    /**
+     * Applies a resolved Effect to each target in turn, writing one entry per target. An attack, whether a weapon's, a
+     * spell's or a monster action's, then ends its attacker's conditions that end when it attacks, as Invisibility's
+     * does (PHB p.254): the attack was rolled while they lasted, so it had what they gave it.
+     */
     public List<Applied> apply(Encounter encounter, Use use, Effect effect, List<Resolver.TargetOutcome> outcomes) {
+        boolean attack = use.actor() != null && effect.delivery() instanceof Effect.Attack && !outcomes.isEmpty();
+        Set<UUID> ending = attack ? endingOnAttackOrCast(use.actor()) : Set.of();
         List<Applied> applied = new ArrayList<>();
         for (Resolver.TargetOutcome outcome : outcomes) {
             applied.add(applyTo(encounter, use, effect, outcome, null));
         }
+        endOnAttackOrCast(encounter, use.actor(), ending, "it attacks");
         return applied;
     }
 
@@ -449,6 +457,29 @@ public class EffectApplier {
         participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
         combatLog.write(encounter, CombatActionType.CONDITION_REMOVE,
                 ended.get().name() + " ends on " + participant.getDisplayName() + " (" + why + ")", null, participant);
+    }
+
+    /**
+     * The IDs of the participant's conditions that end when it attacks or casts a spell, as the Invisibility spell's
+     * invisibility (PHB p.254) and Cloak of Shadows' (PHB p.63) do. Taken before the attack or spell, so that a spell
+     * the creature casts on itself, such as Invisibility, doesn't end what it has just given.
+     */
+    public static Set<UUID> endingOnAttackOrCast(EncounterParticipant participant) {
+        return conditions(participant).stream()
+                .filter(ConditionEntry::endsWhenAttackingOrCasting)
+                .map(ConditionEntry::id)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /**
+     * Ends those of the conditions, by ID, the participant still has, once its attack or spell is resolved, writing
+     * why, as in "invisible ends on Rogue (it attacks)". Nothing happens for none.
+     */
+    public void endOnAttackOrCast(Encounter encounter, EncounterParticipant participant, Set<UUID> conditionIds,
+                                  String why) {
+        for (UUID id : conditionIds) {
+            endCondition(encounter, participant, id, why);
+        }
     }
 
     /**
@@ -1337,13 +1368,15 @@ public class EffectApplier {
                 entry = ConditionEntry.fromEffect(name, duration, encounter.getRoundNumber(),
                         use.conditionSource(), sourceId, use.instance(), repeatSave);
             }
+            // Whatever else ends it, attacking or casting a spell may too, as Invisibility's does (PHB p.254)
+            ConditionEntry made = end != null && end.endsOnAttackOrCast() ? entry.endingOnAttackOrCast() : entry;
             boolean duplicate = conditions.stream().anyMatch(c -> c.name().equalsIgnoreCase(name)
-                    && Objects.equals(c.sourceParticipantId(), entry.sourceParticipantId())
-                    && Objects.equals(c.sourceSpellName(), entry.sourceSpellName())
-                    && Objects.equals(c.concentrationInstanceId(), entry.concentrationInstanceId()));
+                    && Objects.equals(c.sourceParticipantId(), made.sourceParticipantId())
+                    && Objects.equals(c.sourceSpellName(), made.sourceSpellName())
+                    && Objects.equals(c.concentrationInstanceId(), made.concentrationInstanceId()));
             if (!duplicate) {
-                conditions.add(entry);
-                added.add(entry);
+                conditions.add(made);
+                added.add(made);
             }
         }
         if (!added.isEmpty()) {

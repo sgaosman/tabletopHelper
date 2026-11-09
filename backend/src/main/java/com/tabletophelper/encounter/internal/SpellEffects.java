@@ -454,7 +454,8 @@ public class SpellEffects {
      * How each condition ends where its entry says (D162): its own duration in rounds, and a save repeated at
      * the end of each of its creature's turns against the caster's spell save DC, in the entry's ability or
      * else the spell's. A repeat save the entry makes conditional, such as Fear's on losing sight of the
-     * caster, is left to the DM.
+     * caster, is left to the DM. One the entry ends when its creature attacks or casts a spell, as Invisibility's
+     * (PHB p.254), says so.
      */
     private static Map<String, Effect.ConditionEnd> conditionEnds(SpellTemplate template, int saveDc) {
         Map<String, Effect.ConditionEnd> ends = new LinkedHashMap<>();
@@ -470,8 +471,9 @@ public class SpellEffects {
                         .map(ability -> new Effect.RepeatSave(ability, saveDc))
                         .orElse(null);
             }
-            if (condition.durationRounds() != null || repeatSave != null) {
-                ends.put(name, new Effect.ConditionEnd(condition.durationRounds(), repeatSave));
+            if (condition.durationRounds() != null || repeatSave != null || condition.endsOnAttackOrCast()) {
+                Effect.ConditionEnd end = new Effect.ConditionEnd(condition.durationRounds(), repeatSave);
+                ends.put(name, condition.endsOnAttackOrCast() ? end.endingOnAttackOrCast() : end);
             }
         }
         return ends;

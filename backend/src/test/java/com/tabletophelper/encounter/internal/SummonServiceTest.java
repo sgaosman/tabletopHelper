@@ -21,6 +21,7 @@ import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.ValidationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -531,6 +532,33 @@ class SummonServiceTest {
             // Its turn ends, and the command with it
             f.inTransaction(() -> f.turns.advanceTurn(f.encounterId(), f.dmUserId));
             assertNull(skeleton.getSummon().commandedRound());
+        }
+
+        @Test
+        @DisplayName("The DM may command for the caster off its turn, charged to its bonus action and never refused")
+        void dmCommands() {
+            f.dice.script(7);
+            f.inTransaction(() -> f.summons.companion(f.encounterId(), new CompanionSummonRequest(druid.getId(),
+                    "Animate Dead", 3, null, List.of(new SummonCreature(id("Skeleton"), 1)), null, null, null, null),
+                    f.dmUserId));
+            EncounterParticipant skeleton = summoned().getFirst();
+            f.turnOf(goblin);
+            // The player's command off the druid's turn is refused
+            assertThrows(ForbiddenException.class, () -> f.summons.command(f.encounterId(),
+                    new CommandSummonsRequest(druid.getId(), List.of(skeleton.getId())), player));
+
+            f.inTransaction(() -> f.summons.command(f.encounterId(), new CommandSummonsRequest(druid.getId(),
+                    List.of(skeleton.getId())), f.dmUserId));
+            assertEquals(1, skeleton.getSummon().commandedRound());
+            assertTrue(druid.getTurnEconomy().bonusActionUsed());
+
+            // A second command the same turn is over budget: the DM's still applies, and the log says so (D174)
+            skeleton.setSummon(skeleton.getSummon().withCommandedRound(null));
+            f.inTransaction(() -> f.summons.command(f.encounterId(), new CommandSummonsRequest(druid.getId(),
+                    List.of(skeleton.getId())), f.dmUserId));
+            assertEquals(1, skeleton.getSummon().commandedRound());
+            assertTrue(f.descriptions().stream().anyMatch(d -> d.startsWith("Druid's command is over the action "
+                    + "economy")));
         }
 
         @Test

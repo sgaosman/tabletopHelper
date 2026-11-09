@@ -218,9 +218,17 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
      *                       Stunning Strike's stun lasts until the end of the monk's next turn (PHB p.79)
      * @param endsOnDamage   it ends when the creature takes damage, as Turn Undead's turning does (PHB p.59), and
      *                       otherwise after durationRounds, counted at the start of the user's turns
+     * @param endsOnAttackOrCast it also ends once its creature attacks or casts a spell, as the Invisibility spell's
+     *                       invisibility (PHB p.254) and Cloak of Shadows' (PHB p.63) do, whatever else ends it
      */
     public record ConditionEnd(Integer durationRounds, RepeatSave repeatSave, Integer escapeDc,
-                               boolean endOfUsersTurn, boolean endsOnDamage) {
+                               boolean endOfUsersTurn, boolean endsOnDamage, boolean endsOnAttackOrCast) {
+
+        /** An end that attacking or casting doesn't bring. */
+        public ConditionEnd(Integer durationRounds, RepeatSave repeatSave, Integer escapeDc, boolean endOfUsersTurn,
+                            boolean endsOnDamage) {
+            this(durationRounds, repeatSave, escapeDc, endOfUsersTurn, endsOnDamage, false);
+        }
 
         /** An end that taking damage doesn't bring. */
         public ConditionEnd(Integer durationRounds, RepeatSave repeatSave, Integer escapeDc, boolean endOfUsersTurn) {
@@ -240,6 +248,11 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
         /** An end with no escape DC, at the start of a turn. */
         public ConditionEnd(Integer durationRounds, RepeatSave repeatSave) {
             this(durationRounds, repeatSave, null, false);
+        }
+
+        /** This end, which the creature attacking or casting a spell brings too. */
+        public ConditionEnd endingOnAttackOrCast() {
+            return new ConditionEnd(durationRounds, repeatSave, escapeDc, endOfUsersTurn, endsOnDamage, true);
         }
     }
 

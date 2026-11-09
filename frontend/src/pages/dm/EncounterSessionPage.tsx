@@ -766,6 +766,9 @@ function DmSessionView() {
                     participants={encounter.participants}
                     onReplaceSummon={isActive ? effect => setSummonPlace({ casterId: p.id, effectId: effect.id }) : undefined}
                     onDismissSummon={isActive ? creature => { void attemptTurnChange(() => actions.dismissSummons({ participantIds: [creature.id] })); } : undefined}
+                    onDismissAllSummons={isActive ? creatures => { void attemptTurnChange(() => actions.dismissSummons({ participantIds: creatures.map(c => c.id) })); } : undefined}
+                    // The DM's command for the caster, charged to its bonus action and never refused (D174, D182)
+                    onCommandSummons={isActive ? creatures => { void attemptTurnChange(() => actions.commandSummons({ casterParticipantId: p.id, participantIds: creatures.map(c => c.id) })); } : undefined}
                   />
 
                   {/* Death saves only while Dying: a Stable PC makes none, and the dead are past them (D161) */}

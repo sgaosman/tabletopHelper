@@ -1271,4 +1271,48 @@ describe('DM EncounterSessionPage with summonings (D182)', () => {
     await user.click(screen.getByRole('button', { name: 'Dismiss Dire Wolf' }));
     await waitFor(() => expect(dismissals).toEqual([{ participantIds: ['part-wolf'] }]));
   });
+
+  it('dismisses all of a summoning\'s creatures in one request', async () => {
+    const second = makeMockParticipant('part-wolf-2', 'Dire Wolf 2', 'COMPANION', { ...wolf, id: 'part-wolf-2', displayName: 'Dire Wolf 2' });
+    const both = { ...wolfEffect, summonedParticipantIds: ['part-wolf', 'part-wolf-2'] };
+    server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+      participants: [goblin(), gimli({ activeEffects: [both] }), wolf, second],
+    }))));
+    const dismissals: unknown[] = [];
+    server.use(http.post('/api/encounters/:id/combat/summons/dismiss', async ({ request }) => {
+      dismissals.push(await request.json());
+      return HttpResponse.json(makeMockEncounter({ participants: [goblin(), gimli({ activeEffects: [both] })] }));
+    }));
+    await renderLoaded();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss all' }));
+    await waitFor(() => expect(dismissals).toEqual([{ participantIds: ['part-wolf', 'part-wolf-2'] }]));
+  });
+
+  it('commands Animate Dead\'s uncommanded undead for their caster, off its turn', async () => {
+    const animate = makeMockSpellEffect('Animate Dead', {
+      id: 'effect-animate', slotLevel: 3, concentration: false, directedCost: null, directedResolves: false,
+      summon: { optionId: 'skeleton-or-zombie', multiplier: 1, roll: null, status: 'PLACED' },
+      summonedParticipantIds: ['part-skeleton', 'part-zombie'],
+    });
+    const undead = (id: string, name: string, commandedRound?: number) => makeMockParticipant(id, name, 'COMPANION', {
+      monsterId: 'mon-' + id, controlledByUserId: 'user-002', summonedByParticipantId: 'part-gimli',
+      summon: { effectId: 'effect-animate', spell: 'Animate Dead', kind: 'ANIMATE_DEAD', initiativeMode: 'GROUP', needsCommand: true, commandedRound },
+    });
+    server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+      participants: [goblin(), gimli({ activeEffects: [animate] }), undead('part-skeleton', 'Skeleton'), undead('part-zombie', 'Zombie', 1)],
+    }))));
+    const commands: unknown[] = [];
+    server.use(http.post('/api/encounters/:id/combat/summons/command', async ({ request }) => {
+      commands.push(await request.json());
+      return HttpResponse.json(makeMockEncounter({ participants: [goblin(), gimli({ activeEffects: [animate] })] }));
+    }));
+    await renderLoaded();
+    const user = userEvent.setup();
+
+    // The zombie is already commanded, so only the skeleton is
+    await user.click(screen.getByRole('button', { name: 'Command Skeleton' }));
+    await waitFor(() => expect(commands).toEqual([{ casterParticipantId: 'part-gimli', participantIds: ['part-skeleton'] }]));
+  });
 });

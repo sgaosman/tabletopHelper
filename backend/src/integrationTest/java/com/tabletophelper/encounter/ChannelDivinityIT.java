@@ -54,6 +54,7 @@ class ChannelDivinityIT extends IntegrationTest {
     private String kaiId;
     private String zombieId;
     private String ghoulId;
+    private String rinId;
 
     @BeforeEach
     void setUpTable() {
@@ -69,6 +70,8 @@ class ChannelDivinityIT extends IntegrationTest {
         wizard = caster("Wizard", 6, "INT");
         Subclass life = subclassRepository.save(Subclass.builder().name("Life Domain").source("PHB")
                 .characterClass(cleric).build());
+        Subclass trickery = subclassRepository.save(Subclass.builder().name("Trickery Domain").source("PHB")
+                .characterClass(cleric).build());
         pool(cleric, 2, definition(CHANNEL_DIVINITY, "Channel Divinity", "1", "shortRest", "ACTION",
                 "{\"effect\": \"channel-divinity\"}"));
         pool(bard, 1, definition(INSPIRATION, "Bardic Inspiration", "max(1, charismaModifier)", "longRest",
@@ -79,6 +82,7 @@ class ChannelDivinityIT extends IntegrationTest {
         race = insertRace("Human");
         String tam = create("Tam", cleric.getId(), life.getId(), 5);
         String kai = create("Kai", bard.getId(), null, 1);
+        String rin = create("Rin", cleric.getId(), trickery.getId(), 6);
         Monster zombie = monsterRepository.save(Monster.builder().name("Zombie").type("undead")
                 .challengeRating("1/4").source("MM").hitPoints(22).armourClass(8).dexterity(6).wisdom(6).build());
         Monster ghoul = monsterRepository.save(Monster.builder().name("Ghoul").type("undead")
@@ -94,12 +98,15 @@ class ChannelDivinityIT extends IntegrationTest {
                 "Zombie");
         ghoulId = idOf(addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "MONSTER", "monsterId", ghoul.getId(), "displayName", "Ghoul")), "Ghoul");
+        rinId = idOf(addParticipant(dm.accessToken(), encounterId,
+                Map.of("participantType", "PLAYER", "characterId", rin, "displayName", "Rin")), "Rin");
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/initiatives",
                 Map.of("initiatives", List.of(
                         Map.of("participantId", tamId, "initiative", 20),
                         Map.of("participantId", kaiId, "initiative", 15),
                         Map.of("participantId", zombieId, "initiative", 10),
-                        Map.of("participantId", ghoulId, "initiative", 5))),
+                        Map.of("participantId", ghoulId, "initiative", 5),
+                        Map.of("participantId", rinId, "initiative", 1))),
                 dm.accessToken()));
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/start", null,
                 dm.accessToken()));
@@ -134,6 +141,28 @@ class ChannelDivinityIT extends IntegrationTest {
         assertThat(participant(restored, zombieId).get("lifeState").asString()).isEqualTo("ALIVE");
         assertThat(conditionNames(participant(restored, ghoulId))).isEmpty();
         assertThat(pool(participant(restored, tamId), CHANNEL_DIVINITY).get("currentUses").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Cloak of Shadows ends when Rin attacks (PHB p.63), and undo brings it back")
+    void cloakOfShadows_endsOnAttack() {
+        JsonNode cloaked = expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/use-pool", Map.of("participantId", rinId, "poolId", CHANNEL_DIVINITY,
+                "option", "cloak-of-shadows"), dm.accessToken()));
+        JsonNode invisible = participant(cloaked, rinId).get("activeConditions").get(0);
+        assertThat(invisible.get("name").asString()).isEqualTo("invisible");
+        assertThat(invisible.get("endsOnAttackOrCast").asBoolean()).isTrue();
+        assertThat(invisible.get("endRule").get("type").asString()).isEqualTo("END_OF_TURN");
+
+        dice.script(15, 3);
+        JsonNode attacked = expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/attack?actorId=" + rinId, Map.of("targetId", zombieId, "attackBonus", 5,
+                "damageDice", "1d6", "damageType", "piercing"), dm.accessToken()));
+
+        assertThat(conditionNames(participant(attacked, rinId))).isEmpty();
+        assertThat(descriptions(logEntries("CONDITION_REMOVE"))).contains("invisible ends on Rin (it attacks)");
+        JsonNode restored = undoNewest();
+        assertThat(conditionNames(participant(restored, rinId))).containsExactly("invisible");
     }
 
     @Test

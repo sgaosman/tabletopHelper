@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 
@@ -128,6 +129,9 @@ public class SpellcastingService {
         metamagicCasting.spend(caster, metamagic);
         manualModifiers.log(encounter, CombatActionType.SPELL_CAST, caster,
                 caster.getDisplayName() + "'s " + payment.spellName(), userId, modifiers);
+        // Casting a spell ends the caster's invisibility from Invisibility (PHB p.254) or Cloak of Shadows (PHB p.63)
+        // once the spell is cast, but not what the spell itself gives it
+        Set<UUID> ending = EffectApplier.endingOnAttackOrCast(caster);
         SpellCaster.CastResult result = spellCaster.cast(encounter, caster, payment.spellName(), payment.castLevel(),
                 targets, own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
                 saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote, metamagic, summon);
@@ -136,6 +140,7 @@ public class SpellcastingService {
                     attackBonus(own, request.getOverrideSpellAttackBonus()),
                     saveDc(own, request.getOverrideSpellSaveDC()), "");
         }
+        effectApplier.endOnAttackOrCast(encounter, caster, ending, "it casts a spell");
         return response(encounter, result, payment.castLevel(), payment.source());
     }
 

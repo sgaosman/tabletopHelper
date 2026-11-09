@@ -161,7 +161,7 @@ public class SpellCaster {
             Map<String, Effect.ConditionEnd> ends = new LinkedHashMap<>();
             effect.conditionEnds().forEach((name, end) -> ends.put(name, rounds.equals(end.durationRounds())
                     ? new Effect.ConditionEnd(doubled, end.repeatSave(), end.escapeDc(), end.endOfUsersTurn(),
-                            end.endsOnDamage())
+                            end.endsOnDamage(), end.endsOnAttackOrCast())
                     : end));
             effect = new Effect(effect.name(), effect.delivery(), effect.damage(), effect.healing(),
                     effect.conditions(), effect.concentration(),

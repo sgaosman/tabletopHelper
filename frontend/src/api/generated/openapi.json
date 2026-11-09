@@ -7430,6 +7430,10 @@
           "endRule": {
             "$ref": "#/components/schemas/EndRule"
           },
+          "endsOnAttackOrCast": {
+            "type": "boolean",
+            "nullable": true
+          },
           "heldDie": {
             "nullable": true,
             "allOf": [

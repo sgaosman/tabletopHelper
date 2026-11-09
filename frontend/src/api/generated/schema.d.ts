@@ -2734,6 +2734,7 @@ export interface components {
             /** Format: int32 */
             duration?: number | null;
             endRule: components["schemas"]["EndRule"];
+            endsOnAttackOrCast?: boolean | null;
             heldDie?: components["schemas"]["HeldDie"] | null;
             /** Format: uuid */
             id: string;

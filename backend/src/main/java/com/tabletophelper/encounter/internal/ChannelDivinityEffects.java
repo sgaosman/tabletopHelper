@@ -43,7 +43,8 @@ import java.util.stream.Collectors;
  *       damage; Charm Animals and Plants (p.62), charmed the same way; Preserve Life (p.60), healing split among the
  *       creatures picked; Radiance of the Dawn (p.61), a Constitution save against radiant damage; Nature's Wrath
  *       (p.87), restrained on a failed Strength or Dexterity save; Abjure Enemy (p.88), frightened on a failed Wisdom
- *       save; Cloak of Shadows (p.63), invisible until the end of the cleric's next turn; and markers the attack rules
+ *       save; Cloak of Shadows (p.63), invisible until the end of the cleric's next turn or until it attacks or
+ *       casts a spell; and markers the attack rules
  *       read: Sacred Weapon (p.86), Vow of Enmity (p.88) and War God's Blessing (p.63). Guided Strike (p.63) is chosen
  *       on the attack roll itself.</li>
  *   <li>Logged for the DM: Destructive Wrath (p.62), Knowledge of the Ages (p.59), Read Thoughts (p.59) and Invoke
@@ -229,10 +230,12 @@ public class ChannelDivinityEffects {
                             Map.of("frightened", Effect.ConditionEnd.untilDamaged(ChannelDivinity.MINUTE_ROUNDS))),
                     true);
             case INVISIBLE -> {
-                // Invisible until the end of the cleric's next turn: on its own turn that is a round on (PHB p.63)
+                // Invisible until the end of the cleric's next turn: on its own turn that is a round on; it becomes
+                // visible if it attacks or casts a spell (PHB p.63)
                 boolean ownTurn = EncounterTurns.isCurrentTurn(encounter, user.getId());
                 Effect effect = new Effect(option.label(), new Effect.Self(), List.of(), null, List.of("invisible"),
-                        false, null, Map.of("invisible", new Effect.ConditionEnd(ownTurn ? 1 : null, null, null, true)));
+                        false, null, Map.of("invisible", new Effect.ConditionEnd(ownTurn ? 1 : null, null, null, true)
+                                .endingOnAttackOrCast()));
                 apply(encounter, user, option, effect, List.of(stats.target(user, effect)));
             }
             case SELF_MARKER -> effectApplier.addFeatureEntry(user, new ConditionEntry(UUID.randomUUID(),
