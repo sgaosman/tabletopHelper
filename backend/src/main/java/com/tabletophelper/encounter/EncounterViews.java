@@ -94,7 +94,7 @@ public final class EncounterViews {
                 .collect(Collectors.toSet());
         List<ParticipantResponse> participants = dmView.getParticipants().stream()
                 .filter(p -> visible.contains(p.getId()))
-                .map(p -> ParticipantType.MONSTER.name().equals(p.getParticipantType())
+                .map(p -> numbersHidden(p)
                         ? monsterForPlayers(p, dmView.isShowExactMonsterHp())
                         : p.toBuilder().turnEconomy(turnEconomyForPlayers(p.getTurnEconomy(), hidden)).build())
                 .map(p -> p.toBuilder().sortOrder(places.get(p.getId())).build())
@@ -151,9 +151,28 @@ public final class EncounterViews {
     /** Each monster's ID, as {@link #playerLog} takes them. */
     public static Set<UUID> monsters(EncounterResponse dmView) {
         return dmView.getParticipants().stream()
-                .filter(p -> ParticipantType.MONSTER.name().equals(p.getParticipantType()))
+                .filter(EncounterViews::numbersHidden)
                 .map(ParticipantResponse::getId)
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Whether players see the participant as a monster, without its numbers (D157): a monster, or a companion the DM
+     * controls, such as Summon Lesser Demons' demons (XGE p.167, D182). A companion a player controls is seen as a
+     * player character is.
+     */
+    public static boolean numbersHidden(ParticipantResponse participant) {
+        return numbersHidden(participant.getParticipantType(), participant.getControlledByUserId());
+    }
+
+    /** As {@link #numbersHidden(ParticipantResponse)}, for a participant row. */
+    public static boolean numbersHidden(EncounterParticipant participant) {
+        return numbersHidden(participant.getParticipantType().name(), participant.getControlledByUserId());
+    }
+
+    private static boolean numbersHidden(String type, UUID controller) {
+        return ParticipantType.MONSTER.name().equals(type)
+                || ParticipantType.COMPANION.name().equals(type) && controller == null;
     }
 
     /** Each participant the DM View marks hidden, mapped to its display name, as {@link #playerLog} takes them. */

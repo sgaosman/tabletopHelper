@@ -92,6 +92,8 @@ public class TurnProcessor {
      */
     public void leave(Encounter encounter, EncounterParticipant leaving) {
         effectApplier.endConcentration(encounter, leaving, "leaves the encounter");
+        // Its summoned creatures go with it (D182)
+        effectApplier.dismissSummonsOf(encounter, leaving, leaving.getDisplayName() + " leaves the encounter");
         if (encounter.getMonstersInLair() != null && encounter.getMonstersInLair().contains(leaving.getId())) {
             List<UUID> inLair = new ArrayList<>(encounter.getMonstersInLair());
             inLair.remove(leaving.getId());
@@ -144,6 +146,10 @@ public class TurnProcessor {
         }
         // A rage ends with a turn in which the barbarian neither attacked nor took damage since its last (PHB p.48)
         effectApplier.endTurnForRage(encounter, creature);
+        // A command its caster gave lasts for the creature's next turn (PHB p.212, XGE p.168, D182)
+        if (creature.getSummon() != null && creature.getSummon().commandedRound() != null) {
+            effectApplier.command(creature, null);
+        }
 
         if (creature.getLifeState() == LifeState.DEAD) {
             return;
@@ -257,6 +263,10 @@ public class TurnProcessor {
 
     /** Whether the creature still takes turns: anyone but a dead monster, whose turns are skipped (D163). */
     private static boolean takesTurns(EncounterParticipant participant) {
+        if (EncounterTurns.dismissed(participant)) {
+            // A summoned creature that has disappeared takes no more turns (D182)
+            return false;
+        }
         return participant.getLifeState() != LifeState.DEAD
                 || participant.getParticipantType() == ParticipantType.PLAYER;
     }

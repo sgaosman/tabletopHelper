@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.state;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.EncounterParticipant;
@@ -33,6 +34,10 @@ import java.util.UUID;
  * @param resourcePoolsCurrent its resource pools: legendary actions, Legendary Resistance and recharges among them
  * @param turnEconomy          what it has spent of its turn (D174)
  * @param lastLairActionUsed   the lair action it used last (D163)
+ * @param dismissed            whether it has left the fight as a summoned creature that disappeared (D182); null in a
+ *                             snapshot taken before V34, which leaves it as it is
+ * @param summon               what ties it to the spell that summoned it, with its caster's latest command (D182); null
+ *                             for a creature nobody summoned, and in a snapshot taken before V34
  */
 public record ParticipantCombatState(
         UUID id,
@@ -48,7 +53,21 @@ public record ParticipantCombatState(
         Map<String, SpellSlot> spellSlotsCurrent,
         List<ResourcePoolEntry> resourcePoolsCurrent,
         TurnEconomy turnEconomy,
-        String lastLairActionUsed) {
+        String lastLairActionUsed,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean dismissed,
+        @JsonInclude(JsonInclude.Include.NON_NULL) SummonLink summon) {
+
+    /** A state as snapshots before V34 recorded it, without summoning. */
+    public ParticipantCombatState(UUID id, Integer hpCurrent, Integer hpTemp, LifeState lifeState,
+                                  Integer deathSaveSuccesses, Integer deathSaveFailures, Boolean deathSaveDue,
+                                  List<ConditionEntry> activeConditions, ConcentrationInstance concentration,
+                                  List<SpellEffectEntry> activeEffects, Map<String, SpellSlot> spellSlotsCurrent,
+                                  List<ResourcePoolEntry> resourcePoolsCurrent, TurnEconomy turnEconomy,
+                                  String lastLairActionUsed) {
+        this(id, hpCurrent, hpTemp, lifeState, deathSaveSuccesses, deathSaveFailures, deathSaveDue, activeConditions,
+                concentration, activeEffects, spellSlotsCurrent, resourcePoolsCurrent, turnEconomy, lastLairActionUsed,
+                null, null);
+    }
 
     /** The participant's combat state now, its lists and maps copied. */
     public static ParticipantCombatState of(EncounterParticipant participant) {
@@ -66,7 +85,9 @@ public record ParticipantCombatState(
                 participant.getSpellSlotsCurrent() != null ? new LinkedHashMap<>(participant.getSpellSlotsCurrent()) : null,
                 copy(participant.getResourcePoolsCurrent()),
                 participant.getTurnEconomy(),
-                participant.getLastLairActionUsed());
+                participant.getLastLairActionUsed(),
+                Boolean.TRUE.equals(participant.getDismissed()),
+                participant.getSummon());
     }
 
     /** Puts the state back on the participant, with lists and maps of its own that later commands may change. */
@@ -87,6 +108,12 @@ public record ParticipantCombatState(
         participant.setResourcePoolsCurrent(copy(resourcePoolsCurrent));
         participant.setTurnEconomy(turnEconomy != null ? turnEconomy : TurnEconomy.fresh());
         participant.setLastLairActionUsed(lastLairActionUsed);
+        if (dismissed != null) {
+            participant.setDismissed(dismissed);
+        }
+        if (summon != null) {
+            participant.setSummon(summon);
+        }
     }
 
     /*

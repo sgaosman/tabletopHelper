@@ -47,8 +47,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * (D166); V24's preview, which loads participants with entities now at V30, gave way to V30's. V29, which drops
  * columns, is previewed and applied against characters in a schema at V28, the preview listing each value a row
  * loses. V30 is applied against participants of an Active and a Paused encounter in a schema at V29 (D174); its
- * preview, which loads participants with entities now at V33, gave way to V33's, previewed and applied against
- * participants with an active spell and concentration spells in a schema at V32 (M15).
+ * preview, which loads participants with entities now at V33, gave way to V33's, applied against participants with an
+ * active spell and concentration spells in a schema at V32 (M15); its preview, which loads participants with entities
+ * now at V34, gave way to V34's, previewed and applied against participants with Spell Effects in a schema at V33
+ * (D182).
  */
 class PreviewMigrationJobIT extends IntegrationTest {
 
@@ -63,6 +65,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
     private static final String V29_SCHEMA = "v29_preview";
     private static final String V30_SCHEMA = "v30_preview";
     private static final String V33_SCHEMA = "v33_preview";
+    private static final String V34_SCHEMA = "v34_preview";
 
     @Autowired private DataSource dataSource;
     @Autowired private EntityManagerFactory entityManagerFactory;
@@ -91,6 +94,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V29_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V30_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V33_SCHEMA + " CASCADE");
+        jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V34_SCHEMA + " CASCADE");
     }
 
     @BeforeEach
@@ -1088,31 +1092,6 @@ class PreviewMigrationJobIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("Previews V33 on a database at V32: the active spell and the lasting concentration spells become Spell Effects, every row loads, nothing is written")
-    void previewsV33() {
-        Map<String, UUID> rows = v33Rows();
-        DataSource v33 = schemaDataSource(V33_SCHEMA);
-
-        MaintenanceReport report = new PreviewMigrationJob(v33, new JdbcTemplate(v33), entityManagerFactory,
-                objectMapper, "33").run(false);
-
-        assertThat(report.warnings()).isEmpty();
-        assertThat(characterChange(report, rows.get("Cleric"))).contains("(Cleric)")
-                .contains("active_spell: \"Spiritual Weapon\" → (dropped)")
-                .contains("active_spell_slot_level: 3 → (dropped)")
-                .contains("\"spell\":\"Spiritual Weapon\"").contains("\"spell\":\"Moonbeam\"");
-        assertThat(characterChange(report, rows.get("Wizard"))).contains("\"spell\":\"Melf's Minute Meteors\"")
-                .contains("\"usesLeft\":10");
-        assertThat(report.changes()).noneMatch(change -> change.contains(rows.get("Bard").toString())
-                && change.contains("\"spell\":\"Bless\""));
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
-                + "AND column_name IN ('active_spell', 'active_spell_slot_level')", Integer.class, V33_SCHEMA))
-                .isEqualTo(2);
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
-                + "AND column_name = 'active_effects'", Integer.class, V33_SCHEMA)).isZero();
-    }
-
-    @Test
     @DisplayName("V33 moves the active spell into a Spell Effect lasting Spiritual Weapon's 10 rounds from the encounter's round, gives each lasting concentration spell an effect linked to its instance, drops the old columns and widens the combat log's types")
     void appliesV33() {
         Map<String, UUID> rows = v33Rows();
@@ -1145,5 +1124,100 @@ class PreviewMigrationJobIT extends IntegrationTest {
                 + ".encounter_participants WHERE id = ?", UUID.randomUUID(), rows.get("Cleric"));
         assertThatThrownBy(() -> jdbcTemplate.update("UPDATE " + V33_SCHEMA + ".encounter_participants "
                 + "SET active_effects = NULL WHERE id = ?", rows.get("Goblin"))).hasMessageContaining("active_effects");
+    }
+
+    // ── V34: Summoning (D182) ────────────────────────────────────
+
+    /**
+     * Takes a schema of its own to V33 and fills it as M26 found it: a druid with a Spell Effect written before V34,
+     * without a summon field, a wolf companion added by hand, and a goblin.
+     */
+    private Map<String, UUID> v34Rows() {
+        Flyway.configure().dataSource(dataSource).schemas(V34_SCHEMA).locations("classpath:db/migration")
+                .target("33").load().migrate();
+        UUID dm = UUID.randomUUID();
+        UUID campaign = UUID.randomUUID();
+        UUID encounter = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V34_SCHEMA + ".users (id, username, email, password_hash) "
+                + "VALUES (?, 'dm', 'dm@example.com', 'hash')", dm);
+        jdbcTemplate.update("INSERT INTO " + V34_SCHEMA + ".campaigns (id, name, invite_code, dm_user_id) "
+                + "VALUES (?, 'Lost Mine', 'ABCD2345', ?)", campaign, dm);
+        jdbcTemplate.update("INSERT INTO " + V34_SCHEMA + ".encounters (id, name, status, campaign_id, round_number) "
+                + "VALUES (?, 'Glade', 'ACTIVE', ?, 2)", encounter, campaign);
+        Map<String, UUID> rows = new java.util.LinkedHashMap<>();
+        rows.put("encounter", encounter);
+        rows.put("campaign", campaign);
+        rows.put("Druid", v34Participant(encounter, "Druid", "PLAYER", "[{\"id\": \"" + UUID.randomUUID()
+                + "\", \"spell\": \"Spiritual Weapon\", \"slotLevel\": 2, \"concentrationInstanceId\": null, "
+                + "\"startedRound\": 1, \"durationRounds\": 10, \"usesLeft\": null}]"));
+        rows.put("Wolf", v34Participant(encounter, "Wolf", "COMPANION", "[]"));
+        rows.put("Goblin", v34Participant(encounter, "Goblin", "MONSTER", "[]"));
+        return rows;
+    }
+
+    private UUID v34Participant(UUID encounter, String name, String type, String effects) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V34_SCHEMA + ".encounter_participants (id, display_name, "
+                + "participant_type, hp_max, hp_current, armour_class, life_state, encounter_id, active_effects) "
+                + "VALUES (?, ?, ?, 20, 7, 12, 'ALIVE', ?, ?::jsonb)", id, name, type, encounter, effects);
+        return id;
+    }
+
+    @Test
+    @DisplayName("Previews V34 on a database at V33: no row changes, as the new columns are null or false, every row loads, nothing is written")
+    void previewsV34() {
+        Map<String, UUID> rows = v34Rows();
+        DataSource v34 = schemaDataSource(V34_SCHEMA);
+        String effectsBefore = jdbcTemplate.queryForObject("SELECT active_effects::text FROM " + V34_SCHEMA
+                + ".encounter_participants WHERE id = ?", String.class, rows.get("Druid"));
+
+        MaintenanceReport report = new PreviewMigrationJob(v34, new JdbcTemplate(v34), entityManagerFactory,
+                objectMapper, "34").run(false);
+
+        assertThat(report.warnings()).isEmpty();
+        assertThat(report.changes()).noneMatch(change -> change.contains("active_effects"));
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
+                + "AND table_name IN ('encounter_participants', 'campaigns') AND column_name IN ('summon', 'action_templates', "
+                + "'dismissed', 'summoned_by_participant_id', "
+                + "'dm_chooses_conjured_creatures')", Integer.class, V34_SCHEMA)).isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT active_effects::text FROM " + V34_SCHEMA
+                + ".encounter_participants WHERE id = ?", String.class, rows.get("Druid"))).isEqualTo(effectsBefore);
+    }
+
+    @Test
+    @DisplayName("V34 adds the summoning columns, null or false on every row, a summoner link that empties when its caster's row goes, the campaigns' setting, and SUMMON and SUMMON_END")
+    void appliesV34() {
+        Map<String, UUID> rows = v34Rows();
+        String effectsBefore = jdbcTemplate.queryForObject("SELECT active_effects::text FROM " + V34_SCHEMA
+                + ".encounter_participants WHERE id = ?", String.class, rows.get("Druid"));
+
+        Flyway.configure().dataSource(dataSource).schemas(V34_SCHEMA).locations("classpath:db/migration")
+                .target("34").load().migrate();
+
+        assertThat(jdbcTemplate.queryForList("SELECT summon::text AS summon, action_templates::text AS templates, "
+                + "dismissed, summoned_by_participant_id FROM " + V34_SCHEMA + ".encounter_participants"))
+                .hasSize(3)
+                .allSatisfy(row -> assertThat(row).containsEntry("summon", null).containsEntry("templates", null)
+                        .containsEntry("dismissed", false).containsEntry("summoned_by_participant_id", null));
+        assertThat(jdbcTemplate.queryForObject("SELECT active_effects::text FROM " + V34_SCHEMA
+                + ".encounter_participants WHERE id = ?", String.class, rows.get("Druid"))).isEqualTo(effectsBefore);
+        assertThat(jdbcTemplate.queryForObject("SELECT dm_chooses_conjured_creatures FROM " + V34_SCHEMA
+                + ".campaigns WHERE id = ?", Boolean.class, rows.get("campaign"))).isFalse();
+
+        // The wolf is the druid's; when the druid's row goes, the link empties
+        jdbcTemplate.update("UPDATE " + V34_SCHEMA + ".encounter_participants SET summoned_by_participant_id = ?, "
+                + "summon = '{\"spell\": \"Conjure Animals\"}'::jsonb WHERE id = ?", rows.get("Druid"),
+                rows.get("Wolf"));
+        jdbcTemplate.update("DELETE FROM " + V34_SCHEMA + ".encounter_participants WHERE id = ?", rows.get("Druid"));
+        assertThat(jdbcTemplate.queryForObject("SELECT summoned_by_participant_id FROM " + V34_SCHEMA
+                + ".encounter_participants WHERE id = ?", UUID.class, rows.get("Wolf"))).isNull();
+
+        jdbcTemplate.update("INSERT INTO " + V34_SCHEMA + ".combat_logs (id, encounter_id, action_type, description, "
+                + "round_number) VALUES (?, ?, 'SUMMON', 'summons', 2), (?, ?, 'SUMMON_END', 'disappears', 2)",
+                UUID.randomUUID(), rows.get("encounter"), UUID.randomUUID(), rows.get("encounter"));
+        assertThatThrownBy(() -> jdbcTemplate.update("UPDATE " + V34_SCHEMA + ".encounter_participants "
+                + "SET dismissed = NULL WHERE id = ?", rows.get("Goblin"))).hasMessageContaining("dismissed");
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM pg_indexes WHERE schemaname = ? "
+                + "AND indexname = 'idx_encounter_participants_summoned_by'", Integer.class, V34_SCHEMA)).isEqualTo(1);
     }
 }

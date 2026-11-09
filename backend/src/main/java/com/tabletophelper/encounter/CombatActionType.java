@@ -41,5 +41,9 @@ public enum CombatActionType {
     // The DM's undo of a combat command, naming the command it undid (M14)
     UNDO,
     // A Spell Effect ending: dismissed, its duration over, or its concentration lost (M15)
-    SPELL_EFFECT_END
+    SPELL_EFFECT_END,
+    // Creatures a summoning spell brings into the fight, or a caster's command to them (D182)
+    SUMMON,
+    // A summoned creature disappearing: its spell ended, it dropped to 0 HP, or the DM dismissed it (D182)
+    SUMMON_END
 }

@@ -4,6 +4,7 @@ import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.CombatCommand;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.dto.DamageRequest;
 import com.tabletophelper.encounter.dto.UndoInfo;
 import com.tabletophelper.encounter.state.CommandSnapshot;
@@ -188,5 +189,31 @@ class CommandRecorderTest {
         damage(goblin, 2);
         f.encounter.setStatus(com.tabletophelper.encounter.EncounterStatus.PAUSED);
         assertTrue(f.commandRecorder.undoInfo(f.encounter).isEmpty());
+    }
+
+    @Test
+    @DisplayName("A command that brings a participant into the fight records it as created, and isn't empty (D182)")
+    void recordsCreatedParticipants() {
+        UUID created = UUID.randomUUID();
+        f.inTransaction(() -> {
+            f.commandRecorder.record(f.encounter, f.dmUserId);
+            f.encounter.getParticipants().add(EncounterParticipant.builder().id(created).encounter(f.encounter)
+                    .participantType(ParticipantType.COMPANION).displayName("Wolf").hpMax(11).hpCurrent(11)
+                    .armourClass(13).build());
+            return null;
+        });
+
+        CommandSnapshot before = lastCommand().getBeforeState();
+        assertEquals(List.of(created), before.createdParticipantIds());
+        assertTrue(before.participants().isEmpty());
+        assertFalse(before.isEmpty());
+    }
+
+    @Test
+    @DisplayName("A snapshot without created participants writes none, so snapshots from before V34 read back as written")
+    void noCreatedParticipants_leftOut() {
+        damage(orc, 7);
+        assertNull(lastCommand().getBeforeState().createdParticipantIds());
+        assertFalse(f.objectMapper.writeValueAsString(lastCommand().getBeforeState()).contains("createdParticipantIds"));
     }
 }

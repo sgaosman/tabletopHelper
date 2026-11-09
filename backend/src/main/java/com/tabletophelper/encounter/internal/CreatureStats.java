@@ -12,6 +12,7 @@ import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ProficiencyBonus;
+import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.rules.combat.BeastShapes;
 import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
@@ -138,9 +139,27 @@ public class CreatureStats {
             return DmAdjustments.abilityScore(participant.getCharacter(), ability);
         }
         if (participant.getMonster() != null) {
-            return orTen(monsterScore(participant.getMonster(), ability));
+            int score = orTen(monsterScore(participant.getMonster(), ability));
+            // Find Steed's steed has an Intelligence of at least 6 (PHB p.240, D182)
+            if (ability == Ability.INT && participant.getSummon() != null
+                    && participant.getSummon().kind() == SummonRules.Kind.STEED) {
+                return Math.max(score, SummonRules.STEED_MINIMUM_INTELLIGENCE);
+            }
+            return score;
         }
         return 10;
+    }
+
+    /**
+     * The creature type the rules read, such as "undead" for Divine Smite (PHB p.85) or Turn Undead (PHB p.59): the
+     * type a summoning spell gives its creature, such as Conjure Animals' fey (PHB p.225) or a familiar's celestial, fey
+     * or fiend (PHB p.240), or else its stat block's; null for a creature without one, such as a player character.
+     */
+    public static String creatureType(EncounterParticipant participant) {
+        if (participant.getSummon() != null && participant.getSummon().creatureType() != null) {
+            return participant.getSummon().creatureType();
+        }
+        return participant.getMonster() != null ? participant.getMonster().getType() : null;
     }
 
     /**

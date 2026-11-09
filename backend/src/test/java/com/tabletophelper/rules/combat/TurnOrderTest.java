@@ -225,4 +225,55 @@ class TurnOrderTest {
         assertFalse(TurnOrder.tied(pc("Aria", 15, 14, 0), monster("Goblin", 16, 14, 1)));
         assertFalse(TurnOrder.tied(pc("Aria", null, 14, 0), monster("Goblin", null, 14, 1)));
     }
+
+    // ── Followers (D182) ──────────────────────────────────────────
+
+    private static Combatant following(String name, Integer initiative, int sortOrder, String leader) {
+        return new Combatant(id(name), initiative, 10, sortOrder, true, false, id(leader));
+    }
+
+    @Test
+    @DisplayName("A summoned spirit takes its turn right after its caster's, whatever its own initiative (TCE p.109)")
+    void follower_rightAfterLeader() {
+        var aria = pc("Aria", 12, 10, 0);
+        var brom = pc("Brom", 15, 10, 1);
+        var goblin = monster("Goblin", 10, 10, 2);
+        var wolf = following("Wolf", 25, 3, "Aria");
+        assertEquals(List.of("Brom", "Aria", "Wolf", "Goblin"),
+                names(TurnOrder.order(List.of(wolf, aria, brom, goblin), false)));
+    }
+
+    @Test
+    @DisplayName("Followers of one caster go in their sort order, the order they were made in")
+    void followers_inSortOrder() {
+        var aria = pc("Aria", 12, 10, 0);
+        var wolf = following("Wolf", 12, 5, "Aria");
+        var ogre = following("Ogre", 12, 4, "Aria");
+        assertEquals(List.of("Aria", "Ogre", "Wolf"), names(TurnOrder.order(List.of(wolf, aria, ogre), false)));
+    }
+
+    @Test
+    @DisplayName("With its leader gone, a follower takes its own place by its stored initiative")
+    void follower_leaderGone() {
+        var brom = pc("Brom", 15, 10, 1);
+        var goblin = monster("Goblin", 10, 10, 2);
+        var wolf = following("Wolf", 12, 3, "Aria");
+        assertEquals(List.of("Brom", "Wolf", "Goblin"), names(TurnOrder.order(List.of(goblin, wolf, brom), false)));
+    }
+
+    @Test
+    @DisplayName("The Lair doesn't come between a caster on 20 or more and its follower")
+    void follower_lairWaits() {
+        var aria = pc("Aria", 21, 10, 0);
+        var wolf = following("Wolf", 5, 1, "Aria");
+        var goblin = monster("Goblin", 10, 10, 2);
+        assertEquals(List.of("Aria", "Wolf", "Lair", "Goblin"),
+                names(TurnOrder.order(List.of(goblin, wolf, aria), true)));
+    }
+
+    @Test
+    @DisplayName("A follower never ties, so the DM's tie order leaves it with its leader")
+    void follower_neverTies() {
+        assertFalse(TurnOrder.tied(pc("Aria", 12, 10, 0), following("Wolf", 12, 1, "Aria")));
+    }
 }

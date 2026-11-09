@@ -309,7 +309,7 @@ public class FeatureEffects {
         EncounterParticipant target = request.targetIds() != null && !request.targetIds().isEmpty()
                 ? CombatAccess.target(encounter, request.targetIds().getFirst(), userId) : paladin;
         CombatAccess.requireNotDead(List.of(target));
-        String type = target.getMonster() != null ? target.getMonster().getType() : null;
+        String type = CreatureStats.creatureType(target);
         ClassFeatures.layOnHandsRefusal(type).ifPresent(reason -> {
             throw new ValidationException(reason);
         });

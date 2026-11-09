@@ -2641,6 +2641,227 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/summon-options": {
+      "get": {
+        "operationId": "getSummonOptions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "participantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "spellName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "slotLevel",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummonOptions"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/summons": {
+      "post": {
+        "operationId": "placeSummon",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceSummonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/summons/command": {
+      "post": {
+        "operationId": "commandSummons",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandSummonsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/summons/companion": {
+      "post": {
+        "operationId": "placeCompanion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanionSummonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/summons/dismiss": {
+      "post": {
+        "operationId": "dismissSummons",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissSummonsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/turn-economy": {
       "put": {
         "operationId": "setTurnEconomy",
@@ -4700,9 +4921,17 @@
             "format": "uuid",
             "nullable": true
           },
+          "concentrationLinked": {
+            "type": "boolean",
+            "nullable": true
+          },
           "controlledByUserId": {
             "type": "string",
             "format": "uuid",
+            "nullable": true
+          },
+          "creatureType": {
+            "type": "string",
             "nullable": true
           },
           "displayName": {
@@ -4715,6 +4944,15 @@
             "format": "int32",
             "nullable": true
           },
+          "initiativeMode": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "FOLLOWS_CASTER",
+              "GROUP",
+              "INDIVIDUAL"
+            ]
+          },
           "initiativeModifier": {
             "type": "integer",
             "format": "int32",
@@ -4723,6 +4961,10 @@
           "monsterId": {
             "type": "string",
             "format": "uuid",
+            "nullable": true
+          },
+          "optionId": {
+            "type": "string",
             "nullable": true
           },
           "participantType": {
@@ -4737,6 +4979,26 @@
           "quantity": {
             "type": "integer",
             "format": "int32",
+            "nullable": true
+          },
+          "slotLevel": {
+            "maximum": 9,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellName": {
+            "type": "string",
+            "nullable": true
+          },
+          "summonerParticipantId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "variant": {
+            "type": "string",
             "nullable": true
           }
         }
@@ -5482,6 +5744,7 @@
       "CampaignResponse": {
         "required": [
           "allowPlayerManualModifiers",
+          "dmChoosesConjuredCreatures",
           "dmDisplayName",
           "dmUserId",
           "id",
@@ -5506,6 +5769,10 @@
           "description": {
             "type": "string",
             "nullable": true
+          },
+          "dmChoosesConjuredCreatures": {
+            "type": "boolean",
+            "description": "On: the DM chooses Conjure Animals' creatures; off: the caster does (PHB p.225, D182)"
           },
           "dmDisplayName": {
             "type": "string"
@@ -5550,12 +5817,63 @@
             "type": "boolean",
             "nullable": true
           },
+          "dmChoosesConjuredCreatures": {
+            "type": "boolean",
+            "nullable": true
+          },
           "promptPlayerRepeatSaves": {
             "type": "boolean",
             "nullable": true
           },
           "showExactMonsterHp": {
             "type": "boolean",
+            "nullable": true
+          }
+        }
+      },
+      "Candidate": {
+        "required": [
+          "armourClass",
+          "hitPoints",
+          "monsterId",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "armourClass": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "challengeRating": {
+            "type": "string",
+            "nullable": true
+          },
+          "challengeRatingValue": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "hitPoints": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "monsterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "size": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
             "nullable": true
           }
         }
@@ -5609,6 +5927,14 @@
               "PACT_SLOT",
               "INNATE",
               "NONE"
+            ]
+          },
+          "summon": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SummonChoice"
+              }
             ]
           },
           "targetIds": {
@@ -6709,7 +7035,9 @@
               "TURN_ECONOMY_SET",
               "REACTION_TAKEN",
               "UNDO",
-              "SPELL_EFFECT_END"
+              "SPELL_EFFECT_END",
+              "SUMMON",
+              "SUMMON_END"
             ]
           },
           "actorId": {
@@ -6889,6 +7217,86 @@
             "items": {
               "$ref": "#/components/schemas/SlotChange"
             }
+          }
+        }
+      },
+      "CommandSummonsRequest": {
+        "required": [
+          "casterParticipantId",
+          "participantIds"
+        ],
+        "type": "object",
+        "properties": {
+          "casterParticipantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "participantIds": {
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "CompanionSummonRequest": {
+        "required": [
+          "casterParticipantId",
+          "spellName"
+        ],
+        "type": "object",
+        "properties": {
+          "casterParticipantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "concentrationLinked": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "creatureType": {
+            "type": "string",
+            "nullable": true
+          },
+          "creatures": {
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/SummonCreature"
+            }
+          },
+          "initiativeMode": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "FOLLOWS_CASTER",
+              "GROUP",
+              "INDIVIDUAL"
+            ]
+          },
+          "optionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "slotLevel": {
+            "maximum": 9,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellName": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "variant": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -7157,6 +7565,23 @@
           "participantId": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "DismissSummonsRequest": {
+        "required": [
+          "participantIds"
+        ],
+        "type": "object",
+        "properties": {
+          "participantIds": {
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         }
       },
@@ -9425,6 +9850,31 @@
           }
         }
       },
+      "Option": {
+        "required": [
+          "count",
+          "id",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "maxCr": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        }
+      },
       "OptionalFeature": {
         "required": [
           "featureType",
@@ -9946,6 +10396,19 @@
               "$ref": "#/components/schemas/KnownSpell"
             }
           },
+          "summon": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SummonLink"
+              }
+            ]
+          },
+          "summonedByParticipantId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "turnEconomy": {
             "nullable": true,
             "allOf": [
@@ -10058,6 +10521,48 @@
               "CANTRIPS",
               "SPELLS"
             ]
+          }
+        }
+      },
+      "PlaceSummonRequest": {
+        "required": [
+          "effectId"
+        ],
+        "type": "object",
+        "properties": {
+          "creatureType": {
+            "type": "string",
+            "nullable": true
+          },
+          "creatures": {
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/SummonCreature"
+            }
+          },
+          "effectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "initiativeMode": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "FOLLOWS_CASTER",
+              "GROUP",
+              "INDIVIDUAL"
+            ]
+          },
+          "optionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "variant": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -10827,6 +11332,7 @@
           "id",
           "spell",
           "startedRound",
+          "summonedParticipantIds",
           "triggers"
         ],
         "type": "object",
@@ -10871,6 +11377,21 @@
           "startedRound": {
             "type": "integer",
             "format": "int32"
+          },
+          "summon": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SummonSpec"
+              }
+            ]
+          },
+          "summonedParticipantIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           },
           "triggers": {
             "type": "array",
@@ -11135,6 +11656,50 @@
           }
         }
       },
+      "SpiritPreview": {
+        "required": [
+          "armourClass",
+          "attackBonus",
+          "attacks",
+          "hitPoints",
+          "monsterId",
+          "name",
+          "saveDc"
+        ],
+        "type": "object",
+        "properties": {
+          "armourClass": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "attackBonus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "attacks": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hitPoints": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "monsterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "saveDc": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "StandardActionRequest": {
         "required": [
           "action",
@@ -11330,6 +11895,308 @@
               {
                 "$ref": "#/components/schemas/SpellcastingResponse"
               }
+            ]
+          }
+        }
+      },
+      "SummonChoice": {
+        "type": "object",
+        "properties": {
+          "creatureType": {
+            "type": "string",
+            "nullable": true
+          },
+          "creatures": {
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/SummonCreature"
+            }
+          },
+          "initiativeMode": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "FOLLOWS_CASTER",
+              "GROUP",
+              "INDIVIDUAL"
+            ]
+          },
+          "optionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "variant": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SummonCreature": {
+        "required": [
+          "monsterId"
+        ],
+        "type": "object",
+        "properties": {
+          "count": {
+            "maximum": 32,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "monsterId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "SummonLink": {
+        "type": "object",
+        "properties": {
+          "cannotAttack": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "commandedRound": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "creatureType": {
+            "type": "string",
+            "nullable": true
+          },
+          "effectId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "initiativeMode": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "FOLLOWS_CASTER",
+              "GROUP",
+              "INDIVIDUAL"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "CONJURE_ANIMALS",
+              "LESSER_DEMONS",
+              "SPIRIT",
+              "FAMILIAR",
+              "FLOCK_OF_FAMILIARS",
+              "STEED",
+              "ANIMATE_DEAD",
+              "TINY_SERVANT"
+            ]
+          },
+          "needsCommand": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "slotLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spell": {
+            "type": "string",
+            "nullable": true
+          },
+          "vanishesAtZero": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "variant": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SummonOptions": {
+        "required": [
+          "candidates",
+          "cannotAttack",
+          "castInCombat",
+          "concentration",
+          "controlledBy",
+          "creatureTypes",
+          "defaultInitiativeMode",
+          "dmChooses",
+          "hasFamiliar",
+          "houseRuleModes",
+          "initiativeModes",
+          "kind",
+          "multiplier",
+          "needsCommand",
+          "options",
+          "slotLevel",
+          "spellLevel",
+          "spellName",
+          "vanishesAtZero",
+          "variants"
+        ],
+        "type": "object",
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            }
+          },
+          "cannotAttack": {
+            "type": "boolean"
+          },
+          "castInCombat": {
+            "type": "boolean"
+          },
+          "concentration": {
+            "type": "boolean"
+          },
+          "controlledBy": {
+            "type": "string",
+            "enum": [
+              "CASTER",
+              "DM"
+            ]
+          },
+          "creatureType": {
+            "type": "string",
+            "nullable": true
+          },
+          "creatureTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defaultInitiativeMode": {
+            "type": "string",
+            "enum": [
+              "FOLLOWS_CASTER",
+              "GROUP",
+              "INDIVIDUAL"
+            ]
+          },
+          "dmChooses": {
+            "type": "boolean"
+          },
+          "hasFamiliar": {
+            "type": "boolean"
+          },
+          "houseRuleModes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "FOLLOWS_CASTER",
+                "GROUP",
+                "INDIVIDUAL"
+              ]
+            }
+          },
+          "initiativeModes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "FOLLOWS_CASTER",
+                "GROUP",
+                "INDIVIDUAL"
+              ]
+            }
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "CONJURE_ANIMALS",
+              "LESSER_DEMONS",
+              "SPIRIT",
+              "FAMILIAR",
+              "FLOCK_OF_FAMILIARS",
+              "STEED",
+              "ANIMATE_DEAD",
+              "TINY_SERVANT"
+            ]
+          },
+          "multiplier": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "needsCommand": {
+            "type": "boolean"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Option"
+            }
+          },
+          "slotLevel": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "spellLevel": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "spellName": {
+            "type": "string"
+          },
+          "spirit": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpiritPreview"
+              }
+            ]
+          },
+          "vanishesAtZero": {
+            "type": "boolean"
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SummonSpec": {
+        "type": "object",
+        "properties": {
+          "multiplier": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "optionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "roll": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "AWAITING_DM",
+              "PLACED"
             ]
           }
         }

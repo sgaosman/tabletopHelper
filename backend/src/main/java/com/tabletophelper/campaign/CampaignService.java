@@ -110,6 +110,9 @@ public class CampaignService {
         if (request.allowPlayerManualModifiers() != null) {
             campaign.setAllowPlayerManualModifiers(request.allowPlayerManualModifiers());
         }
+        if (request.dmChoosesConjuredCreatures() != null) {
+            campaign.setDmChoosesConjuredCreatures(request.dmChoosesConjuredCreatures());
+        }
         return toResponse(campaignRepository.save(campaign));
     }
 
@@ -135,6 +138,7 @@ public class CampaignService {
                 .showExactMonsterHp(campaign.getShowExactMonsterHp())
                 .promptPlayerRepeatSaves(campaign.getPromptPlayerRepeatSaves())
                 .allowPlayerManualModifiers(campaign.getAllowPlayerManualModifiers())
+                .dmChoosesConjuredCreatures(campaign.getDmChoosesConjuredCreatures())
                 .members(memberResponses)
                 .createdAt(campaign.getCreatedAt())
                 .build();

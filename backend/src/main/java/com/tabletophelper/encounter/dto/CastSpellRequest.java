@@ -45,4 +45,10 @@ public class CastSpellRequest {
     @Valid
     @Size(max = 2)
     private List<MetamagicChoice> metamagic;
+
+    // A summoning spell's creatures, checked before anything is spent (D182). Left out, or for a spell whose creatures
+    // the DM chooses (Summon Lesser Demons, and Conjure Animals while the campaign says so), the summoning waits for
+    // the DM; any other spell refuses it with a 400
+    @Valid
+    private SummonChoice summon;
 }

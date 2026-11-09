@@ -8,6 +8,8 @@ import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.encounter.HealthStatus;
 import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.SummonLink;
+import com.tabletophelper.encounter.state.SummonSpec;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.reference.dto.RepeatCost;
@@ -209,6 +211,13 @@ public class EncounterResponse {
         // The Metamagic options a player character knows, chosen as its features (PHB p.102, M18), so the session pages
         // can offer them on a cast; null for a monster
         private List<Metamagic.Option> metamagicOptions;
+
+        // The caster whose spell summoned it (D182); null for anyone else
+        private UUID summonedByParticipantId;
+
+        // What ties it to that spell: the caster's Spell Effect, its initiative, what it may do and its latest command
+        // (D182); null for a creature nobody summoned
+        private SummonLink summon;
     }
 
     /**
@@ -253,6 +262,13 @@ public class EncounterResponse {
         // The moments its area acts on a creature by itself, which the DM applies
         @Schema(requiredMode = REQUIRED)
         private List<SpellTrigger> triggers;
+
+        // The creatures a summoning spell brings and whether they wait for the DM (D182); null for any other spell
+        private SummonSpec summon;
+
+        // The creatures it summoned that are still in the fight, in the order they were made (D182); empty for none
+        @Schema(requiredMode = REQUIRED)
+        private List<UUID> summonedParticipantIds;
     }
 
     /** One turn in the order: a participant's, or the Lair's (D163). */

@@ -8789,9 +8789,9 @@
       "materialConsumed": false,
       "materialCostGp": null
     },
-    "concentration": false,
+    "concentration": true,
     "durationRounds": 600,
-    "durationText": "1 hour",
+    "durationText": "Concentration, up to 1 hour",
     "deliveryMethod": "NONE",
     "spellAttackType": null,
     "saveAbility": null,
@@ -8823,7 +8823,7 @@
       "Warlock",
       "Wizard"
     ],
-    "notes": "1 minute casting. If you already have a familiar, one fewer conjured. Concentration 1 hour."
+    "notes": "1 minute casting. If you already have a familiar, one fewer conjured."
   },
   {
     "spellName": "Fortune's Favor",

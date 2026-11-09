@@ -309,7 +309,7 @@ class PlayerViewIT extends IntegrationTest {
                 dm.accessToken());
 
         assertThat(hideCharacter.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(json(hideCharacter).get("error").asString()).isEqualTo("Only monsters can be hidden from players");
+        assertThat(json(hideCharacter).get("error").asString()).isEqualTo("Only monsters and companions can be hidden from players");
         assertThat(noValue.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 

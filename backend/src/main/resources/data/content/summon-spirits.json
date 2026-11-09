@@ -1,0 +1,337 @@
+{
+  "spirits": [
+    {
+      "spell": "Summon Beast",
+      "monster": "Bestial Spirit",
+      "source": "TCE",
+      "page": 109,
+      "baseLevel": 2,
+      "acBase": 11,
+      "attack": "Maul",
+      "actions": [
+        {
+          "name": "Maul",
+          "actionType": "ACTION",
+          "deliveryMethod": "ATTACK_ROLL",
+          "attackType": "MELEE_WEAPON",
+          "attackBonus": "SPELL_ATTACK",
+          "targetCount": 1,
+          "effects": [
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "1d8 + 4 + LEVEL",
+              "damageType": "piercing"
+            }
+          ]
+        }
+      ],
+      "bonusActions": [],
+      "variants": [
+        {
+          "name": "Air",
+          "hpBase": 20,
+          "hpPerLevel": 5,
+          "traits": [
+            {
+              "name": "Flyby",
+              "description": "The beast doesn't provoke opportunity attacks when it flies out of an enemy's reach."
+            }
+          ]
+        },
+        {
+          "name": "Land",
+          "hpBase": 30,
+          "hpPerLevel": 5,
+          "traits": [
+            {
+              "name": "Pack Tactics",
+              "description": "The beast has advantage on an attack roll against a creature if at least one of the beast's allies is within 5 feet of the creature and the ally isn't incapacitated. The DM gives the advantage by hand."
+            }
+          ]
+        },
+        {
+          "name": "Water",
+          "hpBase": 30,
+          "hpPerLevel": 5,
+          "traits": [
+            {
+              "name": "Pack Tactics",
+              "description": "The beast has advantage on an attack roll against a creature if at least one of the beast's allies is within 5 feet of the creature and the ally isn't incapacitated. The DM gives the advantage by hand."
+            },
+            {
+              "name": "Water Breathing",
+              "description": "The beast can breathe only underwater."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "spell": "Summon Fey",
+      "monster": "Fey Spirit",
+      "source": "TCE",
+      "page": 112,
+      "baseLevel": 3,
+      "acBase": 12,
+      "attack": "Shortsword",
+      "actions": [
+        {
+          "name": "Shortsword",
+          "actionType": "ACTION",
+          "deliveryMethod": "ATTACK_ROLL",
+          "attackType": "MELEE_WEAPON",
+          "attackBonus": "SPELL_ATTACK",
+          "targetCount": 1,
+          "effects": [
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "1d6 + 3 + LEVEL",
+              "damageType": "piercing"
+            },
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "1d6",
+              "damageType": "force"
+            }
+          ]
+        }
+      ],
+      "bonusActions": [],
+      "variants": [
+        {
+          "name": "Fuming",
+          "hpBase": 30,
+          "hpPerLevel": 10,
+          "bonusActions": [
+            {
+              "name": "Fey Step",
+              "actionType": "BONUS_ACTION",
+              "automatable": false,
+              "description": "The fey magically teleports up to 30 feet to an unoccupied space it can see. It has advantage on the next attack roll it makes before the end of this turn; the DM gives the advantage by hand."
+            }
+          ]
+        },
+        {
+          "name": "Mirthful",
+          "hpBase": 30,
+          "hpPerLevel": 10,
+          "bonusActions": [
+            {
+              "name": "Fey Step",
+              "actionType": "BONUS_ACTION",
+              "deliveryMethod": "SAVING_THROW",
+              "saveAbility": "WIS",
+              "saveDC": "SPELL_DC",
+              "targetCount": 1,
+              "description": "The fey magically teleports up to 30 feet to an unoccupied space it can see, then forces one creature it can see within 10 feet of it to make a Wisdom saving throw against your spell save DC. Unless the save succeeds, the target is charmed by you and the fey for 1 minute or until the target takes any damage.",
+              "effects": [
+                {
+                  "effectType": "CONDITION",
+                  "condition": "charmed",
+                  "durationRounds": 10
+                }
+              ],
+              "dmNote": "The charm ends early if the target takes any damage; the DM ends it by hand"
+            }
+          ]
+        },
+        {
+          "name": "Tricksy",
+          "hpBase": 30,
+          "hpPerLevel": 10,
+          "bonusActions": [
+            {
+              "name": "Fey Step",
+              "actionType": "BONUS_ACTION",
+              "automatable": false,
+              "description": "The fey magically teleports up to 30 feet to an unoccupied space it can see, then fills a 5-foot cube within 5 feet of it with magical darkness, which lasts until the end of its next turn."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "spell": "Summon Shadowspawn",
+      "monster": "Shadow Spirit",
+      "source": "TCE",
+      "page": 114,
+      "baseLevel": 3,
+      "acBase": 11,
+      "attack": "Chilling Rend",
+      "actions": [
+        {
+          "name": "Chilling Rend",
+          "actionType": "ACTION",
+          "deliveryMethod": "ATTACK_ROLL",
+          "attackType": "MELEE_WEAPON",
+          "attackBonus": "SPELL_ATTACK",
+          "targetCount": 1,
+          "effects": [
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "1d12 + 3 + LEVEL",
+              "damageType": "cold"
+            }
+          ]
+        },
+        {
+          "name": "Dreadful Scream (1/Day)",
+          "actionType": "ACTION",
+          "deliveryMethod": "SAVING_THROW",
+          "saveAbility": "WIS",
+          "saveDC": "SPELL_DC",
+          "description": "The spirit screams. Each creature within 30 feet of it must succeed on a Wisdom saving throw against your spell save DC or be frightened for 1 minute. The frightened creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success.",
+          "effects": [
+            {
+              "effectType": "CONDITION",
+              "condition": "frightened",
+              "durationRounds": 10,
+              "saveToEndEachTurn": true
+            }
+          ]
+        }
+      ],
+      "bonusActions": [],
+      "variants": [
+        {
+          "name": "Fury",
+          "hpBase": 35,
+          "hpPerLevel": 15,
+          "traits": [
+            {
+              "name": "Terror Frenzy",
+              "description": "The spirit has advantage on attack rolls against frightened creatures. The DM gives the advantage by hand."
+            }
+          ]
+        },
+        {
+          "name": "Despair",
+          "hpBase": 35,
+          "hpPerLevel": 15,
+          "traits": [
+            {
+              "name": "Weight of Sorrow",
+              "description": "Any creature, other than you, that starts its turn within 5 feet of the spirit has its speed reduced by 20 feet until the start of that creature's next turn."
+            }
+          ]
+        },
+        {
+          "name": "Fear",
+          "hpBase": 35,
+          "hpPerLevel": 15,
+          "bonusActions": [
+            {
+              "name": "Shadow Stealth",
+              "actionType": "BONUS_ACTION",
+              "automatable": false,
+              "description": "While in dim light or darkness, the spirit takes the Hide action."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "spell": "Summon Undead",
+      "monster": "Undead Spirit",
+      "source": "TCE",
+      "page": 114,
+      "baseLevel": 3,
+      "acBase": 11,
+      "attack": null,
+      "actions": [],
+      "bonusActions": [],
+      "variants": [
+        {
+          "name": "Ghostly",
+          "hpBase": 30,
+          "hpPerLevel": 10,
+          "attack": "Deathly Touch",
+          "actions": [
+            {
+              "name": "Deathly Touch",
+              "actionType": "ACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "MELEE_WEAPON",
+              "attackBonus": "SPELL_ATTACK",
+              "targetCount": 1,
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "1d8 + 3 + LEVEL",
+                  "damageType": "necrotic"
+                },
+                {
+                  "effectType": "CONDITION",
+                  "condition": "frightened",
+                  "saveDC": "SPELL_DC",
+                  "saveAbility": "WIS",
+                  "durationRounds": 1
+                }
+              ],
+              "dmNote": "The frightened condition lasts until the end of the target's next turn"
+            }
+          ],
+          "traits": [
+            {
+              "name": "Incorporeal Passage",
+              "description": "The spirit can move through other creatures and objects as if they were difficult terrain. If it ends its turn inside an object, it is shunted to the nearest unoccupied space and takes 1d10 force damage for every 5 feet traveled."
+            }
+          ]
+        },
+        {
+          "name": "Putrid",
+          "hpBase": 30,
+          "hpPerLevel": 10,
+          "attack": "Rotting Claw",
+          "actions": [
+            {
+              "name": "Rotting Claw",
+              "actionType": "ACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "MELEE_WEAPON",
+              "attackBonus": "SPELL_ATTACK",
+              "targetCount": 1,
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "1d6 + 3 + LEVEL",
+                  "damageType": "slashing"
+                }
+              ],
+              "dmNote": "If the target is poisoned, it must succeed on a DC SPELL_DC Constitution saving throw or be paralyzed until the end of its next turn; the DM applies it by hand"
+            }
+          ],
+          "traits": [
+            {
+              "name": "Festering Aura",
+              "description": "Any creature, other than you, that starts its turn within 5 feet of the spirit must succeed on a DC SPELL_DC Constitution saving throw or be poisoned until the start of its next turn."
+            }
+          ]
+        },
+        {
+          "name": "Skeletal",
+          "hpBase": 20,
+          "hpPerLevel": 10,
+          "attack": "Grave Bolt",
+          "actions": [
+            {
+              "name": "Grave Bolt",
+              "actionType": "ACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "RANGED_SPELL",
+              "attackBonus": "SPELL_ATTACK",
+              "targetCount": 1,
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "2d4 + 3 + LEVEL",
+                  "damageType": "necrotic"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

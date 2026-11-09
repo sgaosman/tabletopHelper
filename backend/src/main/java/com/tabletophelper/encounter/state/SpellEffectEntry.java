@@ -1,5 +1,7 @@
 package com.tabletophelper.encounter.state;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.UUID;
 
 /**
@@ -18,9 +20,19 @@ import java.util.UUID;
  *                                once they have passed, as a condition's duration does (D162)
  * @param usesLeft                what it has left to spend, such as Melf's Minute Meteors' meteors; null when it has
  *                                no count
+ * @param summon                  the creatures a summoning spell brings, which leave when the effect ends (D182, V34);
+ *                                null for any other spell, and left out of the JSON then, so rows written before V34
+ *                                read back as they are
  */
 public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID concentrationInstanceId,
-                               int startedRound, Integer durationRounds, Integer usesLeft) {
+                               int startedRound, Integer durationRounds, Integer usesLeft,
+                               @JsonInclude(JsonInclude.Include.NON_NULL) SummonSpec summon) {
+
+    /** An effect that summons nothing. */
+    public SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID concentrationInstanceId,
+                            int startedRound, Integer durationRounds, Integer usesLeft) {
+        this(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds, usesLeft, null);
+    }
 
     /** A new effect, with an ID of its own. */
     public static SpellEffectEntry start(String spell, Integer slotLevel, UUID concentrationInstanceId,
@@ -41,6 +53,13 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
 
     /** The same effect with this many uses left. */
     public SpellEffectEntry withUsesLeft(Integer uses) {
-        return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds, uses);
+        return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds, uses,
+                summon);
+    }
+
+    /** The same effect with this summoning. */
+    public SpellEffectEntry withSummon(SummonSpec spec) {
+        return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds,
+                usesLeft, spec);
     }
 }

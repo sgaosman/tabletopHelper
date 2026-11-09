@@ -563,4 +563,50 @@ class EncounterViewsTest {
             assertTrue(EncounterViews.hiddenParticipants(encounter(false, gimli(), bugbear(true))).isEmpty());
         }
     }
+
+    @Nested
+    @DisplayName("Summoned companions (D182)")
+    class Companions {
+
+        private ParticipantResponse companion(UUID id, UUID controller) {
+            return ParticipantResponse.builder()
+                    .id(id)
+                    .participantType("COMPANION")
+                    .monsterId(UUID.randomUUID())
+                    .displayName("Dretch 1")
+                    .hpMax(18)
+                    .hpCurrent(9)
+                    .isVisibleToPlayers(true)
+                    .controlledByUserId(controller)
+                    .turnEconomy(SPENT)
+                    .speed(Map.of("walk", 20))
+                    .build();
+        }
+
+        @Test
+        @DisplayName("A companion the DM controls, as Summon Lesser Demons' demons, is seen as a monster")
+        void dmControlled_hidesNumbers() {
+            UUID dretch = UUID.randomUUID();
+            var view = EncounterViews.playerView(encounter(false, companion(dretch, null), gimli()));
+
+            ParticipantResponse seen = find(view, dretch);
+            assertNull(seen.getHpCurrent());
+            assertNull(seen.getMonsterId());
+            assertNull(seen.getTurnEconomy());
+            assertEquals("BLOODIED", seen.getHealthStatus());
+            assertTrue(EncounterViews.monsters(encounter(false, companion(dretch, null))).contains(dretch));
+        }
+
+        @Test
+        @DisplayName("A companion a player controls, as a druid's wolves, is seen as a player character is")
+        void playerControlled_showsNumbers() {
+            UUID wolf = UUID.randomUUID();
+            var view = EncounterViews.playerView(encounter(false, companion(wolf, playerId)));
+
+            ParticipantResponse seen = find(view, wolf);
+            assertEquals(9, seen.getHpCurrent());
+            assertEquals(SPENT, seen.getTurnEconomy());
+            assertFalse(EncounterViews.monsters(encounter(false, companion(wolf, playerId))).contains(wolf));
+        }
+    }
 }

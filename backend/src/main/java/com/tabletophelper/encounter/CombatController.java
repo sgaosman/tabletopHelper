@@ -12,6 +12,7 @@ import com.tabletophelper.encounter.internal.MonsterActionService;
 import com.tabletophelper.encounter.internal.PoolUseService;
 import com.tabletophelper.encounter.internal.SpellcastingService;
 import com.tabletophelper.encounter.internal.StandardActionService;
+import com.tabletophelper.encounter.internal.SummonService;
 import com.tabletophelper.encounter.internal.TurnEconomyEditService;
 import com.tabletophelper.encounter.internal.TurnService;
 import com.tabletophelper.encounter.internal.UndoService;
@@ -46,6 +47,7 @@ public class CombatController {
     private final BardicInspirationService bardicInspirationService;
     private final FontOfMagicService fontOfMagicService;
     private final WildShapeService wildShapeService;
+    private final SummonService summonService;
     private final UndoService undoService;
     private final EncounterService encounterService;
 
@@ -268,6 +270,64 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = spellcastingService.endSpellEffect(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // What a summoning spell can bring when the caster casts it at the slot level (D182): the DM's for anyone, a
+    // player's for a participant they control
+    @GetMapping("/summon-options")
+    public ResponseEntity<SummonOptions> getSummonOptions(
+            @PathVariable UUID encounterId,
+            @RequestParam UUID participantId,
+            @RequestParam String spellName,
+            @RequestParam(required = false) Integer slotLevel,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(summonService.options(encounterId, participantId, spellName, slotLevel, userId));
+    }
+
+    // The DM's creatures for a summoning that waits for them, or in place of a placed summoning's (D182)
+    @PostMapping("/summons")
+    public ResponseEntity<EncounterResponse> placeSummon(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody PlaceSummonRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = summonService.place(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // A summoning the DM places with no slot spent, while the encounter is prepared or active (D182)
+    @PostMapping("/summons/companion")
+    public ResponseEntity<EncounterResponse> placeCompanion(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody CompanionSummonRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = summonService.companion(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // The DM dismisses summoned creatures, while their spell goes on (D182)
+    @PostMapping("/summons/dismiss")
+    public ResponseEntity<EncounterResponse> dismissSummons(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody DismissSummonsRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = summonService.dismiss(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // A caster's bonus-action command to its Animate Dead or Tiny Servant creatures (PHB p.212, XGE p.168, D182): the
+    // DM's for anyone, a player's for their own caster on its turn
+    @PostMapping("/summons/command")
+    public ResponseEntity<EncounterResponse> commandSummons(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody CommandSummonsRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = summonService.command(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 

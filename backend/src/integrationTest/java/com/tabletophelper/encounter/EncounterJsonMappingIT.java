@@ -11,6 +11,10 @@ import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.state.CommandSnapshot;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
+import com.tabletophelper.encounter.state.SummonLink;
+import com.tabletophelper.encounter.state.SummonSpec;
+import com.tabletophelper.monster.MonsterTemplates;
+import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.encounter.state.EncounterTurnState;
 import com.tabletophelper.encounter.state.LogPatch;
 import com.tabletophelper.encounter.state.ParticipantCombatState;
@@ -139,6 +143,38 @@ class EncounterJsonMappingIT extends IntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update(
                 "UPDATE encounter_participants SET active_effects = NULL WHERE id = ?", id))
                 .hasMessageContaining("active_effects");
+    }
+
+    @Test
+    @DisplayName("A summoning round-trips: the caster's Spell Effect with its summon, a creature's link, its own templates and its dismissal; an effect without one writes no summon (D182, V34)")
+    void summoningRoundTrip() {
+        SpellEffectEntry conjure = SpellEffectEntry.start("Conjure Animals", 5, UUID.randomUUID(), 2, 600, null)
+                .withSummon(new SummonSpec("16xCR1/4", 2, null, SummonSpec.Status.PLACED));
+        SpellEffectEntry weapon = SpellEffectEntry.start("Spiritual Weapon", 2, null, 1, 10, null);
+        UUID caster = saveParticipant(EncounterParticipant.builder().activeEffects(List.of(conjure, weapon)), null);
+        assertThat(reload(caster).getActiveEffects()).containsExactly(conjure, weapon);
+        assertThat(column("SELECT active_effects -> 0 -> 'summon' ->> 'status' FROM encounter_participants "
+                + "WHERE id = ?", caster)).isEqualTo("PLACED");
+        assertThat(column("SELECT jsonb_exists(active_effects -> 1, 'summon')::text FROM encounter_participants WHERE id = ?",
+                caster)).isEqualTo("false");
+
+        SummonLink link = new SummonLink(conjure.id(), "Conjure Animals", 5, SummonRules.Kind.CONJURE_ANIMALS,
+                SummonRules.InitiativeMode.GROUP, UUID.randomUUID(), null, "fey", true, false, false, null);
+        MonsterTemplates templates = MonsterTemplates.parse("""
+                {"actions": [{"name": "Bite", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 4}]}""");
+        UUID wolf = saveParticipant(EncounterParticipant.builder().summon(link).summonedByParticipantId(caster)
+                .actionTemplates(templates).dismissed(true), null);
+        EncounterParticipant reloaded = reload(wolf);
+        assertThat(reloaded.getSummon()).isEqualTo(link);
+        assertThat(reloaded.getSummonedByParticipantId()).isEqualTo(caster);
+        assertThat(reloaded.getActionTemplates().find("ACTION", "Bite").orElseThrow().attackBonus()).isEqualTo(4);
+        assertThat(reloaded.getDismissed()).isTrue();
+        // Fields a creature doesn't have stay out of the column
+        assertThat(column("SELECT jsonb_exists(summon, 'variant')::text FROM encounter_participants WHERE id = ?", wolf))
+                .isEqualTo("false");
+        UUID none = saveParticipant(EncounterParticipant.builder(), null);
+        assertThat(reload(none).getSummon()).isNull();
+        assertThat(reload(none).getDismissed()).isFalse();
     }
 
     @Test

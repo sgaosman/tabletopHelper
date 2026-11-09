@@ -3,15 +3,23 @@ package com.tabletophelper.rules.combat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * The initiative order (D163): highest initiative first, ties to the higher DEX score, then the DM's order. The
  * PHB leaves ties to the DM and players (p.189); higher DEX is a common convention the DM can reorder. The Lair
- * takes a turn on initiative 20, losing ties (MM p.11), and dead monsters' turns are skipped.
+ * takes a turn on initiative 20, losing ties (MM p.11), and dead monsters' turns are skipped. A creature that follows
+ * another, as a Tasha's spirit takes its turn immediately after its summoner's (TCE p.109, D182), comes right after
+ * its leader, followers by their sort order; with its leader gone from the order, it takes its own place by its stored
+ * initiative.
  */
 public final class TurnOrder {
 
@@ -23,11 +31,17 @@ public final class TurnOrder {
 
     /**
      * A creature in the order. initiative is null until rolled, dexterity is the DEX score, and sortOrder is the
-     * DM's order among ties, lowest first.
+     * DM's order among ties, lowest first. followsId names the creature it takes its turn right after, or is null.
      */
-    public record Combatant(UUID id, Integer initiative, int dexterity, int sortOrder, boolean monster, boolean dead) {
+    public record Combatant(UUID id, Integer initiative, int dexterity, int sortOrder, boolean monster, boolean dead,
+                            UUID followsId) {
         public Combatant {
             Objects.requireNonNull(id, "id");
+        }
+
+        /** A creature that follows nobody. */
+        public Combatant(UUID id, Integer initiative, int dexterity, int sortOrder, boolean monster, boolean dead) {
+            this(id, initiative, dexterity, sortOrder, monster, dead, null);
         }
     }
 
@@ -63,11 +77,46 @@ public final class TurnOrder {
 
     /** Every combatant's turn in order, with the Lair's when withLair is set. */
     public static List<Turn> order(Collection<Combatant> combatants, boolean withLair) {
-        List<Turn> turns = new ArrayList<>(combatants.stream().sorted(INITIATIVE_ORDER).map(Turn::new).toList());
+        Set<UUID> present = combatants.stream().map(Combatant::id).collect(Collectors.toSet());
+        Map<UUID, List<Combatant>> followers = new LinkedHashMap<>();
+        List<Combatant> leading = new ArrayList<>();
+        for (Combatant combatant : combatants) {
+            UUID leader = combatant.followsId();
+            if (leader != null && !leader.equals(combatant.id()) && present.contains(leader)) {
+                followers.computeIfAbsent(leader, id -> new ArrayList<>()).add(combatant);
+            } else {
+                leading.add(combatant);
+            }
+        }
+        List<Turn> turns = new ArrayList<>();
+        Set<UUID> seen = new HashSet<>();
+        for (Combatant combatant : leading.stream().sorted(INITIATIVE_ORDER).toList()) {
+            addWithFollowers(turns, combatant, followers, seen);
+        }
+        // Followers that only follow each other take their own places
+        for (Combatant combatant : combatants.stream().filter(c -> !seen.contains(c.id())).sorted(INITIATIVE_ORDER)
+                .toList()) {
+            addWithFollowers(turns, combatant, followers, seen);
+        }
+        Set<UUID> following = followers.values().stream().flatMap(List::stream).map(Combatant::id)
+                .collect(Collectors.toSet());
         if (withLair) {
-            turns.add(lairPosition(turns), Turn.LAIR);
+            turns.add(lairPosition(turns, following), Turn.LAIR);
         }
         return List.copyOf(turns);
+    }
+
+    // The combatant's turn, then its followers' by the DM's order, which keeps the order they were made in, each with its own followers after it
+    private static void addWithFollowers(List<Turn> turns, Combatant combatant, Map<UUID, List<Combatant>> followers,
+                                         Set<UUID> seen) {
+        if (!seen.add(combatant.id())) {
+            return;
+        }
+        turns.add(new Turn(combatant));
+        for (Combatant follower : followers.getOrDefault(combatant.id(), List.of()).stream()
+                .sorted(Comparator.comparingInt(Combatant::sortOrder)).toList()) {
+            addWithFollowers(turns, follower, followers, seen);
+        }
     }
 
     /**
@@ -108,15 +157,18 @@ public final class TurnOrder {
 
     /**
      * Whether two combatants tie on both initiative and DEX, so only the DM's order puts one before the other
-     * (D163). Combatants without initiative never tie.
+     * (D163). Combatants without initiative never tie, and nor does a follower, whose place is its leader's.
      */
     public static boolean tied(Combatant a, Combatant b) {
-        return a.initiative() != null && a.initiative().equals(b.initiative()) && a.dexterity() == b.dexterity();
+        return a.followsId() == null && b.followsId() == null && a.initiative() != null && a.initiative().equals(b.initiative()) && a.dexterity() == b.dexterity();
     }
 
-    // Everyone on 20 or more goes before the Lair, which loses ties
-    private static int lairPosition(List<Turn> turns) {
+    // Everyone on 20 or more goes before the Lair, which loses ties; a follower stays right after its leader
+    private static int lairPosition(List<Turn> turns, Set<UUID> following) {
         for (int i = 0; i < turns.size(); i++) {
+            if (following.contains(turns.get(i).combatant().id())) {
+                continue;
+            }
             Integer initiative = turns.get(i).combatant().initiative();
             if (initiative == null || initiative < LAIR_INITIATIVE) return i;
         }

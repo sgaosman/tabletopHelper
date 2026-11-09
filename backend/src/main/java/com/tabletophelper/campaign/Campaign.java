@@ -56,6 +56,12 @@ public class Campaign {
     @Builder.Default
     private Boolean allowPlayerManualModifiers = true;
 
+    // On: the DM chooses Conjure Animals' creatures, as PHB p.225 has "The DM has the creatures' statistics"; off, the
+    // caster's player does (D182, V34)
+    @Column(name = "dm_chooses_conjured_creatures", nullable = false)
+    @Builder.Default
+    private Boolean dmChoosesConjuredCreatures = false;
+
     @OneToMany(mappedBy = "campaign", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<CampaignMember> members = new ArrayList<>();

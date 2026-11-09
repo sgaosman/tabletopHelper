@@ -22,6 +22,7 @@ import com.tabletophelper.encounter.CombatLogRepository;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterCommands;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.encounter.EncounterParticipantRepository;
 import com.tabletophelper.encounter.EncounterRepository;
 import com.tabletophelper.encounter.EncounterService;
 import com.tabletophelper.encounter.EncounterStatus;
@@ -45,6 +46,8 @@ import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Rng;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.Resolver;
+import com.tabletophelper.rules.combat.SummonSpirits;
+import com.tabletophelper.content.internal.SummonSpiritsFile;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -112,6 +115,12 @@ class CombatFixture {
             subclassRepository, objectMapper);
     final CharacterWeapons characterWeapons = new CharacterWeapons(itemRepository, objectMapper);
     final ActionEconomyKeeper economy = new ActionEconomyKeeper(combatLog);
+    // Saving a summoned creature gives it an ID, as the database would (D182)
+    final EncounterParticipantRepository participantRepository = mock(EncounterParticipantRepository.class);
+    final SummonSpirits summonSpirits = SummonSpiritsFile.read(objectMapper);
+    final SpiritTemplates spiritTemplates = new SpiritTemplates(summonSpirits, objectMapper);
+    final Summoner summoner = new Summoner(monsterRepository, participantRepository, effectApplier, combatLog,
+            monsterPools, spiritTemplates, dice);
 
     final HitPointService hitPoints = new HitPointService(access, effectApplier, encounterRepository, encounterService);
     final ConditionService conditionService =
@@ -121,12 +130,12 @@ class CombatFixture {
     final MetamagicCasting metamagicCasting = new MetamagicCasting(spellEffects, stats);
     final SpellcastingService spellcasting = new SpellcastingService(access, accessPolicy, casterSpells, spellCaster,
             spellEffects, effectApplier, economy, manualModifiers, combatLog, encounterRepository, encounterService,
-            characterService, stats, metamagicCasting);
+            characterService, stats, metamagicCasting, summoner);
     final FontOfMagicService fontOfMagic = new FontOfMagicService(access, economy, combatLog, encounterRepository,
             encounterService);
     final MonsterActionService monsterActions = new MonsterActionService(access, accessPolicy, monsterEffects, resolver,
             stats, effectApplier, economy, resourcePoolService, objectMapper, monsterRepository, encounterRepository,
-            encounterService);
+            encounterService, combatLog);
     final LegendaryResistanceService legendaryResistance = new LegendaryResistanceService(access, effectApplier,
             resourcePoolService, combatLogRepository, combatCommandRepository, combatLog, encounterRepository,
             encounterService);
@@ -149,6 +158,8 @@ class CombatFixture {
             combatLog, encounterRepository, encounterService);
     final TurnProcessor turnProcessor = new TurnProcessor(effectApplier, combatLog);
     final TurnService turns = new TurnService(access, turnProcessor, encounterRepository, encounterService);
+    final SummonService summons = new SummonService(access, accessPolicy, encounterCommands, commandRecorder, summoner,
+            spiritTemplates, effectApplier, economy, combatLog, monsterRepository, encounterRepository, encounterService);
     final UndoService undoService = new UndoService(encounterCommands, commandRecorder, combatLog, combatLogRepository,
             encounterRepository, encounterService);
 
@@ -178,6 +189,13 @@ class CombatFixture {
         lenient().when(encounterRepository.lockById(encounter.getId())).thenReturn(Optional.of(encounter));
         lenient().when(encounterRepository.save(any(Encounter.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(encounterService.toResponse(any(Encounter.class))).thenReturn(EncounterResponse.builder().build());
+        lenient().when(participantRepository.save(any(EncounterParticipant.class))).thenAnswer(inv -> {
+            EncounterParticipant participant = inv.getArgument(0);
+            if (participant.getId() == null) {
+                participant.setId(UUID.randomUUID());
+            }
+            return participant;
+        });
         lenient().when(combatLogRepository.save(any(CombatLog.class))).thenAnswer(inv -> {
             CombatLog entry = inv.getArgument(0);
             if (entry.getId() == null) {

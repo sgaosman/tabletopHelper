@@ -48,6 +48,10 @@ public class CampaignResponse {
             description = "On: players may enter Manual Modifiers in combat, as the DM always may (D164)")
     private Boolean allowPlayerManualModifiers;
 
+    @Schema(requiredMode = REQUIRED,
+            description = "On: the DM chooses Conjure Animals' creatures; off: the caster does (PHB p.225, D182)")
+    private Boolean dmChoosesConjuredCreatures;
+
     @Schema(requiredMode = REQUIRED)
     private List<MemberResponse> members;
 

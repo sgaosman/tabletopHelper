@@ -80,15 +80,18 @@ class EncounterServiceTest {
         AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
         ObjectMapper objectMapper = JacksonDefaults.mapper();
         CombatLogWriter combatLog = new CombatLogWriter(combatLogRepository);
-        TurnProcessor turnProcessor = new TurnProcessor(new EffectApplier(new Resolver(Rng.random()),
-                new CreatureStats(objectMapper, new EquippedArmour(mock(ItemRepository.class))), combatLog, resourcePoolService), combatLog);
+        EffectApplier effectApplier = new EffectApplier(new Resolver(Rng.random()),
+                new CreatureStats(objectMapper, new EquippedArmour(mock(ItemRepository.class))), combatLog,
+                resourcePoolService);
+        TurnProcessor turnProcessor = new TurnProcessor(effectApplier, combatLog);
         encounterService = new EncounterService(encounterRepository, participantRepository, campaignRepository,
                 characterRepository, monsterRepository, objectMapper, monsterPools, accessPolicy,
                 new EncounterCommands(encounterRepository, accessPolicy, eventPublisher),
                 new CombatLogReader(combatLogRepository, combatCommandRepository), turnProcessor,
                 new EncounterResults(eventPublisher, writeBackService),
                 new CommandRecorder(combatCommandRepository, combatLogRepository, objectMapper),
-                mock(com.tabletophelper.encounter.internal.SpellEffects.class));
+                mock(com.tabletophelper.encounter.internal.SpellEffects.class),
+                mock(com.tabletophelper.encounter.internal.Summoner.class), effectApplier);
 
         dmUserId = UUID.randomUUID();
         campaignId = UUID.randomUUID();
@@ -1006,7 +1009,7 @@ class EncounterServiceTest {
         ValidationException ex = assertThrows(ValidationException.class,
                 () -> encounterService.setParticipantVisibility(encounter.getId(), gimli.getId(), false, dmUserId));
 
-        assertEquals("Only monsters can be hidden from players", ex.getMessage());
+        assertEquals("Only monsters and companions can be hidden from players", ex.getMessage());
         assertTrue(gimli.getIsVisibleToPlayers());
         verify(encounterRepository, never()).save(any());
     }

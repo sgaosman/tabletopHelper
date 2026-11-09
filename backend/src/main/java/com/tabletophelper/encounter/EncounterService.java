@@ -21,6 +21,8 @@ import com.tabletophelper.encounter.internal.EncounterTurns;
 import com.tabletophelper.encounter.internal.MetamagicCasting;
 import com.tabletophelper.encounter.internal.MonsterPools;
 import com.tabletophelper.encounter.internal.SpellEffects;
+import com.tabletophelper.encounter.internal.Summoner;
+import com.tabletophelper.encounter.state.SummonLink;
 import com.tabletophelper.encounter.internal.TurnEconomies;
 import com.tabletophelper.encounter.internal.TurnProcessor;
 import com.tabletophelper.encounter.state.ConditionEntry;
@@ -66,6 +68,8 @@ public class EncounterService {
     private final EncounterResults encounterResults;
     private final CommandRecorder commandRecorder;
     private final SpellEffects spellEffects;
+    private final Summoner summoner;
+    private final EffectApplier effectApplier;
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -113,8 +117,16 @@ public class EncounterService {
 
         if (type == ParticipantType.PLAYER) {
             addPlayerParticipant(encounter, request);
+        } else if (type == ParticipantType.COMPANION && request.getSummonerParticipantId() != null) {
+            // A summoning cast before the fight, as the companion command places it (D182)
+            summoner.companion(encounter, new CompanionSummonRequest(request.getSummonerParticipantId(),
+                    request.getSpellName() != null ? request.getSpellName() : "", request.getSlotLevel(),
+                    request.getOptionId(), request.getMonsterId() != null
+                            ? List.of(new SummonCreature(request.getMonsterId(), quantity)) : List.of(),
+                    request.getVariant(), request.getInitiativeMode(), request.getCreatureType(),
+                    request.getConcentrationLinked()));
         } else {
-            addMonsterParticipants(encounter, request, quantity);
+            addMonsterParticipants(encounter, request, quantity, type);
         }
 
         return toResponse(encounterRepository.save(encounter));
@@ -169,9 +181,17 @@ public class EncounterService {
         participant.setJoinedWith(snapshot.totals());
     }
 
-    private void addMonsterParticipants(Encounter encounter, AddParticipantRequest request, int quantity) {
+    /**
+     * Monsters from the bestiary, or companions: creatures on the party's side with a monster's statistics, controlled
+     * by the player the request names or else by the DM (D182). A companion nobody summoned is set up as a monster is.
+     */
+    private void addMonsterParticipants(Encounter encounter, AddParticipantRequest request, int quantity,
+                                        ParticipantType type) {
         if (request.getMonsterId() == null) {
             throw new ValidationException("monsterId is required for a monster participant");
+        }
+        if (type == ParticipantType.COMPANION && request.getControlledByUserId() != null) {
+            accessPolicy.requireOwnerIsMember(encounter.getCampaign().getId(), request.getControlledByUserId());
         }
         Monster monster = monsterRepository.findById(request.getMonsterId())
                 .orElseThrow(() -> new ValidationException("Monster not found"));
@@ -190,13 +210,14 @@ public class EncounterService {
 
             EncounterParticipant participant = EncounterParticipant.builder()
                     .encounter(encounter)
-                    .participantType(ParticipantType.MONSTER)
+                    .participantType(type)
                     .monster(monster)
                     .displayName(name)
                     .initiativeModifier(dexMod)
                     .hpMax(monster.getHitPoints())
                     .hpCurrent(monster.getHitPoints())
                     .armourClass(monster.getArmourClass())
+                    .controlledByUserId(type == ParticipantType.COMPANION ? request.getControlledByUserId() : null)
                     .build();
 
             // Its pools, innate uses included, and its spell slots and spells (D165)
@@ -216,8 +237,15 @@ public class EncounterService {
                 .filter(p -> p.getId().equals(participantId) && p.getMonster() == null
                         && WildShapeForm.of(p).isPresent())
                 .findFirst();
+        // A summoned creature's are its controller's to read too, as they act for it (D182)
+        Optional<EncounterParticipant> summoned = encounter.getParticipants().stream()
+                .filter(p -> p.getId().equals(participantId) && p.getSummon() != null
+                        && p.getControlledByUserId() != null)
+                .findFirst();
         if (druid.isPresent()) {
             accessPolicy.requireControls(campaignId, druid.get().getControlledByUserId(), userId);
+        } else if (summoned.isPresent()) {
+            accessPolicy.requireControls(campaignId, summoned.get().getControlledByUserId(), userId);
         } else {
             accessPolicy.requireDm(campaignId, userId);
         }
@@ -230,16 +258,19 @@ public class EncounterService {
         Monster monster = druid.isPresent()
                 ? monsterRepository.findById(WildShapeForm.of(participant).orElseThrow().monsterId()).orElse(null)
                 : participant.getMonster();
-        if (monster == null || monster.getActionTemplates() == null) {
+        // A Tasha's spirit's own templates, made for it at the cast, come before its monster row's (D182)
+        MonsterTemplates typed = participant.getActionTemplates() != null ? participant.getActionTemplates()
+                : monster != null ? monster.getActionTemplates() : null;
+        if (typed == null) {
             return Map.of("error", "No action templates available for this monster");
         }
-        JsonNode templatesNode = monster.getActionTemplates().json();
+        JsonNode templatesNode = typed.json();
         if (templatesNode == null || !templatesNode.isObject()) {
             return Map.of("error", "No action templates available for this monster");
         }
         Map<String, Object> templates = objectMapper.convertValue(templatesNode,
                 new TypeReference<LinkedHashMap<String, Object>>() {});
-        markLimitedUses(templates, monster.getActionTemplates());
+        markLimitedUses(templates, typed);
 
         // Attach current resource pool states
         List<ResourcePoolEntry> pools = participant.getResourcePoolsCurrent() != null
@@ -300,8 +331,8 @@ public class EncounterService {
                 .filter(p -> p.getId().equals(participantId))
                 .findFirst()
                 .orElseThrow(() -> new NotFoundException("Participant not found"));
-        if (participant.getParticipantType() != ParticipantType.MONSTER) {
-            throw new ValidationException("Only monsters can be hidden from players");
+        if (participant.getParticipantType() == ParticipantType.PLAYER) {
+            throw new ValidationException("Only monsters and companions can be hidden from players");
         }
         participant.setIsVisibleToPlayers(visible);
 
@@ -321,9 +352,20 @@ public class EncounterService {
             throw new ConflictException("Participants can be removed only while the encounter is prepared or active");
         }
         EncounterParticipant participant = encounter.getParticipants().stream()
-                .filter(p -> p.getId().equals(participantId))
+                .filter(p -> p.getId().equals(participantId) && !EncounterTurns.dismissed(p))
                 .findFirst()
                 .orElseThrow(() -> new NotFoundException("Participant not found"));
+
+        // A summoned creature is dismissed instead: nothing is written back, and undo can still bring it back (D182)
+        if (participant.getSummon() != null) {
+            if (LIVE.contains(encounter.getStatus())) {
+                commandRecorder.record(encounter, userId);
+            }
+            effectApplier.dismiss(encounter, participant, "dismissed by the DM");
+            return toResponse(encounterRepository.save(encounter));
+        }
+        // Its summoned creatures go with it (D182)
+        effectApplier.dismissSummonsOf(encounter, participant, participant.getDisplayName() + " leaves the encounter");
 
         if (LIVE.contains(encounter.getStatus())) {
             // Before the turn order reads the sheets, so the character's is read once its row is locked
@@ -351,6 +393,7 @@ public class EncounterService {
             }
         }
 
+        followCasters(encounter);
         recomputeSortOrder(encounter);
         return toResponse(encounterRepository.save(encounter));
     }
@@ -359,12 +402,18 @@ public class EncounterService {
     public EncounterResponse rollAllInitiatives(UUID encounterId, UUID userId) {
         Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
 
-        for (EncounterParticipant p : encounter.getParticipants()) {
+        // A summoned group rolls once, with its first creature's modifier (PHB p.189, p.225; D182)
+        Map<UUID, Integer> groupRolls = new HashMap<>();
+        for (EncounterParticipant p : EncounterTurns.present(encounter)) {
             int mod = p.getInitiativeModifier() != null ? p.getInitiativeModifier() : 0;
-            int roll = ThreadLocalRandom.current().nextInt(1, 21) + mod;
+            UUID group = p.getSummon() != null ? p.getSummon().groupId() : null;
+            int roll = group != null
+                    ? groupRolls.computeIfAbsent(group, id -> ThreadLocalRandom.current().nextInt(1, 21) + mod)
+                    : ThreadLocalRandom.current().nextInt(1, 21) + mod;
             p.setInitiative(roll);
         }
 
+        followCasters(encounter);
         recomputeSortOrder(encounter);
         return toResponse(encounterRepository.save(encounter));
     }
@@ -374,7 +423,8 @@ public class EncounterService {
         Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
         EncounterLifecycle.require(encounter, Transition.START);
 
-        boolean allHaveInitiative = encounter.getParticipants().stream()
+        followCasters(encounter);
+        boolean allHaveInitiative = EncounterTurns.present(encounter).stream()
                 .allMatch(p -> p.getInitiative() != null);
         if (!allHaveInitiative) {
             throw new ConflictException("All participants must have initiative set before starting");
@@ -502,7 +552,7 @@ public class EncounterService {
         if (requested.size() < 2 || new HashSet<>(requested).size() != requested.size()) {
             throw new ValidationException("Name two or more tied participants, each once");
         }
-        Map<UUID, TurnOrder.Combatant> combatants = encounter.getParticipants().stream()
+        Map<UUID, TurnOrder.Combatant> combatants = EncounterTurns.present(encounter).stream()
                 .collect(Collectors.toMap(EncounterParticipant::getId, EncounterTurns::combatant));
         List<TurnOrder.Combatant> group = requested.stream()
                 .map(id -> Optional.ofNullable(combatants.get(id))
@@ -530,10 +580,24 @@ public class EncounterService {
 
     // The DM's order among ties follows the turn order once initiatives change (D163)
     private void recomputeSortOrder(Encounter encounter) {
-        renumber(encounter, TurnOrder.order(encounter.getParticipants().stream()
+        renumber(encounter, TurnOrder.order(EncounterTurns.present(encounter).stream()
                 .map(EncounterTurns::combatant).toList(), false).stream()
                 .map(turn -> turn.combatant().id())
                 .toList());
+    }
+
+    // A summoned creature that follows its caster shares the caster's initiative count (TCE p.109, D182)
+    private static void followCasters(Encounter encounter) {
+        Map<UUID, EncounterParticipant> byId = new HashMap<>();
+        encounter.getParticipants().forEach(p -> byId.put(p.getId(), p));
+        for (EncounterParticipant p : EncounterTurns.present(encounter)) {
+            SummonLink link = p.getSummon();
+            EncounterParticipant caster = p.getSummonedByParticipantId() != null
+                    ? byId.get(p.getSummonedByParticipantId()) : null;
+            if (link != null && link.followsCaster() && caster != null && caster.getInitiative() != null) {
+                p.setInitiative(caster.getInitiative());
+            }
+        }
     }
 
     private static void renumber(Encounter encounter, List<UUID> order) {
@@ -559,7 +623,12 @@ public class EncounterService {
      * computed here, with the current turn's place in it and each tie the DM may reorder (D163).
      */
     public EncounterResponse toResponse(Encounter encounter) {
-        List<TurnOrder.Turn> order = EncounterTurns.order(encounter);
+        // A summoned creature that has disappeared is in neither view, its turn included while it keeps it (D182)
+        Set<UUID> dismissed = encounter.getParticipants().stream().filter(EncounterTurns::dismissed)
+                .map(EncounterParticipant::getId).collect(Collectors.toSet());
+        List<TurnOrder.Turn> order = EncounterTurns.order(encounter).stream()
+                .filter(turn -> turn.isLair() || !dismissed.contains(turn.combatant().id()))
+                .toList();
         List<EncounterResponse.TurnResponse> turns = turnResponses(encounter, order);
         Map<UUID, Integer> places = new HashMap<>();
         for (int i = 0; i < order.size(); i++) {
@@ -569,8 +638,8 @@ public class EncounterService {
         }
         int current = EncounterTurns.currentIndex(encounter, order);
 
-        List<EncounterResponse.ParticipantResponse> participantResponses = encounter.getParticipants().stream()
-                .sorted(Comparator.comparing(p -> places.get(p.getId())))
+        List<EncounterResponse.ParticipantResponse> participantResponses = EncounterTurns.present(encounter).stream()
+                .sorted(Comparator.comparing(p -> places.getOrDefault(p.getId(), Integer.MAX_VALUE)))
                 .map(p -> EncounterResponse.ParticipantResponse.builder()
                         .id(p.getId())
                         .participantType(p.getParticipantType().name())
@@ -588,7 +657,7 @@ public class EncounterService {
                         .activeConditions(p.getActiveConditions())
                         .concentrationSpell(p.getConcentration() != null ? p.getConcentration().spell() : null)
                         .concentrationSlotLevel(p.getConcentration() != null ? p.getConcentration().slotLevel() : null)
-                        .activeEffects(effectResponses(p))
+                        .activeEffects(effectResponses(encounter, p))
                         .spellSlotsCurrent(p.getSpellSlotsCurrent())
                         .isVisibleToPlayers(p.getIsVisibleToPlayers())
                         .lifeState(p.getLifeState().name())
@@ -612,6 +681,8 @@ public class EncounterService {
                         .channelDivinityOptions(p.getCharacter() != null ? ChannelDivinityEffects.available(p).stream()
                                 .map(ChannelDivinity.Option::id).toList() : null)
                         .metamagicOptions(p.getCharacter() != null ? MetamagicCasting.known(p.getCharacter()) : null)
+                        .summonedByParticipantId(p.getSummonedByParticipantId())
+                        .summon(p.getSummon())
                         .build())
                 .toList();
 
@@ -640,7 +711,8 @@ public class EncounterService {
 
     // The participant's Spell Effects, each with how it is used from its spell's data; an effect whose template can't
     // be read is shown with nothing to do with it, so the state still loads (M15)
-    private List<EncounterResponse.SpellEffectResponse> effectResponses(EncounterParticipant participant) {
+    private List<EncounterResponse.SpellEffectResponse> effectResponses(Encounter encounter,
+                                                                        EncounterParticipant participant) {
         return EffectApplier.effects(participant).stream().map(effect -> {
             SpellEffects.EffectUse how;
             try {
@@ -660,6 +732,12 @@ public class EncounterService {
                     .directedResolves(how.directedResolves())
                     .maxUsesEachTurn(how.maxUsesEachTurn())
                     .triggers(how.triggers())
+                    .summon(effect.summon())
+                    .summonedParticipantIds(effect.summon() == null ? List.of()
+                            : EffectApplier.summonedBy(encounter, effect.id()).stream()
+                                    .sorted(Comparator.comparing(p -> p.getSortOrder() != null ? p.getSortOrder()
+                                            : Integer.MAX_VALUE))
+                                    .map(EncounterParticipant::getId).toList())
                     .build();
         }).toList();
     }
@@ -727,7 +805,7 @@ public class EncounterService {
                 .filter(p -> Boolean.FALSE.equals(p.getIsVisibleToPlayers()))
                 .collect(Collectors.toMap(EncounterParticipant::getId, EncounterParticipant::getDisplayName));
         Set<UUID> monsters = encounter.getParticipants().stream()
-                .filter(p -> p.getParticipantType() == ParticipantType.MONSTER)
+                .filter(EncounterViews::numbersHidden)
                 .map(EncounterParticipant::getId)
                 .collect(Collectors.toSet());
         return EncounterViews.playerLog(entries, hiddenParticipants, monsters);

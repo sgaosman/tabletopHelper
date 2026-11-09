@@ -8,8 +8,10 @@ import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
+import com.tabletophelper.encounter.state.SummonLink;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.monster.Monster;
+import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.combat.LifeState;
 import jakarta.persistence.*;
 import lombok.*;
@@ -160,6 +162,27 @@ public class EncounterParticipant {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    // The caster whose spell summoned it (D182, V34); null for anyone else, and once the caster's row is gone
+    @Column(name = "summoned_by_participant_id")
+    private UUID summonedByParticipantId;
+
+    // What ties it to that spell: the caster's Spell Effect, its initiative and what it may do (D182, V34)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "summon", columnDefinition = "jsonb")
+    private SummonLink summon;
+
+    // Its own action templates, made for it at the cast, as a Tasha's spirit's are (TCE p.109, D182, V34); null for
+    // its monster row's
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "action_templates", columnDefinition = "jsonb")
+    private MonsterTemplates actionTemplates;
+
+    // A summoned creature that has disappeared stays as a row, out of the turn order and both views, so undo can bring
+    // it back (D182, V34)
+    @Column(name = "dismissed", nullable = false)
+    @Builder.Default
+    private Boolean dismissed = false;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

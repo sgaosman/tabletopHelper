@@ -97,8 +97,26 @@ class JsonRoundTripJobIT extends IntegrationTest {
                         "feats.effects", "feats.ability_score_increase", "feats.grants_features"));
         assertThat(report.warnings()).noneMatch(warning -> warning.contains("don't fit the records"));
         // Every typed column of the six tables is checked, the ones this test leaves null included, and
-        // encounter_participants.turn_economy since V30 (D174) and active_effects since V33 (M15)
-        assertThat(report.subject()).isEqualTo("typed JSON values in 37 columns");
+        // encounter_participants.turn_economy since V30 (D174), active_effects since V33 (M15), and summon and
+        // action_templates since V34 (D182)
+        assertThat(report.subject()).isEqualTo("typed JSON values in 39 columns");
+    }
+
+    @Test
+    @DisplayName("Rows written before V34 read back unchanged: a Spell Effect without a summon, and a summoned creature's link without the fields it doesn't have (D182)")
+    void summoningFields_roundTripUnchanged() {
+        jdbcTemplate.update("UPDATE encounter_participants SET active_effects = '[{\"id\": \"" + UUID.randomUUID()
+                + "\", \"spell\": \"Spiritual Weapon\", \"slotLevel\": 2, \"concentrationInstanceId\": null, "
+                + "\"startedRound\": 1, \"durationRounds\": 10, \"usesLeft\": null}]'::jsonb "
+                + "WHERE monster_id = ?", monsterId);
+        jdbcTemplate.update("UPDATE encounter_participants SET summon = '{\"effectId\": \"" + UUID.randomUUID()
+                + "\", \"spell\": \"Find Familiar\", \"slotLevel\": null, \"kind\": \"FAMILIAR\", "
+                + "\"initiativeMode\": \"INDIVIDUAL\", \"creatureType\": \"fey\", \"vanishesAtZero\": true, "
+                + "\"cannotAttack\": true, \"needsCommand\": false}'::jsonb WHERE character_id = ?", characterId);
+
+        MaintenanceReport report = job.run(false);
+
+        assertThat(report.changes()).isEmpty();
     }
 
     @Test

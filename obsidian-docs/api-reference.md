@@ -1490,6 +1490,17 @@ Repeat the damaging effect of a concentration spell without consuming a spell sl
 
 **Since M15 (D177):** the body also takes `effectId`, the caster's Spell Effect to use (needed when the caster has more than one usable effect; 409 names them otherwise), `trigger` (`ENTER`, `START_OF_TURN` or `END_OF_TURN`; DM only, no cost, applies the area to the chosen creatures) and `uses` (Melf's Minute Meteors, 1 or 2). Moonbeam's and Dust Devil's uses only move the effect. Participants carry `activeEffects` instead of `activeSpell` and `activeSpellSlotLevel`, each with how it is used and its cost.
 
+### Summoning (M26, D182)
+
+- `GET /encounters/{id}/combat/summon-options?participantId=&spellName=&slotLevel=`: the spell's options (count and CR cap with the upcast multiplier), variants, initiative modes (house-rule ones marked), who controls the creatures, creature types, candidate monsters and, for a TCE spirit, its AC, HP, attacks, attack bonus and DC. The DM may ask for anyone, a player for a participant they control.
+- `POST /encounters/{id}/combat/cast-spell` takes `summon` `{optionId, creatures: [{monsterId, count}], variant, initiativeMode, creatureType}`, checked before anything is spent. Leaving it out, or a spell the DM chooses for, leaves the effect waiting for the DM.
+- `POST /encounters/{id}/combat/summons` (DM): fill a waiting summoning or replace a placed one's creatures.
+- `POST /encounters/{id}/combat/summons/companion` (DM, Preparing or Active): add creatures from a spell cast over more than a turn, spending no slot. `POST /encounters/{id}/participants` with `participantType: COMPANION` and `summonerParticipantId` does the same.
+- `POST /encounters/{id}/combat/summons/dismiss` (DM) `{participantIds}`.
+- `POST /encounters/{id}/combat/summons/command` `{casterParticipantId, participantIds}`: the caster's bonus action, for Animate Dead and Tiny Servant.
+
+Participants gain `summonedByParticipantId` and `summon`; Spell Effects `summon` and `summonedParticipantIds`; campaigns `dmChoosesConjuredCreatures`.
+
 ### POST /encounters/{id}/combat/spell-effect/end
 
 End a Spell Effect (M15, D177), by the DM or the caster's own player: `{casterId, effectId}`. Ending a concentration effect ends the concentration and its conditions. Logged as `SPELL_EFFECT_END`; undoable.

@@ -101,7 +101,7 @@ public class HitFollowUpService {
         paladin.setSpellSlotsCurrent(slots);
         paladin.setTurnEconomy(economyOf(paladin).withLastMeleeHit(hit.smite()));
 
-        String type = target.getMonster() != null ? target.getMonster().getType() : null;
+        String type = CreatureStats.creatureType(target);
         boolean undeadOrFiend = AttackFeatures.undeadOrFiend(type);
         Dice dice = AttackFeatures.divineSmite(level, undeadOrFiend);
         if (hit.critical()) {

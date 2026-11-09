@@ -8,6 +8,15 @@ package com.tabletophelper.campaign.dto;
  * @param promptPlayerRepeatSaves    whether players roll their characters' Repeat Saves rather than the server
  *                                   (D162)
  * @param allowPlayerManualModifiers whether players may enter Manual Modifiers in combat (D164)
+ * @param dmChoosesConjuredCreatures whether the DM chooses Conjure Animals' creatures rather than the caster (PHB
+ *                                   p.225: "The DM has the creatures' statistics"; D182)
  */
 public record CampaignSettingsRequest(Boolean showExactMonsterHp, Boolean promptPlayerRepeatSaves,
-                                      Boolean allowPlayerManualModifiers) {}
+                                      Boolean allowPlayerManualModifiers, Boolean dmChoosesConjuredCreatures) {
+
+    /** The settings before the conjured creatures' one. */
+    public CampaignSettingsRequest(Boolean showExactMonsterHp, Boolean promptPlayerRepeatSaves,
+                                   Boolean allowPlayerManualModifiers) {
+        this(showExactMonsterHp, promptPlayerRepeatSaves, allowPlayerManualModifiers, null);
+    }
+}

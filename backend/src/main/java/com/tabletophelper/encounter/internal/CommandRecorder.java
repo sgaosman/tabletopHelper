@@ -229,16 +229,24 @@ public class CommandRecorder {
         /** What the command changed, as it was before. */
         public CommandSnapshot snapshot() {
             List<ParticipantCombatState> changed = new ArrayList<>();
+            List<UUID> created = new ArrayList<>();
             for (EncounterParticipant participant : encounter.getParticipants()) {
                 JsonNode before = participantsBefore.get(participant.getId());
-                if (before != null && !before.equals(objectMapper.valueToTree(ParticipantCombatState.of(participant)))) {
+                if (before == null) {
+                    // Brought into the fight by the command, such as a spell's summoned creatures (D182); a row not
+                    // yet saved has no ID, and the command saves each it creates before it ends
+                    if (participant.getId() != null) {
+                        created.add(participant.getId());
+                    }
+                } else if (!before.equals(objectMapper.valueToTree(ParticipantCombatState.of(participant)))) {
                     changed.add(objectMapper.treeToValue(before, ParticipantCombatState.class));
                 }
             }
             JsonNode turnNow = objectMapper.valueToTree(EncounterTurnState.of(encounter));
             EncounterTurnState turn = encounterBefore.equals(turnNow)
                     ? null : objectMapper.treeToValue(encounterBefore, EncounterTurnState.class);
-            return new CommandSnapshot(changed, turn, List.copyOf(patches.values()));
+            return new CommandSnapshot(changed, turn, List.copyOf(patches.values()),
+                    created.isEmpty() ? null : List.copyOf(created));
         }
 
         /** Whether the command has changed nothing and written nothing, so there is nothing to undo. */

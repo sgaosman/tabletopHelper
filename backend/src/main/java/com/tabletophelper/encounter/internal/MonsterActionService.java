@@ -11,6 +11,7 @@ import com.tabletophelper.encounter.EncounterService;
 import com.tabletophelper.encounter.dto.MonsterActionRequest;
 import com.tabletophelper.encounter.dto.MonsterActionResponse;
 import com.tabletophelper.encounter.dto.MultiattackOption;
+import com.tabletophelper.encounter.state.SummonLink;
 import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
@@ -78,6 +79,7 @@ public class MonsterActionService {
     private final MonsterRepository monsterRepository;
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
+    private final CombatLogWriter combatLog;
 
     @Transactional
     public MonsterActionResponse monsterAction(UUID encounterId, MonsterActionRequest request, UUID userId) {
@@ -87,14 +89,15 @@ public class MonsterActionService {
                 sourceCost != null ? sourceCost : ActionCost.FREE);
         EncounterParticipant monster = monsterParticipant(encounter, request.monsterParticipantId());
         Monster monsterEntity = actingForm(monster, request.actionSource());
-        if (monsterEntity == null || monsterEntity.getActionTemplates() == null) {
+        MonsterTemplates templates = templatesOf(monster, monsterEntity);
+        if (templates == null) {
             throw new ValidationException("Monster has no action templates");
         }
-        MonsterTemplates templates = MonsterTemplates.of(monsterEntity);
         MonsterTemplates.Action action = templates.find(request.actionSource(), request.actionName())
                 .orElseThrow(() -> new ValidationException("Action '" + request.actionName()
                         + "' not found in monster's action templates (source: " + request.actionSource() + ")"));
         String actionName = MonsterEffects.nameOf(action);
+        requireSummonMayAct(encounter, monster, action, actionName, userId);
         MonsterEffects.Overrides overrides = new MonsterEffects.Overrides(request.overrideAttackBonus(),
                 request.overrideSaveDC(), request.advantage());
 
@@ -227,23 +230,31 @@ public class MonsterActionService {
         Encounter encounter = encounterRepository.findById(encounterId)
                 .orElseThrow(() -> new NotFoundException("Encounter not found"));
         UUID campaignId = encounter.getCampaign().getId();
-        // A druid in Wild Shape's beast attacks are its player's to read too (PHB p.67)
+        // A druid in Wild Shape's beast attacks are its player's to read too (PHB p.67), and a summoned creature's its
+        // controller's (D182)
         Optional<EncounterParticipant> druid = encounter.getParticipants().stream()
                 .filter(p -> p.getId().equals(participantId) && p.getMonster() == null
                         && WildShapeForm.of(p).isPresent())
                 .findFirst();
         Monster monsterEntity;
+        MonsterTemplates templates;
         if (druid.isPresent()) {
             accessPolicy.requireControls(campaignId, druid.get().getControlledByUserId(), userId);
             monsterEntity = beastOf(druid.get());
+            templates = monsterEntity != null ? MonsterTemplates.of(monsterEntity) : null;
         } else {
-            accessPolicy.requireDm(campaignId, userId);
-            monsterEntity = CombatAccess.participant(encounter, participantId).getMonster();
+            EncounterParticipant participant = CombatAccess.participant(encounter, participantId);
+            if (participant.getSummon() != null && participant.getControlledByUserId() != null) {
+                accessPolicy.requireControls(campaignId, participant.getControlledByUserId(), userId);
+            } else {
+                accessPolicy.requireDm(campaignId, userId);
+            }
+            monsterEntity = participant.getMonster();
+            templates = templatesOf(participant, monsterEntity);
         }
-        if (monsterEntity == null) {
+        if (templates == null) {
             return List.of();
         }
-        MonsterTemplates templates = MonsterTemplates.of(monsterEntity);
         return templates.actions().stream()
                 .filter(MonsterTemplates.Action::multiattack)
                 .map(action -> option(monsterEffects.multiattack(action, templates, MonsterEffects.Overrides.NONE)))
@@ -369,6 +380,46 @@ public class MonsterActionService {
                     + "reactions, not legendary or lair actions");
         }
         return beastOf(participant);
+    }
+
+    /**
+     * The templates the participant acts from: its own, made for it at the cast as a Tasha's spirit's are (TCE p.109,
+     * D182), or else its stat block's; null when it has neither.
+     */
+    private static MonsterTemplates templatesOf(EncounterParticipant participant, Monster form) {
+        if (participant.getActionTemplates() != null && participant.getActionTemplates().json() != null
+                && WildShapeForm.of(participant).isEmpty()) {
+            return participant.getActionTemplates();
+        }
+        return form != null && form.getActionTemplates() != null ? MonsterTemplates.of(form) : null;
+    }
+
+    /**
+     * What a summoned creature may do (D182): a familiar can't attack (PHB p.240), so a player's attack with one is a
+     * 409 and the DM's is logged as the DM's call; and a creature that acts only on its caster's command, as Animate
+     * Dead's undead (PHB p.212) and a tiny servant (XGE p.168) do, acts for the caster's player only while a command
+     * from the caster's bonus action holds, until its next turn ends. Uncommanded, it only defends itself, which the DM
+     * runs.
+     */
+    private void requireSummonMayAct(Encounter encounter, EncounterParticipant creature,
+                                     MonsterTemplates.Action action, String actionName, UUID userId) {
+        SummonLink link = creature.getSummon();
+        if (link == null) {
+            return;
+        }
+        boolean dm = CombatAccess.isDm(encounter, userId);
+        boolean attack = action.multiattack() || "ATTACK_ROLL".equalsIgnoreCase(action.deliveryMethod());
+        if (link.cannotAttack() && attack) {
+            if (!dm) {
+                throw new ConflictException(creature.getDisplayName() + " is a familiar, and a familiar can't attack");
+            }
+            combatLog.write(encounter, CombatActionType.MONSTER_ACTION, "The DM lets " + creature.getDisplayName()
+                    + " use " + actionName + ", though a familiar can't attack", creature, null);
+        }
+        if (link.needsCommand() && link.commandedRound() == null && !dm) {
+            throw new ConflictException(creature.getDisplayName() + " has no command from its caster, so it only "
+                    + "defends itself; its caster commands it with a bonus action");
+        }
     }
 
     // The beast a druid in Wild Shape has become

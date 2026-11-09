@@ -61,7 +61,7 @@ export function makeCampaign(id: string, name: string, dmUserId = 'user-001', me
   return {
     id, name, dmUserId, dmDisplayName: 'Test User',
     inviteCode: 'ABC123XY', isActive: true, showExactMonsterHp: false, promptPlayerRepeatSaves: false,
-    allowPlayerManualModifiers: true, members,
+    allowPlayerManualModifiers: true, dmChoosesConjuredCreatures: false, members,
     createdAt: makeTimestamp(),
   } satisfies Campaign;
 }
@@ -569,7 +569,7 @@ export function makeMockSpellEffect(spell = 'Spiritual Weapon', overrides: Parti
   const effect = {
     id: `effect-${spell.toLowerCase().replace(/[^a-z]+/g, '-')}`, spell, slotLevel: 2, concentration: false,
     startedRound: 1, durationRounds: 10, usesLeft: null, directedCost: 'BONUS_ACTION', directedResolves: true,
-    maxUsesEachTurn: null, triggers: [],
+    maxUsesEachTurn: null, triggers: [], summonedParticipantIds: [],
   } satisfies SpellEffect;
   return { ...effect, ...overrides };
 }

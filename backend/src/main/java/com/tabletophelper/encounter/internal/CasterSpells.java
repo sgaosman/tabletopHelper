@@ -10,7 +10,6 @@ import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
-import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.dto.SpellOption;
 import com.tabletophelper.encounter.state.SpellSource;
 import com.tabletophelper.reference.SpellRepository;
@@ -65,7 +64,7 @@ class CasterSpells {
      * or can't pay for. A monster that joined without its spellcasting set up gets it first.
      */
     SpellSources.Payment payment(EncounterParticipant caster, String spellName, SpellSource source, int slotLevel) {
-        if (caster.getParticipantType() == ParticipantType.MONSTER) {
+        if (caster.getCharacter() == null) {
             monsterPools.fillIn(caster);
         }
         return SpellSources.pay(caster.getDisplayName(), spells(caster), purse(caster), spellName.trim(), source,
@@ -77,7 +76,7 @@ class CasterSpells {
      * (D164); null for a monster, or a spell it doesn't have.
      */
     String origin(EncounterParticipant caster, String spellName) {
-        if (caster.getParticipantType() == ParticipantType.MONSTER || spellName == null) {
+        if (caster.getCharacter() == null || spellName == null) {
             return null;
         }
         String key = spellName.trim();
@@ -124,7 +123,7 @@ class CasterSpells {
     }
 
     private List<SpellSources.Known> spells(EncounterParticipant caster) {
-        if (caster.getParticipantType() == ParticipantType.MONSTER) {
+        if (caster.getCharacter() == null) {
             return caster.getMonster() != null ? monsterPools.spells(caster.getMonster()) : List.of();
         }
         return playerSpells(caster);

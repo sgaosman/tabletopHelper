@@ -28,8 +28,23 @@ public final class EncounterTurns {
      * one it is taking when the last of them dies during it.
      */
     public static List<Turn> order(Encounter encounter) {
-        return TurnOrder.order(encounter.getParticipants().stream().map(EncounterTurns::combatant).toList(),
+        return TurnOrder.order(encounter.getParticipants().stream()
+                        .filter(p -> !dismissed(p) || isCurrentTurn(encounter, p.getId()))
+                        .map(EncounterTurns::combatant).toList(),
                 lairPresent(encounter) || isLairTurn(encounter));
+    }
+
+    /**
+     * The participants in the fight: everyone but a summoned creature that has disappeared, whose row stays for undo
+     * (D182).
+     */
+    public static List<EncounterParticipant> present(Encounter encounter) {
+        return encounter.getParticipants().stream().filter(p -> !dismissed(p)).toList();
+    }
+
+    /** Whether the participant is a summoned creature that has disappeared (D182). */
+    public static boolean dismissed(EncounterParticipant participant) {
+        return Boolean.TRUE.equals(participant.getDismissed());
     }
 
     /** Whether a monster fighting in its lair is alive, which gives the Lair a turn (D163). */
@@ -103,14 +118,19 @@ public final class EncounterTurns {
     /**
      * The participant as the order sees it. A dead monster's turn is skipped, while a PC keeps its turn,
      * dying or dead; a participant without a DEX score counts as 10, and one the DM hasn't ordered comes after
-     * those it ties with.
+     * those it ties with. A summoned creature that follows its caster, as a Tasha's spirit does (TCE p.109), names its
+     * caster to follow, and one that disappeared during its own turn keeps that turn, skipped, until the turn passes
+     * (D182).
      */
     public static TurnOrder.Combatant combatant(EncounterParticipant participant) {
+        boolean dismissed = dismissed(participant);
+        UUID follows = participant.getSummon() != null && participant.getSummon().followsCaster()
+                ? participant.getSummonedByParticipantId() : null;
         return new TurnOrder.Combatant(participant.getId(), participant.getInitiative(),
                 CreatureStats.score(participant, Ability.DEX),
                 participant.getSortOrder() != null ? participant.getSortOrder() : Integer.MAX_VALUE,
-                participant.getParticipantType() != ParticipantType.PLAYER,
-                participant.getLifeState() == LifeState.DEAD);
+                participant.getParticipantType() != ParticipantType.PLAYER || dismissed,
+                participant.getLifeState() == LifeState.DEAD || dismissed, follows);
     }
 
     private static Optional<EncounterParticipant> participant(Encounter encounter, UUID participantId) {

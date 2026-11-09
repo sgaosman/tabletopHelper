@@ -44,13 +44,14 @@ class FlywayMigrationIT extends IntegrationTest {
     private EntityManagerFactory entityManagerFactory;
 
     @Test
-    @DisplayName("Flyway applied V0–V6 and V8–V33 to the empty database; V7 was never used")
+    @DisplayName("Flyway applied V0–V6 and V8–V34 to the empty database; V7 was never used")
     void appliedVersionsMatchMigrationFiles() {
         List<String> versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
 
         assertThat(versions).containsExactly("0", "1", "2", "3", "4", "5", "6", "8", "9", "10", "11", "12", "13", "14", "15",
-                "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33");
+                "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33",
+                "34");
     }
 
     @Test
@@ -154,6 +155,30 @@ class FlywayMigrationIT extends IntegrationTest {
         assertThat(jdbcTemplate.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
                 + "WHERE conname = 'combat_logs_action_type_check'", String.class))
                 .contains("'SPELL_EFFECT_REPEAT'", "'SPELL_EFFECT_END'", "'UNDO'");
+    }
+
+    @Test
+    @DisplayName("V34 adds the summoning columns to encounter_participants, the campaigns' setting, and SUMMON and SUMMON_END")
+    void summoningColumns() {
+        assertThat(jdbcTemplate.queryForList("SELECT column_name::text AS name, data_type::text AS type, "
+                + "is_nullable::text AS nullable FROM information_schema.columns WHERE table_schema = 'public' "
+                + "AND table_name = 'encounter_participants' AND column_name IN ('summoned_by_participant_id', "
+                + "'summon', 'action_templates', 'dismissed') ORDER BY column_name"))
+                .containsExactly(
+                        Map.of("name", "action_templates", "type", "jsonb", "nullable", "YES"),
+                        Map.of("name", "dismissed", "type", "boolean", "nullable", "NO"),
+                        Map.of("name", "summon", "type", "jsonb", "nullable", "YES"),
+                        Map.of("name", "summoned_by_participant_id", "type", "uuid", "nullable", "YES"));
+        assertThat(jdbcTemplate.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                + "WHERE conname = 'fk_encounter_participants_summoned_by'", String.class))
+                .contains("REFERENCES encounter_participants(id) ON DELETE SET NULL");
+        assertThat(jdbcTemplate.queryForMap("SELECT data_type, is_nullable FROM information_schema.columns "
+                + "WHERE table_schema = 'public' AND table_name = 'campaigns' "
+                + "AND column_name = 'dm_chooses_conjured_creatures'"))
+                .isEqualTo(Map.of("data_type", "boolean", "is_nullable", "NO"));
+        assertThat(jdbcTemplate.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                + "WHERE conname = 'combat_logs_action_type_check'", String.class))
+                .contains("'SUMMON'", "'SUMMON_END'", "'SPELL_EFFECT_END'");
     }
 
     @Test

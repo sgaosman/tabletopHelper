@@ -199664,5 +199664,27 @@
       }
     ],
     "lairGroupName": "Zuggtmoy"
+  },
+  {
+    "monsterName": "Tiny Servant",
+    "source": "XGE",
+    "actions": [
+      {
+        "name": "Slam",
+        "actionType": "ACTION",
+        "deliveryMethod": "ATTACK_ROLL",
+        "attackType": "MELEE_WEAPON",
+        "attackBonus": 5,
+        "reach": 5,
+        "targetCount": 1,
+        "effects": [
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1d4 + 3",
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    ]
   }
 ]

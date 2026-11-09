@@ -3,7 +3,7 @@ package com.tabletophelper.encounter.internal;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
-import com.tabletophelper.encounter.ParticipantType;
+import com.tabletophelper.encounter.EncounterViews;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.rules.combat.ActionEconomy;
@@ -57,7 +57,7 @@ public class ActionEconomyKeeper {
             if (!CombatAccess.isDm(encounter, userId)) {
                 throw new ConflictException(reason.get());
             }
-            if (actor.getParticipantType() != ParticipantType.MONSTER) {
+            if (!EncounterViews.numbersHidden(actor)) {
                 combatLog.write(encounter, command.type(), command.subject() + " is over the action economy: "
                         + lowerFirst(reason.get()), actor, null);
             }

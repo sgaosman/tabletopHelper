@@ -12,6 +12,8 @@ import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.RepeatSave;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
+import com.tabletophelper.encounter.state.SummonLink;
+import com.tabletophelper.encounter.state.SummonSpec;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.resourcepool.ResourcePoolService;
@@ -336,6 +338,9 @@ public class EffectApplier {
         if (change.removeUnconsciousFromDowned()) {
             removeUnconsciousFromZeroHp(target);
         }
+        if (change.died()) {
+            vanishAtZero(encounter, target);
+        }
     }
 
     /**
@@ -648,6 +653,132 @@ public class EffectApplier {
         caster.setActiveEffects(effects);
         combatLog.write(encounter, CombatActionType.SPELL_EFFECT_END, caster.getDisplayName() + "'s "
                 + ended.get().spell() + " ends (" + why + ")", null, caster);
+        // A summoning's creatures leave with it: its concentration lost, its duration over, or ended by hand (D182)
+        dismissSummons(encounter, effectId, ended.get().spell() + " ends");
+    }
+
+    // ── Summoned creatures (D182) ────────────────────────────────
+
+    /**
+     * Leaves a summoning spell's Spell Effect on its caster (D182), which owns the creatures it brings: linked to the
+     * Concentration Instance the casting started, or to none. Unlike {@link #startEffect}, an earlier casting's effect
+     * stays, as Animate Dead's undead stay when it is cast again (PHB p.212); the caller ends one the spell replaces,
+     * such as an earlier familiar (PHB p.240).
+     */
+    public SpellEffectEntry startSummonEffect(Encounter encounter, EncounterParticipant caster, String spell,
+                                              Integer slotLevel, ConcentrationInstance instance,
+                                              Integer durationRounds, SummonSpec summon) {
+        SpellEffectEntry effect = SpellEffectEntry.start(spell, slotLevel, instance != null ? instance.id() : null,
+                encounter.getRoundNumber(), durationRounds, null).withSummon(summon);
+        List<SpellEffectEntry> effects = new ArrayList<>(effects(caster));
+        effects.add(effect);
+        caster.setActiveEffects(effects);
+        return effect;
+    }
+
+    /** Puts the summoning on the caster's Spell Effect, as when the DM places its creatures. */
+    public SpellEffectEntry updateSummon(EncounterParticipant caster, UUID effectId, SummonSpec summon) {
+        List<SpellEffectEntry> effects = new ArrayList<>(effects(caster));
+        for (int i = 0; i < effects.size(); i++) {
+            if (effects.get(i).id().equals(effectId)) {
+                SpellEffectEntry changed = effects.get(i).withSummon(summon);
+                effects.set(i, changed);
+                caster.setActiveEffects(effects);
+                return changed;
+            }
+        }
+        throw new IllegalArgumentException("No Spell Effect " + effectId);
+    }
+
+    /** The creatures still in the fight that the Spell Effect summoned. */
+    public static List<EncounterParticipant> summonedBy(Encounter encounter, UUID effectId) {
+        return encounter.getParticipants().stream()
+                .filter(p -> !Boolean.TRUE.equals(p.getDismissed()) && p.getSummon() != null
+                        && effectId.equals(p.getSummon().effectId()))
+                .toList();
+    }
+
+    /** Dismisses every creature the Spell Effect summoned that is still in the fight. */
+    public void dismissSummons(Encounter encounter, UUID effectId, String why) {
+        for (EncounterParticipant creature : summonedBy(encounter, effectId)) {
+            dismiss(encounter, creature, why);
+        }
+    }
+
+    /**
+     * Ends every summoning of the caster's and dismisses every creature it summoned, as when the caster leaves the
+     * encounter (D182): with nobody to command them, they go.
+     */
+    public void dismissSummonsOf(Encounter encounter, EncounterParticipant caster, String why) {
+        for (SpellEffectEntry effect : effects(caster)) {
+            if (effect.summon() != null) {
+                endEffect(encounter, caster, effect.id(), why);
+            }
+        }
+        for (EncounterParticipant creature : List.copyOf(encounter.getParticipants())) {
+            if (!Boolean.TRUE.equals(creature.getDismissed())
+                    && caster.getId().equals(creature.getSummonedByParticipantId())) {
+                dismiss(encounter, creature, why);
+            }
+        }
+    }
+
+    /**
+     * A summoned creature disappears (D182): it leaves the turn order and both views but keeps its row, so undo can
+     * bring it back. Its own concentration ends. A summoning kept up without concentration, such as Find Familiar's,
+     * ends once its last creature has gone; one kept up by concentration goes on until it ends, as its spell does.
+     *
+     * @param why what made it disappear, for the log
+     */
+    public void dismiss(Encounter encounter, EncounterParticipant creature, String why) {
+        dismiss(encounter, creature, why, true);
+    }
+
+    /**
+     * As {@link #dismiss(Encounter, EncounterParticipant, String)}; without endEmpty, a summoning left with no
+     * creatures goes on, as when the DM replaces them.
+     */
+    public void dismiss(Encounter encounter, EncounterParticipant creature, String why, boolean endEmpty) {
+        if (Boolean.TRUE.equals(creature.getDismissed())) {
+            return;
+        }
+        endConcentration(encounter, creature, "disappears");
+        creature.setDismissed(true);
+        combatLog.write(encounter, CombatActionType.SUMMON_END, creature.getDisplayName() + " disappears (" + why + ")",
+                null, creature);
+        SummonLink link = creature.getSummon();
+        if (!endEmpty || link == null || creature.getSummonedByParticipantId() == null) {
+            return;
+        }
+        encounter.getParticipants().stream()
+                .filter(p -> p.getId().equals(creature.getSummonedByParticipantId()))
+                .findFirst()
+                .ifPresent(caster -> effects(caster).stream()
+                        .filter(effect -> effect.id().equals(link.effectId()))
+                        .filter(effect -> effect.concentrationInstanceId() == null && effect.summon() != null
+                                && !effect.summon().awaitingDm())
+                        .filter(effect -> summonedBy(encounter, effect.id()).isEmpty())
+                        .findFirst()
+                        .ifPresent(effect -> endEffect(encounter, caster, effect.id(), "its creatures are gone")));
+    }
+
+    // A summoned creature that disappears at 0 hit points does so once it dies there (PHB p.225, p.240; XGE p.167;
+    // TCE p.109); Animate Dead's undead and a tiny servant stay, dead (PHB p.212, XGE p.168)
+    private void vanishAtZero(Encounter encounter, EncounterParticipant target) {
+        if (target.getSummon() != null && target.getSummon().vanishesAtZero()
+                && target.getLifeState() == LifeState.DEAD) {
+            dismiss(encounter, target, "drops to 0 hit points");
+        }
+    }
+
+    /**
+     * The command a caster gives its creature with a bonus action (PHB p.212, XGE p.168), which lets the caster's
+     * player act for it until the creature's next turn ends; null clears it.
+     */
+    public void command(EncounterParticipant creature, Integer round) {
+        if (creature.getSummon() != null) {
+            creature.setSummon(creature.getSummon().withCommandedRound(round));
+        }
     }
 
     /** Spends uses of a Spell Effect that has a count, such as meteors, leaving the effect in place. */
@@ -964,6 +1095,7 @@ public class EffectApplier {
                 null, target);
         endRage(encounter, target, "dead");
         endConcentration(encounter, target, "dead");
+        vanishAtZero(encounter, target);
     }
 
     private static TurnEconomy economy(EncounterParticipant participant) {
@@ -1011,6 +1143,15 @@ public class EffectApplier {
     // hit; the concentration check it made or judged again, or null
     private ConcentrationCheck afterDamage(Encounter encounter, EncounterParticipant target, Vitals before,
                                            VitalsChange change, int damage, ConcentrationCheck hitCheck) {
+        ConcentrationCheck check = afterDamageTaken(encounter, target, before, change, damage, hitCheck);
+        if (change.died()) {
+            vanishAtZero(encounter, target);
+        }
+        return check;
+    }
+
+    private ConcentrationCheck afterDamageTaken(Encounter encounter, EncounterParticipant target, Vitals before,
+                                                VitalsChange change, int damage, ConcentrationCheck hitCheck) {
         if (damage > 0) {
             markAttackedOrDamaged(target);
             endOnDamage(encounter, target);

@@ -955,6 +955,8 @@ A `resource_pools` JSONB column on `player_characters` and `resource_pools_curre
 
 ## Milestone 26: Summoning Spells Automation
 
+**Status (2026-11-09):** backend implemented ([[decisions-log#D182]], V34): all eleven spells, summoned creatures as companion participants owned by the caster's Spell Effect, group and follower initiative, dismissal with undo. The frontend follows.
+
 **Goal:** Full automation for summoning spells (Conjure Animals, Conjure Woodland Beings, Summon Beast, Summon Fey, Summon Undead, Find Familiar, Find Steed, Animate Dead, etc.).
 
 **Status:** Future — not yet started.

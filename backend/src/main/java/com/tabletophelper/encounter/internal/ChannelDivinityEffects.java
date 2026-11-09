@@ -478,7 +478,7 @@ public class ChannelDivinityEffects {
     }
 
     private static String typeOf(EncounterParticipant participant) {
-        return participant.getMonster() != null ? participant.getMonster().getType() : null;
+        return CreatureStats.creatureType(participant);
     }
 
     private static String saveName(Option option, int dc) {

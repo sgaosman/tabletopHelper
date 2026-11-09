@@ -105,6 +105,7 @@ Added in V13 (D156). One row per refresh token. The browser holds the random tok
 | is_active | BOOLEAN | DEFAULT TRUE | |
 | show_exact_monster_hp | BOOLEAN | NOT NULL, DEFAULT FALSE | Campaign setting. Off: the Player View shows each monster's HP as a Health Status instead of numbers. Set by the DM through `PATCH /api/campaigns/{id}/settings` (V14, D157). |
 | prompt_player_repeat_saves | BOOLEAN | NOT NULL, DEFAULT FALSE | Campaign setting. Off: the server rolls player characters' Repeat Saves, as it does monsters'. On: the condition waits for the player to roll (`repeatSave.awaitingRoll`) (V17, D162). |
+| dm_chooses_conjured_creatures | BOOLEAN | NOT NULL, DEFAULT FALSE | Campaign setting: Conjure Animals waits for the DM to choose its creatures (V34, D182) |
 | allow_player_manual_modifiers | BOOLEAN | NOT NULL, DEFAULT TRUE | Campaign setting. On: players may enter Manual Modifiers in combat (a spell attack bonus, save DC or forced critical), as the DM always may; each use is logged. Off: only the DM may (V18, D164). |
 | created_at | TIMESTAMPTZ | | |
 | updated_at | TIMESTAMPTZ | | |
@@ -508,7 +509,11 @@ What each content loader last loaded (V25, D169). One row per loader.
 | armour_class | INTEGER | NOT NULL | |
 | active_conditions | JSONB | | Array of condition entries `{id, name, duration, appliedRound, sourceSpellName, sourceParticipantId, sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave}` (V15, V16, D162). `endRule` is `{type, participantId}`, with type AFTER_ROUNDS, START_OF_TURN, END_OF_TURN, CONCENTRATION, REPEAT_SAVE, HP_REGAINED or MANUAL; `participantId` names whose turn a turn-based rule counts. `repeatSave` is `{ability, dc, awaitingRoll}`. |
 | concentration | JSONB | | The Concentration Instance `{id, spell, slotLevel, startedRound, durationRounds}`, or NULL (V16, D162). Replaced `concentration_spell` and `concentration_slot_level`. Conditions it created carry its `id`. |
-| active_effects | JSONB | NOT NULL, DEFAULT `'[]'` | The caster's lasting Spell Effects (V33, M15, D177), a list of `SpellEffectEntry` `{id, spell, slotLevel, concentrationId, startedRound, durationRounds, usesLeft}`. Replaces `active_spell` and `active_spell_slot_level`, which V33 converts and drops |
+| active_effects | JSONB | NOT NULL, DEFAULT `'[]'` | The caster's lasting Spell Effects (V33, M15, D177), a list of `SpellEffectEntry` `{id, spell, slotLevel, concentrationId, startedRound, durationRounds, usesLeft}`. Replaces `active_spell` and `active_spell_slot_level`, which V33 converts and drops Since V34 an entry may carry `summon` (`SummonSpec`: option, multiplier, roll, AWAITING_DM or PLACED). |
+| summoned_by_participant_id | UUID | FK → encounter_participants(id) ON DELETE SET NULL, indexed | The caster who summoned this companion (V34, M26, D182) |
+| summon | JSONB | | `SummonLink`: the owning effect, spell, slot level, kind, initiative mode (FOLLOWS_CASTER, GROUP or INDIVIDUAL), group, variant, creature type, `vanishesAtZero`, `cannotAttack`, `needsCommand`, `commandedRound` (V34) |
+| action_templates | JSONB | | A TCE spirit's actions generated for its slot level; null means the monster row's templates (V34) |
+| dismissed | BOOLEAN | NOT NULL, DEFAULT FALSE | A dismissed summon stays as a row but leaves the turn order, both views and command targets, so undo can restore it (V34) |
 | spell_slots_current | JSONB | | Copied from character on encounter join as `{"1": {max, used}, …}`, with pact slots keyed `pact_N` (V15, D168). V15 removed the innate object that monsters with innate spellcasting held; innate uses are resource pools (D165). |
 | spell_attack_bonus | INTEGER | | Copied from character on encounter join |
 | spell_save_dc | INTEGER | | Copied from character on encounter join |
@@ -609,7 +614,7 @@ Append-only log of every combat action in an encounter. One row per action.
 | actor_name | VARCHAR(200) | | Display name snapshot at time of action |
 | target_id | UUID | | Participant affected |
 | target_name | VARCHAR(200) | | Display name snapshot at time of action |
-| action_type | VARCHAR(30) | NOT NULL, CHECK | ATTACK, DAMAGE, HEAL, CONDITION_ADD, CONDITION_REMOVE, DEATH_SAVE, CONCENTRATION_CHECK, CONCENTRATION_LOST, TURN_ADVANCE, TURN_BACK, STABILIZE, KILL, REVIVE, SPELL_SLOT_USE, SPELL_SLOT_RESTORE, SPELL_CAST, SPELL_EFFECT_REPEAT (V5), MONSTER_ACTION, LEGENDARY_ACTION, LAIR_ACTION, LEGENDARY_RESISTANCE_USED, RECHARGE_SUCCESS, RECHARGE_FAILURE (V9), HP_SET, REPEAT_SAVE (V16) |
+| action_type | VARCHAR(30) | NOT NULL, CHECK | ATTACK, DAMAGE, HEAL, CONDITION_ADD, CONDITION_REMOVE, DEATH_SAVE, CONCENTRATION_CHECK, CONCENTRATION_LOST, TURN_ADVANCE, TURN_BACK, STABILIZE, KILL, REVIVE, SPELL_SLOT_USE, SPELL_SLOT_RESTORE, SPELL_CAST, SPELL_EFFECT_REPEAT (V5), MONSTER_ACTION, LEGENDARY_ACTION, LAIR_ACTION, LEGENDARY_RESISTANCE_USED, RECHARGE_SUCCESS, RECHARGE_FAILURE (V9), HP_SET, REPEAT_SAVE (V16) V34 adds SUMMON and SUMMON_END (D182). |
 | description | TEXT | NOT NULL | Human-readable action description |
 | roll_value | INTEGER | | Raw d20 roll (before modifiers) |
 | roll_total | INTEGER | | Roll + modifiers |

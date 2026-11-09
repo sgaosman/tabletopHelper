@@ -1044,6 +1044,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/summon-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getSummonOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/combat/summons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["placeSummon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/combat/summons/command": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["commandSummons"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/combat/summons/companion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["placeCompanion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/combat/summons/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["dismissSummons"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/turn-economy": {
         parameters: {
             query?: never;
@@ -1990,19 +2070,30 @@ export interface components {
             armourClass?: number | null;
             /** Format: uuid */
             characterId?: string | null;
+            concentrationLinked?: boolean | null;
             /** Format: uuid */
             controlledByUserId?: string | null;
+            creatureType?: string | null;
             displayName: string;
             /** Format: int32 */
             hpMax?: number | null;
+            /** @enum {string|null} */
+            initiativeMode?: "FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL" | null;
             /** Format: int32 */
             initiativeModifier?: number | null;
             /** Format: uuid */
             monsterId?: string | null;
+            optionId?: string | null;
             /** @enum {string} */
             participantType: "PLAYER" | "MONSTER" | "COMPANION";
             /** Format: int32 */
             quantity?: number | null;
+            /** Format: int32 */
+            slotLevel?: number | null;
+            spellName?: string | null;
+            /** Format: uuid */
+            summonerParticipantId?: string | null;
+            variant?: string | null;
         };
         AppliedFeatEffects: {
             abilityIncreases?: {
@@ -2194,6 +2285,8 @@ export interface components {
             /** Format: date-time */
             createdAt?: string | null;
             description?: string | null;
+            /** @description On: the DM chooses Conjure Animals' creatures; off: the caster does (PHB p.225, D182) */
+            dmChoosesConjuredCreatures: boolean;
             dmDisplayName: string;
             /** Format: uuid */
             dmUserId: string;
@@ -2210,8 +2303,24 @@ export interface components {
         };
         CampaignSettingsRequest: {
             allowPlayerManualModifiers?: boolean | null;
+            dmChoosesConjuredCreatures?: boolean | null;
             promptPlayerRepeatSaves?: boolean | null;
             showExactMonsterHp?: boolean | null;
+        };
+        Candidate: {
+            /** Format: int32 */
+            armourClass: number;
+            challengeRating?: string | null;
+            /** Format: double */
+            challengeRatingValue?: number | null;
+            /** Format: int32 */
+            hitPoints: number;
+            /** Format: uuid */
+            monsterId: string;
+            name: string;
+            size?: string | null;
+            source?: string | null;
+            type?: string | null;
         };
         CastSpellRequest: {
             advantage?: boolean | null;
@@ -2225,6 +2334,7 @@ export interface components {
             spellName: string;
             /** @enum {string|null} */
             spellSource?: "SLOT" | "PACT_SLOT" | "INNATE" | "NONE" | null;
+            summon?: components["schemas"]["SummonChoice"] | null;
             targetIds: string[];
         };
         CastSpellResponse: {
@@ -2504,7 +2614,7 @@ export interface components {
         };
         CombatLogResponse: {
             /** @enum {string} */
-            actionType: "ATTACK" | "DAMAGE" | "HEAL" | "CONDITION_ADD" | "CONDITION_REMOVE" | "DEATH_SAVE" | "CONCENTRATION_CHECK" | "CONCENTRATION_LOST" | "TURN_ADVANCE" | "TURN_BACK" | "STABILIZE" | "KILL" | "REVIVE" | "SPELL_SLOT_USE" | "SPELL_SLOT_RESTORE" | "SPELL_CAST" | "SPELL_EFFECT_REPEAT" | "MONSTER_ACTION" | "LEGENDARY_ACTION" | "LAIR_ACTION" | "LEGENDARY_RESISTANCE_USED" | "RECHARGE_SUCCESS" | "RECHARGE_FAILURE" | "HP_SET" | "REPEAT_SAVE" | "POOL_USE" | "STANDARD_ACTION" | "OBJECT_INTERACTION" | "TURN_ECONOMY_SET" | "REACTION_TAKEN" | "UNDO" | "SPELL_EFFECT_END";
+            actionType: "ATTACK" | "DAMAGE" | "HEAL" | "CONDITION_ADD" | "CONDITION_REMOVE" | "DEATH_SAVE" | "CONCENTRATION_CHECK" | "CONCENTRATION_LOST" | "TURN_ADVANCE" | "TURN_BACK" | "STABILIZE" | "KILL" | "REVIVE" | "SPELL_SLOT_USE" | "SPELL_SLOT_RESTORE" | "SPELL_CAST" | "SPELL_EFFECT_REPEAT" | "MONSTER_ACTION" | "LEGENDARY_ACTION" | "LAIR_ACTION" | "LEGENDARY_RESISTANCE_USED" | "RECHARGE_SUCCESS" | "RECHARGE_FAILURE" | "HP_SET" | "REPEAT_SAVE" | "POOL_USE" | "STANDARD_ACTION" | "OBJECT_INTERACTION" | "TURN_ECONOMY_SET" | "REACTION_TAKEN" | "UNDO" | "SPELL_EFFECT_END" | "SUMMON" | "SUMMON_END";
             /** Format: uuid */
             actorId?: string | null;
             actorName?: string | null;
@@ -2563,6 +2673,25 @@ export interface components {
             name: string;
             pools: components["schemas"]["PoolChange"][];
             slots: components["schemas"]["SlotChange"][];
+        };
+        CommandSummonsRequest: {
+            /** Format: uuid */
+            casterParticipantId: string;
+            participantIds: string[];
+        };
+        CompanionSummonRequest: {
+            /** Format: uuid */
+            casterParticipantId: string;
+            concentrationLinked?: boolean | null;
+            creatureType?: string | null;
+            creatures?: components["schemas"]["SummonCreature"][] | null;
+            /** @enum {string|null} */
+            initiativeMode?: "FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL" | null;
+            optionId?: string | null;
+            /** Format: int32 */
+            slotLevel?: number | null;
+            spellName: string;
+            variant?: string | null;
         };
         ComponentOption: {
             automated: boolean;
@@ -2646,6 +2775,9 @@ export interface components {
         DeathSaveRequest: {
             /** Format: uuid */
             participantId: string;
+        };
+        DismissSummonsRequest: {
+            participantIds: string[];
         };
         DivineSmiteRequest: {
             /** Format: uuid */
@@ -3254,6 +3386,14 @@ export interface components {
             /** Format: uuid */
             participantId: string;
         };
+        Option: {
+            /** Format: int32 */
+            count: number;
+            id: string;
+            label: string;
+            /** Format: double */
+            maxCr?: number | null;
+        };
         OptionalFeature: {
             /** Format: date-time */
             createdAt?: string | null;
@@ -3400,6 +3540,9 @@ export interface components {
             } | null;
             spellcastingAbility?: string | null;
             spellsKnown?: components["schemas"]["KnownSpell"][] | null;
+            summon?: components["schemas"]["SummonLink"] | null;
+            /** Format: uuid */
+            summonedByParticipantId?: string | null;
             turnEconomy?: components["schemas"]["TurnEconomy"] | null;
             wildShape?: components["schemas"]["WildShapeForm"] | null;
         };
@@ -3427,6 +3570,16 @@ export interface components {
             swap?: boolean | null;
             /** @enum {string} */
             type: "SUBCLASS" | "FIGHTING_STYLE" | "METAMAGIC" | "PROFICIENCY" | "ASI" | "FEAT" | "EXPERTISE" | "CANTRIPS" | "SPELLS";
+        };
+        PlaceSummonRequest: {
+            creatureType?: string | null;
+            creatures?: components["schemas"]["SummonCreature"][] | null;
+            /** Format: uuid */
+            effectId: string;
+            /** @enum {string|null} */
+            initiativeMode?: "FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL" | null;
+            optionId?: string | null;
+            variant?: string | null;
         };
         PoolChange: {
             /** Format: int32 */
@@ -3650,6 +3803,8 @@ export interface components {
             spell: string;
             /** Format: int32 */
             startedRound: number;
+            summon?: components["schemas"]["SummonSpec"] | null;
+            summonedParticipantIds: string[];
             triggers: ("ENTER" | "START_OF_TURN" | "END_OF_TURN")[];
             /** Format: int32 */
             usesLeft?: number | null;
@@ -3716,6 +3871,22 @@ export interface components {
             replaced?: components["schemas"]["KnownSpell"] | null;
             replacement?: string | null;
         };
+        SpiritPreview: {
+            /** Format: int32 */
+            armourClass: number;
+            /** Format: int32 */
+            attackBonus: number;
+            /** Format: int32 */
+            attacks: number;
+            hitPoints: {
+                [key: string]: number;
+            };
+            /** Format: uuid */
+            monsterId: string;
+            name: string;
+            /** Format: int32 */
+            saveDc: number;
+        };
         StandardActionRequest: {
             /** @enum {string} */
             action: "DASH" | "DISENGAGE" | "DODGE" | "HELP" | "HIDE" | "READY" | "SEARCH" | "USE_OBJECT";
@@ -3769,6 +3940,79 @@ export interface components {
             className: string;
             fightingStyleLevels: number[];
             spellcasting?: components["schemas"]["SpellcastingResponse"] | null;
+        };
+        SummonChoice: {
+            creatureType?: string | null;
+            creatures?: components["schemas"]["SummonCreature"][] | null;
+            /** @enum {string|null} */
+            initiativeMode?: "FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL" | null;
+            optionId?: string | null;
+            variant?: string | null;
+        };
+        SummonCreature: {
+            /** Format: int32 */
+            count?: number | null;
+            /** Format: uuid */
+            monsterId: string;
+        };
+        SummonLink: {
+            cannotAttack?: boolean | null;
+            /** Format: int32 */
+            commandedRound?: number | null;
+            creatureType?: string | null;
+            /** Format: uuid */
+            effectId?: string | null;
+            /** Format: uuid */
+            groupId?: string | null;
+            /** @enum {string|null} */
+            initiativeMode?: "FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL" | null;
+            /** @enum {string|null} */
+            kind?: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | null;
+            needsCommand?: boolean | null;
+            /** Format: int32 */
+            slotLevel?: number | null;
+            spell?: string | null;
+            vanishesAtZero?: boolean | null;
+            variant?: string | null;
+        };
+        SummonOptions: {
+            candidates: components["schemas"]["Candidate"][];
+            cannotAttack: boolean;
+            castInCombat: boolean;
+            concentration: boolean;
+            /** @enum {string} */
+            controlledBy: "CASTER" | "DM";
+            creatureType?: string | null;
+            creatureTypes: string[];
+            /** @enum {string} */
+            defaultInitiativeMode: "FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL";
+            dmChooses: boolean;
+            hasFamiliar: boolean;
+            houseRuleModes: ("FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL")[];
+            initiativeModes: ("FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL")[];
+            /** @enum {string} */
+            kind: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT";
+            /** Format: int32 */
+            multiplier: number;
+            needsCommand: boolean;
+            options: components["schemas"]["Option"][];
+            /** Format: int32 */
+            slotLevel: number;
+            /** Format: int32 */
+            spellLevel: number;
+            spellName: string;
+            spirit?: components["schemas"]["SpiritPreview"] | null;
+            vanishesAtZero: boolean;
+            variants: string[];
+        };
+        SummonSpec: {
+            /** Format: int32 */
+            multiplier?: number | null;
+            optionId?: string | null;
+            /** Format: int32 */
+            roll?: number | null;
+            /** @enum {string|null} */
+            status?: "AWAITING_DM" | "PLACED" | null;
         };
         TargetOutcome: {
             /** Format: int32 */
@@ -5678,6 +5922,136 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["StunningStrikeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    getSummonOptions: {
+        parameters: {
+            query: {
+                participantId: string;
+                spellName: string;
+                slotLevel?: number;
+            };
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SummonOptions"];
+                };
+            };
+        };
+    };
+    placeSummon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaceSummonRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    commandSummons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommandSummonsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    placeCompanion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompanionSummonRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    dismissSummons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DismissSummonsRequest"];
             };
         };
         responses: {

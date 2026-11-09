@@ -96,6 +96,11 @@ public class UndoService {
         if (before.encounter() != null) {
             before.encounter().restore(encounter);
         }
+        // The participants the command brought into the fight, such as a spell's summoned creatures, go (D182). Their
+        // log entries keep their IDs, which name no row, and the encounter's turn, restored above, never names them
+        if (before.createdParticipantIds() != null && !before.createdParticipantIds().isEmpty()) {
+            encounter.getParticipants().removeIf(p -> before.createdParticipantIds().contains(p.getId()));
+        }
         for (LogPatch patch : before.logPatches() != null ? before.logPatches() : List.<LogPatch>of()) {
             combatLogRepository.findById(patch.logId()).ifPresent(entry -> entry.setLrResolved(patch.lrResolved()));
         }

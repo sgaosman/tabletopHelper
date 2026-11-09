@@ -28,6 +28,7 @@ import com.tabletophelper.rules.combat.Charge;
 import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.Metamagic;
 import com.tabletophelper.rules.combat.SpellTrigger;
+import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
@@ -77,6 +78,7 @@ public class SpellcastingService {
     private final CharacterService characterService;
     private final CreatureStats stats;
     private final MetamagicCasting metamagicCasting;
+    private final Summoner summoner;
 
     /**
      * Casts a spell for a player character or a monster: everything is checked, and the cast charged to the
@@ -105,6 +107,13 @@ public class SpellcastingService {
         SpellNumbers own = numbers(caster, payment.origin());
         List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(own.attackBonus(), own.saveDc(),
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC());
+        // A summoning spell's creatures are checked before anything is spent (D182)
+        Summoner.Prepared summon = SummonRules.spell(payment.spellName())
+                .map(spell -> summoner.prepare(encounter, caster, spell, payment.castLevel(), request.getSummon()))
+                .orElse(null);
+        if (summon == null && request.getSummon() != null) {
+            throw new ValidationException(payment.spellName() + " summons no creatures");
+        }
 
         String costNote = quickened ? costNote(CastingTime.BONUS_ACTION) : costNote(payment.castingTime());
         Charge.SpellKind kind = payment.spellLevel() == 0 ? Charge.SpellKind.CANTRIP : Charge.SpellKind.LEVELLED;
@@ -122,6 +131,11 @@ public class SpellcastingService {
         SpellCaster.CastResult result = spellCaster.cast(encounter, caster, payment.spellName(), payment.castLevel(),
                 targets, own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
                 saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote, metamagic);
+        if (summon != null) {
+            summoner.afterCast(encounter, caster, summon, payment.castLevel(),
+                    attackBonus(own, request.getOverrideSpellAttackBonus()),
+                    saveDc(own, request.getOverrideSpellSaveDC()), "");
+        }
         return response(encounter, result, payment.castLevel(), payment.source());
     }
 

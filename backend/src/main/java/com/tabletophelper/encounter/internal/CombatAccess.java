@@ -131,10 +131,10 @@ public class CombatAccess {
         return encounter.getCampaign().getDm().getId().equals(userId);
     }
 
-    /** A participant the command names. */
+    /** A participant the command names; a summoned creature that has disappeared is no longer one (D182). */
     public static EncounterParticipant participant(Encounter encounter, UUID participantId) {
         return encounter.getParticipants().stream()
-                .filter(p -> p.getId().equals(participantId))
+                .filter(p -> p.getId().equals(participantId) && !EncounterTurns.dismissed(p))
                 .findFirst()
                 .orElseThrow(() -> new ValidationException("Participant not found"));
     }
@@ -176,7 +176,7 @@ public class CombatAccess {
     // Null for monsters and for an unknown or missing participant, so only the DM passes
     private static UUID controllerOf(Encounter encounter, UUID participantId) {
         return encounter.getParticipants().stream()
-                .filter(p -> p.getId().equals(participantId))
+                .filter(p -> p.getId().equals(participantId) && !EncounterTurns.dismissed(p))
                 .findFirst()
                 .map(EncounterParticipant::getControlledByUserId)
                 .orElse(null);
