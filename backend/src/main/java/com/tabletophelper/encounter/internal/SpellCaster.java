@@ -159,12 +159,12 @@ public class SpellCaster {
         // A creature whose ability score is too low is unaffected, as one of Intelligence 2 or lower by Psychic Scream
         // (XGE p.163, D190)
         SpellEffects.HighLevel high = spellEffects.highLevel(spellName);
-        // A Globe of Invulnerability keeps out a spell of its level or lower cast from outside (PHB p.245, D188), and a
-        // creature immune to the condition the spell needs is immune to it, as one that can't be charmed is to Mass
-        // Suggestion (PHB p.258, D188)
+        // A Globe of Invulnerability keeps out a spell of its level or lower cast from outside (PHB p.245, D188), as a
+        // rakshasa's Limited Magic Immunity does (MM p.257, D191), and a creature immune to the condition the spell needs
+        // is immune to it, as one that can't be charmed is to Mass Suggestion (PHB p.258, D188)
         int spellLevel = plan.spellLevel();
         List<EncounterParticipant> globed = reached.stream()
-                .filter(target -> globe(caster, target, spellLevel) != null)
+                .filter(target -> shielded(caster, target, spellLevel))
                 .toList();
         List<EncounterParticipant> immune = reached.stream()
                 .filter(target -> !globed.contains(target) && rules.immuneIfImmuneTo() != null
@@ -201,7 +201,7 @@ public class SpellCaster {
             applied.addAll(rays(encounter, caster, use, spellName, effect, seventh.rays(), normal, saveDc));
         } else if (!normal.isEmpty() || maximised.isEmpty()) {
             // With no targets at all the spell still resolves, rolling its dice as before (D177)
-            List<Resolver.Target> resolvedAgainst = stats.targets(normal, effect, caster).stream()
+            List<Resolver.Target> resolvedAgainst = stats.spellTargets(normal, effect, caster).stream()
                     .map(target -> withMetamagic(withCastRules(target, normal, rules), metamagic))
                     .toList();
             applied.addAll(effectApplier.apply(encounter, use, effect,
@@ -210,7 +210,7 @@ public class SpellCaster {
         }
         if (!maximised.isEmpty()) {
             Effect most = maximumDamage(effect);
-            List<Resolver.Target> resolvedAgainst = stats.targets(maximised, most, caster).stream()
+            List<Resolver.Target> resolvedAgainst = stats.spellTargets(maximised, most, caster).stream()
                     .map(target -> withMetamagic(target.withSaveSource(RollMode.DISADVANTAGE), metamagic))
                     .toList();
             applied.addAll(effectApplier.apply(encounter, use, most,
@@ -218,7 +218,8 @@ public class SpellCaster {
         }
         String typeNote = globeNote(spellName, caster, globed, plan.spellLevel())
                 + immuneNote(spellName, immune, rules.immuneIfImmuneTo())
-                + typeNote(spellName, unaffected, maximised);
+                + typeNote(spellName, unaffected, maximised)
+                + carapaceNote(spellName, normal);
         afterSixthLevelRules(encounter, caster, spellName, slotLevel, rules, applied);
         if (!typeNote.isEmpty()) {
             effectApplier.summary(encounter, use, typeNote.trim());
@@ -404,7 +405,7 @@ public class SpellCaster {
                     + ").");
             Effect each = new Effect(spellName, save, damage, null, conditions, false, null, ends);
             List<EffectApplier.Applied> result = effectApplier.apply(encounter, use, each,
-                    resolver.resolve(each, CreatureStats.side(caster), stats.targets(List.of(creature), each, caster)));
+                    resolver.resolve(each, CreatureStats.side(caster), stats.spellTargets(List.of(creature), each, caster)));
             applied.addAll(result);
             boolean failed = result.stream().anyMatch(r -> r.outcome().outcome() == Outcome.SAVE_FAIL)
                     && creature.getLifeState() != LifeState.DEAD;
@@ -537,7 +538,7 @@ public class SpellCaster {
                 effectApplier.summary(encounter, use, names(hit) + " makes a DC " + saveDc + " " + ability.name()
                         + " save against " + spellName + ".");
                 effectApplier.apply(encounter, use, then, resolver.resolve(then,
-                        CreatureStats.side(caster), stats.targets(hit, then, caster)));
+                        CreatureStats.side(caster), stats.spellTargets(hit, then, caster)));
             }
         }
         SpellTemplate.RaisesOnKill raises = seventh.raises();
@@ -743,7 +744,7 @@ public class SpellCaster {
             Effect held = new Effect(spellName, new Effect.Automatic(), List.of(), null, List.of(condition), false,
                     null, Map.of(condition, new Effect.ConditionEnd(null, null, null, true)));
             effectApplier.apply(encounter, use, held, resolver.resolve(held, CreatureStats.side(caster),
-                    stats.targets(beaten, held, caster)));
+                    stats.spellTargets(beaten, held, caster)));
         }
         return String.join(" ", notes);
     }
@@ -829,16 +830,52 @@ public class SpellCaster {
                 .orElse(null);
     }
 
-    // What the log adds for the creatures a Globe of Invulnerability kept the spell from
-    private static String globeNote(String spellName, EncounterParticipant caster,
-                                    List<EncounterParticipant> globed, int spellLevel) {
+    /**
+     * Whether something keeps a spell of this level from the target (D191): a Globe of Invulnerability it is inside
+     * (PHB p.245, D188), or its own trait, as a rakshasa's Limited Magic Immunity (MM p.257).
+     */
+    boolean shielded(EncounterParticipant caster, EncounterParticipant target, int spellLevel) {
+        return globe(caster, target, spellLevel) != null || stats.spellImmunityTrait(caster, target, spellLevel) != null;
+    }
+
+    // What the log adds for the creatures a Globe of Invulnerability or a trait kept the spell from
+    private String globeNote(String spellName, EncounterParticipant caster, List<EncounterParticipant> globed,
+                             int spellLevel) {
         if (globed.isEmpty()) {
             return "";
         }
-        SpellEffectEntry first = globe(caster, globed.getFirst(), spellLevel);
-        return " " + spellName + " has no effect on " + names(globed) + ", inside "
-                + (first != null ? first.spell() : "a globe") + " (it was cast from outside).";
+        List<EncounterParticipant> inside = globed.stream()
+                .filter(target -> globe(caster, target, spellLevel) != null)
+                .toList();
+        StringBuilder note = new StringBuilder();
+        if (!inside.isEmpty()) {
+            SpellEffectEntry first = globe(caster, inside.getFirst(), spellLevel);
+            note.append(" ").append(spellName).append(" has no effect on ").append(names(inside)).append(", inside ")
+                    .append(first != null ? first.spell() : "a globe").append(" (it was cast from outside).");
+        }
+        for (EncounterParticipant target : globed) {
+            if (!inside.contains(target)) {
+                note.append(" ").append(spellName).append(" has no effect on ").append(target.getDisplayName())
+                        .append(" (").append(stats.spellImmunityTrait(caster, target, spellLevel))
+                        .append(").");
+            }
+        }
+        return note.toString();
     }
+
+    // A reminder for a creature whose Reflective Carapace may turn the spell back (MM p.286, D191): the tarrasque
+    private String carapaceNote(String spellName, List<EncounterParticipant> targets) {
+        List<EncounterParticipant> carapaced = targets.stream()
+                .filter(target -> stats.traits(target).stream()
+                        .anyMatch(trait -> trait.name().equalsIgnoreCase(REFLECTIVE_CARAPACE)))
+                .toList();
+        return carapaced.isEmpty() ? "" : " Reminder: " + names(carapaced) + "'s " + REFLECTIVE_CARAPACE
+                + " — if " + spellName + " is Magic Missile, a line spell or a ranged spell attack, roll a d6: on 1-5 it"
+                + " is unaffected, and on a 6 the spell is reflected back at its caster (the DM resolves it).";
+    }
+
+    // The tarrasque's trait against Magic Missile, line spells and ranged spell attacks (MM p.286)
+    private static final String REFLECTIVE_CARAPACE = "Reflective Carapace";
 
     // What the log adds for the creatures immune to the spell through a condition immunity
     private static String immuneNote(String spellName, List<EncounterParticipant> immune, String condition) {
@@ -887,7 +924,7 @@ public class SpellCaster {
                                                      EncounterParticipant caster, String spellName, int spellLevel,
                                                      List<EncounterParticipant> targets) {
         List<EncounterParticipant> globed = targets.stream()
-                .filter(target -> globe(caster, target, spellLevel) != null)
+                .filter(target -> shielded(caster, target, spellLevel))
                 .toList();
         if (!globed.isEmpty()) {
             effectApplier.summary(encounter, use, globeNote(spellName, caster, globed, spellLevel).trim());
@@ -1153,7 +1190,7 @@ public class SpellCaster {
             List<EncounterParticipant> standing = outside.stream()
                     .filter(target -> target.getLifeState() != LifeState.DEAD)
                     .toList();
-            List<Resolver.Target> resolvedAgainst = stats.targets(standing, effect, caster).stream()
+            List<Resolver.Target> resolvedAgainst = stats.spellTargets(standing, effect, caster).stream()
                     .map(target -> withCastRules(target, standing, rules))
                     .toList();
             applied.addAll(effectApplier.apply(encounter, applying, effect,
@@ -1306,7 +1343,7 @@ public class SpellCaster {
         if (!saving.isEmpty() || conditioned.isEmpty()) {
             applied.addAll(effectApplier.apply(encounter, use, plan.effect(),
                     resolver.resolve(plan.effect(), CreatureStats.side(caster),
-                            stats.targets(saving, plan.effect(), caster)), triggerRules));
+                            stats.spellTargets(saving, plan.effect(), caster)), triggerRules));
         }
         Effect resolvedWith = plan.effect();
         if (!conditioned.isEmpty()) {
@@ -1316,7 +1353,7 @@ public class SpellCaster {
                 Effect noSave = automatic.get().effect();
                 applied.addAll(effectApplier.apply(encounter, use, noSave,
                         resolver.resolve(noSave, CreatureStats.side(caster),
-                                stats.targets(conditioned, noSave, caster)), triggerRules));
+                                stats.spellTargets(conditioned, noSave, caster)), triggerRules));
                 if (saving.isEmpty()) {
                     resolvedWith = noSave;
                 }

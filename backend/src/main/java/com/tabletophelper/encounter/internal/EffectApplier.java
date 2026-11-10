@@ -810,8 +810,9 @@ public class EffectApplier {
         int modifier = stats.saveModifier(participant, save.ability());
         CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(participant, save.ability(),
                 List.of(condition.name()));
+        SpellSave spellSave = againstSpell(participant, save.ability(), modifiers.modes(), fromSpell(condition));
         Resolver.SaveRoll roll = resolver.savingThrow(save.ability(), modifier, save.dc(),
-                CreatureStats.conditionNames(participant), stats.armourPenalty(participant), modifiers.modes(),
+                CreatureStats.conditionNames(participant), stats.armourPenalty(participant), spellSave.modes(),
                 modifiers.bonuses());
 
         String name = participant.getDisplayName();
@@ -820,7 +821,7 @@ public class EffectApplier {
         if (roll.autoFailed()) {
             description.append(" vs DC ").append(save.dc()).append(" — fails automatically");
         } else {
-            description.append(": ").append(saveDice(roll)).append(signed(modifier)).append(bonusText(roll.bonuses()))
+            description.append(spellSave.note()).append(": ").append(saveDice(roll)).append(signed(modifier)).append(bonusText(roll.bonuses()))
                     .append(" = ").append(roll.total()).append(" vs DC ").append(save.dc())
                     .append(roll.success() ? " — succeeds" : " — fails");
         }
@@ -1160,7 +1161,8 @@ public class EffectApplier {
                         .flatMap(template -> template.readable(effect.spell() + "'s effect template"))
                         .map(com.tabletophelper.reference.SpellTemplate::hitThreshold)
                         .orElse(null);
-                if (threshold == null || target.getHpCurrent() > threshold.hp()) {
+                if (threshold == null || target.getHpCurrent() > threshold.hp()
+                        || stats.immuneToCondition(target, threshold.condition(), true)) {
                     continue;
                 }
                 ConcentrationInstance held = caster.getConcentration();
@@ -1307,8 +1309,9 @@ public class EffectApplier {
                 }
                 int modifier = stats.saveModifier(creature, ability.get());
                 CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(creature, ability.get());
+                SpellSave spellSave = againstSpell(creature, ability.get(), modifiers.modes(), true);
                 Resolver.SaveRoll roll = resolver.savingThrow(ability.get(), modifier, saves.dc(),
-                        CreatureStats.conditionNames(creature), stats.armourPenalty(creature), modifiers.modes(),
+                        CreatureStats.conditionNames(creature), stats.armourPenalty(creature), spellSave.modes(),
                         modifiers.bonuses());
                 int successes = tally.get().successes() + (roll.success() ? 1 : 0);
                 int failures = tally.get().failures() + (roll.success() ? 0 : 1);
@@ -1316,7 +1319,7 @@ public class EffectApplier {
                 boolean takesHold = failures >= saves.failures();
                 String name = creature.getDisplayName();
                 String rolled = roll.autoFailed() ? " vs DC " + saves.dc() + " — fails automatically"
-                        : ": " + saveDice(roll) + signed(modifier) + bonusText(roll.bonuses()) + " = " + roll.total()
+                        : spellSave.note() + ": " + saveDice(roll) + signed(modifier) + bonusText(roll.bonuses()) + " = " + roll.total()
                                 + " vs DC " + saves.dc() + (roll.success() ? " — succeeds" : " — fails");
                 String outcome = cured ? ", and " + effect.spell() + " ends for " + name + "."
                         : takesHold ? ": " + saves.failures() + " failures. " + (saves.onFailures() != null
@@ -1668,8 +1671,7 @@ public class EffectApplier {
         if (caught.isEmpty()) {
             return;
         }
-        apply(encounter, use, blast, resolver.resolve(blast, caught.stream().map(c -> stats.target(c, blast))
-                .toList()));
+        apply(encounter, use, blast, resolver.resolve(blast, stats.spellTargets(caught, blast, null)));
     }
 
     /**
@@ -1711,6 +1713,13 @@ public class EffectApplier {
      */
     public void addLastingCondition(Encounter encounter, EncounterParticipant caster, EncounterParticipant target,
                                     String condition, Integer rounds, String spell) {
+        // A creature immune to the condition doesn't get it, as a stone golem isn't petrified (D161, D191)
+        if (stats.immuneToCondition(target, condition, true)) {
+            combatLog.write(encounter, CombatActionType.CONDITION_ADD, target.getDisplayName() + " is immune to "
+                    + condition.toLowerCase(Locale.ROOT) + ", so " + caster.getDisplayName() + "'s " + spell
+                    + " doesn't leave it " + condition.toLowerCase(Locale.ROOT), caster, target);
+            return;
+        }
         List<ConditionEntry> conditions = conditions(target);
         conditions.add(ConditionEntry.fromEffect(condition.toLowerCase(Locale.ROOT), rounds, encounter.getRoundNumber(),
                 spell, caster.getId(), null));
@@ -1891,12 +1900,13 @@ public class EffectApplier {
         int dc = effect.repeatSave().dc();
         int modifier = stats.saveModifier(creature, ability.get());
         CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(creature, ability.get());
+        SpellSave spellSave = againstSpell(creature, ability.get(), modifiers.modes(), true);
         Resolver.SaveRoll roll = resolver.savingThrow(ability.get(), modifier, dc,
-                CreatureStats.conditionNames(creature), stats.armourPenalty(creature), modifiers.modes(),
+                CreatureStats.conditionNames(creature), stats.armourPenalty(creature), spellSave.modes(),
                 modifiers.bonuses());
         String name = creature.getDisplayName();
         String rolled = roll.autoFailed() ? " vs DC " + dc + " — fails automatically"
-                : ": " + saveDice(roll) + signed(modifier) + bonusText(roll.bonuses()) + " = " + roll.total()
+                : spellSave.note() + ": " + saveDice(roll) + signed(modifier) + bonusText(roll.bonuses()) + " = " + roll.total()
                         + " vs DC " + dc + (roll.success() ? " — succeeds" : " — fails");
         combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.REPEAT_SAVE,
                         name + " repeats the " + ability.get().name() + " save against " + effect.spell() + rolled
@@ -2175,15 +2185,17 @@ public class EffectApplier {
         }
         int modifier = stats.saveModifier(creature, Ability.CHA);
         CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(creature, Ability.CHA);
+        // The demon's save is against the spell that binds it, so Magic Resistance helps it break free (D191)
+        SpellSave spellSave = againstSpell(creature, Ability.CHA, modifiers.modes(), true);
         Resolver.SaveRoll roll = resolver.savingThrow(Ability.CHA, modifier, link.controlSaveDc(),
-                CreatureStats.conditionNames(creature), stats.armourPenalty(creature), modifiers.modes(),
+                CreatureStats.conditionNames(creature), stats.armourPenalty(creature), spellSave.modes(),
                 modifiers.bonuses());
         StringBuilder description = new StringBuilder(creature.getDisplayName())
                 .append(" makes a Charisma save to break free of ").append(link.spell());
         if (roll.autoFailed()) {
             description.append(" vs DC ").append(link.controlSaveDc()).append(" — fails automatically");
         } else {
-            description.append(": ").append(saveDice(roll)).append(signed(modifier)).append(bonusText(roll.bonuses()))
+            description.append(spellSave.note()).append(": ").append(saveDice(roll)).append(signed(modifier)).append(bonusText(roll.bonuses()))
                     .append(" = ").append(roll.total()).append(" vs DC ").append(link.controlSaveDc())
                     .append(roll.success() ? " — succeeds" : " — fails");
         }
@@ -2680,12 +2692,14 @@ public class EffectApplier {
         if (save.advantage()) {
             modes.add(RollMode.ADVANTAGE);
         }
+        SpellSave spellSave = againstSpell(target, save.ability(), modes, fromSpell(condition));
         Resolver.SaveRoll roll = resolver.savingThrow(save.ability(), modifier, save.dc(),
-                CreatureStats.conditionNames(target), stats.armourPenalty(target), modes, modifiers.bonuses());
+                CreatureStats.conditionNames(target), stats.armourPenalty(target), spellSave.modes(),
+                modifiers.bonuses());
         String name = target.getDisplayName();
         String source = condition.sourceSpellName() != null ? condition.sourceSpellName() : condition.name();
         String rolled = roll.autoFailed() ? " vs DC " + save.dc() + " — fails automatically"
-                : ": " + saveDice(roll) + signed(modifier) + bonusText(roll.bonuses()) + " = " + roll.total()
+                : spellSave.note() + ": " + saveDice(roll) + signed(modifier) + bonusText(roll.bonuses()) + " = " + roll.total()
                         + " vs DC " + save.dc() + (roll.success() ? " — succeeds" : " — fails");
         CombatLog.CombatLogBuilder entry = CombatLogWriter.about(combatLog.entry(encounter,
                         CombatActionType.REPEAT_SAVE, name + " takes damage and repeats the " + save.ability().name()
@@ -2926,6 +2940,11 @@ public class EffectApplier {
                 } else {
                     int inspired = outcome.inspiration() != null ? outcome.inspiration().roll() : 0;
                     int fromModifiers = Resolver.sum(outcome.bonuses());
+                    // The sources the save names, such as "(advantage: Magic Resistance)" against a spell (D191)
+                    String automatic = AttackRules.describe(outcome.automaticSources());
+                    if (!automatic.isEmpty()) {
+                        description.append(" (").append(automatic).append(')');
+                    }
                     description.append(' ').append(rolls(outcome))
                             .append(signed(outcome.total() - outcome.d20() - inspired - fromModifiers))
                             .append(bonusText(outcome.bonuses()))
@@ -3001,6 +3020,35 @@ public class EffectApplier {
                 + bonusText(roll.bonuses()) + " = " + roll.total() + " vs DC " + save.dc();
         return roll.success() ? rolled + " succeeds against " + String.join(", ", save.conditions())
                 : rolled + " fails";
+    }
+
+    // A save's modes with what a trait such as Magic Resistance adds against a spell (D191), and the log's words for it,
+    // " (advantage: Magic Resistance)", or nothing
+    private record SpellSave(List<RollMode> modes, String note) {
+    }
+
+    // The save as a trait that gives advantage against spells changes it, when the save is against a spell (MM p.170,
+    // PHB p.37, D191)
+    private SpellSave againstSpell(EncounterParticipant creature, Ability ability, List<RollMode> modes,
+                                   boolean againstSpell) {
+        String trait = againstSpell ? stats.spellSaveAdvantage(creature, ability) : null;
+        if (trait == null) {
+            return new SpellSave(modes, "");
+        }
+        List<RollMode> with = new ArrayList<>(modes);
+        with.add(RollMode.ADVANTAGE);
+        return new SpellSave(with, " (advantage: " + trait + ")");
+    }
+
+    /*
+     * Whether a condition came from a spell, so a save to end it is a save against a spell (D191): its source names a
+     * spell in the spells data. A monster's action names the monster instead, and a monster's breath or bite isn't
+     * magical, so Magic Resistance doesn't help against it: a monster's action counts as magical only when it is a
+     * spell.
+     */
+    private boolean fromSpell(ConditionEntry condition) {
+        return condition.sourceSpellName() != null && spellRepository != null
+                && spellRepository.findByNameIgnoreCase(condition.sourceSpellName()).isPresent();
     }
 
     // A save's dice as rolls() writes an attack's, such as a dodging creature's Dexterity save with advantage

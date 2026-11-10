@@ -160,6 +160,126 @@ public class CreatureStats {
     // A stat block's Evasion trait, by its name
     private static final java.util.regex.Pattern EVASION_TRAIT = java.util.regex.Pattern.compile("\\bEvasion\\b");
 
+    // A trait's advantage on saving throws against spells (D191): Magic Resistance's "advantage on saving throws against
+    // spells and other magical effects" (the iron golem's, MM p.170, and every stat block with it), Gnome Cunning's
+    // "Intelligence, Wisdom, and Charisma saving throws against magic" (PHB p.37), Limited Magic Immunity's "against
+    // all other spells" (MM p.257); not "against spells and effects that control its actions", which is narrower
+    private static final Pattern SPELL_SAVE_ADVANTAGE = Pattern.compile(
+            "advantage on (?:all )?((?:(?:Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)[,\\s]*"
+                    + "(?:and\\s+|or\\s+)?)+)?saving throws against (?:all other )?(?:spells|magic)\\b"
+                    + "(?! and effects that)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern ABILITY_WORD = Pattern.compile(
+            "Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma", Pattern.CASE_INSENSITIVE);
+    // A trait that keeps spells of a level or lower from the creature (D191): the rakshasa's "can't be affected or
+    // detected by spells of 6th level or lower unless it wishes to be" (MM p.257), Tiamat's "immune to spells of 6th
+    // level or lower" (RoT p.92)
+    private static final Pattern LIMITED_MAGIC_IMMUNITY = Pattern.compile(
+            "(?:can't be affected(?: or detected)? by|immune to) spells of (\\d)(?:st|nd|rd|th) level or lower",
+            Pattern.CASE_INSENSITIVE);
+
+    /** A trait by its name and its words, from a stat block or a race (D191). */
+    public record Trait(String name, String description) {
+    }
+
+    /**
+     * The traits the participant has by name: a monster's stat block's, a summoned creature's included, or a player
+     * character's race's, which a druid keeps in beast form (PHB p.67); none when its data has none.
+     */
+    public List<Trait> traits(EncounterParticipant participant) {
+        String json = null;
+        String what = null;
+        if (participant.getMonster() != null) {
+            json = participant.getMonster().getTraits();
+            what = participant.getMonster().getName() + "'s traits";
+        } else if (participant.getCharacter() != null && participant.getCharacter().getRaceRef() != null) {
+            Race race = participant.getCharacter().getRaceRef();
+            json = race.getTraits();
+            what = race.getName() + "'s traits";
+        }
+        // The loaders write a list of named entries; anything else has no traits to read, rather than failing a cast
+        if (json == null || !json.trim().startsWith("[")) {
+            return List.of();
+        }
+        List<Trait> traits = new ArrayList<>();
+        for (JsonNode entry : StoredJson.read(objectMapper, json, what)) {
+            String name = entry.path("name").asString("");
+            if (!name.isBlank()) {
+                traits.add(new Trait(name.trim(), entry.path("description").asString("")));
+            }
+        }
+        return traits;
+    }
+
+    /**
+     * The trait that gives the participant advantage on this saving throw against a spell (D191), by name, or null: a
+     * monster's Magic Resistance (the iron golem's, MM p.170), a gnome's Gnome Cunning on Intelligence, Wisdom and
+     * Charisma saves (PHB p.37), a yuan-ti pureblood's Magic Resistance (VGM p.120) or a satyr's, or a rakshasa's
+     * Limited Magic Immunity against higher spells (MM p.257). A trait that holds only under a condition, one starting "While" or named "(... Only)", is the
+     * DM's call, as conditional defences are (D161).
+     */
+    public String spellSaveAdvantage(EncounterParticipant participant, Ability ability) {
+        if (ability == null) {
+            return null;
+        }
+        for (Trait trait : traits(participant)) {
+            String description = trait.description().trim();
+            if (description.regionMatches(true, 0, "While", 0, 5)
+                    || trait.name().toLowerCase(Locale.ROOT).contains("only)")) {
+                continue;
+            }
+            Matcher found = SPELL_SAVE_ADVANTAGE.matcher(description);
+            while (found.find()) {
+                String listed = found.group(1);
+                if (listed == null || ABILITY_WORD.matcher(listed).results()
+                        .anyMatch(word -> Ability.parse(word.group()).orElse(null) == ability)) {
+                    return trait.name();
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The participant's trait that keeps a spell of this level from it, as a rakshasa's Limited Magic Immunity keeps
+     * spells of 6th level or lower (MM p.257, D191), by name, or null. The creature may choose to be affected; the app
+     * takes it that it doesn't, unless it casts the spell itself. A spell's level is its own, whatever slot it was cast
+     * with, as for the Globe of Invulnerability (D188).
+     */
+    public String spellImmunityTrait(EncounterParticipant caster, EncounterParticipant target, int spellLevel) {
+        if (caster == target) {
+            return null;
+        }
+        for (Trait trait : traits(target)) {
+            Matcher found = LIMITED_MAGIC_IMMUNITY.matcher(trait.description());
+            if (found.find() && spellLevel <= Integer.parseInt(found.group(1))) {
+                return trait.name();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The target as a spell's save meets it (D191): with advantage, named in the log, from a trait that gives advantage
+     * on saves against spells, as Magic Resistance does (MM p.170).
+     */
+    public Resolver.Target againstSpell(Resolver.Target target, EncounterParticipant participant, Ability ability) {
+        String trait = spellSaveAdvantage(participant, ability);
+        return trait == null ? target
+                : target.withNamedSaveSource(new AttackRules.Source(RollMode.ADVANTAGE, trait));
+    }
+
+    /**
+     * Each participant as the Resolver needs it for a spell's Effect the caster uses (D191): as {@link #targets(List,
+     * Effect, EncounterParticipant)}, with Magic Resistance and the like on the spell's save.
+     */
+    public List<Resolver.Target> spellTargets(List<EncounterParticipant> participants, Effect effect,
+                                              EncounterParticipant caster) {
+        return participants.stream()
+                .map(participant -> againstSpell(target(participant, effect, caster), participant,
+                        effect.saveAbility()))
+                .toList();
+    }
+
     /**
      * The participant's side of an attack roll, as attacker or target: its conditions and senses
      * ({@link AttackRules#setup}); nothing for no participant, such as the DM attacking by hand.

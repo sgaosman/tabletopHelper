@@ -40,8 +40,13 @@ record MonsterSpellbook(String ability, Integer attackBonus, Integer saveDc, Map
     private static final Pattern DAILY_KEY = Pattern.compile("(?i)^(\\d{1,2})\\s*e?\\s*(?:/\\s*day)?\\s*(?:each)?$");
     private static final Pattern AT_WILL_KEY = Pattern.compile("(?i)^(?:at[ _-]?will|will)$");
     private static final Pattern LEVEL_KEY = Pattern.compile("^\\d$");
-    // A note in brackets at the end of a name, as in "plane shift (self only)", or an asterisk
-    private static final Pattern NAME_NOTE = Pattern.compile("\\s*(?:\\([^()]*\\)|\\*)\\s*$");
+    // A note in brackets at the end of a name, as in "plane shift (self only)", or footnote markers: asterisks,
+    // daggers or superscript digits, as in "cone of cold*"
+    private static final Pattern NAME_NOTE = Pattern.compile(
+            "\\s*(?:\\([^()]*\\)|[*\\u2020\\u2021\\u00b9\\u00b2\\u00b3\\u2070-\\u2079]+)\\s*$");
+    // A curly or modifier apostrophe, which the spells table writes straight
+    private static final Pattern CURLY_APOSTROPHE = Pattern.compile("[\\u2018\\u2019\\u02bc]");
+    private static final Pattern SPACES = Pattern.compile("\\s+");
 
     /** How a monster casts a spell. */
     enum Kind {
@@ -60,16 +65,31 @@ record MonsterSpellbook(String ability, Integer attackBonus, Integer saveDc, Map
      */
     record Entry(String name, Kind kind, Integer listedLevel, int uses) {
 
-        /** The name to look the spell up by, without the notes in brackets or asterisks at its end. */
+        /** The name to look the spell up by: the {@link #canonicalName canonical name} of the one listed. */
         String lookupName() {
-            String name = this.name.trim();
-            Matcher note = NAME_NOTE.matcher(name);
-            while (note.find()) {
-                name = name.substring(0, note.start()).trim();
-                note = NAME_NOTE.matcher(name);
-            }
-            return name.isEmpty() ? this.name.trim() : name;
+            return canonicalName(name);
         }
+    }
+
+    /**
+     * The name a stat block's spell is looked up by, in the spells table, whose match ignores case, and so for its
+     * effect template, which is the spell's: the listed name without the notes in brackets and the footnote markers
+     * at its end, however many, with curly apostrophes made straight and each run of spaces made one. So
+     * "plane shift (self only)" is "plane shift" and "cone of cold*" is "cone of cold". The case is kept, as the
+     * lookup ignores it. A name that is nothing but a note keeps its listed text, trimmed; null is "".
+     */
+    static String canonicalName(String listed) {
+        if (listed == null) {
+            return "";
+        }
+        String whole = SPACES.matcher(CURLY_APOSTROPHE.matcher(listed).replaceAll("'")).replaceAll(" ").trim();
+        String name = whole;
+        Matcher note = NAME_NOTE.matcher(name);
+        while (note.find()) {
+            name = name.substring(0, note.start()).trim();
+            note = NAME_NOTE.matcher(name);
+        }
+        return name.isEmpty() ? whole : name;
     }
 
     /** Whether the monster has a spellcasting block at all. */

@@ -3577,3 +3577,28 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D177, D182, D184, D185, D186, D187, D188, D189, [[Spell Proxy]], [[Healing Pool]]
 
 **Tests:** new `HighLevelMechanicsTest` (12), `HighLevelSpellsIT` (12); 3,060 backend unit, 410 integration and 1,148 frontend.
+
+
+## D191: Monster Spell Traits and Spell Coverage
+
+**Date:** 2026-11-10
+**Status:** Accepted — implemented (no migration)
+
+**Context:** with every spell templated ([[#D184]]–[[#D190]]), the monster traits that change how spells work were still ignored: Magic Resistance alone is on about 357 monsters.
+
+**Decision:**
+- **Magic Resistance and similar traits** are read from stat-block and race trait text: advantage on saving throws against spells (and magical effects), Gnome Cunning and Gnomish Magic Resistance (INT, WIS and CHA saves only, PHB p.37), the yuan-ti pureblood's and satyr's race traits (VGM p.120), Limited Magic Immunity's "advantage against all other spells", and Duergar Resilience, Spell-Resistant Carapace, Antimagic Shell and Asmodeus's Antimagic Aura. The advantage applies to every save a spell forces: the cast, Prismatic Spray's rays, follow-up saves, lasting-effect uses and area triggers, detonations, condition repeat saves, counted saves, ongoing-effect repeats, saves on damage, and Summon Greater Demon's control save; not concentration saves. The log names it ("advantage: Magic Resistance"), a named automatic source as in [[#D161]].
+- **Limited Magic Immunity** ("can't be affected by spells of Nth level or lower": the rakshasa MM p.257, Tiamat) reuses [[#D188]]'s spell-immunity filter at every point the Globe is checked, the creature's own spells still reaching it; the tarrasque's Reflective Carapace (MM p.286) is a reminder.
+- **Condition immunities** from stat blocks now also stop lasting conditions (`addLastingCondition`: Flesh to Stone's petrification, Divine Word's bands — a stone golem could be petrified before) and Banishing Smite's banishment, a fix to [[#D187]], [[#D188]] and [[#D189]].
+- **Spell coverage sweep:** every monster spell entry resolves to the spells data and a template: 765 monsters with spells, 6,407 entries, 357 distinct spells, 0 unresolved. Name cleanup lives in `MonsterSpellbook.canonicalName` (bracketed notes such as "(self only)", footnote markers, daggers, superscript digits, curly apostrophes, spaces, case). `MonsterSpellCoverageTest` keeps it at 0 and writes `build/reports/monster-spell-coverage.txt`.
+- **Rules calls (choices):** monster actions such as breath weapons count as nonmagical unless the action is a spell; a condition counts as from a spell when its source is a spell in the spells data; Limited Magic Immunity's "unless it wishes to be" is read as always unaffected except by its own spells, so an ally's helpful low-level spell is blocked too; conditional traits are skipped, as in [[#D161]].
+
+**Rationale:** trait text is the only source; one reader keeps every save path consistent.
+
+**Trade-offs:** 126 bestiary monsters have spellcasting in their stat block but none in `monster-action-definitions.json`, so they can't cast in an encounter (taken on next); 5 templates' `additionalSpellcasting` isn't read; the canopic golem's Limited Spell Immunity, Hollyphant's aura and Asmodeus's "spells of 4th level or lower can't damage" aren't handled; a save forced by a spell attack's hit gets the advantage but the log doesn't name it. Not checked in a browser.
+
+**Key files:** `rules/combat/Resolver.java`, `encounter/internal/CreatureStats.java`, `EffectApplier.java`, `SpellCaster.java`, `MonsterSpellbook.java`
+
+**Related:** D161, D184, D185, D187, D188, D189, D190, [[Magic Resistance]], [[Limited Magic Immunity]]
+
+**Tests:** new `SpellTraitsTest` (12), `MonsterSpellbookTest` (18), `MonsterSpellCoverageTest`, `SpellTraitsIT` (3); 3,091 backend unit, 413 integration and 1,148 frontend.
