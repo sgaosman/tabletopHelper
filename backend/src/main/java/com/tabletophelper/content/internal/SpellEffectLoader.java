@@ -30,7 +30,7 @@ import java.util.Map;
  * 6th-level spells' (D188), such as damageFloor, actionSave and conditionsByOption given whole, and since version 7
  * the 8th- and 9th-level spells' (D190), such as escapeCheck, healingPool, castsSpell and critRange, and since version
  * 8 the keys that close the high-level gaps (D195), such as layers, concentrationSave and a retaliation's save, and
- * since version 9 the low-level spells D196 automates.
+ * since version 9 the low-level spells D196 automates, and since version 10 those D197 automates.
  */
 @Component
 @RequiredArgsConstructor
@@ -57,8 +57,9 @@ public class SpellEffectLoader implements ContentLoader {
         // 3: the 4th-level spells' templates and keys (D185); 4: the 5th-level spells' (D187); 5: the 7th-level
         // spells' (D189); 6: the 6th-level spells' (D188); 7: the 8th- and 9th-level spells' (D190); 8: the keys that
         // close the high-level gaps, such as layers and concentrationSave (D195); 9: the low-level spells automated in
-        // D196, such as Counterspell, Dispel Magic, Mirror Image and Sanctuary
-        return 9;
+        // D196, such as Counterspell, Dispel Magic, Mirror Image and Sanctuary; 10: the low-level spells automated in
+        // D197, such as Zephyr Strike, Flame Arrows and Ray of Enfeeblement
+        return 10;
     }
 
     @Override

@@ -6854,7 +6854,7 @@
       "materialCostGp": null
     },
     "concentration": false,
-    "durationRounds": null,
+    "durationRounds": 10,
     "durationText": "Instantaneous",
     "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
@@ -6867,7 +6867,7 @@
     "aoeShape": null,
     "aoeSize": null,
     "selfOnly": false,
-    "canTargetSelf": false,
+    "canTargetSelf": true,
     "canTargetAllies": true,
     "canTargetEnemies": true,
     "effects": [
@@ -6877,15 +6877,22 @@
       },
       {
         "effectType": "BUFF",
-        "description": "A different creature of your choice (can be yourself) gains advantage on next attack roll, ability check, or saving throw within 1 minute"
+        "description": "A different creature of your choice (can be yourself) gains advantage on next attack roll, ability check, or saving throw within 1 minute",
+        "modifiers": [
+          {
+            "kind": "ATTACK_MODE",
+            "mode": "ADVANTAGE",
+            "oneShot": true
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": null,
-    "specialMechanics": "Reaction when creature succeeds on attack roll, ability check, or saving throw. Forces reroll with lower result. Grants advantage to another creature.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Reaction timing: triggers after a successful d20 roll. Forces reroll and grants advantage to a different creature. Retroactive effect on rolls.",
+    "specialMechanics": "Cast as a reaction at the creature that gains advantage (D197): advantage on its next attack roll within 1 minute, spent by that attack. The triggering creature's reroll is the DM's.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Bard",
@@ -6893,7 +6900,8 @@
       "Wizard"
     ],
     "notes": "Reaction. No save. Widely considered very powerful. Strixhaven source. Combines debuff (reroll) and buff (advantage) in one spell.",
-    "reactionTrigger": "When a creature you can see within 60 feet succeeds on an attack roll, ability check, or saving throw"
+    "reactionTrigger": "When a creature you can see within 60 feet succeeds on an attack roll, ability check, or saving throw",
+    "reminder": "The creature that succeeded rerolls the d20 and uses the lower roll: the DM can undo its command and enter it again with that roll. If the chosen creature's next d20 is an ability check or a saving throw instead, it has advantage on that, and the DM removes the attack advantage (SCC p.38)."
   },
   {
     "spellName": "Sleep",
@@ -7631,31 +7639,39 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Movement doesn't provoke opportunity attacks for the duration"
-      },
-      {
-        "effectType": "DAMAGE",
-        "damageDice": "1d8",
-        "damageType": "force",
-        "upcastScaling": null,
-        "cantripScaling": null
-      },
-      {
-        "effectType": "OTHER",
-        "description": "Once before spell ends: advantage on one weapon attack, +1d8 force on hit, +30 ft walking speed until end of that turn"
+        "description": "Movement doesn't provoke opportunity attacks for the duration. Your next weapon attack has advantage, and deals an extra 1d8 force damage if it hits",
+        "modifiers": [
+          {
+            "kind": "ATTACK_MODE",
+            "mode": "ADVANTAGE",
+            "weaponOnly": true,
+            "oneShot": true
+          },
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "1d8",
+            "damageTypes": [
+              "force"
+            ],
+            "weaponOnly": true,
+            "oneShot": true,
+            "requires": "ATTACK"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": null,
-    "specialMechanics": "Passive: no opportunity attacks. One-time use: advantage on weapon attack + 1d8 force + 30 ft speed boost for that turn.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Two effects: passive (no OA) and one-time active (advantage + damage + speed). Must track whether one-time effect has been used.",
+    "specialMechanics": "Passive: no opportunity attacks. One-time use, taken on the caster's next weapon attack (D197): advantage, +1d8 force on a hit, both spent by that attack whether it hits or misses.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SELF_BUFF",
     "classes": [
       "Ranger"
     ],
-    "notes": "Bonus action. Concentration. Passive no-OA + one-time burst (advantage, 1d8 force, +30 speed). No upcast scaling."
+    "notes": "Bonus action. Concentration. Passive no-OA + one-time burst (advantage, 1d8 force, +30 speed). No upcast scaling.",
+    "reminder": "Your movement doesn't provoke opportunity attacks while the spell lasts, and on the turn you make the empowered attack your walking speed increases by 30 feet until the end of that turn (XGE p.171); the DM applies these."
   },
   {
     "spellName": "Aganazzar's Scorcher",
@@ -9742,7 +9758,7 @@
     "upcastDescription": "Damage increases by 1d8 for each slot level above 2nd",
     "specialMechanics": null,
     "requiresManualResolution": false,
-    "manualResolutionReason": "Auto-damage with no save on initial cast and each bonus action repeat. CON save only to avoid dropping object/disadvantage. Multiple mechanics per turn.",
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Artificer",
@@ -9751,7 +9767,8 @@
     ],
     "notes": "Targets a metal object, not a creature. Damage is automatic (no save). CON save only to avoid dropping the object. Bonus action each turn to repeat damage. Concentration.",
     "repeatActionType": "BONUS_ACTION",
-    "repeatEffect": true
+    "repeatEffect": true,
+    "reminder": "A creature holding or wearing the object that takes the damage makes a Constitution saving throw against your spell save DC or drops the object if it can; if it doesn't drop it, it has disadvantage on attack rolls and ability checks until the start of your next turn (PHB p.250); the DM rolls the save."
   },
   {
     "spellName": "Hold Person",
@@ -11235,21 +11252,27 @@
     "effects": [
       {
         "effectType": "DEBUFF",
-        "description": "Target deals only half damage with weapon attacks that use Strength. CON save at end of each turn to end."
+        "description": "Target deals only half damage with weapon attacks that use Strength. CON save at end of each turn to end.",
+        "modifiers": [
+          {
+            "kind": "HALF_STRENGTH_DAMAGE"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": null,
-    "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Ranged spell attack that applies a debuff (no damage). Target deals half damage with STR-based weapon attacks. CON save at end of each turn to end.",
+    "specialMechanics": "On a hit, the target deals half damage with weapon attacks that use Strength, and makes a CON save at the end of each of its turns, a success ending the spell (D197). A character's attack uses Strength when its numbers do; an entered or monster weapon attack from within 5 feet counts as using Strength.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Warlock",
       "Wizard"
     ],
-    "notes": "Spell attack to hit, then debuff on hit (no damage). CON save at end of target's turns to end. Concentration 1 minute."
+    "notes": "Spell attack to hit, then debuff on hit (no damage). CON save at end of target's turns to end. Concentration 1 minute.",
+    "modifierRepeatSave": "CON"
   },
   {
     "spellName": "Rime's Binding Ice",
@@ -11512,29 +11535,24 @@
     "canTargetEnemies": false,
     "effects": [
       {
-        "effectType": "DAMAGE",
-        "damageDice": "2d8",
-        "damageType": "psychic",
-        "description": "Shadow sword weapon damage: 2d8 psychic on hit via melee weapon attack. Simple melee, finesse, light, thrown (20/60). Advantage in dim light/darkness."
-      },
-      {
         "effectType": "BUFF",
-        "description": "Create shadow sword: simple melee weapon, proficient, finesse, light, thrown (20/60). Advantage on attacks against targets in dim light or darkness. Bonus action to resummon if dropped."
+        "description": "Create shadow sword: simple melee weapon, proficient, finesse, light, thrown (20/60), 2d8 psychic on a hit (3d8 at 3rd-4th, 4d8 at 5th-6th, 5d8 at 7th+). Advantage on attacks against targets in dim light or darkness. Bonus action to resummon if dropped."
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "3rd-4th: 3d8. 5th-6th: 4d8. 7th+: 5d8.",
-    "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Creates a magic weapon (simple melee, finesse, light, thrown 20/60). Damage dealt via weapon attacks, not spell attacks. Advantage in dim light/darkness. Non-linear upcast scaling.",
+    "specialMechanics": "While the spell lasts the caster attacks with a Shadow Blade weapon from its attack options, proficient, with the higher of STR and DEX, dealing the slot's psychic dice (D197).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Sorcerer",
       "Warlock",
       "Wizard"
     ],
-    "notes": "Bonus action to cast. Weapon attacks, not spell attacks. Advantage in dim light/darkness. Non-linear upcast: 2d8/3d8/4d8/5d8. Dissipates if dropped/thrown (end of turn)."
+    "notes": "Bonus action to cast. Weapon attacks, not spell attacks. Advantage in dim light/darkness. Non-linear upcast: 2d8/3d8/4d8/5d8. Dissipates if dropped/thrown (end of turn).",
+    "reminder": "Attack with the Shadow Blade as a weapon; advantage against a target in dim light or darkness, the blade vanishing at the end of the turn after it is dropped or thrown, and calling it back with a bonus action are the DM's (XGE p.164)."
   },
   {
     "spellName": "Shatter",
@@ -12409,12 +12427,6 @@
         "durationRounds": 600,
         "durationText": "1 hour (while in webs)",
         "description": "DEX save when entering or starting turn in webs. Restrained on fail. STR check (action) vs spell DC to break free."
-      },
-      {
-        "effectType": "DAMAGE",
-        "damageDice": "2d4",
-        "damageType": "fire",
-        "description": "If webs are set on fire, each 5ft cube burns in 1 round. Creatures starting turn in fire take 2d4 fire damage. Secondary mechanic, not primary spell effect."
       }
     ],
     "conditionsInflicted": [
@@ -12429,16 +12441,25 @@
     ],
     "healing": null,
     "upcastDescription": null,
-    "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Persistent area: DEX save when entering or starting turn. Restrained on fail. STR check (action) to break free. Webs are flammable (5ft cube burns in 1 round, 2d4 fire to creatures starting turn in fire).",
+    "specialMechanics": "The cast's DEX save restrains each creature in the cube on a failure, and the webs repeat it for a creature that enters them or starts its turn there (D197). Breaking free and the burning webs are the DM's.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SAVE_CONDITION",
     "classes": [
       "Artificer",
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Concentration 1 hour. 20ft cube, difficult terrain, lightly obscured. Flammable: 5ft cube burns in 1 round (2d4 fire to creatures starting turn in fire). Must be anchored or collapses."
+    "notes": "Concentration 1 hour. 20ft cube, difficult terrain, lightly obscured. Flammable: 5ft cube burns in 1 round (2d4 fire to creatures starting turn in fire). Must be anchored or collapses.",
+    "effectTriggers": [
+      {
+        "when": [
+          "ENTER",
+          "START_OF_TURN"
+        ]
+      }
+    ],
+    "reminder": "A creature restrained by the webs can use its action for a Strength check against your spell save DC, escaping on a success; the webs are difficult terrain and lightly obscure their area, and a 5-foot cube of them exposed to fire burns away in 1 round, dealing 2d4 fire damage to any creature that starts its turn in the fire (PHB p.287); the DM applies these."
   },
   {
     "spellName": "Wither and Bloom",
@@ -12746,25 +12767,25 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Speed increases by 20 feet. Moving doesn't provoke opportunity attacks."
-      },
-      {
-        "effectType": "DAMAGE",
-        "damageDice": "1d6",
-        "damageType": "fire",
-        "upcastScaling": {
-          "additionalDicePerLevel": "1d6",
-          "additionalFlatPerLevel": 0
-        },
-        "cantripScaling": null
+        "description": "Speed increases by 20 feet, +5 feet for each slot level above 3rd. Moving doesn't provoke opportunity attacks.",
+        "modifiers": [
+          {
+            "kind": "SPEED",
+            "flat": 20,
+            "upcast": {
+              "every": 1,
+              "flat": 5
+            }
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "Speed increases by 5 additional feet and damage increases by 1d6 fire for each slot level above 3rd",
     "specialMechanics": "Trail of fire damages creatures/objects you move within 5 feet of (once per turn per target). No save for the fire damage.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Persistent movement-triggered damage that applies automatically as caster moves near creatures each turn",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Artificer",
@@ -12772,7 +12793,8 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "REVIEW: No classes listed in source data; from Fizban's Treasury of Dragons. Speed bonus also upcasts (+5ft per level)."
+    "notes": "REVIEW: No classes listed in source data; from Fizban's Treasury of Dragons. Speed bonus also upcasts (+5ft per level).",
+    "reminder": "Moving doesn't provoke opportunity attacks, and when you move within 5 feet of a creature or object that isn't being worn or carried, it takes 1d6 fire damage from your trail of heat, +1d6 for each slot level above 3rd, no more than once a turn (FTD p.19); the DM rolls it."
   },
   {
     "spellName": "Aura of Vitality",
@@ -14080,28 +14102,32 @@
     "aoeShape": null,
     "aoeSize": null,
     "selfOnly": false,
-    "canTargetSelf": false,
+    "canTargetSelf": true,
     "canTargetAllies": true,
     "canTargetEnemies": false,
     "effects": [
       {
-        "effectType": "DAMAGE",
-        "damageDice": "1d6",
-        "damageType": "fire",
-        "upcastScaling": null,
-        "cantripScaling": null
-      },
-      {
         "effectType": "BUFF",
-        "description": "When a target is hit by a ranged weapon attack using ammunition drawn from the touched quiver, the target takes an extra 1d6 fire damage. Ends on a piece of ammunition when it hits or misses. Spell ends when 12 pieces of ammunition have been drawn."
+        "description": "When a target is hit by a ranged weapon attack using ammunition drawn from the touched quiver, the target takes an extra 1d6 fire damage. Ends on a piece of ammunition when it hits or misses. Spell ends when 12 pieces of ammunition have been drawn.",
+        "modifiers": [
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "1d6",
+            "damageTypes": [
+              "fire"
+            ],
+            "weaponOnly": true,
+            "requires": "AMMUNITION"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "The number of pieces of ammunition you can affect increases by 2 for each slot level above 3rd",
-    "specialMechanics": "Affects 12 pieces of ammunition in a quiver. Each shot that hits deals +1d6 fire. Spell ends when 12 shots drawn.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Requires tracking individual ammunition shots and applying extra damage per hit",
+    "specialMechanics": "The touched creature's weapon attacks from beyond 5 feet each draw one of 12 pieces of ammunition (+2 per slot level above 3rd), hit or miss, and a hit deals +1d6 fire; the spell ends when the last is drawn (D197).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Artificer",
@@ -14110,7 +14136,12 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "REVIEW: Source is XGE. classesFromMap was empty in data; classes listed from general D&D 5e knowledge (Artificer, Druid, Ranger, Sorcerer, Wizard). Upcast adds 2 more shots, not more damage."
+    "notes": "REVIEW: Source is XGE. classesFromMap was empty in data; classes listed from general D&D 5e knowledge (Artificer, Druid, Ranger, Sorcerer, Wizard). Upcast adds 2 more shots, not more damage.",
+    "effectUses": {
+      "count": 12,
+      "perSlotLevel": 2
+    },
+    "reminder": "Only ammunition drawn from the touched quiver burns: a thrown weapon, or ammunition from elsewhere, doesn't draw a piece, and the DM leaves those out (XGE p.156)."
   },
   {
     "spellName": "Fly",

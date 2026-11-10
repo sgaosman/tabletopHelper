@@ -116,10 +116,13 @@ public class AttackService {
      * @param martialArts Martial Arts applies to it, so an Attack action with it lets a monk strike as a bonus action
      * @param blessed     it carries War God's Blessing's +10, which it spends (PHB p.63)
      * @param kensei      what the Way of the Kensei adds to it (XGE p.34-35); {@link Kensei#NONE} for anyone else
+     * @param halved      its attacker is under Ray of Enfeeblement and it uses Strength, so it deals half damage (PHB
+     *                    p.271, D197)
      */
     private record Prepared(Effect effect, String action, String preposition, String subject,
                             List<ManualModifiers.Use> modifiers, boolean startsReckless, WeaponRules.Weapon weapon,
-                            boolean melee, boolean sneakAttack, boolean martialArts, boolean blessed, Kensei kensei) {
+                            boolean melee, boolean sneakAttack, boolean martialArts, boolean blessed, Kensei kensei,
+                            boolean halved) {
     }
 
     /**
@@ -186,9 +189,10 @@ public class AttackService {
         EffectApplier.Use use = new EffectApplier.Use(actor, actor != null ? actor.getDisplayName() : "DM",
                 CombatActionType.ATTACK, attack.action() + costNote, attack.preposition(), "", null);
         manualModifiers.log(encounter, CombatActionType.ATTACK, actor, attack.subject(), userId, attack.modifiers());
+        List<Resolver.TargetOutcome> outcomes = resolver.resolve(attack.effect(), CreatureStats.side(actor),
+                List.of(stats.target(target, attack.effect(), actor)));
         List<EffectApplier.Applied> applied = effectApplier.apply(encounter, use, attack.effect(),
-                resolver.resolve(attack.effect(), CreatureStats.side(actor),
-                        List.of(stats.target(target, attack.effect(), actor))));
+                attack.halved() ? Enfeeblement.halved(outcomes) : outcomes);
         if (actor != null) {
             recordHit(encounter, actor, target, attack, applied.getFirst());
             if (applied.getFirst().outcome().guidedStrike()) {
@@ -246,7 +250,7 @@ public class AttackService {
                 effect.conditionEnds());
         return new Prepared(rescued, attack.action(), attack.preposition(), attack.subject(), attack.modifiers(),
                 attack.startsReckless(), attack.weapon(), attack.melee(), attack.sneakAttack(), attack.martialArts(),
-                attack.blessed(), attack.kensei());
+                attack.blessed(), attack.kensei(), attack.halved());
     }
 
     // Guided Strike turned the miss into a hit, so its Channel Divinity use is spent (PHB p.63)
@@ -292,7 +296,7 @@ public class AttackService {
         AttackFeatures.Attacker attacker = characterWeapons.attacker(character, armoured(participant));
         List<String> conditions = CreatureStats.conditionNames(participant);
         int kenseiLevel = kenseiLevel(character);
-        return characterWeapons.of(character).stream()
+        return weapons(participant, character).stream()
                 .map(held -> option(character, attacker, held,
                         rollBonuses(participant, conditions, held.weapon().name()), kenseiLevel,
                         kenseisShot(conditions, kenseiLevel, attacker, held.weapon())))
@@ -444,6 +448,14 @@ public class AttackService {
                         || (weaponName != null && entry.weapon().trim().equalsIgnoreCase(weaponName.trim())));
     }
 
+    // The weapons the participant attacks with: a Shadow Blade it conjured (XGE p.164, D197), then its inventory's
+    private List<CharacterWeapons.Held> weapons(EncounterParticipant participant, PlayerCharacter character) {
+        List<CharacterWeapons.Held> weapons = new ArrayList<>();
+        ShadowBlade.held(participant).ifPresent(weapons::add);
+        weapons.addAll(characterWeapons.of(character));
+        return weapons;
+    }
+
     // A weapon's option with the attack roll bonuses in force, which the attack itself adds (Sacred Weapon, War God's
     // Blessing), so the numbers shown are those the attack rolls
     private AttackOption option(PlayerCharacter character, AttackFeatures.Attacker attacker,
@@ -587,7 +599,8 @@ public class AttackService {
                             + "): attack with its actions");
         });
         PlayerCharacter character = actor.getCharacter();
-        CharacterWeapons.Held held = characterWeapons.find(character, request.getWeapon())
+        CharacterWeapons.Held held = ShadowBlade.held(actor).filter(blade -> ShadowBlade.named(request.getWeapon()))
+                .or(() -> characterWeapons.find(character, request.getWeapon()))
                 .orElseThrow(() -> new ValidationException(actor.getDisplayName() + " has no "
                         + request.getWeapon().trim() + " to attack with"));
         WeaponRules.Weapon weapon = held.weapon();
@@ -683,11 +696,14 @@ public class AttackService {
         Kensei kensei = kensei(encounter, actor, held, attacker, kenseiLevel, cost, ownTurn,
                 Boolean.TRUE.equals(request.getUnerringAccuracy()));
 
+        // Ray of Enfeeblement halves the damage of a weapon attack that uses Strength (PHB p.271, D197)
+        boolean halved = numbers.ability() == Ability.STR && Enfeeblement.weakened(actor);
+        if (halved) notes.add(Enfeeblement.NOTE);
         String label = weapon.name() + (notes.isEmpty() ? "" : " (" + String.join(", ", notes) + ")");
         Effect effect = new Effect(label, delivery, damage, null, List.of(), false, null);
         return new Prepared(effect, "uses " + label, "on", actor.getDisplayName() + "'s " + weapon.name() + " attack",
                 ManualModifiers.forWeaponAttack(request.getExtraAttackBonus(), extraDamage, extraType, forcedCritical),
-                startsReckless, weapon, melee, sneakAttack, numbers.martialArts(), blessed, kensei);
+                startsReckless, weapon, melee, sneakAttack, numbers.martialArts(), blessed, kensei, halved);
     }
 
     /**
@@ -885,9 +901,11 @@ public class AttackService {
                         !Boolean.FALSE.equals(request.getWithin5Ft()), forcedCritical),
                 List.of(new Effect.DamagePart(damage, damageType)), null, List.of(), false, null);
         String subject = actor != null ? actor.getDisplayName() + "'s attack" : "The DM's attack";
-        return new Prepared(effect, "attacks", "", subject,
+        // Ray of Enfeeblement: an entered attack from within 5 feet counts as using Strength (PHB p.271, D197)
+        boolean halved = Enfeeblement.strengthAttack(effect) && Enfeeblement.weakened(actor);
+        return new Prepared(halved ? Enfeeblement.noted(effect) : effect, "attacks", "", subject,
                 ManualModifiers.forEnteredAttack(request.getAttackBonus(), damage, damageType, forcedCritical), false,
-                null, false, false, false, false, Kensei.NONE);
+                null, false, false, false, false, Kensei.NONE, halved);
     }
 
     // The extra damage entered for a weapon attack, such as "1d6" or "+1"; a type alone is a 400

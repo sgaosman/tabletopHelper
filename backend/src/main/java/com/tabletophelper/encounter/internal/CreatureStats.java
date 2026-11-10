@@ -399,6 +399,10 @@ public class CreatureStats {
                     && (attack.weapon() || !modifier.weaponOnly())) {
                 oneShots.add(modifier.id());
             }
+            // A one-shot rider spent by the attack, hit or miss, as Zephyr Strike's 1d8 force (XGE p.171, D197)
+            if (OngoingModifiers.spentOnAttack(modifier, attack.weapon(), attack.withinFiveFeet())) {
+                oneShots.add(modifier.id());
+            }
         }
         return new RollModifiers(sources, OngoingModifiers.attackBonuses(attack.weapon(), attackerMods),
                 OngoingModifiers.hitDamage(attack.weapon(), attack.withinFiveFeet(), attackerMods), saveBonuses,

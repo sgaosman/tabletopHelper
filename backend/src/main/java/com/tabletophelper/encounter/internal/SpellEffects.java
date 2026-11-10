@@ -765,6 +765,29 @@ public class SpellEffects {
                 template.endReminder(), template.durationRounds(slotLevel), notes);
     }
 
+    /**
+     * What a spell with Ongoing Modifiers and no effect to use again has to count down, as Flame Arrows' 12 pieces of
+     * ammunition and 2 more for each slot level above 3rd (XGE p.156, D197); null when it counts nothing.
+     */
+    public Integer modifierUses(String spellName, int slotLevel) {
+        return template(spellName)
+                .filter(template -> !template.modifiers().isEmpty() && template.effectUses() != null)
+                .map(template -> template.effectUses().at(template.level(), slotLevel))
+                .orElse(null);
+    }
+
+    /**
+     * The reminder a spell with no Ongoing Modifiers gives the DM in its cast's log, as Heat Metal's Constitution save to
+     * drop the object (PHB p.250, D197); null when it has none, or has modifiers, whose summary carries it.
+     */
+    public String castReminder(String spellName) {
+        return template(spellName)
+                .filter(template -> template.modifiers().isEmpty())
+                .map(SpellTemplate::reminder)
+                .filter(text -> !text.isBlank())
+                .orElse(null);
+    }
+
     /** The spell's name as the spells data has it, found in any case; empty for no such spell. */
     public Optional<String> spellName(String requested) {
         return requested == null ? Optional.empty()

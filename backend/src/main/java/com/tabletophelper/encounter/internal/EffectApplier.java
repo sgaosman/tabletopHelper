@@ -1930,6 +1930,17 @@ public class EffectApplier {
                 if (spent.isEmpty()) {
                     continue;
                 }
+                // Magical ammunition, as Flame Arrows' (XGE p.156, D197): each attack draws one piece, and the rider
+                // stays until the last is drawn
+                if (effect.usesLeft() != null && effect.usesLeft() > 1 && spent.stream()
+                        .allMatch(modifier -> OngoingModifiers.AMMUNITION.equalsIgnoreCase(modifier.requires()))) {
+                    int left = effect.usesLeft() - 1;
+                    replaceEffect(caster, effect.withUsesLeft(left));
+                    combatLog.write(encounter, CombatActionType.SPELL_EFFECT_END, caster.getDisplayName() + "'s "
+                            + ActiveModifiers.label(effect) + ": a piece of ammunition is drawn, " + left + " left",
+                            null, caster);
+                    continue;
+                }
                 combatLog.write(encounter, CombatActionType.SPELL_EFFECT_END, caster.getDisplayName() + "'s "
                         + ActiveModifiers.label(effect) + " is used: " + spent.stream().map(OngoingModifier::describe)
                         .collect(Collectors.joining("; ")), null, caster);

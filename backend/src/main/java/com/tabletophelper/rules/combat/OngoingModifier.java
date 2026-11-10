@@ -117,7 +117,12 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
          * Spells of {@link #flat} level or lower cast from outside have no effect on the creature, as inside a Globe of
          * Invulnerability (PHB p.245, D188); a caster under the same Spell Effect is inside with it.
          */
-        SPELL_IMMUNITY
+        SPELL_IMMUNITY,
+        /**
+         * The creature deals only half damage with weapon attacks that use Strength, as under Ray of Enfeeblement (PHB
+         * p.271, D197).
+         */
+        HALF_STRENGTH_DAMAGE
     }
 
     /** Whose rolls a modifier changes. */
@@ -239,6 +244,7 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
             case EVASION -> "Evasion";
             case TRUESIGHT -> "truesight";
             case SPELL_IMMUNITY -> "spells of level " + flat + " or lower cast from outside have no effect";
+            case HALF_STRENGTH_DAMAGE -> "half damage with weapon attacks that use Strength";
         } + (until != null ? " (" + untilWords() + ")" : "");
     }
 

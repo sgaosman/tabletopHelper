@@ -221,6 +221,13 @@ public final class Resolver {
             spentOneShots = spentOneShots != null ? Set.copyOf(spentOneShots) : Set.of();
         }
 
+        /** The same outcome with this damage, as Ray of Enfeeblement's halved damage (PHB p.271, D197). */
+        public TargetOutcome withDamage(List<Damage> changed) {
+            return new TargetOutcome(targetId, outcome, d20s, d20, total, rollMode, autoFailed, changed, successDamage,
+                    healing, conditions, hitSave, inspiration, guidedStrike, rerolledD20s, automaticSources, bonuses,
+                    riders, spentOneShots);
+        }
+
         /** An outcome no Ongoing Modifier changed. */
         public TargetOutcome(UUID targetId, Outcome outcome, List<Integer> d20s, Integer d20, Integer total,
                              RollMode rollMode, boolean autoFailed, List<Damage> damage, List<Damage> successDamage,

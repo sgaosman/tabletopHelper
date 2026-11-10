@@ -905,7 +905,7 @@ public class EncounterService {
             case ATTACK_MODE, SAVE_MODE -> modifier.mode() == RollMode.DISADVANTAGE;
             case ATTACKED_MODE -> modifier.mode() == RollMode.ADVANTAGE;
             case AC, SPEED -> modifier.flat() < 0;
-            case REVEALED, SPEED_HALVED, NO_HEALING, SPEED_MAX -> true;
+            case REVEALED, SPEED_HALVED, NO_HEALING, SPEED_MAX, HALF_STRENGTH_DAMAGE -> true;
             default -> false;
         };
     }

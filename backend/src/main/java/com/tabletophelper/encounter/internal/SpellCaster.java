@@ -260,8 +260,15 @@ public class SpellCaster {
         String seventhNote = afterSeventh(encounter, caster, spellName, slotLevel, option, use, seventh, normal,
                 applied, saveDc);
         String highNote = afterHighLevelCast(encounter, caster, spellName, slotLevel, high, use, affected);
+        // What the DM still rolls for a spell with no Ongoing Modifiers to carry its reminder, as Heat Metal's drop
+        // save (PHB p.250, D197)
+        String reminder = spellEffects.castReminder(spellName);
+        String reminderNote = reminder != null ? " " + reminder : "";
+        if (reminder != null) {
+            effectApplier.summary(encounter, use, spellName + ": " + reminder);
+        }
         return new CastResult(spellName, plan.spellLevel(), plan.concentration(), null,
-                summary(lead, applied) + typeNote + modifierNote + fifthNote + seventhNote + highNote,
+                summary(lead, applied) + typeNote + modifierNote + fifthNote + seventhNote + highNote + reminderNote,
                 outcomes(effect, applied));
     }
 
@@ -1215,8 +1222,9 @@ public class SpellCaster {
                     + later.delayedType() + " damage at the end of " + (delayedOn.size() == 1 ? "its" : "their")
                     + " next turn.";
         }
-        Integer uses = lasting.map(SpellEffects.Lasting::uses).orElse(null);
-        if (uses != null && spentOne) {
+        // A spell whose modifiers count down, as Flame Arrows' ammunition (XGE p.156, D197), keeps its count too
+        Integer uses = lasting.isPresent() ? lasting.get().uses() : spellEffects.modifierUses(spellName, slotLevel);
+        if (uses != null && spentOne && lasting.isPresent()) {
             uses = Math.max(0, uses - 1);
         }
         // Modifiers that each end by a turn of their own, as Mind Sliver's at the end of its caster's next turn (TCE

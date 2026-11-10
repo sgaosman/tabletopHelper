@@ -21,6 +21,7 @@ import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.Charge;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.Outcome;
+import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.Resolver;
 import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.shared.ConflictException;
@@ -207,9 +208,13 @@ public class MonsterActionService {
                 String label = step.label().equals(actionName) ? actionName : actionName + " (" + step.label() + ")";
                 EffectApplier.Use use = new EffectApplier.Use(monster, monster.getDisplayName(), logType,
                         "uses " + label + costNote, "on", monster.getDisplayName(), null);
-                applied.addAll(effectApplier.apply(encounter, use, step.effect(),
-                        resolver.resolve(step.effect(), CreatureStats.side(monster),
-                                stats.targets(stepTargets, step.effect(), monster))));
+                // Ray of Enfeeblement halves a melee weapon attack's damage, taken as using Strength (PHB p.271, D197)
+                boolean halved = Enfeeblement.strengthAttack(step.effect()) && Enfeeblement.weakened(monster);
+                Effect effect = halved ? Enfeeblement.noted(step.effect()) : step.effect();
+                List<Resolver.TargetOutcome> outcomes = resolver.resolve(effect, CreatureStats.side(monster),
+                        stats.targets(stepTargets, effect, monster));
+                applied.addAll(effectApplier.apply(encounter, use, effect,
+                        halved ? Enfeeblement.halved(outcomes) : outcomes));
             }
         }
 

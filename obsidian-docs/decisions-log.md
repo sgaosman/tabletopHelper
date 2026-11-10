@@ -3729,3 +3729,29 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D176, D177, D184, D185, D189, D191, D195, [[Counter]]
 
 **Tests:** new `LowLevelSpellsTest` (11), `LowLevelSpellsIT` (11); 3,145 backend unit, 442 integration and 1,159 frontend.
+
+
+## D197: Weapon-Rider and Other Low-Level Spells
+
+**Date:** 2026-11-10
+**Status:** Accepted — implemented (no migration; spell templates v10)
+
+**Context:** the rest of [[#D196]]'s backlog at 3rd level or lower.
+
+**Decision:**
+- **Zephyr Strike** (XGE p.171): the caster's very next weapon attack gets advantage and +1d8 force on a hit, both spent by that attack hit or miss (a new HIT_DAMAGE `requires: ATTACK`); the no-opportunity-attacks rule and +30 ft are a reminder.
+- **Ray of Enfeeblement** (PHB p.271): on a hit, the target deals half damage with weapon attacks that use Strength (new `HALF_STRENGTH_DAMAGE` modifier, each damage type halved rounding down) and makes a CON save at the end of each of its turns to end it (`modifierRepeatSave`). A PC's attack uses Strength when its calculated ability is STR; hand-entered and monster weapon attacks count only from within 5 ft.
+- **Shadow Blade** (XGE p.164): while the caster concentrates, a "Shadow Blade" weapon heads their attack options: finesse, light, proficient, the better of STR or DEX, 2d8 psychic (3d8 at 3rd–4th, 4d8 at 5th–6th, 5d8 at 7th+) plus the ability modifier; dim-light advantage, throwing and recall are a reminder.
+- **Flame Arrows** (XGE p.156): +1d6 fire on the quiver holder's weapon hits from beyond 5 ft (`requires: AMMUNITION`), each such attack spending one of 12 pieces (+2 per slot above 3rd), the spell ending on the last.
+- **Ashardalon's Stride** (FTD): +20 ft speed, +5 per slot above 3rd; its fire and the no-opportunity-attacks rule are a reminder. **Silvery Barbs** (SCC): the creature it's cast at gets advantage on its next attack roll within a minute; the triggering creature's reroll is a reminder (undo and re-enter). **Web** (p.287): a DEX save restrains on a failure, repeated when a creature enters or starts its turn there; breaking free, terrain and burning are a reminder. **Heat Metal** (p.250) logs the CON save to drop the object.
+- **Reminders on every cast:** a spell's `reminder` is now logged at cast for spells without Ongoing Modifiers too, which also turns on reminders already written for about 50 higher-level spells (Time Stop, Polymorph).
+
+**Rationale:** riders spent on an attack or tied to ammunition reuse [[#D184]]'s modifiers rather than new machinery.
+
+**Trade-offs:** Silvery Barbs' reroll, Heat Metal's reminder on each repeat, and Shadow Blade's light and throwing are the DM's; the Shadow Blade weapon follows the caster's concentration, as the spell has no Spell Effect; a thrown weapon or ammunition from elsewhere under Flame Arrows is the DM's; Spike Growth, Fog Cloud, Stinking Cloud and 64 other spells at 3rd level or lower stay manual (67, from 74). Golden counts: Empowered 147, Extended 346, 69 lasting spells. Branding Smite, a self-cast spell with a damage part, should be checked to confirm the cast doesn't damage its caster. Not checked in a browser.
+
+**Key files:** `encounter/internal/Enfeeblement.java`, `ShadowBlade.java`, `rules/combat/OngoingModifier.java`, `OngoingModifiers.java`, `Resolver.java`, `encounter/internal/AttackService.java`, `MonsterActionService.java`, `SpellCaster.java`, `data/spell-effects/spell-effect-definitions.json`
+
+**Related:** D176, D184, D196
+
+**Tests:** new `WeaponRiderSpellsTest` (13), `WeaponRiderSpellsIT` (9); 3,158 backend unit, 451 integration and 1,159 frontend.

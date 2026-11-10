@@ -236,7 +236,7 @@ public final class OngoingModifiers {
         for (Labelled labelled : modifiers) {
             OngoingModifier modifier = labelled.modifier();
             if (modifier.kind() != OngoingModifier.Kind.HIT_DAMAGE || (modifier.weaponOnly() && !weapon)
-                    || (modifier.meleeOnly() && !melee)) {
+                    || (modifier.meleeOnly() && !melee) || (melee && AMMUNITION.equalsIgnoreCase(modifier.requires()))) {
                 continue;
             }
             String type = modifier.damageTypes().isEmpty() ? null : modifier.damageTypes().getFirst();
@@ -251,6 +251,31 @@ public final class OngoingModifiers {
             }
         }
         return damage;
+    }
+
+    /** The {@code requires} of a one-shot HIT_DAMAGE that the next attack it could add to spends, hit or miss (D197). */
+    public static final String ON_ATTACK = "ATTACK";
+
+    /**
+     * The {@code requires} of a HIT_DAMAGE on magical ammunition, as Flame Arrows' (XGE p.156, D197): it adds to a
+     * weapon attack from beyond 5 feet only, and each such attack draws one piece, hit or miss.
+     */
+    public static final String AMMUNITION = "AMMUNITION";
+
+    /**
+     * Whether the modifier is a one-shot rider that this attack spends whether it hits or misses, as Zephyr Strike's
+     * 1d8 force, which comes with the one weapon attack it gives advantage to (XGE p.171, D197); other one-shot riders,
+     * as Absorb Elements' (XGE p.150), wait for a hit.
+     */
+    public static boolean spentOnAttack(OngoingModifier modifier, boolean weapon, boolean melee) {
+        if (modifier.kind() != OngoingModifier.Kind.HIT_DAMAGE || (modifier.weaponOnly() && !weapon)
+                || (modifier.meleeOnly() && !melee)) {
+            return false;
+        }
+        if (AMMUNITION.equalsIgnoreCase(modifier.requires())) {
+            return !melee;
+        }
+        return modifier.oneShot() && ON_ATTACK.equalsIgnoreCase(modifier.requires());
     }
 
     /**
