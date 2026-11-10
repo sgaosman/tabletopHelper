@@ -131,9 +131,14 @@ class CombatFixture {
     final WildShapeEffects wildShapeEffects = new WildShapeEffects(monsterRepository, objectMapper, effectApplier);
     final FormSpells formSpells = new FormSpells(access, accessPolicy, economy, effectApplier, wildShapeEffects,
             combatLog, monsterRepository, encounterRepository, encounterService);
+    final UndoService undoService = new UndoService(encounterCommands, commandRecorder, combatLog, combatLogRepository,
+            combatCommandRepository, encounterRepository, encounterService);
+    final SpellCounters spellCounters = new SpellCounters(commandRecorder, undoService, combatLogRepository, combatLog,
+            spellRepository, spellEffects, effectApplier, stats, resolver);
+    final DefensiveSpells defensiveSpells = new DefensiveSpells(resolver, stats, combatLog);
     final SpellcastingService spellcasting = new SpellcastingService(access, accessPolicy, casterSpells, spellCaster,
             spellEffects, effectApplier, economy, manualModifiers, combatLog, encounterRepository, encounterService,
-            characterService, stats, metamagicCasting, summoner, formSpells);
+            characterService, stats, metamagicCasting, summoner, formSpells, spellCounters, defensiveSpells);
     final FontOfMagicService fontOfMagic = new FontOfMagicService(access, economy, combatLog, encounterRepository,
             encounterService);
     final MonsterActionService monsterActions = new MonsterActionService(access, accessPolicy, monsterEffects, resolver,
@@ -162,8 +167,6 @@ class CombatFixture {
     final TurnService turns = new TurnService(access, turnProcessor, encounterRepository, encounterService);
     final SummonService summons = new SummonService(access, accessPolicy, encounterCommands, commandRecorder, summoner,
             spiritTemplates, effectApplier, economy, combatLog, monsterRepository, encounterRepository, encounterService);
-    final UndoService undoService = new UndoService(encounterCommands, commandRecorder, combatLog, combatLogRepository,
-            encounterRepository, encounterService);
 
     final UUID dmUserId = UUID.randomUUID();
     final Campaign campaign;
@@ -171,7 +174,9 @@ class CombatFixture {
     final List<CombatLog> log = new ArrayList<>();
 
     CombatFixture() {
-        User dm = User.builder().id(dmUserId).username("dm").email("dm@test.com").passwordHash("hash").build();
+        effectApplier.setDefensiveSpells(defensiveSpells);
+        turnProcessor.setDefensiveSpells(defensiveSpells);
+        User dm =User.builder().id(dmUserId).username("dm").email("dm@test.com").passwordHash("hash").build();
         campaign = Campaign.builder().id(UUID.randomUUID()).name("Test Campaign").dm(dm).inviteCode("ABC123").build();
         encounter = Encounter.builder()
                 .id(UUID.randomUUID())

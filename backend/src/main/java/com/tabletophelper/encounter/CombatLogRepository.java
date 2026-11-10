@@ -15,4 +15,7 @@ public interface CombatLogRepository extends JpaRepository<CombatLog, UUID> {
     /** How many entries each of the combat commands wrote (M14), as pairs of command ID and count. */
     @Query("select l.commandId, count(l) from CombatLog l where l.commandId in :commandIds group by l.commandId")
     List<Object[]> countByCommand(@Param("commandIds") Collection<UUID> commandIds);
+
+    /** The entries a combat command wrote, oldest first (M14). */
+    List<CombatLog> findByCommandIdOrderByCreatedAtAsc(UUID commandId);
 }

@@ -59,6 +59,14 @@ public class TurnProcessor {
     // The spells data, for the form a spell's creatures rise as (D189); set by Spring like the summoner
     private com.tabletophelper.reference.SpellRepository spellRepository;
 
+    // Blink's d20 at the end of its caster's turn (D196); set by Spring like the summoner
+    private DefensiveSpells defensiveSpells;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setDefensiveSpells(DefensiveSpells defensiveSpells) {
+        this.defensiveSpells = defensiveSpells;
+    }
+
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     void setSummoner(Summoner summoner) {
         this.summoner = summoner;
@@ -206,6 +214,10 @@ public class TurnProcessor {
         effectApplier.effectsAtTurnEnd(encounter, creature);
         // A rage ends with a turn in which the barbarian neither attacked nor took damage since its last (PHB p.48)
         effectApplier.endTurnForRage(encounter, creature);
+        // Blink's d20 for the Ethereal Plane (PHB p.219, D196)
+        if (defensiveSpells != null) {
+            defensiveSpells.atTurnEnd(encounter, creature);
+        }
         // A command its caster gave lasts for the creature's next turn (PHB p.212, XGE p.168, D182)
         if (creature.getSummon() != null && creature.getSummon().commandedRound() != null) {
             effectApplier.command(creature, null);

@@ -144,11 +144,12 @@ class SpellcastingServiceTest {
         @DisplayName("A silenced caster can cast a spell without a verbal component")
         void silencedCasterCanCastNonVerbalSpell() {
             wizard.setActiveConditions(new ArrayList<>(List.of(ConditionEntry.manual("silenced", null, 1))));
-            f.spell("Counterspell", 3, """
+            // A somatic-only spell; Counterspell itself now needs a spell to counter (D196)
+            f.spell("Silent Gesture", 3, """
                     {"spellLevel": 3, "deliveryMethod": "AUTO_HIT", "components": {"verbal": false, "somatic": true},
                      "effects": [], "conditionsInflicted": null}""");
 
-            assertTrue(cast("Counterspell", 3, List.of(goblin)).isAutoResolved());
+            assertTrue(cast("Silent Gesture", 3, List.of(goblin)).isAutoResolved());
         }
 
         @Test

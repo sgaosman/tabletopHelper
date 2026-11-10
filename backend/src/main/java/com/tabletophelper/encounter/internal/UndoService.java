@@ -2,6 +2,8 @@ package com.tabletophelper.encounter.internal;
 
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.CombatCommand;
+import com.tabletophelper.encounter.CombatCommandRepository;
+import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.CombatLogRepository;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterCommands;
@@ -40,6 +42,7 @@ public class UndoService {
     private final CommandRecorder commandRecorder;
     private final CombatLogWriter combatLog;
     private final CombatLogRepository combatLogRepository;
+    private final CombatCommandRepository commandRepository;
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
 
@@ -68,6 +71,7 @@ public class UndoService {
             restore(encounter, command);
             command.setUndoneAt(now);
             command.setUndoneBy(userId);
+            revive(command);
         }
         for (CombatCommand command : undoing) {
             combatLog.save(combatLog.entry(encounter, CombatActionType.UNDO,
@@ -76,6 +80,32 @@ public class UndoService {
         }
         log.info("DM {} undid {} combat command(s) in encounter {}", userId, undoing.size(), encounterId);
         return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    /**
+     * Takes back a command inside another command, as a successful Counterspell takes back the spell it counters
+     * (PHB p.228, D196): what the command changed is put back and it is marked undone, so its entries are dimmed for
+     * the DM and dropped for players. The command doing it writes its own entry naming the command it undid, so undoing
+     * that command later brings this one back ({@link #revive}).
+     */
+    public void revert(Encounter encounter, CombatCommand command, UUID userId) {
+        restore(encounter, command);
+        command.setUndoneAt(Instant.now());
+        command.setUndoneBy(userId);
+        revive(command);
+    }
+
+    // A command that took back another, as Counterspell does (D196), gives that one back when it is itself undone: its
+    // own before-state already holds the countered command's results, and those entries stand again
+    private void revive(CombatCommand command) {
+        for (CombatLog entry : combatLogRepository.findByCommandIdOrderByCreatedAtAsc(command.getId())) {
+            if (entry.getUndoesCommandId() != null && entry.getActionType() != CombatActionType.UNDO) {
+                commandRepository.findById(entry.getUndoesCommandId()).ifPresent(revived -> {
+                    revived.setUndoneAt(null);
+                    revived.setUndoneBy(null);
+                });
+            }
+        }
     }
 
     // Puts back what the command changed: its participants, the encounter's turn and the log entries it changed

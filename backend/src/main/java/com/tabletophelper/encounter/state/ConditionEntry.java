@@ -172,6 +172,13 @@ public record ConditionEntry(
                 endsOnAttackOrCast, bonus, endsOnDamage, saveOnDamage);
     }
 
+    /** This entry with a count of its own, as Mirror Image's duplicates (PHB p.260, D196). */
+    public ConditionEntry withBonus(Integer count) {
+        return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
+                sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, heldDie, wildShape, weapon,
+                endsOnAttackOrCast, count, endsOnDamage, saveOnDamage);
+    }
+
     public ConditionEntry withHeldDie(HeldDie die) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
                 sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, die, wildShape, weapon,

@@ -365,6 +365,38 @@ public class AttackService {
     }
 
     /**
+     * A club or quarterstaff under Shillelagh (PHB p.275, D196): its damage die is a d8, and its attack and damage use
+     * the caster's spellcasting ability instead of Strength when that is higher; the weapon's being magical is the DM's.
+     * Anything else is unchanged.
+     */
+    AttackFeatures.Numbers shillelagh(EncounterParticipant attacker, WeaponRules.Weapon weapon,
+                                      AttackFeatures.Numbers numbers, boolean offHand) {
+        boolean imbued = CreatureStats.conditionNames(attacker).stream().anyMatch(SHILLELAGH::equalsIgnoreCase);
+        if (!imbued || weapon.ranged() || !shillelaghWeapon(weapon.name())) {
+            return numbers;
+        }
+        int own = Ability.modifier(stats.abilityScore(attacker, numbers.ability()));
+        Ability spellcasting = Ability.parse(attacker.getSpellcastingAbility()).orElse(null);
+        int casting = spellcasting != null ? Ability.modifier(stats.abilityScore(attacker, spellcasting)) : own;
+        int gain = Math.max(0, casting - own);
+        Ability ability = gain > 0 ? spellcasting : numbers.ability();
+        // An off-hand attack adds no positive modifier to its damage (PHB p.195), so it keeps the one it has
+        Dice damage = new Dice(numbers.damage().count(), 8, numbers.damage().modifier() + (offHand ? 0 : gain));
+        List<String> notes = new ArrayList<>(numbers.notes());
+        notes.add("Shillelagh d8" + (gain > 0 ? ", " + ability.name() : ""));
+        return new AttackFeatures.Numbers(ability, numbers.attackBonus() + gain, damage, numbers.rerollUpTo(),
+                numbers.critRange(), numbers.martialArts(), notes);
+    }
+
+    static final String SHILLELAGH = "shillelagh";
+
+    // Shillelagh imbues only a club or a quarterstaff (PHB p.275)
+    static boolean shillelaghWeapon(String weaponName) {
+        String name = weaponName == null ? "" : weaponName.trim().toLowerCase(java.util.Locale.ROOT);
+        return name.equals("club") || name.equals("quarterstaff");
+    }
+
+    /**
      * Sharpen the Blade's bonus with the weapon (XGE p.35): the ki points spent on the attacker's entry that names it,
      * in any case; 0 without one.
      */
@@ -577,7 +609,8 @@ public class AttackService {
         });
 
         AttackFeatures.Attacker attacker = characterWeapons.attacker(character, armoured(actor));
-        AttackFeatures.Numbers numbers = characterWeapons.numbers(held, attacker, powerAttack, offHand, grip);
+        AttackFeatures.Numbers numbers = shillelagh(actor, weapon,
+                characterWeapons.numbers(held, attacker, powerAttack, offHand, grip), offHand);
         boolean meleeStrength = ClassFeatures.meleeStrengthAttack(weapon.ranged(), numbers.ability());
         boolean ownTurn = EncounterTurns.isCurrentTurn(encounter, actor.getId());
         List<String> conditions = CreatureStats.conditionNames(actor);

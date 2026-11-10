@@ -2411,10 +2411,12 @@
         "description": "For the duration: weapon's damage die becomes d8, you can use spellcasting ability instead of Strength for attack and damage rolls with the weapon, and the weapon becomes magical."
       }
     ],
-    "conditionsInflicted": null,
+    "conditionsInflicted": [
+      "shillelagh"
+    ],
     "healing": null,
     "upcastDescription": null,
-    "specialMechanics": "Only works on a club or quarterstaff. Spell ends if you cast it again or let go of the weapon. Bonus action casting time.",
+    "specialMechanics": "Only works on a club or quarterstaff: its damage die becomes a d8 and its attack and damage use the spellcasting ability when higher than Strength, while the caster has the shillelagh condition (D196). Spell ends if you cast it again or let go of the weapon.",
     "requiresManualResolution": false,
     "manualResolutionReason": null,
     "patternCategory": "SELF_BUFF",
@@ -6563,11 +6565,11 @@
     "concentration": false,
     "durationRounds": 10,
     "durationText": "1 minute",
-    "deliveryMethod": "SAVING_THROW",
+    "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
-    "saveAbility": "WIS",
+    "saveAbility": null,
     "halfOnSave": false,
-    "autoHit": false,
+    "autoHit": true,
     "targetType": "SINGLE_TARGET",
     "targetCount": 1,
     "targetCountUpcastScaling": null,
@@ -6583,12 +6585,20 @@
         "description": "Creatures targeting the warded creature with attacks or harmful spells must make WIS save. On fail, must choose new target or lose the attack/spell."
       }
     ],
-    "conditionsInflicted": [],
+    "conditionsInflicted": [
+      {
+        "condition": "sanctuary",
+        "saveToAvoid": null,
+        "durationRounds": 10,
+        "durationText": "1 minute",
+        "endsOnAttackOrCast": true
+      }
+    ],
     "healing": null,
     "upcastDescription": null,
-    "specialMechanics": "Doesn't protect from AOE effects. Ends if warded creature attacks, casts offensive spell, or deals damage to another creature.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Requires WIS save from each attacker before each attack/spell. Complex end conditions (warded creature attacks, casts offensively, or deals damage).",
+    "specialMechanics": "The warded creature has the sanctuary condition, keeping the caster's save DC. A creature making an attack roll against it, or casting a one-target harmful spell at it, makes a WIS save first; on a failure the attack or spell does nothing to it (D196). Doesn't protect from area effects. Ends if the warded creature attacks or casts a spell.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "BUFF_NO_ROLL",
     "classes": [
       "Artificer",
@@ -10658,13 +10668,15 @@
         "description": "3 illusory duplicates. Attack targeting you: roll d20 to redirect (6+ with 3, 8+ with 2, 11+ with 1). Duplicate AC = 10 + DEX mod. Destroyed when hit."
       }
     ],
-    "conditionsInflicted": [],
+    "conditionsInflicted": [
+      "mirror image"
+    ],
     "healing": null,
     "upcastDescription": null,
-    "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Creates 3 illusory duplicates. Each attack targeting caster requires d20 roll to determine if it hits a duplicate instead (6+ with 3, 8+ with 2, 11+ with 1). Duplicate AC = 10 + DEX mod. Duplicate tracking required.",
-    "patternCategory": "COMPLEX",
+    "specialMechanics": "Three duplicates, counted on the caster's mirror image condition. An attack roll against the caster first rolls a d20 (6+ with three, 8+ with two, 11+ with one) to target a duplicate instead, AC 10 + DEX; a hit destroys it, and the spell ends with the last (D196). Attackers that can't see or have blindsight or truesight are the DM's.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "SELF_BUFF",
     "classes": [
       "Sorcerer",
       "Warlock",
@@ -13050,12 +13062,14 @@
         "description": "At end of each turn, roll d20. On 11+, vanish to Ethereal Plane until start of next turn. While on Ethereal Plane, can see/hear originating plane (shades of gray, 60ft limit). Can only affect/be affected by creatures on Ethereal Plane."
       }
     ],
-    "conditionsInflicted": [],
+    "conditionsInflicted": [
+      "blinking"
+    ],
     "healing": null,
     "upcastDescription": null,
-    "specialMechanics": "Roll d20 at end of each turn; 11+ shifts to Ethereal Plane. Return at start of next turn to unoccupied space within 10 feet. Effectively untargetable while on Ethereal Plane.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Requires d20 roll at end of each turn and tracking plane-shift state; not concentration but has duration",
+    "specialMechanics": "At the end of each of the caster's turns it rolls a d20: on 11 or higher it is ethereal until the start of its next turn, and nothing on the material plane can target it (D196).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SELF_BUFF",
     "classes": [
       "Artificer",
@@ -13351,11 +13365,11 @@
     "concentration": false,
     "durationRounds": null,
     "durationText": "Instantaneous",
-    "deliveryMethod": "NONE",
+    "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
     "saveAbility": null,
     "halfOnSave": false,
-    "autoHit": false,
+    "autoHit": true,
     "targetType": "SINGLE_TARGET",
     "targetCount": 1,
     "targetCountUpcastScaling": null,
@@ -13374,9 +13388,9 @@
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "When cast at 4th level or higher, automatically counters spells of equal or lower level without an ability check",
-    "specialMechanics": "Reaction: when you see a creature within 60 feet casting a spell. Auto-counters spells at or below slot level used. Ability check required for higher-level spells.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Reaction timing, identifying target spell level, potential ability check needed for higher-level spells",
+    "specialMechanics": "Cast as a reaction at the creature that has just cast a spell (the newest combat command): a spell of the slot's level or lower fails; a higher one fails on a spellcasting ability check against DC 10 + its level. The failed spell is taken back through undo, its caster keeping what it spent (D196).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Sorcerer",
@@ -13555,11 +13569,11 @@
     "concentration": false,
     "durationRounds": null,
     "durationText": "Instantaneous",
-    "deliveryMethod": "NONE",
+    "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
     "saveAbility": null,
     "halfOnSave": false,
-    "autoHit": false,
+    "autoHit": true,
     "targetType": "SINGLE_TARGET",
     "targetCount": 1,
     "targetCountUpcastScaling": null,
@@ -13578,9 +13592,9 @@
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "When cast at 4th level or higher, automatically ends spells of equal or lower level without an ability check",
-    "specialMechanics": "Targets one creature, object, or magical effect. Auto-dispels effects at or below the slot level used. Ability check for higher-level effects.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Requires identifying active magical effects on target and their levels, potential ability check for higher-level effects",
+    "specialMechanics": "Ends every spell on the target creature: each of the slot's level or lower, and each higher one on a spellcasting ability check against DC 10 + its level (D196). Objects and areas are the DM's.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Artificer",
@@ -16098,14 +16112,21 @@
     "canTargetEnemies": false,
     "effects": [
       {
-        "effectType": "DAMAGE",
-        "damageDice": "1d8",
-        "damageType": "radiant",
-        "upcastScaling": {
-          "additionalDicePerLevel": null,
-          "additionalFlatPerLevel": 0
-        },
-        "cantripScaling": null
+        "effectType": "BUFF",
+        "description": "Your attacks deal an extra 1d8 radiant, necrotic or cold damage (chosen at the cast) on a hit against a creature within 10 feet of you; +1d8 for every two slot levels above 3rd",
+        "modifiers": [
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "1d8",
+            "damageTypes": [
+              "OPTION"
+            ],
+            "upcast": {
+              "every": 2,
+              "dice": "1d8"
+            }
+          }
+        ]
       },
       {
         "effectType": "DEBUFF",
@@ -16120,8 +16141,8 @@
     "healing": null,
     "upcastDescription": "Extra damage increases by 1d8 for every two slot levels above 3rd (5th: 2d8, 7th: 3d8, 9th: 4d8)",
     "specialMechanics": "Damage type chosen at cast: radiant, necrotic, or cold. Extra damage applies to any attack hitting a creature within 10 feet. Upcast scaling is every 2 levels, not every level.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Persistent self-buff adding damage to all attacks against nearby creatures, healing prevention, and speed reduction aura; requires per-attack tracking",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Cleric",
@@ -16129,7 +16150,13 @@
       "Warlock",
       "Wizard"
     ],
-    "notes": "REVIEW: Upcast scaling is non-standard — 1d8 per 2 slot levels above 3rd. Damage type chosen from radiant/necrotic/cold at cast time."
+    "notes": "REVIEW: Upcast scaling is non-standard — 1d8 per 2 slot levels above 3rd. Damage type chosen from radiant/necrotic/cold at cast time.",
+    "castOptions": [
+      "radiant",
+      "necrotic",
+      "cold"
+    ],
+    "reminder": "A creature hit by the extra damage can't regain hit points until the start of your next turn, and creatures of your choice that start their turn within 10 feet of you have 10 feet less speed until then (TCE p.108); the DM applies these, and leaves out hits on creatures farther than 10 feet."
   },
   {
     "spellName": "Stinking Cloud",

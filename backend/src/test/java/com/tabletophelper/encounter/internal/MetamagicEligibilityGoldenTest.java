@@ -57,7 +57,7 @@ class MetamagicEligibilityGoldenTest {
     }
 
     @Test
-    @DisplayName("At each spell's own level: Careful and Heightened 122, Empowered 109 (Hex, Hunter's Mark, Absorb Elements and Elemental Weapon deal their dice through Ongoing Modifiers, D184), Extended 228, Quickened 270, Subtle 341, Twinned 138 (the 4th-level templates, D185); with the 5th level (D187) Careful and Heightened 143, Empowered 125, Extended 271, Quickened 311, Subtle 403, Twinned 156; with the 7th level (D189) Careful and Heightened 151, Empowered 130, Extended 287, Quickened 327, Subtle 431, Twinned 163; with the 6th level (D188) Careful and Heightened 167, Empowered 140, Extended 317, Quickened 359, Subtle 479, Twinned 172; with the 8th and 9th levels (D190) Careful and Heightened 187, Empowered 153, Extended 345, Quickened 395, Subtle 525, Twinned 186")
+    @DisplayName("At each spell's own level: Careful and Heightened 122, Empowered 109 (Hex, Hunter's Mark, Absorb Elements and Elemental Weapon deal their dice through Ongoing Modifiers, D184), Extended 228, Quickened 270, Subtle 341, Twinned 138 (the 4th-level templates, D185); with the 5th level (D187) Careful and Heightened 143, Empowered 125, Extended 271, Quickened 311, Subtle 403, Twinned 156; with the 7th level (D189) Careful and Heightened 151, Empowered 130, Extended 287, Quickened 327, Subtle 431, Twinned 163; with the 6th level (D188) Careful and Heightened 167, Empowered 140, Extended 317, Quickened 359, Subtle 479, Twinned 172; with the 8th and 9th levels (D190) Careful and Heightened 187, Empowered 153, Extended 345, Quickened 395, Subtle 525, Twinned 186; then Careful and Heightened 186 and Empowered 152, Sanctuary having no save and Spirit Shroud dealing its dice through Ongoing Modifiers (D196)")
     void countsAtOwnLevel() {
         Map<Option, Integer> counts = new EnumMap<>(Option.class);
         FACTS.forEach((spell, facts) -> {
@@ -68,8 +68,9 @@ class MetamagicEligibilityGoldenTest {
             }
         });
         // With the 8th and 9th levels (D190): Careful and Heightened 187, Empowered 153, Extended 345, Quickened 395,
-        // Subtle 525, Twinned 186
-        assertEquals(Map.of(Option.CAREFUL, 187, Option.HEIGHTENED, 187, Option.EMPOWERED, 153, Option.EXTENDED, 345,
+        // Subtle 525, Twinned 186; Sanctuary without a save and Spirit Shroud's dice in
+        // Ongoing Modifiers take Careful and Heightened to 186 and Empowered to 152 (D196)
+        assertEquals(Map.of(Option.CAREFUL, 186, Option.HEIGHTENED, 186, Option.EMPOWERED, 152, Option.EXTENDED, 345,
                 Option.QUICKENED, 395, Option.SUBTLE, 525, Option.TWINNED, 186), counts);
     }
 

@@ -116,6 +116,14 @@ public class EffectApplier {
     private final CombatLogWriter combatLog;
     private final ResourcePoolService resourcePoolService;
 
+    // Mirror Image's duplicates (D196); set by Spring, and absent in unit tests that build this by hand without it
+    private DefensiveSpells defensiveSpells;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setDefensiveSpells(DefensiveSpells defensiveSpells) {
+        this.defensiveSpells = defensiveSpells;
+    }
+
     // The spells data, for a one-shot rider's hit-point threshold (D187); set by Spring, and absent in unit tests that
     // build this by hand, which then check no threshold
     private com.tabletophelper.reference.SpellRepository spellRepository;
@@ -194,9 +202,20 @@ public class EffectApplier {
                                SpellEffects.CastRules rules) {
         boolean attack = use.actor() != null && effect.delivery() instanceof Effect.Attack && !outcomes.isEmpty();
         Set<UUID> ending = attack ? endingOnAttackOrCast(use.actor()) : Set.of();
+        boolean harmfulSpell = use.actor() != null && use.actionType() == CombatActionType.SPELL_CAST
+                && outcomes.size() == 1 && (!effect.damage().isEmpty() || !effect.conditions().isEmpty());
         List<Applied> applied = new ArrayList<>();
         for (Resolver.TargetOutcome outcome : outcomes) {
-            applied.add(applyTo(encounter, use, effect, outcome, null, rules));
+            EncounterParticipant target = CombatAccess.participant(encounter, outcome.targetId());
+            // Sanctuary's WIS save comes first, for an attack roll or a one-target harmful spell (PHB p.272), then an
+            // attack roll against Mirror Image's caster may target a duplicate instead (PHB p.260) (D196)
+            String warded = (attack || harmfulSpell) && defensiveSpells != null
+                    ? defensiveSpells.sanctuary(encounter, use.actor(), target) : null;
+            String duplicate = warded == null && attack && defensiveSpells != null
+                    ? defensiveSpells.redirect(encounter, use.actor(), target, outcome) : null;
+            String spared = warded != null ? warded : duplicate;
+            applied.add(spared != null ? spared(encounter, outcome, spared)
+                    : applyTo(encounter, use, effect, outcome, null, rules));
         }
         endOnAttackOrCast(encounter, use.actor(), ending, "it attacks");
         if (attack) {
@@ -250,6 +269,16 @@ public class EffectApplier {
         if (turns.isPresent() && applied.stream().anyMatch(result -> !result.target().getId().equals(actor.getId()))) {
             endEffect(encounter, actor, turns.get().id(), "it affects another creature");
         }
+    }
+
+    // What an attack or spell kept off its target by Sanctuary or a Mirror Image duplicate did to it: nothing (D196)
+    private static Applied spared(Encounter encounter, Resolver.TargetOutcome outcome, String description) {
+        Resolver.TargetOutcome missed = new Resolver.TargetOutcome(outcome.targetId(), Outcome.MISS, outcome.d20s(),
+                outcome.d20(), outcome.total(), outcome.rollMode(), outcome.autoFailed(), List.of(), List.of(), 0,
+                List.of(), null, outcome.inspiration(), outcome.guidedStrike(), outcome.rerolledD20s(),
+                outcome.automaticSources());
+        return new Applied(CombatAccess.participant(encounter, outcome.targetId()), missed, 0, null, 0, List.of(),
+                false, 0, description, null, null);
     }
 
     /*

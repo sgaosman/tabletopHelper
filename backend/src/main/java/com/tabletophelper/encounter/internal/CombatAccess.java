@@ -190,6 +190,14 @@ public class CombatAccess {
                 .ifPresent(target -> {
                     throw new ConflictException(target.getDisplayName() + " is banished");
                 });
+        // A blinking creature on the Ethereal Plane can't be affected from the material plane (PHB p.219, D196)
+        targets.stream()
+                .filter(DefensiveSpells::ethereal)
+                .findFirst()
+                .ifPresent(target -> {
+                    throw new ConflictException(target.getDisplayName()
+                            + " is on the Ethereal Plane (Blink) until the start of its next turn");
+                });
     }
 
     /**

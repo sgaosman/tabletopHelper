@@ -210,8 +210,8 @@ class EndsOnAttackOrCastTest {
         }
 
         @Test
-        @DisplayName("Only Invisibility's and Mislead's data end their condition on an attack or a spell; Greater "
-                + "Invisibility's doesn't")
+        @DisplayName("Only Invisibility's, Mislead's and Sanctuary's data end their condition on an attack or a spell; "
+                + "Greater Invisibility's doesn't")
         void data() {
             Set<String> flagged = new TreeSet<>();
             for (JsonNode node : definitions()) {
@@ -221,8 +221,8 @@ class EndsOnAttackOrCastTest {
                     flagged.add(node.path("spellName").asString());
                 }
             }
-            // Mislead's invisibility ends the same way (PHB p.260, D187)
-            assertEquals(Set.of("Invisibility", "Mislead"), flagged);
+            // Mislead's invisibility ends the same way (PHB p.260, D187), and Sanctuary's ward (PHB p.272, D196)
+            assertEquals(Set.of("Invisibility", "Mislead", "Sanctuary"), flagged);
         }
     }
 

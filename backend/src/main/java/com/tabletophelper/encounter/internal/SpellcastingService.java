@@ -84,6 +84,8 @@ public class SpellcastingService {
     private final MetamagicCasting metamagicCasting;
     private final Summoner summoner;
     private final FormSpells formSpells;
+    private final SpellCounters spellCounters;
+    private final DefensiveSpells defensiveSpells;
 
     /**
      * Casts a spell for a player character or a monster: everything is checked, and the cast charged to the
@@ -147,6 +149,11 @@ public class SpellcastingService {
         Charge.SpellKind kind = payment.spellLevel() == 0 ? Charge.SpellKind.CANTRIP : Charge.SpellKind.LEVELLED;
         String tooLong = payment.castingTime() == CastingTime.LONGER
                 ? payment.spellName() + " takes longer than a turn to cast, so it can't be cast in combat" : null;
+        // Counterspell takes back the spell its target has just cast, before its own cost is spent (PHB p.228, D196)
+        SpellCounters.Countered countered = SpellCounters.COUNTERSPELL.equalsIgnoreCase(casting.spellName())
+                ? spellCounters.countered(encounter, targets) : null;
+        String counterNote = countered == null ? null : spellCounters.counter(encounter, caster, countered,
+                casting.castLevel(), own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()), userId);
         economy.charge(encounter, caster,
                 Charge.spell(cost, kind, EncounterTurns.isCurrentTurn(encounter, caster.getId())), tooLong, userId,
                 new ActionEconomyKeeper.Command(CombatActionType.SPELL_CAST,
@@ -159,7 +166,10 @@ public class SpellcastingService {
         // Casting a spell ends the caster's invisibility from Invisibility (PHB p.254) or Cloak of Shadows (PHB p.63)
         // once the spell is cast, but not what the spell itself gives it
         Set<UUID> ending = EffectApplier.endingOnAttackOrCast(caster);
-        SpellCaster.CastResult result = spellCaster.cast(encounter, caster, casting.spellName(), casting.castLevel(),
+        SpellCaster.CastResult result = SpellCounters.handles(casting.spellName())
+                ? counterCast(encounter, caster, casting, targets, own.ability(),
+                        attackBonus(own, request.getOverrideSpellAttackBonus()), costNote, counterNote)
+                : spellCaster.cast(encounter, caster, casting.spellName(), casting.castLevel(),
                 targets, own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
                 saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(),
                 costNote + (duplicate != null ? " through " + payment.spellName() : ""), metamagic, summon, option);
@@ -169,8 +179,33 @@ public class SpellcastingService {
                     saveDc(own, request.getOverrideSpellSaveDC()), "");
         }
         formSpells.afterCast(encounter, caster, forms);
+        // Mirror Image's three duplicates (PHB p.260) and Sanctuary's save DC (PHB p.272) (D196)
+        defensiveSpells.afterCast(caster, casting.spellName(), targets, saveDc(own, request.getOverrideSpellSaveDC()));
         effectApplier.endOnAttackOrCast(encounter, caster, ending, "it casts a spell");
         return response(encounter, result, payment.castLevel(), payment.source());
+    }
+
+    // Counterspell, whose counter is already resolved, or Dispel Magic on its one target (D196)
+    private SpellCaster.CastResult counterCast(Encounter encounter, EncounterParticipant caster,
+                                               SpellSources.Payment casting, List<EncounterParticipant> targets,
+                                               String ability, int attackBonus, String costNote, String counterNote) {
+        String spellName = casting.spellName();
+        int level = casting.castLevel();
+        EffectApplier.Use use = new EffectApplier.Use(caster, caster.getDisplayName(), CombatActionType.SPELL_CAST,
+                "casts " + spellName + costNote, "at", spellName, null);
+        String lead = caster.getDisplayName() + " casts " + spellName + (level > 3 ? " at level " + level : "")
+                + costNote + ".";
+        effectApplier.summary(encounter, use, lead);
+        String outcome;
+        if (counterNote != null) {
+            outcome = counterNote;
+        } else {
+            if (targets.size() != 1) {
+                throw new ValidationException(spellName + " targets one creature");
+            }
+            outcome = spellCounters.dispel(encounter, use, caster, targets.getFirst(), level, ability, attackBonus);
+        }
+        return new SpellCaster.CastResult(spellName, 3, false, null, lead + " " + outcome, List.of());
     }
 
     // A creature wearing armour or a shield it isn't proficient with can't cast spells (PHB p.144), nor can one that
