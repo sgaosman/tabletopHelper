@@ -612,6 +612,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/active-spell": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["startActiveSpell"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/attack": {
         parameters: {
             query?: never;
@@ -1022,6 +1038,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["endSpellEffect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/combat/spell-effect/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["moveSpellEffect"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2129,6 +2161,15 @@ export interface components {
             /** Format: int32 */
             wisdom: number;
         };
+        ActiveSpellRequest: {
+            /** Format: uuid */
+            casterId: string;
+            option?: string | null;
+            /** Format: int32 */
+            slotLevel?: number | null;
+            spellName: string;
+            targetIds?: string[] | null;
+        };
         AddParticipantRequest: {
             /** Format: int32 */
             armourClass?: number | null;
@@ -2398,6 +2439,7 @@ export interface components {
         CastSpellRequest: {
             advantage?: boolean | null;
             metamagic?: components["schemas"]["MetamagicChoice"][] | null;
+            option?: string | null;
             /** Format: int32 */
             overrideSpellAttackBonus?: number | null;
             /** Format: int32 */
@@ -3473,6 +3515,14 @@ export interface components {
             /** Format: int32 */
             totalHealing: number;
         };
+        MoveSpellEffectRequest: {
+            /** Format: uuid */
+            effectId: string;
+            /** Format: uuid */
+            participantId: string;
+            /** Format: uuid */
+            targetId: string;
+        };
         MultiattackOption: {
             components: components["schemas"]["ComponentOption"][];
             description?: string | null;
@@ -3638,6 +3688,7 @@ export interface components {
             };
             /** Format: int32 */
             spellAttackBonus?: number | null;
+            spellModifiers: components["schemas"]["SpellModifierResponse"][];
             /** Format: int32 */
             spellSaveDc?: number | null;
             spellSlotsCurrent?: {
@@ -3899,6 +3950,7 @@ export interface components {
             updatedAt?: string | null;
         };
         SpellEffectResponse: {
+            affectedIds: string[];
             concentration: boolean;
             /** @enum {string|null} */
             directedCost?: "ACTION" | "BONUS_ACTION" | "NONE" | null;
@@ -3909,6 +3961,9 @@ export interface components {
             id: string;
             /** Format: int32 */
             maxUsesEachTurn?: number | null;
+            modifiers: string[];
+            option?: string | null;
+            retargetable: boolean;
             /** Format: int32 */
             slotLevel?: number | null;
             spell: string;
@@ -3920,7 +3975,18 @@ export interface components {
             /** Format: int32 */
             usesLeft?: number | null;
         };
+        SpellModifierResponse: {
+            /** Format: uuid */
+            casterId?: string | null;
+            /** Format: uuid */
+            effectId: string;
+            hinders: boolean;
+            label: string;
+            modifiers: string[];
+            spell: string;
+        };
         SpellOption: {
+            castOptions?: string[] | null;
             /** @enum {string} */
             castingTime: "ACTION" | "BONUS_ACTION" | "REACTION" | "LONGER";
             /** Format: int32 */
@@ -5348,6 +5414,32 @@ export interface operations {
             };
         };
     };
+    startActiveSpell: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActiveSpellRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
     rollAttack: {
         parameters: {
             query?: {
@@ -6014,6 +6106,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["EndSpellEffectRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    moveSpellEffect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveSpellEffectRequest"];
             };
         };
         responses: {

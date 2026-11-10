@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Shield, Sparkles, AlertTriangle, type LucideIcon } from 'lucide-react';
 import type { EncounterParticipant } from '../../../types/encounter';
 import Button from '../../ui/Button';
-import Input from '../../ui/Input';
+import Input, { Select } from '../../ui/Input';
 import type { CastingTime } from '../../../utils/turnEconomy';
 import CastingTimeBadge from './CastingTimeBadge';
 
@@ -37,6 +37,10 @@ interface Props {
   onSubmit: () => void;
   /** Back to the step before; without it there is no Back button. */
   onBack?: () => void;
+  /** The options a cast of the spell chooses between, such as Enlarge or Reduce (D184); none for most spells. */
+  castOptions?: string[] | null;
+  option?: string | null;
+  onOptionChange?: (value: string) => void;
 }
 
 const ADVANTAGE_MODES = [
@@ -49,7 +53,7 @@ const ADVANTAGE_MODES = [
 export default function ConfirmStep({
   spellName, levelLabel, cost, castingTime, reactionTrigger, economyWarning, caster, targets, warnConcentration = false, advantage, onAdvantageChange,
   allowManualModifiers, overrideAttackBonus, overrideSaveDC, onOverrideAttackBonus, onOverrideSaveDC,
-  submitLabel, busyLabel, submitIcon: SubmitIcon, submitting, onSubmit, onBack,
+  submitLabel, busyLabel, submitIcon: SubmitIcon, submitting, onSubmit, onBack, castOptions, option, onOptionChange,
 }: Props) {
   return (
     <>
@@ -93,6 +97,12 @@ export default function ConfirmStep({
           </div>
         )}
       </div>
+
+      {castOptions && castOptions.length > 0 && onOptionChange && (
+        <Select label="Option" value={option ?? ''} onChange={e => onOptionChange(e.target.value)}>
+          {castOptions.map(choice => <option key={choice} value={choice}>{choice}</option>)}
+        </Select>
+      )}
 
       <div className="flex gap-2">
         {ADVANTAGE_MODES.map(({ label, value }) => (

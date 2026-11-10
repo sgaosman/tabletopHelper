@@ -36,4 +36,26 @@ describe('SpellEffectCard', () => {
     expect(screen.getByText('5 left')).toBeInTheDocument();
     expect(screen.queryByText(/rounds? left/)).not.toBeInTheDocument();
   });
+
+  it('names the creatures its Ongoing Modifiers are on, its option, and what they do (D184)', () => {
+    const weapon = makeMockSpellEffect('Elemental Weapon', {
+      concentration: true, directedCost: null, option: 'fire', affectedIds: ['part-bron'],
+      modifiers: ['+1 to weapon attack rolls', '+1d4 fire damage on weapon hits'],
+    });
+    render(<SpellEffectCard effect={weapon} roundNumber={1} affectedNames={['Bron']} />);
+
+    expect(screen.getByText('Elemental Weapon (fire)')).toHaveAttribute('title',
+      '+1 to weapon attack rolls; +1d4 fire damage on weapon hits');
+    expect(screen.getByText('on Bron')).toBeInTheDocument();
+  });
+
+  it("moves Hunter's Mark to another creature chosen from the list (PHB p.251, D184)", async () => {
+    const onMove = vi.fn();
+    const mark = makeMockSpellEffect("Hunter's Mark", { concentration: true, directedCost: null, retargetable: true });
+    render(<SpellEffectCard effect={mark} roundNumber={1} moveTargets={[{ id: 'part-orc', name: 'Orc' }]}
+      onMove={onMove} />);
+
+    await userEvent.setup().selectOptions(screen.getByLabelText("Move Hunter's Mark to"), 'part-orc');
+    expect(onMove).toHaveBeenCalledWith('part-orc');
+  });
 });

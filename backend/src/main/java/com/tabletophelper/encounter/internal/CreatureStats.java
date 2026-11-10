@@ -20,16 +20,22 @@ import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.KenseiFeatures;
+import com.tabletophelper.rules.combat.OngoingModifier;
+import com.tabletophelper.rules.combat.OngoingModifiers;
 import com.tabletophelper.rules.combat.Resolver;
+import com.tabletophelper.rules.combat.RollMode;
+import com.tabletophelper.rules.combat.RollModifiers;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -53,16 +59,19 @@ public class CreatureStats {
 
     /**
      * The participant's AC now: its own, or its beast's in Wild Shape, with the bonuses its entries give while they
-     * hold, which are a Kensei monk's Agile Parry's +2 unless it is incapacitated (XGE p.34); null when it has none.
+     * hold, which are a Kensei monk's Agile Parry's +2 unless it is incapacitated (XGE p.34), and with the Ongoing
+     * Modifiers on it (D184), such as Mage Armor's base, Shield of Faith's +2 and Barkskin's floor; null when it has
+     * none.
      */
     public static Integer armourClass(EncounterParticipant participant) {
         Integer base = participant.getArmourClass();
-        if (base == null || participant.getActiveConditions() == null) {
-            return base;
+        if (base == null) {
+            return null;
         }
-        boolean parrying = participant.getActiveConditions().stream()
+        boolean parrying = participant.getActiveConditions() != null && participant.getActiveConditions().stream()
                 .anyMatch(c -> c != null && KenseiFeatures.AGILE_PARRY.equalsIgnoreCase(c.name()));
-        return parrying ? base + KenseiFeatures.agileParryBonus(conditionNames(participant)) : base;
+        int own = parrying ? base + KenseiFeatures.agileParryBonus(conditionNames(participant)) : base;
+        return OngoingModifiers.armourClass(own, ActiveModifiers.modifiersOn(participant));
     }
 
     /**
@@ -88,7 +97,9 @@ public class CreatureStats {
      */
     public static int hpMax(EncounterParticipant participant) {
         int stored = participant.getHpMax() != null ? participant.getHpMax() : 1;
-        return Exhaustion.hitPointMaximum(stored, Exhaustion.clamp(participant.getExhaustionLevel()));
+        // Aid raises the maximum, and exhaustion halves the maximum it has then (PHB p.211, p.291; D184)
+        int raised = OngoingModifiers.hitPointMaximum(stored, ActiveModifiers.modifiersOn(participant));
+        return Exhaustion.hitPointMaximum(raised, Exhaustion.clamp(participant.getExhaustionLevel()));
     }
 
     /**
@@ -120,11 +131,79 @@ public class CreatureStats {
      * for a failed save rolls it when it fails the Effect's save (PHB p.53, M17).
      */
     public Resolver.Target target(EncounterParticipant participant, Effect effect) {
+        return target(participant, effect, null);
+    }
+
+    /**
+     * As {@link #target(EncounterParticipant, Effect)}, for an Effect the attacker uses, with what the Ongoing
+     * Modifiers of both do to it (D184): the named sources of advantage and disadvantage, the dice added to an attack
+     * roll and the damage added to a hit, and the dice and modes on the target's save.
+     *
+     * @param attacker the participant using the Effect, or null for none, as the DM's own attack
+     */
+    public Resolver.Target target(EncounterParticipant participant, Effect effect, EncounterParticipant attacker) {
+        Ability saveAbility = effect.saveAbility();
+        List<OngoingModifiers.Labelled> own = ActiveModifiers.labelledOn(participant);
+        List<RollMode> saveModes = saveAbility != null
+                ? OngoingModifiers.saveModes(saveAbility.name(), own.stream().map(OngoingModifiers.Labelled::modifier)
+                        .toList())
+                : List.of();
         return new Resolver.Target(participant.getId(), armourClass(participant),
-                saveModifier(participant, effect.saveAbility()), conditionNames(participant),
-                armourPenalty(participant), List.of(),
+                saveModifier(participant, saveAbility), conditionNames(participant),
+                armourPenalty(participant), saveModes,
                 effect.delivery() instanceof Effect.Save ? inspirationForSaves(participant) : 0, false,
-                senses(participant));
+                senses(participant), rollModifiers(participant, effect, attacker, own));
+    }
+
+    /** Each participant as the Resolver needs it for an Effect the attacker uses, in the same order (D184). */
+    public List<Resolver.Target> targets(List<EncounterParticipant> participants, Effect effect,
+                                         EncounterParticipant attacker) {
+        return participants.stream().map(participant -> target(participant, effect, attacker)).toList();
+    }
+
+    // What the Ongoing Modifiers do to the Effect against the target (D184)
+    private static RollModifiers rollModifiers(EncounterParticipant target, Effect effect,
+                                               EncounterParticipant attacker, List<OngoingModifiers.Labelled> own) {
+        Ability saveAbility = effect.saveAbility();
+        List<RollModifiers.Bonus> saveBonuses = saveAbility != null
+                ? OngoingModifiers.saveBonuses(saveAbility.name(), own) : List.of();
+        boolean revealed = OngoingModifiers.revealed(own.stream().map(OngoingModifiers.Labelled::modifier).toList());
+        if (!(effect.delivery() instanceof Effect.Attack attack)) {
+            return new RollModifiers(List.of(), List.of(), List.of(), saveBonuses, Set.of(), revealed);
+        }
+        List<ActiveModifiers.Found> attackers = ActiveModifiers.attacking(attacker, target);
+        List<OngoingModifiers.Labelled> attackerMods = ActiveModifiers.labelled(attackers);
+        AttackRules.Side targetSide = revealed ? side(target).revealed() : side(target);
+        List<AttackRules.Source> sources = new ArrayList<>(OngoingModifiers.attackerSources(attack.weapon(),
+                attackerMods));
+        sources.addAll(OngoingModifiers.targetSources(ActiveModifiers.labelled(ActiveModifiers.attacked(target)),
+                side(attacker), targetSide, attacker != null ? creatureType(attacker) : null));
+        Set<UUID> oneShots = new HashSet<>();
+        for (ActiveModifiers.Found found : attackers) {
+            OngoingModifier modifier = found.modifier();
+            if (modifier.oneShot() && modifier.kind() == OngoingModifier.Kind.ATTACK_MODE
+                    && (attack.weapon() || !modifier.weaponOnly())) {
+                oneShots.add(modifier.id());
+            }
+        }
+        return new RollModifiers(sources, OngoingModifiers.attackBonuses(attack.weapon(), attackerMods),
+                OngoingModifiers.hitDamage(attack.weapon(), attack.withinFiveFeet(), attackerMods), saveBonuses,
+                oneShots, revealed);
+    }
+
+    /**
+     * What the Ongoing Modifiers on the participant add to a saving throw of the ability, a death save when it is null
+     * (D184): their dice and amounts, and their advantage or disadvantage.
+     */
+    public static SaveModifiers saveModifiers(EncounterParticipant participant, Ability ability) {
+        List<OngoingModifiers.Labelled> own = ActiveModifiers.labelledOn(participant);
+        String name = ability != null ? ability.name() : null;
+        return new SaveModifiers(OngoingModifiers.saveBonuses(name, own),
+                OngoingModifiers.saveModes(name, own.stream().map(OngoingModifiers.Labelled::modifier).toList()));
+    }
+
+    /** The dice and modes Ongoing Modifiers give one saving throw (D184). */
+    public record SaveModifiers(List<RollModifiers.Bonus> bonuses, List<RollMode> modes) {
     }
 
     // The sides of the Bardic Inspiration die the creature keeps for its next failed save, or 0
@@ -330,6 +409,10 @@ public class CreatureStats {
                 }
             });
         }
+        // Resistance an Ongoing Modifier gives, such as Warding Bond's to all damage (PHB p.287, D184)
+        if (OngoingModifiers.resists(type, ActiveModifiers.modifiersOn(participant))) {
+            defences.add(Defence.RESISTANCE);
+        }
         // A raging creature resists bludgeoning, piercing and slashing damage (PHB p.48); resistances don't stack
         if (ClassFeatures.raging(conditionNames(participant)) && ClassFeatures.rageResists(type)) {
             defences.add(Defence.RESISTANCE);
@@ -349,6 +432,10 @@ public class CreatureStats {
             return false;
         }
         String name = condition.trim();
+        // Heroism's immunity to being frightened (PHB p.250, D184)
+        if (OngoingModifiers.immuneTo(name, ActiveModifiers.modifiersOn(participant))) {
+            return true;
+        }
         if (participant.getMonster() != null) {
             Monster monster = participant.getMonster();
             return lists(monster.getConditionImmunities(), monster.getName() + "'s condition immunities", name);

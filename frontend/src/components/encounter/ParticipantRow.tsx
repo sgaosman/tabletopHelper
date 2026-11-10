@@ -3,6 +3,7 @@ import { ChevronRight } from 'lucide-react';
 import type { EncounterParticipant } from '../../types/encounter';
 import { getParticipantColour } from '../../utils/classColours';
 import WildShapeStatus from './WildShapeStatus';
+import SpellModifierChips from './SpellModifierChips';
 
 /**
  * A participant's row in the initiative list: the left edge in its class colour (or the monster colour), the turn
@@ -17,11 +18,13 @@ import WildShapeStatus from './WildShapeStatus';
  * @param onEndWildShape ends the druid's Wild Shape, for whoever may: the DM, or the druid's player
  * @param summonerName the name of the creature that summoned this one, for its "Summoned by" badge (D182); a summon
  *   that acts right after its caster is indented under it
+ * @param participants everyone in the encounter, so a spell chip can name its caster (D184)
  *
  * On a phone the trailing part moves to a line of its own when it does not fit beside the name.
  */
 export default function ParticipantRow({
   participant: p, current, highlighted = false, leading, badges, children, trailing, onEndWildShape, summonerName,
+  participants,
 }: {
   participant: EncounterParticipant;
   current: boolean;
@@ -32,6 +35,7 @@ export default function ParticipantRow({
   trailing?: ReactNode;
   onEndWildShape?: () => void;
   summonerName?: string | null;
+  participants?: EncounterParticipant[];
 }) {
   const isMonster = p.participantType === 'MONSTER';
   // A summon that acts right after its caster sits under it in the order (TCE p.109, D182)
@@ -70,6 +74,8 @@ export default function ParticipantRow({
             )}
           </div>
           <WildShapeStatus participant={p} onEnd={onEndWildShape} />
+          {/* The spells whose Ongoing Modifiers are on it, such as Bless or Faerie Fire (D184) */}
+          <SpellModifierChips participant={p} participants={participants} />
           {children}
         </div>
 

@@ -208,7 +208,7 @@ public class MonsterActionService {
                         "uses " + label + costNote, "on", monster.getDisplayName(), null);
                 applied.addAll(effectApplier.apply(encounter, use, step.effect(),
                         resolver.resolve(step.effect(), CreatureStats.side(monster),
-                                stats.targets(stepTargets, step.effect()))));
+                                stats.targets(stepTargets, step.effect(), monster))));
             }
         }
 

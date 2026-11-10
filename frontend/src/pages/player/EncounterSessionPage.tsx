@@ -433,6 +433,7 @@ function PlayerSessionView() {
               <ParticipantRow
                 key={p.id}
                 participant={p}
+                participants={encounter.participants}
                 current={turn.current}
                 highlighted={isOwn}
                 summonerName={p.summonedByParticipantId ? participantsById.get(p.summonedByParticipantId)?.displayName : null}
@@ -475,6 +476,7 @@ function PlayerSessionView() {
                   onUse={isOwn && isActive && p.lifeState === 'ALIVE' ? effect => directEffect(effect) : undefined}
                   blockedBy={effect => effectBlock(p, effect)}
                   onEnd={isOwn && isActive ? effect => { void effectCommand(() => actions.endSpellEffect({ participantId: p.id, effectId: effect.id })); } : undefined}
+                  onMove={isOwn && isActive ? (effect, targetId) => { void effectCommand(() => actions.moveSpellEffect({ participantId: p.id, effectId: effect.id, targetId })); } : undefined}
                   participants={encounter.participants}
                 />
               </ParticipantRow>

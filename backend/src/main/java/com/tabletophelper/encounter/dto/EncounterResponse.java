@@ -154,6 +154,10 @@ public class EncounterResponse {
         @Schema(requiredMode = REQUIRED)
         private List<SpellEffectResponse> activeEffects;
 
+        // The spells whose Ongoing Modifiers are on it, such as Bless or Faerie Fire, one each (D184); empty for none
+        @Schema(requiredMode = REQUIRED)
+        private List<SpellModifierResponse> spellModifiers;
+
         // Keyed "1" to "9" by spell level, and "pact_N" for pact slots (D168)
         private Map<String, SpellSlot> spellSlotsCurrent;
 
@@ -283,6 +287,49 @@ public class EncounterResponse {
         // The creatures it summoned that are still in the fight, in the order they were made (D182); empty for none
         @Schema(requiredMode = REQUIRED)
         private List<UUID> summonedParticipantIds;
+
+        // The creatures its Ongoing Modifiers are on (D184); empty for none
+        @Schema(requiredMode = REQUIRED)
+        private List<UUID> affectedIds;
+
+        // The option it was cast with, such as "reduce" (D184); null for none
+        private String option;
+
+        // What its Ongoing Modifiers do, in words, such as "+1d4 to attack rolls" (D184); empty for none
+        @Schema(requiredMode = REQUIRED)
+        private List<String> modifiers;
+
+        // Whether its caster can move it to a new creature once its creature drops to 0 HP (Hunter's Mark, Hex; D184)
+        @Schema(requiredMode = REQUIRED)
+        private boolean retargetable;
+    }
+
+    /** A spell whose Ongoing Modifiers are on a participant (D184), shown as a chip such as "Bless". */
+    @Data
+    @Builder(toBuilder = true)
+    public static class SpellModifierResponse {
+
+        // The caster's Spell Effect that holds them
+        @Schema(requiredMode = REQUIRED)
+        private UUID effectId;
+
+        // The caster; null in the Player View for a caster hidden from players (D157)
+        private UUID casterId;
+
+        @Schema(requiredMode = REQUIRED)
+        private String spell;
+
+        // What the chip says: the spell, or the mode chosen for a spell of two, such as "Reduce"
+        @Schema(requiredMode = REQUIRED)
+        private String label;
+
+        // What they do, in words
+        @Schema(requiredMode = REQUIRED)
+        private List<String> modifiers;
+
+        // Whether they work against the creature, as Bane or Faerie Fire do
+        @Schema(requiredMode = REQUIRED)
+        private boolean hinders;
     }
 
     /** One turn in the order: a participant's, or the Lair's (D163). */

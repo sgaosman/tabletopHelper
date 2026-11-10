@@ -121,4 +121,17 @@ describe('ConfirmStep', () => {
     renderStep();
     expect(screen.queryByRole('button', { name: /Back/ })).not.toBeInTheDocument();
   });
+
+  it('offers the options a spell is cast with, such as Enlarge or Reduce (D184)', async () => {
+    const onOptionChange = vi.fn();
+    const { user } = renderStep({ castOptions: ['enlarge', 'reduce'], option: 'enlarge', onOptionChange });
+
+    await user.selectOptions(screen.getByLabelText('Option'), 'reduce');
+    expect(onOptionChange).toHaveBeenCalledWith('reduce');
+  });
+
+  it('offers no option for a spell without them', () => {
+    renderStep();
+    expect(screen.queryByLabelText('Option')).not.toBeInTheDocument();
+  });
 });

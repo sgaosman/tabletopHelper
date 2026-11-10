@@ -2,6 +2,7 @@ package com.tabletophelper.encounter.internal;
 
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.rules.Ability;
+import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.ActionCost;
@@ -254,8 +255,8 @@ class SpellEffectsTest {
             var ranged = (Effect.Attack) f.spellEffects.forCast("Fire Bolt", 0, wizard, null, 7, 15, true).effect().delivery();
             var melee = (Effect.Attack) f.spellEffects.forCast("Shocking Grasp", 0, wizard, null, 7, 15, false).effect().delivery();
 
-            assertEquals(new Effect.Attack(7, RollMode.ADVANTAGE, false, false), ranged);
-            assertEquals(new Effect.Attack(7, RollMode.DISADVANTAGE, true, false), melee);
+            assertEquals(new Effect.Attack(7, RollMode.ADVANTAGE, false, false).withWeapon(false), ranged);
+            assertEquals(new Effect.Attack(7, RollMode.DISADVANTAGE, true, false).withWeapon(false), melee);
         }
 
         @Test
@@ -595,6 +596,85 @@ class SpellEffectsTest {
                     cast("Blindness", 2, wizard, 5).effect().conditionEnds().get("blinded"));
             assertEquals(new Effect.ConditionEnd(10, null),
                     cast("Fear", 3, wizard, 5).effect().conditionEnds().get("frightened"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Ongoing Modifiers (D184)")
+    class Modifiers {
+
+        private static final String MAGIC_WEAPON = """
+                {"spellLevel": 2, "deliveryMethod": "AUTO_HIT", "concentration": true, "durationRounds": 600,
+                 "effects": [{"effectType": "BUFF", "description": "+1",
+                   "modifiers": [{"kind": "ATTACK_ROLL", "flat": 1, "weaponOnly": true,
+                                  "upcast": {"every": 2, "flat": 1}},
+                                 {"kind": "HIT_DAMAGE", "flat": 1, "weaponOnly": true,
+                                  "upcast": {"every": 2, "flat": 1}}]}]}""";
+
+        private static final String ELEMENTAL_WEAPON = """
+                {"spellLevel": 3, "deliveryMethod": "AUTO_HIT", "concentration": true,
+                 "castOptions": ["acid", "cold", "fire", "lightning", "thunder"],
+                 "effects": [{"effectType": "BUFF", "description": "+1 and 1d4",
+                   "modifiers": [{"kind": "HIT_DAMAGE", "dice": "1d4", "damageTypes": ["OPTION"], "weaponOnly": true,
+                                  "upcast": {"every": 2, "dice": "1d4"}}]}]}""";
+
+        @Test
+        @DisplayName("Magic Weapon is +1 at 2nd level, +2 at 4th and +3 at 6th (PHB p.257)")
+        void magicWeaponUpcast() {
+            f.spell("Magic Weapon", 2, MAGIC_WEAPON);
+            assertEquals(1, f.spellEffects.modifiers("Magic Weapon", 2, null, 3, null).modifiers().getFirst().flat());
+            assertEquals(2, f.spellEffects.modifiers("Magic Weapon", 4, null, 3, null).modifiers().getFirst().flat());
+            assertEquals(3, f.spellEffects.modifiers("Magic Weapon", 6, null, 3, null).modifiers().getFirst().flat());
+        }
+
+        @Test
+        @DisplayName("Elemental Weapon deals the chosen type, 2d4 at 5th level (PHB p.237), and needs its option")
+        void elementalWeapon() {
+            f.spell("Elemental Weapon", 3, ELEMENTAL_WEAPON);
+            var modifier = f.spellEffects.modifiers("Elemental Weapon", 5, "fire", 3, null).modifiers().getFirst();
+            assertEquals("2d4", modifier.dice());
+            assertEquals(List.of("fire"), modifier.damageTypes());
+            assertEquals("cold", f.spellEffects.option("Elemental Weapon", "COLD"));
+            assertThrows(com.tabletophelper.shared.ValidationException.class,
+                    () -> f.spellEffects.option("Elemental Weapon", null));
+            assertThrows(com.tabletophelper.shared.ValidationException.class,
+                    () -> f.spellEffects.option("Elemental Weapon", "radiant"));
+            f.spell("Bless", 1, "{\"spellLevel\": 1, \"effects\": []}");
+            assertThrows(com.tabletophelper.shared.ValidationException.class,
+                    () -> f.spellEffects.option("Bless", "fire"));
+        }
+
+        @Test
+        @DisplayName("A modifier of an unknown kind makes the template unreadable, so the content load fails")
+        void unknownKind() {
+            var template = SpellTemplate.parse("""
+                    {"spellLevel": 1, "effects": [{"effectType": "BUFF", "modifiers": [{"kind": "LUCK"}]}]}""");
+            assertTrue(template.unreadable() != null);
+        }
+
+        @Test
+        @DisplayName("Durations as the spells data words them, in rounds of 6 seconds (PHB p.189)")
+        void durations() {
+            assertEquals(10, SpellEffects.durationRounds("Concentration, up to 1 minute"));
+            assertEquals(600, SpellEffects.durationRounds("Concentration, up to 1 hour"));
+            assertEquals(4800, SpellEffects.durationRounds("8 hours"));
+            assertEquals(1, SpellEffects.durationRounds("1 round"));
+            assertEquals(14400, SpellEffects.durationRounds("1 day"));
+            assertEquals(null, SpellEffects.durationRounds("Special"));
+            assertEquals(null, SpellEffects.durationRounds(null));
+        }
+
+        @Test
+        @DisplayName("A concentration spell without a template still needs concentration, for its duration when it can be read")
+        void untemplatedConcentration() {
+            Spell spell = f.spell("Hold Monster", 5, null);
+            spell.setConcentration(true);
+            spell.setDuration("Concentration, up to 1 minute");
+
+            var plan = cast("Hold Monster", 5, wizard, 5);
+            assertFalse(plan.automated());
+            assertTrue(plan.concentration());
+            assertEquals(10, plan.durationRounds());
         }
     }
 }

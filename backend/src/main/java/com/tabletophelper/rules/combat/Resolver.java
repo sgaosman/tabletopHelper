@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -44,16 +45,33 @@ public final class Resolver {
      * @param autoSucceed  it succeeds on the Effect's save without rolling, as a creature Careful Spell protects does
      *                     (PHB p.102, M18)
      * @param senses       its blindsight and truesight, which let it perceive an invisible attacker (MM p.8-9)
+     * @param modifiers    what the Ongoing Modifiers of the attacker and of the target do to an attack roll against it
+     *                     or to its save (D184)
      */
     public record Target(UUID id, int armourClass, int saveModifier, Collection<String> conditions,
                          boolean strDexDisadvantage, List<RollMode> saveSources, int inspirationSides,
-                         boolean autoSucceed, AttackRules.Senses senses) {
+                         boolean autoSucceed, AttackRules.Senses senses, RollModifiers modifiers) {
 
         public Target {
             Objects.requireNonNull(id, "id");
             conditions = List.copyOf(conditions);
             saveSources = saveSources != null ? List.copyOf(saveSources) : List.of();
             senses = senses != null ? senses : AttackRules.Senses.NONE;
+            modifiers = modifiers != null ? modifiers : RollModifiers.NONE;
+        }
+
+        /** A target no Ongoing Modifier changes. */
+        public Target(UUID id, int armourClass, int saveModifier, Collection<String> conditions,
+                      boolean strDexDisadvantage, List<RollMode> saveSources, int inspirationSides,
+                      boolean autoSucceed, AttackRules.Senses senses) {
+            this(id, armourClass, saveModifier, conditions, strDexDisadvantage, saveSources, inspirationSides,
+                    autoSucceed, senses, RollModifiers.NONE);
+        }
+
+        /** The same target with these Ongoing Modifiers' changes (D184). */
+        public Target withModifiers(RollModifiers changed) {
+            return new Target(id, armourClass, saveModifier, conditions, strDexDisadvantage, saveSources,
+                    inspirationSides, autoSucceed, senses, changed);
         }
 
         /** A target with no special senses. */
@@ -64,9 +82,10 @@ public final class Resolver {
                     autoSucceed, AttackRules.Senses.NONE);
         }
 
-        /** Its side of an attack roll against it. */
+        /** Its side of an attack roll against it, without invisibility when it can't benefit from it (D184). */
         public AttackRules.Side side() {
-            return new AttackRules.Side(List.copyOf(conditions), senses);
+            AttackRules.Side side = new AttackRules.Side(List.copyOf(conditions), senses);
+            return modifiers.revealed() ? side.revealed() : side;
         }
 
         /** A target that rolls its save. */
@@ -86,13 +105,13 @@ public final class Resolver {
             List<RollMode> sources = new ArrayList<>(saveSources);
             sources.add(source);
             return new Target(id, armourClass, saveModifier, conditions, strDexDisadvantage, sources,
-                    inspirationSides, autoSucceed, senses);
+                    inspirationSides, autoSucceed, senses, modifiers);
         }
 
         /** The same target succeeding on the Effect's save without rolling (Careful Spell, PHB p.102). */
         public Target succeedingAutomatically() {
             return new Target(id, armourClass, saveModifier, conditions, strDexDisadvantage, saveSources,
-                    inspirationSides, true, senses);
+                    inspirationSides, true, senses, modifiers);
         }
 
         /** A target whose saves nothing but its conditions changes. */
@@ -134,12 +153,17 @@ public final class Resolver {
      *                      new roll's; null when nothing was rerolled
      * @param automaticSources the advantage and disadvantage the attacker's and the target's conditions gave an attack
      *                      roll, with their reasons ({@link AttackRules#setup}); empty for anything else
+     * @param bonuses       what the Ongoing Modifiers added to the attack roll or the save, already in total (D184)
+     * @param riders        the extra damage the Ongoing Modifiers added to a hit, already in damage (D184)
+     * @param spentOneShots the one-shot Ongoing Modifiers this roll used, which are now spent (D184)
      */
     public record TargetOutcome(UUID targetId, Outcome outcome, List<Integer> d20s, Integer d20, Integer total,
                                 RollMode rollMode, boolean autoFailed, List<Damage> damage,
                                 List<Damage> successDamage, int healing, List<String> conditions,
                                 SaveRoll hitSave, Inspiration inspiration, boolean guidedStrike,
-                                List<Integer> rerolledD20s, List<AttackRules.Source> automaticSources) {
+                                List<Integer> rerolledD20s, List<AttackRules.Source> automaticSources,
+                                List<RollModifiers.RolledBonus> bonuses, List<RollModifiers.RolledDamage> riders,
+                                Set<UUID> spentOneShots) {
 
         public TargetOutcome {
             d20s = List.copyOf(d20s);
@@ -148,6 +172,20 @@ public final class Resolver {
             conditions = List.copyOf(conditions);
             rerolledD20s = rerolledD20s != null ? List.copyOf(rerolledD20s) : null;
             automaticSources = automaticSources != null ? List.copyOf(automaticSources) : List.of();
+            bonuses = bonuses != null ? List.copyOf(bonuses) : List.of();
+            riders = riders != null ? List.copyOf(riders) : List.of();
+            spentOneShots = spentOneShots != null ? Set.copyOf(spentOneShots) : Set.of();
+        }
+
+        /** An outcome no Ongoing Modifier changed. */
+        public TargetOutcome(UUID targetId, Outcome outcome, List<Integer> d20s, Integer d20, Integer total,
+                             RollMode rollMode, boolean autoFailed, List<Damage> damage, List<Damage> successDamage,
+                             int healing, List<String> conditions, SaveRoll hitSave, Inspiration inspiration,
+                             boolean guidedStrike, List<Integer> rerolledD20s,
+                             List<AttackRules.Source> automaticSources) {
+            this(targetId, outcome, d20s, d20, total, rollMode, autoFailed, damage, successDamage, healing,
+                    conditions, hitSave, inspiration, guidedStrike, rerolledD20s, automaticSources, List.of(),
+                    List.of(), Set.of());
         }
 
         /** An outcome with no automatic sources named. */
@@ -189,11 +227,19 @@ public final class Resolver {
      * @param rollMode how it was rolled ({@link SaveRules#rollMode})
      */
     public record SaveRoll(Integer d20, Integer total, boolean success, boolean autoFailed, List<Integer> d20s,
-                           RollMode rollMode) {
+                           RollMode rollMode, List<RollModifiers.RolledBonus> bonuses, Set<UUID> spentOneShots) {
 
         public SaveRoll {
             d20s = List.copyOf(d20s);
             Objects.requireNonNull(rollMode, "rollMode");
+            bonuses = bonuses != null ? List.copyOf(bonuses) : List.of();
+            spentOneShots = spentOneShots != null ? Set.copyOf(spentOneShots) : Set.of();
+        }
+
+        /** A save no Ongoing Modifier added to. */
+        public SaveRoll(Integer d20, Integer total, boolean success, boolean autoFailed, List<Integer> d20s,
+                        RollMode rollMode) {
+            this(d20, total, success, autoFailed, d20s, rollMode, List.of(), Set.of());
         }
 
         /** A save rolled once, or failed automatically when d20 is null. */
@@ -272,21 +318,58 @@ public final class Resolver {
     // As above, with the target's other sources of advantage or disadvantage on this save, combined once (PHB p.173)
     private SaveRoll savingThrow(Ability ability, int modifier, int dc, Collection<String> conditions,
                                  boolean strDexDisadvantage, List<RollMode> otherSources) {
+        return savingThrow(ability, modifier, dc, conditions, strDexDisadvantage, otherSources, List.of());
+    }
+
+    /**
+     * As {@link #savingThrow(Ability, int, int, Collection, boolean)}, with other sources of advantage or disadvantage,
+     * combined once with the conditions' (PHB p.173), and the dice and amounts Ongoing Modifiers add to it or take from
+     * it (D184), such as Bless's d4 (PHB p.219), rolled after the d20. A save failed automatically rolls nothing, so a
+     * one-shot modifier isn't spent on it.
+     */
+    public SaveRoll savingThrow(Ability ability, int modifier, int dc, Collection<String> conditions,
+                                boolean strDexDisadvantage, List<RollMode> otherSources,
+                                List<RollModifiers.Bonus> bonuses) {
         if (SaveRules.autoFails(ability, conditions)) {
             return new SaveRoll(null, null, false, true);
         }
         List<RollMode> sources = new ArrayList<>(otherSources);
         sources.add(SaveRules.rollMode(ability, conditions, strDexDisadvantage));
         RollMode mode = RollMode.combine(sources);
-        if (mode == RollMode.NORMAL) {
-            int d20 = rng.roll(20);
-            int total = d20 + modifier;
-            return new SaveRoll(d20, total, total >= dc, false);
+        List<Integer> d20s = rollD20s(mode);
+        int d20 = kept(mode, d20s);
+        List<RollModifiers.RolledBonus> rolled = rollBonuses(bonuses);
+        int total = d20 + modifier + sum(rolled);
+        return new SaveRoll(d20, total, total >= dc, false, d20s, mode, rolled, oneShots(bonuses));
+    }
+
+    /**
+     * Rolls the dice the Ongoing Modifiers add to a d20 roll or take from it (D184), each signed, in order; a flat
+     * amount rolls nothing.
+     */
+    public List<RollModifiers.RolledBonus> rollBonuses(List<RollModifiers.Bonus> bonuses) {
+        List<RollModifiers.RolledBonus> rolled = new ArrayList<>();
+        for (RollModifiers.Bonus bonus : bonuses) {
+            rolled.add(new RollModifiers.RolledBonus(bonus.label(), bonus.dice(), bonus.sign(),
+                    bonus.sign() * bonus.dice().roll(rng)));
         }
-        List<Integer> d20s = List.of(rng.roll(20), rng.roll(20));
-        int d20 = mode == RollMode.ADVANTAGE ? Math.max(d20s.get(0), d20s.get(1)) : Math.min(d20s.get(0), d20s.get(1));
-        int total = d20 + modifier;
-        return new SaveRoll(d20, total, total >= dc, false, d20s, mode);
+        return rolled;
+    }
+
+    /** The signed total of the rolled bonuses. */
+    public static int sum(List<RollModifiers.RolledBonus> rolled) {
+        return rolled.stream().mapToInt(RollModifiers.RolledBonus::total).sum();
+    }
+
+    // The one-shot modifiers among the bonuses, spent once they are rolled
+    private static Set<UUID> oneShots(List<RollModifiers.Bonus> bonuses) {
+        Set<UUID> spent = new java.util.HashSet<>();
+        for (RollModifiers.Bonus bonus : bonuses) {
+            if (bonus.oneShot() && bonus.modifierId() != null) {
+                spent.add(bonus.modifierId());
+            }
+        }
+        return spent;
     }
 
     /** One d20, such as a death saving throw. */
@@ -296,14 +379,20 @@ public final class Resolver {
 
     private TargetOutcome attack(Effect effect, Effect.Attack attack, AttackRules.Side attacker, Target target,
                                  int empoweredDice) {
+        RollModifiers modifiers = target.modifiers();
         AttackRules.Setup setup = AttackRules.setup(attack.attackerSources(), attacker, target.side(),
-                attack.withinFiveFeet());
+                attack.withinFiveFeet(), modifiers.attackSources());
         List<AttackRules.Source> automatic = setup.automatic();
         List<Integer> d20s = rollD20s(setup.rollMode());
         int d20 = kept(setup.rollMode(), d20s);
+        // What the Ongoing Modifiers add to the roll, such as Bless's d4 (PHB p.219), rolled once after the d20 (D184)
+        List<RollModifiers.RolledBonus> bonuses = rollBonuses(modifiers.attackBonuses());
+        int rolledBonus = attack.bonus() + sum(bonuses);
+        Set<UUID> spent = new java.util.HashSet<>(modifiers.attackOneShots());
+        spent.addAll(oneShots(modifiers.attackBonuses()));
         Outcome outcome = attack.forcedCritical()
                 ? Outcome.CRITICAL
-                : AttackRules.outcome(d20, attack.bonus(), target.armourClass(), setup.hitIsCritical(),
+                : AttackRules.outcome(d20, rolledBonus, target.armourClass(), setup.hitIsCritical(),
                         attack.critRange());
         // Unerring Accuracy rolls a missed attack roll again, as it was rolled, and the new roll stands (XGE p.35)
         List<Integer> rerolledD20s = null;
@@ -311,10 +400,10 @@ public final class Resolver {
             rerolledD20s = d20s;
             d20s = rollD20s(setup.rollMode());
             d20 = kept(setup.rollMode(), d20s);
-            outcome = AttackRules.outcome(d20, attack.bonus(), target.armourClass(), setup.hitIsCritical(),
+            outcome = AttackRules.outcome(d20, rolledBonus, target.armourClass(), setup.hitIsCritical(),
                     attack.critRange());
         }
-        int bonus = attack.bonus();
+        int bonus = rolledBonus;
         Inspiration inspiration = null;
         boolean guidedStrike = false;
         // What the attacker adds once it sees the roll would miss; a natural 1 misses whatever is added (PHB p.194)
@@ -340,26 +429,72 @@ public final class Resolver {
         int total = d20 + bonus;
         if (outcome == Outcome.MISS) {
             return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
-                    List.of(), List.of(), 0, List.of(), null, inspiration, false, rerolledD20s, automatic);
+                    List.of(), List.of(), 0, List.of(), null, inspiration, false, rerolledD20s, automatic, bonuses,
+                    List.of(), spent);
         }
-        List<Damage> damage = rollDamage(effect.damage(), outcome == Outcome.CRITICAL, empoweredDice);
+        boolean critical = outcome == Outcome.CRITICAL;
+        List<Damage> damage = rollDamage(effect.damage(), critical, empoweredDice);
+        // The Ongoing Modifiers' extra damage on a hit, its dice doubled on a critical hit (PHB p.196, D184)
+        String ownType = effect.damage().isEmpty() ? null : effect.damage().getFirst().type();
+        List<RollModifiers.RolledDamage> riders = rollRiders(modifiers.hitDamage(), critical, ownType);
+        damage = withRiders(damage, riders);
+        modifiers.hitDamage().stream()
+                .filter(rider -> rider.oneShot() && rider.modifierId() != null)
+                .forEach(rider -> spent.add(rider.modifierId()));
         int healing = rollHealing(effect.healing());
         Effect.HitSave hitSave = attack.hitSave();
         if (hitSave == null) {
             return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
                     damage, List.of(), healing, effect.conditions(), null, inspiration, guidedStrike, rerolledD20s,
-                    automatic);
+                    automatic, bonuses, riders, spent);
         }
         // The save decides only the conditions it guards, so a success would leave all of the damage
         SaveRoll save = target.autoSucceed() ? new SaveRoll(null, null, true, false)
                 : savingThrow(hitSave.ability(), target.saveModifier(), hitSave.dc(), target.conditions(),
-                        target.strDexDisadvantage(), target.saveSources());
+                        target.strDexDisadvantage(), target.saveSources(), modifiers.saveBonuses());
+        spent.addAll(save.spentOneShots());
         List<String> conditions = effect.conditions().stream()
                 .filter(condition -> !save.success() || !hitSave.conditions().contains(condition))
                 .toList();
         return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
                 damage, save.success() ? List.of() : damage, healing, conditions, save, inspiration, guidedStrike,
-                rerolledD20s, automatic);
+                rerolledD20s, automatic, bonuses, riders, spent);
+    }
+
+    // Each rider rolled, its dice doubled on a critical hit; one with no type of its own takes the attack's own type
+    private List<RollModifiers.RolledDamage> rollRiders(List<RollModifiers.HitDamage> riders, boolean critical,
+                                                        String ownType) {
+        List<RollModifiers.RolledDamage> rolled = new ArrayList<>();
+        for (RollModifiers.HitDamage rider : riders) {
+            Dice dice = critical ? rider.dice().doubled() : rider.dice();
+            String type = rider.type() != null ? rider.type().trim().toLowerCase() : ownType;
+            rolled.add(new RollModifiers.RolledDamage(rider.label(), dice, rider.sign(), type, dice.roll(rng)));
+        }
+        return rolled;
+    }
+
+    /**
+     * The damage with the riders: each added to its type, and each taken away from its type, never leaving less than 1
+     * of damage that was dealt, as Reduce's -1d4 (PHB p.237).
+     */
+    static List<Damage> withRiders(List<Damage> damage, List<RollModifiers.RolledDamage> riders) {
+        if (riders.isEmpty()) {
+            return damage;
+        }
+        Map<String, Integer> byType = new LinkedHashMap<>();
+        damage.forEach(each -> byType.merge(each.type(), each.amount(), Integer::sum));
+        for (RollModifiers.RolledDamage rider : riders) {
+            if (rider.sign() > 0) {
+                byType.merge(rider.type(), rider.amount(), Integer::sum);
+            }
+        }
+        for (RollModifiers.RolledDamage rider : riders) {
+            if (rider.sign() < 0 && byType.containsKey(rider.type())) {
+                int before = byType.get(rider.type());
+                byType.put(rider.type(), before > 0 ? Math.max(1, before - rider.amount()) : before);
+            }
+        }
+        return byType.entrySet().stream().map(e -> new Damage(e.getKey(), e.getValue())).toList();
     }
 
     // One d20, or two with advantage or disadvantage
@@ -380,7 +515,7 @@ public final class Resolver {
         // A creature Careful Spell protects succeeds without rolling (PHB p.102)
         SaveRoll roll = target.autoSucceed() ? new SaveRoll(null, null, true, false)
                 : savingThrow(save.ability(), target.saveModifier(), save.dc(), target.conditions(),
-                        target.strDexDisadvantage(), target.saveSources());
+                        target.strDexDisadvantage(), target.saveSources(), target.modifiers().saveBonuses());
         List<Damage> onSuccess = save.halfDamageOnSuccess() ? halved(damage) : List.of();
         // A held Bardic Inspiration die is rolled on a failed save its holder rolled, not on one failed
         // automatically (PHB p.53)
@@ -388,15 +523,17 @@ public final class Resolver {
         if (!roll.success() && !roll.autoFailed() && target.inspirationSides() > 0) {
             inspiration = new Inspiration(target.inspirationSides(), rng.roll(target.inspirationSides()));
             int total = roll.total() + inspiration.roll();
-            roll = new SaveRoll(roll.d20(), total, total >= save.dc(), false, roll.d20s(), roll.rollMode());
+            roll = new SaveRoll(roll.d20(), total, total >= save.dc(), false, roll.d20s(), roll.rollMode(),
+                    roll.bonuses(), roll.spentOneShots());
         }
         if (roll.success()) {
             return new TargetOutcome(target.id(), Outcome.SAVE_SUCCESS, roll.d20s(), roll.d20(), roll.total(),
-                    roll.rollMode(), false, onSuccess, List.of(), healing, List.of(), null, inspiration, false);
+                    roll.rollMode(), false, onSuccess, List.of(), healing, List.of(), null, inspiration, false, null,
+                    List.of(), roll.bonuses(), List.of(), roll.spentOneShots());
         }
         return new TargetOutcome(target.id(), Outcome.SAVE_FAIL, roll.d20s(), roll.d20(), roll.total(),
                 roll.rollMode(), roll.autoFailed(), damage, onSuccess, healing, effect.conditions(), null,
-                inspiration, false);
+                inspiration, false, null, List.of(), roll.bonuses(), List.of(), roll.spentOneShots());
     }
 
     private List<TargetOutcome> automatic(Effect effect, List<Target> targets, int empoweredDice) {

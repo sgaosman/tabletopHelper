@@ -73,6 +73,8 @@ export default function SpellCastModal({
   const [selectedSpell, setSelectedSpell] = useState<SpellOption | null>(null);
   const [choice, setChoice] = useState<CastChoice | null>(null);
   const [metamagic, setMetamagic] = useState<MetamagicName[]>([]);
+  // The option a spell with options is cast with, such as Enlarge or Reduce (D184)
+  const [castOption, setCastOption] = useState<string | null>(null);
   const [careful, setCareful] = useState<string[]>([]);
   const [heightened, setHeightened] = useState<string | null>(null);
   const points = sorceryPoints(caster.resourcePoolsCurrent)?.currentUses ?? 0;
@@ -165,6 +167,7 @@ export default function SpellCastModal({
   // A spell that only costs nothing, or only an innate use, has nothing to choose
   function selectSpell(spell: SpellOption) {
     setSelectedSpell(spell);
+    setCastOption(spell.castOptions?.[0] ?? null);
     flow.setError('');
     const available = rowsFor(spell, caster.spellSlotsCurrent ?? {}).filter(row => row.available);
     if (available.length === 1 && (available[0].source === 'NONE' || available[0].source === 'INNATE')) {
@@ -184,6 +187,7 @@ export default function SpellCastModal({
       targetIds: flow.selectedTargets,
       advantage: flow.advantage,
       metamagic: metamagicRequest(),
+      option: castOption ?? undefined,
       summon: summoning && summonOptions.data && summonDraft
         ? toSummonChoice(summonOptions.data, summonDraft) : undefined,
       ...flow.overrides(),
@@ -330,6 +334,9 @@ export default function SpellCastModal({
             submitting={flow.submitting}
             onSubmit={cast}
             onBack={() => (flow.takesNoTargets ? backToSource() : flow.setStep('target'))}
+            castOptions={selectedSpell!.castOptions}
+            option={castOption}
+            onOptionChange={setCastOption}
           />
           </>
         )}

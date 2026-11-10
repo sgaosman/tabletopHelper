@@ -7,6 +7,7 @@ import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.rules.combat.ActionEconomy;
+import com.tabletophelper.rules.combat.OngoingModifiers;
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
@@ -54,12 +55,14 @@ public final class TurnEconomies {
      * druid's in beast form the beast's. Exhaustion halves every one of them from level 2, rounding down, and makes
      * them 0 from level 5 (PHB p.291, D183); a druid's exhaustion carries into its beast form, and a summoned creature
      * has its own.
+     * The Ongoing Modifiers on it come first (D184): feet added or taken, as Longstrider's +10 (PHB p.256), then Haste's
+     * doubling (PHB p.250) and Slow's halving (PHB p.277), and exhaustion last, so level 5 still makes it 0.
      * Empty when neither has one.
      */
     public static Map<String, Integer> speed(EncounterParticipant participant, ObjectMapper objectMapper) {
         int exhaustion = Exhaustion.clamp(participant.getExhaustionLevel());
         Map<String, Integer> speeds = new LinkedHashMap<>();
-        baseSpeed(participant, objectMapper)
+        OngoingModifiers.speeds(baseSpeed(participant, objectMapper), ActiveModifiers.modifiersOn(participant))
                 .forEach((kind, feet) -> speeds.put(kind, Exhaustion.speed(feet, exhaustion)));
         return speeds;
     }

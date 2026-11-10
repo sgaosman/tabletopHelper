@@ -8,8 +8,8 @@ import { encounterApi } from '../api/encounterApi';
 import { useLiveEncounter } from '../context/liveEncounter';
 import type { CombatLogEntry } from '../types/combat';
 import type {
-  AddParticipantRequest, CompanionSummonRequest, Encounter, EncounterCreateRequest, EncounterParticipant, EncounterView,
-  SetInitiativeRequest,
+  ActiveSpellRequest, AddParticipantRequest, CompanionSummonRequest, Encounter, EncounterCreateRequest,
+  EncounterParticipant, EncounterView, SetInitiativeRequest,
 } from '../types/encounter';
 import { useCharacter } from './characters';
 import { queryKeys } from './keys';
@@ -96,6 +96,14 @@ export function useSetExhaustion() {
   return useEncounterChange(
     ({ encounter, participantId, level }: { encounter: EncounterRef; participantId: string; level: number }) =>
       combatApi.setExhaustion(encounter.id, participantId, level),
+  );
+}
+
+/** The DM's record that a caster's lasting spell is already going, also while the encounter is prepared (D184). */
+export function useStartActiveSpell() {
+  return useEncounterChange(
+    ({ encounter, request }: { encounter: EncounterRef; request: ActiveSpellRequest }) =>
+      combatApi.startActiveSpell(encounter.id, request),
   );
 }
 
@@ -407,6 +415,9 @@ export function useEncounterAction() {
       repeatSpellEffect: resolve(combatApi.repeatSpellEffect),
       // Ends a Spell Effect by hand (M15)
       endSpellEffect: change(combatApi.endSpellEffect),
+      // The DM's record that a lasting spell is already going, and moving Hunter's Mark or Hex (D184)
+      startActiveSpell: change(combatApi.startActiveSpell),
+      moveSpellEffect: change(combatApi.moveSpellEffect),
       monsterAction: resolve(combatApi.monsterAction),
       // The DM's replacement of a participant's whole turn economy (D174)
       setTurnEconomy: change(combatApi.setTurnEconomy),

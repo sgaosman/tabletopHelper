@@ -57,7 +57,7 @@ class MetamagicEligibilityGoldenTest {
     }
 
     @Test
-    @DisplayName("At each spell's own level: Careful and Heightened 101, Empowered 103, Extended 186, Quickened 226, Subtle 288, Twinned 124")
+    @DisplayName("At each spell's own level: Careful and Heightened 101, Empowered 99 (Hex, Hunter's Mark, Absorb Elements and Elemental Weapon deal their dice through Ongoing Modifiers, D184), Extended 186, Quickened 226, Subtle 288, Twinned 124")
     void countsAtOwnLevel() {
         Map<Option, Integer> counts = new EnumMap<>(Option.class);
         FACTS.forEach((spell, facts) -> {
@@ -69,7 +69,7 @@ class MetamagicEligibilityGoldenTest {
         });
         assertEquals(101, counts.get(Option.CAREFUL));
         assertEquals(101, counts.get(Option.HEIGHTENED));
-        assertEquals(103, counts.get(Option.EMPOWERED));
+        assertEquals(99, counts.get(Option.EMPOWERED));
         assertEquals(186, counts.get(Option.EXTENDED));
         assertEquals(226, counts.get(Option.QUICKENED));
         assertEquals(288, counts.get(Option.SUBTLE));

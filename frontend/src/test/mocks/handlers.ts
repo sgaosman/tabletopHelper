@@ -554,6 +554,8 @@ export function makeMockParticipant(
     isVisibleToPlayers: true, lifeState: 'ALIVE', isCurrentTurn: false, deathSaveDue: false,
     deathSaveSuccesses: 0, deathSaveFailures: 0,
     activeEffects: [],
+    // No spell's Ongoing Modifiers on it (D184)
+    spellModifiers: [],
     // A fresh turn's economy, one Attack action's attacks and a walking speed (D174)
     turnEconomy: {
       actions: 1, actionsUsed: 0, attackActionTaken: false, attacksLeft: 0, bonusActionUsed: false,
@@ -574,7 +576,8 @@ export function makeMockSpellEffect(spell = 'Spiritual Weapon', overrides: Parti
   const effect = {
     id: `effect-${spell.toLowerCase().replace(/[^a-z]+/g, '-')}`, spell, slotLevel: 2, concentration: false,
     startedRound: 1, durationRounds: 10, usesLeft: null, directedCost: 'BONUS_ACTION', directedResolves: true,
-    maxUsesEachTurn: null, triggers: [], summonedParticipantIds: [],
+    maxUsesEachTurn: null, triggers: [], summonedParticipantIds: [], affectedIds: [], modifiers: [],
+    retargetable: false,
   } satisfies SpellEffect;
   return { ...effect, ...overrides };
 }

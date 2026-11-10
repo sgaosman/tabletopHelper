@@ -98,6 +98,7 @@ public final class EncounterViews {
                         ? monsterForPlayers(p, dmView.isShowExactMonsterHp())
                         : p.toBuilder().turnEconomy(turnEconomyForPlayers(p.getTurnEconomy(), hidden)).build())
                 .map(p -> p.toBuilder().sortOrder(places.get(p.getId())).build())
+                .map(p -> withoutHidden(p, hidden))
                 .toList();
         return dmView.toBuilder()
                 .turnStamp(maskTurn(dmView.getTurnStamp(), hidden))
@@ -256,6 +257,29 @@ public final class EncounterViews {
         String whose = colon >= 0 ? turn.substring(colon + 1) : "";
         return hidden.stream().anyMatch(id -> id.toString().equals(whose)) ? turn.substring(0, colon + 1) + "hidden"
                 : turn;
+    }
+
+    /*
+     * The Ongoing Modifiers' parts of a participant without the hidden participants (D157, D184): a chip names no hidden
+     * caster, and a Spell Effect lists no hidden creature among those it affects.
+     */
+    private static ParticipantResponse withoutHidden(ParticipantResponse participant, Set<UUID> hidden) {
+        if (hidden.isEmpty()) {
+            return participant;
+        }
+        return participant.toBuilder()
+                .spellModifiers(participant.getSpellModifiers() == null ? null : participant.getSpellModifiers()
+                        .stream()
+                        .map(chip -> hidden.contains(chip.getCasterId()) ? chip.toBuilder().casterId(null).build()
+                                : chip)
+                        .toList())
+                .activeEffects(participant.getActiveEffects() == null ? null : participant.getActiveEffects().stream()
+                        .map(effect -> effect.getAffectedIds() == null ? effect : effect.toBuilder()
+                                .affectedIds(effect.getAffectedIds().stream().filter(id -> !hidden.contains(id))
+                                        .toList())
+                                .build())
+                        .toList())
+                .build();
     }
 
     private static ParticipantResponse monsterForPlayers(ParticipantResponse monster, boolean showExactHp) {

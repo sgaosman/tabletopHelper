@@ -22,7 +22,8 @@ import java.util.Map;
  * template it has. Each definition is stored whole, as the {@link SpellTemplate} the column maps to (D168), and one
  * whose parts don't fit those records fails the load naming the spell (D155). So does a definition with a repeat
  * effect that doesn't say what using it again costs, ACTION, BONUS_ACTION or NONE (D174); an unknown cost is a part
- * that doesn't fit.
+ * that doesn't fit. Since version 2 a BUFF or DEBUFF effect may list its Ongoing Modifiers (D184), and one of an
+ * unknown kind, scope, mode or end is a part that doesn't fit too.
  */
 @Component
 @RequiredArgsConstructor
@@ -46,7 +47,7 @@ public class SpellEffectLoader implements ContentLoader {
 
     @Override
     public int version() {
-        return 1;
+        return 2;
     }
 
     @Override

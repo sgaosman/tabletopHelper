@@ -81,6 +81,16 @@ public final class AttackRules {
             return Conditions.has(conditions, condition);
         }
 
+        /**
+         * The same side without invisibility, for a creature that can't benefit from being invisible, as Faerie Fire's
+         * targets can't (PHB p.239, D184).
+         */
+        public Side revealed() {
+            return new Side(conditions.stream()
+                    .filter(condition -> condition == null || !condition.trim().equalsIgnoreCase(Conditions.INVISIBLE))
+                    .toList(), senses);
+        }
+
         // Whether it perceives an invisible creature: blindsight works blinded, truesight only while it can see
         boolean perceivesInvisible() {
             return senses.blindsight() || (senses.truesight() && !has(Conditions.BLINDED));
@@ -133,6 +143,16 @@ public final class AttackRules {
      * attacker's own choice, since whether it can see the source of its fear isn't known.
      */
     public static Setup setup(Collection<RollMode> sources, Side attacker, Side target, boolean withinFiveFeet) {
+        return setup(sources, attacker, target, withinFiveFeet, List.of());
+    }
+
+    /**
+     * As {@link #setup(Collection, Side, Side, boolean)}, with the named sources the creatures' Ongoing Modifiers add
+     * (D184), such as Faerie Fire's advantage on attacks against its target (PHB p.239); they are listed with the
+     * conditions' and combine with them once (PHB p.173).
+     */
+    public static Setup setup(Collection<RollMode> sources, Side attacker, Side target, boolean withinFiveFeet,
+                              List<Source> modifierSources) {
         attacker = attacker != null ? attacker : Side.NONE;
         target = target != null ? target : Side.NONE;
         List<Source> automatic = new ArrayList<>();
@@ -172,6 +192,9 @@ public final class AttackRules {
         }
         if (ClassFeatures.reckless(target.conditions())) {
             automatic.add(new Source(RollMode.ADVANTAGE, "target attacked recklessly"));
+        }
+        if (modifierSources != null) {
+            automatic.addAll(modifierSources);
         }
 
         List<RollMode> all = new ArrayList<>(sources);

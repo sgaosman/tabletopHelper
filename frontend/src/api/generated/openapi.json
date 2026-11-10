@@ -1481,6 +1481,47 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/active-spell": {
+      "post": {
+        "operationId": "startActiveSpell",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActiveSpellRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/attack": {
       "post": {
         "operationId": "rollAttack",
@@ -2593,6 +2634,47 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/EndSpellEffectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/spell-effect/move": {
+      "post": {
+        "operationId": "moveSpellEffect",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveSpellEffectRequest"
               }
             }
           },
@@ -5085,6 +5167,47 @@
           }
         }
       },
+      "ActiveSpellRequest": {
+        "required": [
+          "casterId",
+          "spellName"
+        ],
+        "type": "object",
+        "properties": {
+          "casterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "option": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "slotLevel": {
+            "maximum": 9,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellName": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "targetIds": {
+            "maxItems": 20,
+            "minItems": 0,
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
       "AddParticipantRequest": {
         "required": [
           "participantType"
@@ -6118,6 +6241,12 @@
             "items": {
               "$ref": "#/components/schemas/MetamagicChoice"
             }
+          },
+          "option": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
           },
           "overrideSpellAttackBonus": {
             "type": "integer",
@@ -10102,6 +10231,28 @@
           }
         }
       },
+      "MoveSpellEffectRequest": {
+        "required": [
+          "effectId",
+          "participantId",
+          "targetId"
+        ],
+        "type": "object",
+        "properties": {
+          "effectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "MultiattackOption": {
         "required": [
           "components",
@@ -10477,7 +10628,8 @@
           "lifeState",
           "participantType",
           "sortOrder",
-          "speed"
+          "speed",
+          "spellModifiers"
         ],
         "type": "object",
         "properties": {
@@ -10687,6 +10839,12 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          },
+          "spellModifiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpellModifierResponse"
+            }
           },
           "spellSaveDc": {
             "type": "integer",
@@ -11670,9 +11828,12 @@
       },
       "SpellEffectResponse": {
         "required": [
+          "affectedIds",
           "concentration",
           "directedResolves",
           "id",
+          "modifiers",
+          "retargetable",
           "spell",
           "startedRound",
           "summonedParticipantIds",
@@ -11680,6 +11841,13 @@
         ],
         "type": "object",
         "properties": {
+          "affectedIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
           "concentration": {
             "type": "boolean"
           },
@@ -11708,6 +11876,19 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          },
+          "modifiers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "option": {
+            "type": "string",
+            "nullable": true
+          },
+          "retargetable": {
+            "type": "boolean"
           },
           "slotLevel": {
             "type": "integer",
@@ -11754,6 +11935,42 @@
           }
         }
       },
+      "SpellModifierResponse": {
+        "required": [
+          "effectId",
+          "hinders",
+          "label",
+          "modifiers",
+          "spell"
+        ],
+        "type": "object",
+        "properties": {
+          "casterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "effectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hinders": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string"
+          },
+          "modifiers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "spell": {
+            "type": "string"
+          }
+        }
+      },
       "SpellOption": {
         "required": [
           "castingTime",
@@ -11763,6 +11980,13 @@
         ],
         "type": "object",
         "properties": {
+          "castOptions": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
           "castingTime": {
             "type": "string",
             "enum": [

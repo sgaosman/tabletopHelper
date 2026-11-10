@@ -7,7 +7,7 @@ import { useCampaignCharacters } from '../../queries/characters';
 import {
   useAddParticipant, useCampaignEncounters, useCreateEncounter, useDeleteEncounter, usePlaceCompanion,
   useRemoveParticipant, useRenameParticipant, useReorderTie, useRollInitiatives, useSetInitiatives,
-  useSetExhaustion, useSetParticipantVisibility, useStartEncounter,
+  useSetExhaustion, useSetParticipantVisibility, useStartActiveSpell, useStartEncounter,
 } from '../../queries/encounters';
 import AddCompanionModal from '../../components/encounter/AddCompanionModal';
 import { useMonsterSearch } from '../../queries/monsters';
@@ -19,6 +19,8 @@ import NavBar from '../../components/common/NavBar';
 import TieOrderArrows from '../../components/encounter/TieOrderArrows';
 import VisibilityToggle from '../../components/encounter/VisibilityToggle';
 import ExhaustionControl from '../../components/common/ExhaustionControl';
+import ActiveSpellForm from '../../components/encounter/ActiveSpellForm';
+import SpellModifierChips from '../../components/encounter/SpellModifierChips';
 import IconButton from '../../components/ui/IconButton';
 import Spinner from '../../components/ui/Spinner';
 import { useToast } from '../../hooks/useToast';
@@ -73,6 +75,9 @@ export default function EncounterBuilderPage() {
   const renameParticipant = useRenameParticipant();
   const setParticipantVisibility = useSetParticipantVisibility();
   const setExhaustion = useSetExhaustion();
+  const startActiveSpell = useStartActiveSpell();
+  // The participant whose "spell already active" form is open while preparing (D184)
+  const [activeSpellFor, setActiveSpellFor] = useState<string | null>(null);
   const setInitiatives = useSetInitiatives();
   const rollInitiatives = useRollInitiatives();
   const reorderTie = useReorderTie();
@@ -624,6 +629,28 @@ export default function EncounterBuilderPage() {
                                             name={p.displayName}
                                             onChange={level => setExhaustion.mutateAsync({ encounter: selectedEncounter, participantId: p.id, level })}
                                           />
+                                        </div>
+                                      )}
+                                      {/* The spells on it, and its lasting spells cast before the fight (D184) */}
+                                      <SpellModifierChips participant={p} participants={selectedEncounter.participants} />
+                                      {p.concentrationSpell && (
+                                        <p className="font-body text-[13px] font-semibold text-cls-warlock mt-1">
+                                          Concentrating: {p.concentrationSpell}
+                                        </p>
+                                      )}
+                                      {selectedEncounter.status === 'PREPARING' && (
+                                        <div className="mt-2">
+                                          <button type="button" aria-expanded={activeSpellFor === p.id}
+                                            onClick={() => setActiveSpellFor(activeSpellFor === p.id ? null : p.id)}
+                                            className="font-heading text-[12px] font-semibold tracking-[0.02em] text-cls-warlock hover:underline">
+                                            {activeSpellFor === p.id ? 'Close' : 'Spell already active…'}
+                                          </button>
+                                          {activeSpellFor === p.id && (
+                                            <div className="mt-2">
+                                              <ActiveSpellForm caster={p} participants={selectedEncounter.participants}
+                                                onSubmit={request => startActiveSpell.mutateAsync({ encounter: selectedEncounter, request })} />
+                                            </div>
+                                          )}
                                         </div>
                                       )}
                                     </td>

@@ -126,6 +126,14 @@ public final class DamageRules {
      * dying make death saves, so anyone else is unchanged.
      */
     public static VitalsChange deathSave(Vitals vitals, int d20) {
+        return deathSave(vitals, d20, d20);
+    }
+
+    /**
+     * As {@link #deathSave(Vitals, int)}, with the total after what Ongoing Modifiers add to the d20, such as Bless's d4
+     * (PHB p.219, D184): a natural 1 and a natural 20 count as rolled, and otherwise the total must reach 10.
+     */
+    public static VitalsChange deathSave(Vitals vitals, int d20, int total) {
         if (d20 < 1 || d20 > 20) {
             throw new IllegalArgumentException("A d20 rolls 1 to 20, not " + d20);
         }
@@ -135,7 +143,7 @@ public final class DamageRules {
         if (d20 == 20) {
             return regainedHitPoints(vitals, 1);
         }
-        if (d20 >= 10) {
+        if (d20 != 1 && total >= 10) {
             int successes = vitals.deathSaveSuccesses() + 1;
             return successes >= 3
                     ? VitalsChange.only(atZero(vitals, LifeState.STABLE, 0, 0))

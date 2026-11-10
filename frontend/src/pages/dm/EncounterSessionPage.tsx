@@ -28,6 +28,7 @@ import ConnectionStatus, { ConnectionBanner } from '../../components/encounter/C
 import ConditionForm from '../../components/encounter/ConditionForm';
 import ExhaustionControl from '../../components/common/ExhaustionControl';
 import ConcentrationForm from '../../components/encounter/ConcentrationForm';
+import ActiveSpellForm from '../../components/encounter/ActiveSpellForm';
 import ManualAttackForm from '../../components/encounter/ManualAttackForm';
 import InlineMonsterActions, { type MonsterActionTab } from '../../components/encounter/InlineMonsterActions';
 import StandardActionMenu from '../../components/encounter/StandardActionMenu';
@@ -146,10 +147,12 @@ function ActionPanel({
   selectedTarget,
   actionMode,
   setActionMode,
+  participants,
 }: {
   selectedTarget: EncounterParticipant | null;
   actionMode: ActionMode;
   setActionMode: (mode: ActionMode) => void;
+  participants: EncounterParticipant[];
 }) {
   const actions = useEncounterAction();
   if (!selectedTarget || !actionMode) return null;
@@ -188,7 +191,14 @@ function ActionPanel({
         </>
       )}
       {actionMode === 'concentration' && (
-        <ConcentrationForm onSubmit={spellName => actions.setConcentration(selectedTarget.id, spellName)} />
+        <>
+          <ConcentrationForm onSubmit={spellName => actions.setConcentration(selectedTarget.id, spellName)} />
+          {/* A lasting spell cast before now, with its concentration and Ongoing Modifiers (D184) */}
+          <div className="mt-4 pt-3 border-t border-rule">
+            <ActiveSpellForm caster={selectedTarget} participants={participants}
+              onSubmit={request => actions.startActiveSpell(request)} />
+          </div>
+        </>
       )}
     </div>
   );
@@ -607,6 +617,7 @@ function DmSessionView() {
             selectedTarget={selectedTarget}
             actionMode={actionMode}
             setActionMode={setActionMode}
+            participants={encounter.participants}
           />
         )}
 
@@ -629,6 +640,7 @@ function DmSessionView() {
               <Fragment key={p.id}>
                 <ParticipantRow
                   participant={p}
+                  participants={encounter.participants}
                   current={turn.current}
                   highlighted={p.id === selectedTargetId}
                   summonerName={p.summonedByParticipantId ? participantsById.get(p.summonedByParticipantId)?.displayName : null}
@@ -774,6 +786,7 @@ function DmSessionView() {
                     roundNumber={encounter.roundNumber}
                     onUse={isActive ? effect => directEffect(p, effect) : undefined}
                     onEnd={isActive ? effect => { void attemptTurnChange(() => actions.endSpellEffect({ participantId: p.id, effectId: effect.id })); } : undefined}
+                    onMove={isActive ? (effect, targetId) => { void attemptTurnChange(() => actions.moveSpellEffect({ participantId: p.id, effectId: effect.id, targetId })); } : undefined}
                     participants={encounter.participants}
                     onReplaceSummon={isActive ? effect => setSummonPlace({ casterId: p.id, effectId: effect.id }) : undefined}
                     onDismissSummon={isActive ? creature => { void attemptTurnChange(() => actions.dismissSummons({ participantIds: [creature.id] })); } : undefined}

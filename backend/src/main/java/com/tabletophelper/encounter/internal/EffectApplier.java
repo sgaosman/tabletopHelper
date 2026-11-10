@@ -28,8 +28,12 @@ import com.tabletophelper.rules.combat.DamageRules.Defence;
 import com.tabletophelper.rules.combat.DamageRules;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.LifeState;
+import com.tabletophelper.rules.combat.OngoingModifier;
+import com.tabletophelper.rules.combat.OngoingModifiers;
 import com.tabletophelper.rules.combat.Outcome;
 import com.tabletophelper.rules.combat.Resolver;
+import com.tabletophelper.rules.combat.RollMode;
+import com.tabletophelper.rules.combat.RollModifiers;
 import com.tabletophelper.rules.combat.StandardActions;
 import com.tabletophelper.rules.combat.Vitals;
 import com.tabletophelper.rules.combat.VitalsChange;
@@ -192,7 +196,9 @@ public class EffectApplier {
         Taken taken = takeDamage(target, damage.total(), outcome.outcome() == Outcome.CRITICAL);
         VitalsChange damageChange = taken.change();
 
-        VitalsChange healingChange = DamageRules.heal(damageChange.vitals(), outcome.healing());
+        // A creature that can't regain hit points, as one Chill Touch hit, regains none (PHB p.221, D184)
+        int healing = outcome.healing() > 0 && cannotRegain(target) ? 0 : outcome.healing();
+        VitalsChange healingChange = DamageRules.heal(damageChange.vitals(), healing);
         setVitals(target, healingChange.vitals());
         int healed = healingChange.vitals().hp() - damageChange.vitals().hp();
 
@@ -217,7 +223,9 @@ public class EffectApplier {
                 spendInspiration(holder);
             }
         }
-        String description = describe(use, effect, target, armourClass, outcome, damage, healed, added, immune);
+        String description = describe(use, effect, target, armourClass, outcome, damage, healed, added, immune)
+                + (healing < outcome.healing() ? " " + target.getDisplayName() + " can't regain hit points ("
+                        + noHealingSource(target) + ")." : "");
         CombatLog.CombatLogBuilder entry = CombatLogWriter.about(
                         combatLog.entry(encounter, use.actionType(), description), use.actor(), target)
                 .rollValue(outcome.d20())
@@ -240,6 +248,8 @@ public class EffectApplier {
                 hitCheck);
         afterHealing(encounter, target, healingChange);
         afterConditions(encounter, target, added);
+        // The one-shot Ongoing Modifiers the roll used are spent (D184)
+        spendModifiers(encounter, outcome.spentOneShots());
 
         return new Applied(target, outcome, damage.total(), damage.firstType(), healed, added, offered, remaining,
                 description, saved != null ? saved.getId() : null, check);
@@ -273,13 +283,16 @@ public class EffectApplier {
     public void heal(Encounter encounter, EncounterParticipant actor, String actorName, EncounterParticipant target,
                      int amount) {
         Vitals before = vitals(target);
-        VitalsChange change = DamageRules.heal(before, amount);
+        // A creature that can't regain hit points regains none (PHB p.221, D184)
+        boolean blocked = amount > 0 && cannotRegain(target);
+        VitalsChange change = DamageRules.heal(before, blocked ? 0 : amount);
         setVitals(target, change.vitals());
         int healed = change.vitals().hp() - before.hp();
 
         combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.HEAL,
-                actorName + " heals " + target.getDisplayName() + " for " + healed + " HP"), actor, target)
-                .healingDone(healed));
+                actorName + " heals " + target.getDisplayName() + " for " + healed + " HP"
+                        + (blocked ? " (can't regain hit points: " + noHealingSource(target) + ")" : "")), actor,
+                target).healingDone(healed));
         afterHealing(encounter, target, change);
     }
 
@@ -291,6 +304,11 @@ public class EffectApplier {
     public void heal(Encounter encounter, EncounterParticipant actor, EncounterParticipant target, int amount,
                      String source) {
         Vitals before = vitals(target);
+        // A creature that can't regain hit points regains none (PHB p.221, D184)
+        if (amount > 0 && cannotRegain(target)) {
+            source = source + "; can't regain hit points: " + noHealingSource(target);
+            amount = 0;
+        }
         VitalsChange change = DamageRules.heal(before, amount);
         setVitals(target, change.vitals());
         int healed = change.vitals().hp() - before.hp();
@@ -369,16 +387,30 @@ public class EffectApplier {
         Vitals before = vitals(participant);
         int d20 = resolver.d20();
         // A death saving throw is a saving throw (PHB p.197), so exhaustion level 3 or more gives it disadvantage
-        // (PHB p.291): two d20s, the lower counting
+        // (PHB p.291), and the Ongoing Modifiers on saves count: Beacon of Hope's advantage (PHB p.217), Bless's d4
+        // (PHB p.219) (D184); two d20s with either mode, the higher or the lower counting
         String exhausted = "";
         int exhaustion = Exhaustion.clamp(participant.getExhaustionLevel());
+        CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(participant, null);
+        List<RollMode> modes = new ArrayList<>(modifiers.modes());
+        List<String> reasons = new ArrayList<>();
         if (Exhaustion.saveDisadvantage(exhaustion)) {
-            int second = resolver.d20();
-            exhausted = " (2d20(" + d20 + ", " + second + ") with disadvantage, " + Exhaustion.conditionName(exhaustion)
-                    + ")";
-            d20 = Math.min(d20, second);
+            modes.add(RollMode.DISADVANTAGE);
+            reasons.add(Exhaustion.conditionName(exhaustion));
         }
-        VitalsChange change = DamageRules.deathSave(before, d20);
+        RollMode mode = RollMode.combine(modes);
+        if (mode != RollMode.NORMAL) {
+            int second = resolver.d20();
+            exhausted = " (2d20(" + d20 + ", " + second + ") with " + mode.name().toLowerCase()
+                    + (reasons.isEmpty() ? "" : ", " + String.join(", ", reasons)) + ")";
+            d20 = mode == RollMode.ADVANTAGE ? Math.max(d20, second) : Math.min(d20, second);
+        }
+        List<RollModifiers.RolledBonus> bonuses = resolver.rollBonuses(modifiers.bonuses());
+        int total = d20 + Resolver.sum(bonuses);
+        if (!bonuses.isEmpty()) {
+            exhausted += " (" + bonusText(bonuses).trim() + " = " + total + ")";
+        }
+        VitalsChange change = DamageRules.deathSave(before, d20, total);
         Vitals after = change.vitals();
         setVitals(participant, after);
 
@@ -395,7 +427,7 @@ public class EffectApplier {
         } else if (after.lifeState() == LifeState.STABLE) {
             type = CombatActionType.STABILIZE;
             description = name + " succeeds on a death save (roll: " + d20 + ") and is stable";
-        } else if (d20 >= 10) {
+        } else if (d20 != 1 && total >= 10) {
             type = CombatActionType.DEATH_SAVE;
             description = name + " succeeds on a death save (roll: " + d20 + "): "
                     + after.deathSaveSuccesses() + "/3 successes";
@@ -406,12 +438,13 @@ public class EffectApplier {
                     : name + " fails a death save (roll: " + d20 + "): " + after.deathSaveFailures() + "/3 failures";
         }
         combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, type, description + exhausted), null,
-                participant).rollValue(d20).rollTotal(d20));
+                participant).rollValue(d20).rollTotal(total));
         participant.setDeathSaveDue(false);
 
         if (change.removeUnconsciousFromDowned()) {
             removeUnconsciousFromZeroHp(participant);
         }
+        spendModifiers(encounter, oneShotsOf(modifiers.bonuses()));
     }
 
     // ── Exhaustion ───────────────────────────────────────────────
@@ -585,8 +618,10 @@ public class EffectApplier {
         ConditionEntry condition = found.get();
         RepeatSave save = condition.repeatSave();
         int modifier = stats.saveModifier(participant, save.ability());
+        CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(participant, save.ability());
         Resolver.SaveRoll roll = resolver.savingThrow(save.ability(), modifier, save.dc(),
-                CreatureStats.conditionNames(participant), stats.armourPenalty(participant));
+                CreatureStats.conditionNames(participant), stats.armourPenalty(participant), modifiers.modes(),
+                modifiers.bonuses());
 
         String name = participant.getDisplayName();
         StringBuilder description = new StringBuilder(name).append(" repeats the ").append(save.ability().name())
@@ -594,8 +629,8 @@ public class EffectApplier {
         if (roll.autoFailed()) {
             description.append(" vs DC ").append(save.dc()).append(" — fails automatically");
         } else {
-            description.append(": ").append(saveDice(roll)).append(signed(modifier)).append(" = ")
-                    .append(roll.total()).append(" vs DC ").append(save.dc())
+            description.append(": ").append(saveDice(roll)).append(signed(modifier)).append(bonusText(roll.bonuses()))
+                    .append(" = ").append(roll.total()).append(" vs DC ").append(save.dc())
                     .append(roll.success() ? " — succeeds" : " — fails");
         }
         description.append(roll.success() ? ", and " + condition.name() + " ends." : ", and stays " + condition.name() + ".");
@@ -623,6 +658,7 @@ public class EffectApplier {
             conditions.set(index, condition.withRepeatSave(save.withAwaitingRoll(false)));
         }
         participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
+        spendModifiers(encounter, roll.spentOneShots());
     }
 
     /**
@@ -742,7 +778,18 @@ public class EffectApplier {
     public SpellEffectEntry startEffect(Encounter encounter, EncounterParticipant caster, String spell,
                                         Integer slotLevel, ConcentrationInstance instance, Integer durationRounds,
                                         Integer uses) {
-        if (instance == null) {
+        return startEffect(encounter, caster, spell, slotLevel, instance, durationRounds, uses, true);
+    }
+
+    /**
+     * As {@link #startEffect(Encounter, EncounterParticipant, String, Integer, ConcentrationInstance, Integer, Integer)};
+     * without replaceEarlier, an earlier casting's effect stays, as a second Mage Armor on another creature leaves the
+     * first (D184).
+     */
+    public SpellEffectEntry startEffect(Encounter encounter, EncounterParticipant caster, String spell,
+                                        Integer slotLevel, ConcentrationInstance instance, Integer durationRounds,
+                                        Integer uses, boolean replaceEarlier) {
+        if (instance == null && replaceEarlier) {
             for (SpellEffectEntry earlier : effects(caster)) {
                 if (earlier.concentrationInstanceId() == null && earlier.spell().equalsIgnoreCase(spell)) {
                     endEffect(encounter, caster, earlier.id(), "cast again");
@@ -773,8 +820,295 @@ public class EffectApplier {
         caster.setActiveEffects(effects);
         combatLog.write(encounter, CombatActionType.SPELL_EFFECT_END, caster.getDisplayName() + "'s "
                 + ended.get().spell() + " ends (" + why + ")", null, caster);
+        afterModifiersEnd(encounter, ended.get(), ended.get().affected());
         // A summoning's creatures leave with it: its concentration lost, its duration over, or ended by hand (D182)
         dismissSummons(encounter, effectId, ended.get().spell() + " ends");
+    }
+
+    // ── Ongoing Modifiers (D184) ─────────────────────────────────
+
+    /**
+     * Puts Ongoing Modifiers on one of the caster's Spell Effects, on these creatures (D184). Aid's hit points come with
+     * its higher maximum: each living creature it reaches gains them now (PHB p.211).
+     *
+     * @param only true when the effect exists only for its modifiers, so it ends with the last of them
+     */
+    public SpellEffectEntry startModifiers(Encounter encounter, EncounterParticipant caster, UUID effectId,
+                                           List<EncounterParticipant> affected, List<OngoingModifier> modifiers,
+                                           String option, SpellEffectEntry.EffectSave repeatSave, String endReminder,
+                                           boolean only) {
+        List<SpellEffectEntry> effects = new ArrayList<>(effects(caster));
+        SpellEffectEntry changed = null;
+        for (int i = 0; i < effects.size(); i++) {
+            if (effects.get(i).id().equals(effectId)) {
+                changed = effects.get(i).withModifiers(affected.stream().map(EncounterParticipant::getId).toList(),
+                        modifiers, option, repeatSave, endReminder, only);
+                effects.set(i, changed);
+            }
+        }
+        if (changed == null) {
+            throw new IllegalArgumentException("No Spell Effect " + effectId);
+        }
+        caster.setActiveEffects(effects);
+        int raised = modifiers.stream().filter(m -> m.kind() == OngoingModifier.Kind.HP_MAX)
+                .mapToInt(OngoingModifier::flat).sum();
+        if (raised > 0) {
+            for (EncounterParticipant creature : affected) {
+                if (creature.getLifeState() == LifeState.ALIVE) {
+                    creature.setHpCurrent(Math.min(CreatureStats.hpMax(creature), creature.getHpCurrent() + raised));
+                }
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * Spends the one-shot Ongoing Modifiers a roll used (D184), such as Resistance's d4 (PHB p.272) or Vicious
+     * Mockery's disadvantage (PHB p.285), logging each. An effect that exists only for its modifiers ends once the last
+     * is spent, and its concentration with it, as Guidance's "the spell then ends" (PHB p.248).
+     */
+    public void spendModifiers(Encounter encounter, Set<UUID> modifierIds) {
+        if (modifierIds == null || modifierIds.isEmpty()) {
+            return;
+        }
+        for (EncounterParticipant caster : List.copyOf(encounter.getParticipants())) {
+            for (SpellEffectEntry effect : effects(caster)) {
+                List<OngoingModifier> spent = effect.modifiers().stream()
+                        .filter(modifier -> modifierIds.contains(modifier.id()))
+                        .toList();
+                if (spent.isEmpty()) {
+                    continue;
+                }
+                combatLog.write(encounter, CombatActionType.SPELL_EFFECT_END, caster.getDisplayName() + "'s "
+                        + ActiveModifiers.label(effect) + " is used: " + spent.stream().map(OngoingModifier::describe)
+                        .collect(Collectors.joining("; ")), null, caster);
+                keepModifiers(encounter, caster, effect, effect.modifiers().stream()
+                        .filter(modifier -> !modifierIds.contains(modifier.id())).toList(), "used");
+            }
+        }
+    }
+
+    /** The one-shot modifiers among bonuses, which rolling them spends. */
+    public static Set<UUID> oneShotsOf(List<RollModifiers.Bonus> bonuses) {
+        Set<UUID> spent = new java.util.HashSet<>();
+        for (RollModifiers.Bonus bonus : bonuses) {
+            if (bonus.oneShot() && bonus.modifierId() != null) {
+                spent.add(bonus.modifierId());
+            }
+        }
+        return spent;
+    }
+
+    /**
+     * The start of a creature's turn for the Ongoing Modifiers (D184): those that last until the start of its next turn
+     * as their caster end, as Ray of Frost's -10 feet (PHB p.271); those that last until the end of its next turn, as
+     * their caster or as the creature they affect, are armed, so that turn's end ends them; and Heroism gives the
+     * creature its temporary hit points, which don't add to any it has (PHB p.250, p.198).
+     */
+    public void modifiersAtTurnStart(Encounter encounter, EncounterParticipant creature) {
+        UUID id = creature.getId();
+        for (EncounterParticipant caster : List.copyOf(encounter.getParticipants())) {
+            for (SpellEffectEntry effect : effects(caster)) {
+                boolean casterTurn = caster.getId().equals(id);
+                boolean affectedTurn = !effect.affected().isEmpty() && effect.affected().getFirst().equals(id);
+                List<OngoingModifier> kept = new ArrayList<>();
+                boolean changed = false;
+                for (OngoingModifier modifier : effect.modifiers()) {
+                    if (modifier.until() == OngoingModifier.Until.CASTER_TURN_START && casterTurn) {
+                        changed = true;
+                        continue;
+                    }
+                    boolean arms = !modifier.armed()
+                            && ((modifier.until() == OngoingModifier.Until.CASTER_TURN_END && casterTurn)
+                            || (modifier.until() == OngoingModifier.Until.TARGET_TURN_END && affectedTurn));
+                    kept.add(arms ? modifier.armedNow() : modifier);
+                    changed |= arms;
+                }
+                if (changed) {
+                    keepModifiers(encounter, caster, effect, kept, "its time is up");
+                }
+            }
+        }
+        // Heroism: temporary hit points equal to the caster's modifier at the start of each of its turns (PHB p.250)
+        for (ActiveModifiers.Found found : ActiveModifiers.on(creature)) {
+            OngoingModifier modifier = found.modifier();
+            if (modifier.kind() != OngoingModifier.Kind.TEMP_HP_EACH_TURN || modifier.flat() <= 0
+                    || creature.getLifeState() == LifeState.DEAD) {
+                continue;
+            }
+            int held = creature.getHpTemp() != null ? creature.getHpTemp() : 0;
+            if (modifier.flat() > held) {
+                creature.setHpTemp(modifier.flat());
+                combatLog.write(encounter, CombatActionType.SPELL_EFFECT_REPEAT, creature.getDisplayName() + " gains "
+                        + modifier.flat() + " temporary hit points from " + found.effect().spell(), found.caster(),
+                        creature);
+            }
+        }
+    }
+
+    /**
+     * The end of a creature's turn for the Ongoing Modifiers (D184): those armed at its start end, as Blade Ward's
+     * resistance at the end of its caster's next turn (PHB p.218) or Vicious Mockery's disadvantage at the end of its
+     * target's (PHB p.285); and each Spell Effect whose creatures repeat a save at the end of their turns, as Slow's
+     * Wisdom save (PHB p.277), rolls it for this creature, a success ending the modifiers for it.
+     */
+    public void modifiersAtTurnEnd(Encounter encounter, EncounterParticipant creature) {
+        UUID id = creature.getId();
+        for (EncounterParticipant caster : List.copyOf(encounter.getParticipants())) {
+            for (SpellEffectEntry effect : effects(caster)) {
+                boolean casterTurn = caster.getId().equals(id);
+                boolean affectedTurn = !effect.affected().isEmpty() && effect.affected().getFirst().equals(id);
+                List<OngoingModifier> kept = effect.modifiers().stream()
+                        .filter(modifier -> !(modifier.armed()
+                                && ((modifier.until() == OngoingModifier.Until.CASTER_TURN_END && casterTurn)
+                                || (modifier.until() == OngoingModifier.Until.TARGET_TURN_END && affectedTurn))))
+                        .toList();
+                if (kept.size() != effect.modifiers().size()) {
+                    keepModifiers(encounter, caster, effect, kept, "its time is up");
+                }
+            }
+        }
+        if (creature.getLifeState() == LifeState.DEAD) {
+            return;
+        }
+        for (EncounterParticipant caster : List.copyOf(encounter.getParticipants())) {
+            for (SpellEffectEntry effect : effects(caster)) {
+                if (effect.repeatSave() != null && effect.affected().contains(id)) {
+                    repeatModifierSave(encounter, caster, effect, creature);
+                }
+            }
+        }
+    }
+
+    // A creature's save at the end of its turn against a Spell Effect's modifiers, as Slow's (PHB p.277)
+    private void repeatModifierSave(Encounter encounter, EncounterParticipant caster, SpellEffectEntry effect,
+                                    EncounterParticipant creature) {
+        Optional<Ability> ability = Ability.parse(effect.repeatSave().ability());
+        if (ability.isEmpty()) {
+            return;
+        }
+        int dc = effect.repeatSave().dc();
+        int modifier = stats.saveModifier(creature, ability.get());
+        CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(creature, ability.get());
+        Resolver.SaveRoll roll = resolver.savingThrow(ability.get(), modifier, dc,
+                CreatureStats.conditionNames(creature), stats.armourPenalty(creature), modifiers.modes(),
+                modifiers.bonuses());
+        String name = creature.getDisplayName();
+        String rolled = roll.autoFailed() ? " vs DC " + dc + " — fails automatically"
+                : ": " + saveDice(roll) + signed(modifier) + bonusText(roll.bonuses()) + " = " + roll.total()
+                        + " vs DC " + dc + (roll.success() ? " — succeeds" : " — fails");
+        combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.REPEAT_SAVE,
+                        name + " repeats the " + ability.get().name() + " save against " + effect.spell() + rolled
+                                + (roll.success() ? ", and " + effect.spell() + " ends for " + name + "."
+                                : ", and stays under " + effect.spell() + ".")), null, creature)
+                .rollValue(roll.d20()).rollTotal(roll.total()));
+        spendModifiers(encounter, roll.spentOneShots());
+        if (roll.success()) {
+            release(encounter, caster, effect.id(), creature, "succeeds on the save");
+        }
+    }
+
+    /**
+     * Ends a Spell Effect's modifiers for one creature (D184), as a successful save against Slow does for the saver
+     * (PHB p.277). An effect that exists only for its modifiers and has nobody left ends, with its concentration.
+     */
+    public void release(Encounter encounter, EncounterParticipant caster, UUID effectId, EncounterParticipant creature,
+                        String why) {
+        Optional<SpellEffectEntry> found = effects(caster).stream()
+                .filter(effect -> effect.id().equals(effectId))
+                .findFirst();
+        if (found.isEmpty() || !found.get().affected().contains(creature.getId())) {
+            return;
+        }
+        SpellEffectEntry effect = found.get();
+        List<UUID> left = effect.affected().stream().filter(id -> !id.equals(creature.getId())).toList();
+        replaceEffect(caster, effect.withAffected(left));
+        afterModifiersEnd(encounter, effect, List.of(creature.getId()));
+        if (left.isEmpty() && effect.onlyForModifiers()) {
+            endWholeEffect(encounter, caster, effect, "nobody is left under it (" + why + ")");
+        }
+    }
+
+    /**
+     * Moves a Spell Effect's modifiers to another creature (D184), as Hunter's Mark and Hex move to a new creature once
+     * theirs drops to 0 hit points (PHB p.251).
+     */
+    public SpellEffectEntry moveTo(Encounter encounter, EncounterParticipant caster, SpellEffectEntry effect,
+                                   EncounterParticipant creature) {
+        SpellEffectEntry moved = effect.withAffected(List.of(creature.getId()));
+        replaceEffect(caster, moved);
+        combatLog.write(encounter, CombatActionType.SPELL_EFFECT_REPEAT, caster.getDisplayName() + " moves "
+                + effect.spell() + " to " + creature.getDisplayName(), caster, creature);
+        return moved;
+    }
+
+    // Keeps only these of the effect's modifiers; one that exists only for its modifiers and has none left ends
+    private void keepModifiers(Encounter encounter, EncounterParticipant caster, SpellEffectEntry effect,
+                               List<OngoingModifier> kept, String why) {
+        replaceEffect(caster, effect.withModifiersLeft(kept));
+        if (kept.isEmpty() && effect.onlyForModifiers()) {
+            endWholeEffect(encounter, caster, effect, why);
+        }
+    }
+
+    // Ends an effect, and the concentration it belongs to, which ends it too
+    private void endWholeEffect(Encounter encounter, EncounterParticipant caster, SpellEffectEntry effect,
+                                String why) {
+        ConcentrationInstance held = caster.getConcentration();
+        if (held != null && held.id().equals(effect.concentrationInstanceId())) {
+            endConcentration(encounter, caster, effect.spell() + " " + why);
+        } else {
+            endEffect(encounter, caster, effect.id(), why);
+        }
+    }
+
+    private static void replaceEffect(EncounterParticipant caster, SpellEffectEntry changed) {
+        List<SpellEffectEntry> effects = new ArrayList<>(effects(caster));
+        for (int i = 0; i < effects.size(); i++) {
+            if (effects.get(i).id().equals(changed.id())) {
+                effects.set(i, changed);
+            }
+        }
+        caster.setActiveEffects(effects);
+    }
+
+    /*
+     * What follows a Spell Effect's modifiers ending for some creatures (D184): the reminder its spell gives, such as
+     * Haste's lethargy (PHB p.250), and hit points kept within a maximum Aid no longer raises (PHB p.211).
+     */
+    private void afterModifiersEnd(Encounter encounter, SpellEffectEntry effect, List<UUID> creatures) {
+        boolean raisedMaximum = effect.modifiers().stream().anyMatch(m -> m.kind() == OngoingModifier.Kind.HP_MAX);
+        for (UUID id : creatures) {
+            Optional<EncounterParticipant> creature = encounter.getParticipants().stream()
+                    .filter(p -> p.getId().equals(id))
+                    .findFirst();
+            if (creature.isEmpty()) {
+                continue;
+            }
+            EncounterParticipant affected = creature.get();
+            if (raisedMaximum && affected.getHpCurrent() != null
+                    && affected.getHpCurrent() > CreatureStats.hpMax(affected)) {
+                affected.setHpCurrent(CreatureStats.hpMax(affected));
+            }
+            if (effect.endReminder() != null && !effect.endReminder().isBlank()) {
+                combatLog.write(encounter, CombatActionType.SPELL_EFFECT_END, effect.endReminder()
+                        .replace("{target}", affected.getDisplayName()), null, affected);
+            }
+        }
+    }
+
+    // Whether the creature can't regain hit points now (Chill Touch, PHB p.221)
+    private static boolean cannotRegain(EncounterParticipant target) {
+        return OngoingModifiers.noHealing(ActiveModifiers.modifiersOn(target));
+    }
+
+    // The spell that keeps the creature from regaining hit points
+    private static String noHealingSource(EncounterParticipant target) {
+        return ActiveModifiers.on(target).stream()
+                .filter(found -> found.modifier().kind() == OngoingModifier.Kind.NO_HEALING)
+                .map(found -> found.effect().spell())
+                .findFirst()
+                .orElse("a spell");
     }
 
     // ── Summoned creatures (D182) ────────────────────────────────
@@ -1357,10 +1691,14 @@ public class EffectApplier {
     private ConcentrationCheck concentrationCheck(Encounter encounter, EncounterParticipant target, int damage) {
         int dc = ConcentrationCheck.dcFor(damage);
         int modifier = stats.saveModifier(target, Ability.CON);
-        Resolver.SaveRoll roll = resolver.savingThrow(Ability.CON, modifier, dc, CreatureStats.conditionNames(target));
+        // A concentration check is a Constitution saving throw (PHB p.203), so Bless's d4 counts (D184)
+        CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(target, Ability.CON);
+        Resolver.SaveRoll roll = resolver.savingThrow(Ability.CON, modifier, dc, CreatureStats.conditionNames(target),
+                false, modifiers.modes(), modifiers.bonuses());
         String spell = target.getConcentration().spell();
-        String description = target.getDisplayName() + " makes a concentration check: d20(" + roll.d20() + ")"
-                + signed(modifier) + " = " + roll.total() + " vs DC " + dc
+        String dice = roll.d20s().size() > 1 ? saveDice(roll) : "d20(" + roll.d20() + ")";
+        String description = target.getDisplayName() + " makes a concentration check: " + dice
+                + signed(modifier) + bonusText(roll.bonuses()) + " = " + roll.total() + " vs DC " + dc
                 + (roll.success() ? ", and maintains " + spell : ", and fails");
         combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.CONCENTRATION_CHECK,
                 description), null, target).rollValue(roll.d20()).rollTotal(roll.total()));
@@ -1369,6 +1707,7 @@ public class EffectApplier {
         if (!roll.success()) {
             endConcentration(encounter, target, "failed concentration check");
         }
+        spendModifiers(encounter, roll.spentOneShots());
         return check;
     }
 
@@ -1530,6 +1869,7 @@ public class EffectApplier {
                 }
                 description.append(": ").append(rerollText(outcome)).append(rolls(outcome))
                         .append(signed(attack.bonus()))
+                        .append(bonusText(outcome.bonuses()))
                         .append(inspirationText(outcome))
                         .append(outcome.guidedStrike() ? " + Guided Strike 10" : "")
                         .append(" = ").append(outcome.total()).append(" vs AC ").append(armourClass);
@@ -1551,8 +1891,10 @@ public class EffectApplier {
                     results.add("succeeds automatically");
                 } else {
                     int inspired = outcome.inspiration() != null ? outcome.inspiration().roll() : 0;
+                    int fromModifiers = Resolver.sum(outcome.bonuses());
                     description.append(' ').append(rolls(outcome))
-                            .append(signed(outcome.total() - outcome.d20() - inspired))
+                            .append(signed(outcome.total() - outcome.d20() - inspired - fromModifiers))
+                            .append(bonusText(outcome.bonuses()))
                             .append(inspirationText(outcome)).append(" = ").append(outcome.total())
                             .append(" vs DC ").append(save.dc());
                     results.add(outcome.outcome() == Outcome.SAVE_SUCCESS ? "succeeds" : "fails");
@@ -1565,7 +1907,9 @@ public class EffectApplier {
         }
 
         if (outcome.outcome() != Outcome.MISS && !damage.parts().isEmpty()) {
-            results.add(damageText(damage) + (outcome.outcome() == Outcome.SAVE_SUCCESS ? " (half)" : ""));
+            results.add(damageText(damage) + (outcome.outcome() == Outcome.SAVE_SUCCESS ? " (half)" : "")
+                    + (outcome.riders().isEmpty() ? "" : " (with " + outcome.riders().stream()
+                    .map(RollModifiers.RolledDamage::describe).collect(Collectors.joining(", ")) + ")"));
         }
         if (outcome.hitSave() != null && effect.delivery() instanceof Effect.Attack attack && attack.hitSave() != null) {
             results.add(hitSaveText(attack.hitSave(), outcome.hitSave()));
@@ -1588,6 +1932,11 @@ public class EffectApplier {
         }
         boolean rolled = effect.delivery() instanceof Effect.Attack || effect.delivery() instanceof Effect.Save;
         return description.append(rolled ? " — " : ": ").append(String.join(", ", results)).append('.').toString();
+    }
+
+    // " +1d4 (3) Bless" for each bonus an Ongoing Modifier added to the roll (D184), or nothing
+    private static String bonusText(List<RollModifiers.RolledBonus> bonuses) {
+        return bonuses.stream().map(bonus -> " " + bonus.describe()).collect(Collectors.joining());
     }
 
     // " + Bardic Inspiration d8(5)" when a held die was added to the roll (PHB p.53), or nothing
@@ -1614,8 +1963,8 @@ public class EffectApplier {
             return ability + " vs DC " + save.dc() + " succeeds automatically against "
                     + String.join(", ", save.conditions());
         }
-        String rolled = ability + " " + saveDice(roll) + signed(roll.total() - roll.d20()) + " = "
-                + roll.total() + " vs DC " + save.dc();
+        String rolled = ability + " " + saveDice(roll) + signed(roll.total() - roll.d20() - Resolver.sum(roll.bonuses()))
+                + bonusText(roll.bonuses()) + " = " + roll.total() + " vs DC " + save.dc();
         return roll.success() ? rolled + " succeeds against " + String.join(", ", save.conditions())
                 : rolled + " fails";
     }

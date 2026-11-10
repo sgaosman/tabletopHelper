@@ -373,6 +373,14 @@ A short rest (PHB p.186). The body can be left out.
 
 Sets the character's exhaustion level, 0 to 6 (D183); the owner may set it, also during an encounter. The character response carries `exhaustionLevel` and `hpMaxEffective`. The DM sets a participant's level with `PUT /encounters/{id}/combat/exhaustion {participantId, level}` while Preparing or Active; participants carry `exhaustionLevel`, `hpMax` (halved from level 4) and `hpMaxBase`, and the End preview `exhaustionBefore` and `exhaustionAfter`.
 
+### POST /encounters/{id}/combat/active-spell
+
+The DM records a lasting spell as already active (D184), while Preparing or Active: `{casterId, spellName, slotLevel?, targetIds?, option?}`. Nothing is spent and no cast-time effect is applied; concentration starts if the spell needs it. Undoable.
+
+### POST /encounters/{id}/combat/spell-effect/move
+
+Moves Hunter's Mark or Hex to a new creature (D184): `{participantId, effectId, targetId}`, costing a bonus action; 409 until the marked creature is at 0 HP. Cast requests take `option` (required for spells with options, 400 otherwise); spell options carry `castOptions`; participants carry `spellModifiers[]` (`{effectId, casterId, spell, label, modifiers, hinders}`, `casterId` null for players when the caster is hidden); Spell Effects carry `affectedIds`, `option`, `modifiers` and `retargetable`.
+
 ### POST /characters/{characterId}/long-rest
 
 A long rest (PHB p.186). No body. It restores every hit point and clears temporary hit points. It brings back spent Hit Dice up to half the character's total, at least one, the largest dice first, so a Fighter/Wizard regains d10s before d6s. Every spell slot comes back, and every pool refills completely, whatever its `resetAmount` (D127).

@@ -41,6 +41,11 @@ public class CastSpellRequest {
 
     private Integer overrideSpellSaveDC;
 
+    // The option a spell with options is cast with (D184), such as "enlarge" or "reduce" for Enlarge/Reduce, or the
+    // damage type of Protection from Energy; required for such a spell, refused for any other
+    @Size(max = 50)
+    private String option;
+
     // A sorcerer's Metamagic options on the cast (PHB p.102, M18): at most one, plus Empowered Spell; none when left out
     @Valid
     @Size(max = 2)

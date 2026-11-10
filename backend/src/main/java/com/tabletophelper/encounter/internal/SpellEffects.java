@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.character.EquippedArmour;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
@@ -10,17 +11,24 @@ import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.CastingTime;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.Metamagic;
+import com.tabletophelper.rules.combat.OngoingModifier;
 import com.tabletophelper.rules.combat.RollMode;
 import com.tabletophelper.rules.combat.SpellTrigger;
+import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Reads a spell's effect template into an Effect (D030, D160). A cantrip's dice scale with the caster's level,
@@ -66,9 +74,27 @@ public class SpellEffects {
      */
     public SpellPlan forCast(String spellName, int slotLevel, EncounterParticipant caster, String castingAbility,
                              int attackBonus, int saveDc, Boolean advantage) {
+        return forCast(spellName, slotLevel, caster, castingAbility, attackBonus, saveDc, advantage, null);
+    }
+
+    /**
+     * As {@link #forCast(String, int, EncounterParticipant, String, int, int, Boolean)}, with the option chosen for a
+     * spell that has them (D184): an option the template lists among its noSaveOptions reaches its target with no
+     * saving throw, as Enlarge does a willing creature (PHB p.237).
+     * <p>
+     * A spell without a template is the DM's to resolve, but one the spells data says needs concentration still starts
+     * it, lasting as long as the spell's duration says when that can be read, and until dropped otherwise.
+     */
+    public SpellPlan forCast(String spellName, int slotLevel, EncounterParticipant caster, String castingAbility,
+                             int attackBonus, int saveDc, Boolean advantage, String option) {
         Optional<SpellTemplate> found = template(spellName);
         if (found.isEmpty()) {
-            return manual(spellName, 0, NO_TEMPLATE, false, null, false);
+            Optional<Spell> spell = spellRepository.findByNameIgnoreCase(spellName);
+            boolean concentration = spell.map(Spell::getConcentration).map(Boolean.TRUE::equals).orElse(false);
+            return manual(spellName, spell.map(Spell::getLevel).orElse(0), NO_TEMPLATE, concentration,
+                    concentration ? spell.map(Spell::getDuration).map(SpellEffects::durationRounds).orElse(null)
+                            : null,
+                    false);
         }
         SpellTemplate template = found.get();
         int spellLevel = template.level();
@@ -82,11 +108,18 @@ public class SpellEffects {
             return manual(spellName, spellLevel, reason, concentration, durationRounds, verbal);
         }
         String deliveryMethod = orNone(template.deliveryMethod());
+        if (option != null && template.noSaveOptions().stream().anyMatch(option::equalsIgnoreCase)) {
+            deliveryMethod = "AUTO_HIT";
+        }
         Effect.Delivery delivery = delivery(deliveryMethod, template.spellAttackType(), template.saveAbility(),
                 template.halfOnSave(), attackBonus, saveDc, advantage);
         if (delivery == null) {
             return manual(spellName, spellLevel, "Delivery method '" + deliveryMethod + "' requires DM adjudication",
                     concentration, durationRounds, verbal);
+        }
+        // A spell attack is no weapon attack, so weapon-only Ongoing Modifiers leave it alone (D184)
+        if (delivery instanceof Effect.Attack attack) {
+            delivery = attack.withWeapon(false);
         }
 
         int modifier = stats.spellcastingModifier(caster, castingAbility, attackBonus);
@@ -208,12 +241,211 @@ public class SpellEffects {
                 return manual(spellName, spellLevel,
                         "Repeat delivery method '" + deliveryMethod + "' requires DM adjudication", false, null, false);
             }
+            // A spell's attack, such as Spiritual Weapon's, is a melee spell attack, not a weapon attack (PHB p.278)
+            if (delivery instanceof Effect.Attack attack) {
+                delivery = attack.withWeapon(false);
+            }
         }
         boolean spellsOwn = ownConditions && !repeat.replaces();
         Effect effect = new Effect(spellName, delivery, damage.get(), healing.get().dice(),
                 spellsOwn ? conditions(template) : List.of(), false, null,
                 spellsOwn ? conditionEnds(template, saveDc) : Map.of());
         return new SpellPlan(spellName, spellLevel, effect, null, false, null, false);
+    }
+
+    // ── Ongoing Modifiers (D184) ─────────────────────────────────
+
+    private static final Pattern DURATION = Pattern.compile(
+            "^(?:concentration,\\s*up to\\s*)?(\\d{1,4})\\s*(round|minute|hour|day)s?$", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * The rounds a duration as the spells data words it lasts, such as 10 for "Concentration, up to 1 minute" or 600
+     * for "1 hour" (a round is 6 seconds, PHB p.189); null when it can't be read, such as "Special".
+     */
+    public static Integer durationRounds(String duration) {
+        if (duration == null) {
+            return null;
+        }
+        Matcher matcher = DURATION.matcher(duration.trim());
+        if (!matcher.matches()) {
+            return null;
+        }
+        int amount = Integer.parseInt(matcher.group(1));
+        return switch (matcher.group(2).toLowerCase(Locale.ROOT)) {
+            case "round" -> amount;
+            case "minute" -> amount * 10;
+            case "hour" -> amount * 600;
+            default -> amount * 14400;
+        };
+    }
+
+    /**
+     * What a cast leaves of Ongoing Modifiers (D184).
+     *
+     * @param modifiers      the modifiers, their numbers fixed for this cast
+     * @param option         the option chosen, or null
+     * @param repeatSave     the ability each affected creature repeats its save with at the end of its turns, or null
+     * @param reminder       what the cast reminds the table of, or null
+     * @param endReminder    what the effect's end reminds the table of, or null
+     * @param durationRounds how long the spell lasts, when its template says
+     * @param notes          what the cast's log adds, such as Mage Armor having no effect on a creature in armour
+     */
+    public record ModifierPlan(List<OngoingModifier> modifiers, String option, String repeatSave, String reminder,
+                               String endReminder, Integer durationRounds, List<String> notes) {
+
+        public static final ModifierPlan NONE = new ModifierPlan(List.of(), null, null, null, null, null, List.of());
+
+        public ModifierPlan {
+            modifiers = List.copyOf(modifiers);
+            notes = List.copyOf(notes);
+        }
+
+        public boolean any() {
+            return !modifiers.isEmpty();
+        }
+    }
+
+    /**
+     * The options a cast of the spell chooses between (D184), such as Enlarge/Reduce's "enlarge" and "reduce"; empty
+     * for a spell without them or without a template.
+     */
+    public List<String> castOptions(String spellName) {
+        return template(spellName).map(SpellTemplate::castOptions).orElse(List.of());
+    }
+
+    /**
+     * The option the request gives, checked against the spell's: one of them, in any case, when the spell has options,
+     * and none when it hasn't.
+     *
+     * @throws ValidationException a missing or unknown option, or one for a spell that has none
+     */
+    public String option(String spellName, String requested) {
+        List<String> options = castOptions(spellName);
+        if (options.isEmpty()) {
+            if (requested != null && !requested.isBlank()) {
+                throw new ValidationException(spellName + " has no options to choose");
+            }
+            return null;
+        }
+        if (requested == null || requested.isBlank()) {
+            throw new ValidationException("Choose an option for " + spellName + ": " + String.join(", ", options));
+        }
+        return options.stream().filter(requested.trim()::equalsIgnoreCase).findFirst()
+                .orElseThrow(() -> new ValidationException(requested + " isn't an option for " + spellName + ": "
+                        + String.join(", ", options)));
+    }
+
+    /**
+     * The Ongoing Modifiers a cast of the spell with a slot of slotLevel leaves (D184): its template's, for the option
+     * chosen, with their numbers fixed. A step of slot levels above the spell's own adds the upcast's amount and dice,
+     * as Magic Weapon's +2 at 4th level (PHB p.257); a damage type of OPTION is the option; Heroism's amount is the
+     * caster's spellcasting modifier (PHB p.250); and Mage Armor's base is 13 + the creature's Dexterity modifier, with
+     * a shield's bonus it carries, and does nothing on a creature wearing armour (PHB p.256).
+     *
+     * @param spellcastingModifier the caster's spellcasting ability modifier
+     * @param first                the first creature affected, whose Dexterity and armour Mage Armor reads; null for
+     *                             none
+     */
+    public ModifierPlan modifiers(String spellName, int slotLevel, String option, int spellcastingModifier,
+                                  EncounterParticipant first) {
+        Optional<SpellTemplate> found = template(spellName);
+        if (found.isEmpty() || found.get().modifiers().isEmpty()) {
+            return ModifierPlan.NONE;
+        }
+        SpellTemplate template = found.get();
+        List<OngoingModifier> modifiers = new ArrayList<>();
+        List<String> notes = new ArrayList<>();
+        for (SpellTemplate.ModifierDefinition definition : template.modifiers()) {
+            if (definition.option() != null && !definition.option().equalsIgnoreCase(option)) {
+                continue;
+            }
+            int steps = definition.upcast() != null ? definition.upcast().steps(template.level(), slotLevel) : 0;
+            int flat = definition.flatAmount();
+            if (definition.upcast() != null && definition.upcast().flat() != null) {
+                flat += steps * definition.upcast().flat();
+            }
+            if (definition.spellcastingModifier()) {
+                flat += spellcastingModifier;
+            }
+            String dice = upcastDice(definition.dice(), definition.upcast(), steps);
+            if (definition.kind() == OngoingModifier.Kind.AC_BASE && first != null) {
+                EquippedArmour.Worn worn = stats.armour(first);
+                if (worn.armour() != null) {
+                    notes.add(spellName + " has no effect on " + first.getDisplayName() + ", who wears armour");
+                    continue;
+                }
+                if (worn.shield() != null) {
+                    flat += 2 + (worn.shield().getBonusAc() != null ? worn.shield().getBonusAc() : 0);
+                }
+            }
+            if (definition.plusDex()) {
+                flat += first != null ? Ability.modifier(stats.abilityScore(first, Ability.DEX)) : 0;
+            }
+            List<String> types = definition.damageTypes().stream()
+                    .map(type -> "OPTION".equalsIgnoreCase(type) && option != null ? option : type)
+                    .toList();
+            modifiers.add(new OngoingModifier(UUID.randomUUID(), definition.kind(), definition.scope(), dice, flat,
+                    definition.mode(), definition.ability(), types, definition.weaponOnly(), definition.meleeOnly(),
+                    definition.oneShot(), definition.until(), false, definition.requires(),
+                    definition.attackerTypes(), definition.condition(), definition.skill()));
+        }
+        return new ModifierPlan(modifiers, option, template.modifierRepeatSave(), template.reminder(),
+                template.endReminder(), template.durationRounds(), notes);
+    }
+
+    /** The spell's name as the spells data has it, found in any case; empty for no such spell. */
+    public Optional<String> spellName(String requested) {
+        return requested == null ? Optional.empty()
+                : spellRepository.findByNameIgnoreCase(requested.trim()).map(Spell::getName);
+    }
+
+    /** The spell's level, 0 for a cantrip or a spell not in the data. */
+    public int spellLevel(String spellName) {
+        return spellRepository.findByNameIgnoreCase(spellName).map(Spell::getLevel).orElse(0);
+    }
+
+    /** Whether the spell's Spell Effect can be moved to a new creature, as Hunter's Mark's and Hex's can. */
+    public boolean retargetable(String spellName) {
+        return template(spellName).map(SpellTemplate::retargetable).orElse(false);
+    }
+
+    /** Whether the spell reaches only its caster: its template's SELF delivery or selfOnly. */
+    public boolean selfOnly(String spellName) {
+        return template(spellName)
+                .map(template -> "SELF".equals(template.deliveryMethod()) || Boolean.TRUE.equals(template.selfOnly()))
+                .orElse(false);
+    }
+
+    /** Whether the spell needs concentration: its template says so, or else the spells data. */
+    public boolean concentration(String spellName) {
+        Optional<SpellTemplate> found = template(spellName);
+        if (found.isPresent() && found.get().concentration() != null) {
+            return found.get().concentration();
+        }
+        return spellRepository.findByNameIgnoreCase(spellName).map(Spell::getConcentration)
+                .map(Boolean.TRUE::equals).orElse(false);
+    }
+
+    /** How many rounds the spell lasts: its template's, or else read from the spells data's duration. */
+    public Integer durationOf(String spellName) {
+        Optional<SpellTemplate> found = template(spellName);
+        if (found.isPresent() && found.get().durationRounds() != null) {
+            return found.get().durationRounds();
+        }
+        return spellRepository.findByNameIgnoreCase(spellName).map(Spell::getDuration)
+                .map(SpellEffects::durationRounds).orElse(null);
+    }
+
+    // The dice with each step's dice added, as Elemental Weapon's 1d4 becomes 2d4 at 5th level (XGE p.155); the same
+    // sides are assumed, and a sign kept
+    private static String upcastDice(String dice, SpellTemplate.ModifierUpcast upcast, int steps) {
+        if (dice == null || dice.isBlank() || upcast == null || upcast.dice() == null || steps == 0) {
+            return dice;
+        }
+        String sign = dice.trim().startsWith("-") ? "-" : "";
+        Dice base = Dice.parse(dice.trim().replaceFirst("^[+-]", ""));
+        Dice each = Dice.parse(upcast.dice().trim());
+        return sign + new Dice(base.count() + steps * each.count(), base.sides(), base.modifier());
     }
 
     /**

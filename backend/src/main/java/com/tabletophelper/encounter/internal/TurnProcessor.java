@@ -92,6 +92,12 @@ public class TurnProcessor {
      */
     public void leave(Encounter encounter, EncounterParticipant leaving) {
         effectApplier.endConcentration(encounter, leaving, "leaves the encounter");
+        // Its other Spell Effects go with it, so their Ongoing Modifiers end on whoever had them (D184)
+        for (SpellEffectEntry effect : EffectApplier.effects(leaving)) {
+            if (effect.summon() == null) {
+                effectApplier.endEffect(encounter, leaving, effect.id(), "its caster leaves the encounter");
+            }
+        }
         // Its summoned creatures go with it (D182)
         effectApplier.dismissSummonsOf(encounter, leaving, leaving.getDisplayName() + " leaves the encounter");
         if (encounter.getMonstersInLair() != null && encounter.getMonstersInLair().contains(leaving.getId())) {
@@ -144,6 +150,8 @@ public class TurnProcessor {
                 }
             }
         }
+        // Ongoing Modifiers that last until the end of this turn end, and Slow's creature repeats its save (D184)
+        effectApplier.modifiersAtTurnEnd(encounter, creature);
         // A rage ends with a turn in which the barbarian neither attacked nor took damage since its last (PHB p.48)
         effectApplier.endTurnForRage(encounter, creature);
         // A command its caster gave lasts for the creature's next turn (PHB p.212, XGE p.168, D182)
@@ -205,6 +213,8 @@ public class TurnProcessor {
             }
         }
 
+        // Ongoing Modifiers that last until the start of this turn end, and Heroism's temporary hit points (D184)
+        effectApplier.modifiersAtTurnStart(encounter, creature);
         effectApplier.refreshTurn(encounter, creature);
         effectApplier.deathSaveDue(creature);
     }

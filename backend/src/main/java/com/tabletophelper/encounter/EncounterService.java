@@ -14,6 +14,7 @@ import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.encounter.internal.ActiveModifiers;
 import com.tabletophelper.encounter.internal.CreatureStats;
 import com.tabletophelper.encounter.internal.ChannelDivinityEffects;
 import com.tabletophelper.encounter.internal.CommandRecorder;
@@ -27,6 +28,7 @@ import com.tabletophelper.encounter.internal.Summoner;
 import com.tabletophelper.encounter.state.SummonLink;
 import com.tabletophelper.encounter.internal.TurnEconomies;
 import com.tabletophelper.encounter.internal.TurnProcessor;
+import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.monster.Monster;
@@ -38,6 +40,10 @@ import com.tabletophelper.rules.combat.AttackFeatures;
 import com.tabletophelper.rules.combat.ChannelDivinity;
 import com.tabletophelper.rules.combat.KenseiFeatures;
 import com.tabletophelper.rules.combat.LifeState;
+import com.tabletophelper.rules.combat.OngoingModifier;
+import com.tabletophelper.rules.combat.OngoingModifiers;
+import com.tabletophelper.rules.combat.RollMode;
+import com.tabletophelper.rules.combat.RollModifiers;
 import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.rules.combat.TurnOrder;
 import com.tabletophelper.reference.dto.RepeatCost;
@@ -435,21 +441,46 @@ public class EncounterService {
         Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
 
         // A summoned group rolls once, with its first creature's modifier (PHB p.189, p.225; D182). Initiative is a
-        // Dexterity check (PHB p.189), so exhaustion gives it disadvantage (PHB p.291, D183)
+        // Dexterity check (PHB p.189), so exhaustion gives it disadvantage (PHB p.291, D183), and the Ongoing
+        // Modifiers on ability checks and initiative add their dice, as Guidance's d4 (PHB p.248) and Gift of Alacrity's
+        // d8 (XGE p.157) do; a one-shot one, as Guidance's, is spent (D184)
         Map<UUID, Integer> groupRolls = new HashMap<>();
+        Set<UUID> spent = new HashSet<>();
         for (EncounterParticipant p : EncounterTurns.present(encounter)) {
             int mod = p.getInitiativeModifier() != null ? p.getInitiativeModifier() : 0;
             boolean disadvantage = Exhaustion.abilityCheckDisadvantage(Exhaustion.clamp(p.getExhaustionLevel()));
+            List<RollModifiers.Bonus> bonuses = OngoingModifiers.checkBonuses(null, ActiveModifiers.labelledOn(p));
             UUID group = p.getSummon() != null ? p.getSummon().groupId() : null;
-            int roll = group != null
-                    ? groupRolls.computeIfAbsent(group, id -> initiativeD20(disadvantage) + mod)
-                    : initiativeD20(disadvantage) + mod;
+            int roll;
+            if (group != null && groupRolls.containsKey(group)) {
+                roll = groupRolls.get(group);
+            } else {
+                roll = initiativeD20(disadvantage) + mod + initiativeBonus(bonuses);
+                spent.addAll(EffectApplier.oneShotsOf(bonuses));
+                if (group != null) {
+                    groupRolls.put(group, roll);
+                }
+            }
             p.setInitiative(roll);
         }
+        effectApplier.spendModifiers(encounter, spent);
 
         followCasters(encounter);
         recomputeSortOrder(encounter);
         return toResponse(encounterRepository.save(encounter));
+    }
+
+    // What the Ongoing Modifiers add to an initiative roll, each die rolled (D184)
+    private static int initiativeBonus(List<RollModifiers.Bonus> bonuses) {
+        int total = 0;
+        for (RollModifiers.Bonus bonus : bonuses) {
+            int rolled = bonus.dice().modifier();
+            for (int i = 0; i < bonus.dice().count(); i++) {
+                rolled += ThreadLocalRandom.current().nextInt(1, bonus.dice().sides() + 1);
+            }
+            total += bonus.sign() * rolled;
+        }
+        return total;
     }
 
     // One d20 for initiative, or the lower of two with disadvantage
@@ -481,6 +512,15 @@ public class EncounterService {
                             + "start with them until the DM revives them or removes them from it");
                 }
                 joinAgainAtStart(participant, snapshot);
+                // Aid recorded as already active raises the hit points it joins with again, as it did its maximum
+                // (PHB p.211, D184)
+                int aid = ActiveModifiers.modifiersOn(participant).stream()
+                        .filter(modifier -> modifier.kind() == OngoingModifier.Kind.HP_MAX)
+                        .mapToInt(OngoingModifier::flat).sum();
+                if (aid > 0 && participant.getLifeState() == LifeState.ALIVE) {
+                    participant.setHpCurrent(Math.min(CreatureStats.hpMax(participant),
+                            participant.getHpCurrent() + aid));
+                }
             }
         }
 
@@ -700,6 +740,7 @@ public class EncounterService {
                         .concentrationSpell(p.getConcentration() != null ? p.getConcentration().spell() : null)
                         .concentrationSlotLevel(p.getConcentration() != null ? p.getConcentration().slotLevel() : null)
                         .activeEffects(effectResponses(encounter, p))
+                        .spellModifiers(modifierChips(encounter, p))
                         .spellSlotsCurrent(p.getSpellSlotsCurrent())
                         .isVisibleToPlayers(p.getIsVisibleToPlayers())
                         .lifeState(p.getLifeState().name())
@@ -778,6 +819,10 @@ public class EncounterService {
                     .maxUsesEachTurn(how.maxUsesEachTurn())
                     .triggers(how.triggers())
                     .summon(effect.summon())
+                    .affectedIds(effect.affected())
+                    .option(effect.option())
+                    .modifiers(effect.modifiers().stream().map(OngoingModifier::describe).toList())
+                    .retargetable(retargetable(effect.spell()))
                     .summonedParticipantIds(effect.summon() == null ? List.of()
                             : EffectApplier.summonedBy(encounter, effect.id()).stream()
                                     .sorted(Comparator.comparing(p -> p.getSortOrder() != null ? p.getSortOrder()
@@ -785,6 +830,58 @@ public class EncounterService {
                                     .map(EncounterParticipant::getId).toList())
                     .build();
         }).toList();
+    }
+
+    // Whether the spell's effect can move to a new creature (Hunter's Mark, Hex); false when its template can't be read
+    private boolean retargetable(String spell) {
+        try {
+            return spellEffects.retargetable(spell);
+        } catch (ConflictException e) {
+            return false;
+        }
+    }
+
+    /**
+     * The spells whose Ongoing Modifiers are on the participant (D184), one chip each, such as "Bless" or "Faerie
+     * Fire": each Spell Effect in the encounter that affects it, with its caster, what it does and whether it hinders.
+     */
+    private static List<EncounterResponse.SpellModifierResponse> modifierChips(Encounter encounter,
+                                                                              EncounterParticipant participant) {
+        List<EncounterResponse.SpellModifierResponse> chips = new ArrayList<>();
+        for (EncounterParticipant caster : encounter.getParticipants()) {
+            if (Boolean.TRUE.equals(caster.getDismissed())) {
+                continue;
+            }
+            for (SpellEffectEntry effect : EffectApplier.effects(caster)) {
+                if (effect.modifiers().isEmpty() || !effect.affected().contains(participant.getId())) {
+                    continue;
+                }
+                chips.add(EncounterResponse.SpellModifierResponse.builder()
+                        .effectId(effect.id())
+                        .casterId(caster.getId())
+                        .spell(effect.spell())
+                        .label(ActiveModifiers.label(effect))
+                        .modifiers(effect.modifiers().stream().map(OngoingModifier::describe).toList())
+                        .hinders(effect.modifiers().stream().anyMatch(EncounterService::hinders))
+                        .build());
+            }
+        }
+        return chips;
+    }
+
+    // Whether a modifier works against the creature it is on, such as Bane's -1d4 or Hunter's Mark's extra damage
+    private static boolean hinders(OngoingModifier modifier) {
+        if (modifier.scope() != OngoingModifier.Scope.AFFECTED) {
+            return true;
+        }
+        return switch (modifier.kind()) {
+            case ATTACK_ROLL, SAVE, CHECK, INITIATIVE, HIT_DAMAGE -> modifier.sign() < 0 || modifier.flat() < 0;
+            case ATTACK_MODE, SAVE_MODE -> modifier.mode() == RollMode.DISADVANTAGE;
+            case ATTACKED_MODE -> modifier.mode() == RollMode.ADVANTAGE;
+            case AC, SPEED -> modifier.flat() < 0;
+            case REVEALED, SPEED_HALVED, NO_HEALING -> true;
+            default -> false;
+        };
     }
 
     // Each turn in order, with the number of the group it ties with, if any: its first turn's place

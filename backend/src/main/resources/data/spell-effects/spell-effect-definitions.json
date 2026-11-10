@@ -89,7 +89,18 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Until the end of your next turn, you have resistance against bludgeoning, piercing, and slashing damage dealt by weapon attacks."
+        "description": "Until the end of your next turn, you have resistance against bludgeoning, piercing, and slashing damage dealt by weapon attacks.",
+        "modifiers": [
+          {
+            "kind": "RESISTANCE",
+            "damageTypes": [
+              "bludgeoning",
+              "piercing",
+              "slashing"
+            ],
+            "until": "CASTER_TURN_END"
+          }
+        ]
       }
     ],
     "conditionsInflicted": null,
@@ -228,11 +239,28 @@
       },
       {
         "effectType": "DEBUFF",
-        "description": "Target can't regain hit points until the start of your next turn."
+        "description": "Target can't regain hit points until the start of your next turn.",
+        "modifiers": [
+          {
+            "kind": "NO_HEALING",
+            "until": "CASTER_TURN_START"
+          }
+        ]
       },
       {
         "effectType": "DEBUFF",
-        "description": "If target is undead, it also has disadvantage on attack rolls against you until the end of your next turn."
+        "description": "If target is undead, it also has disadvantage on attack rolls against you until the end of your next turn.",
+        "modifiers": [
+          {
+            "kind": "ATTACK_MODE",
+            "mode": "DISADVANTAGE",
+            "scope": "AFFECTED_VS_CASTER",
+            "attackerTypes": [
+              "undead"
+            ],
+            "until": "CASTER_TURN_END"
+          }
+        ]
       }
     ],
     "conditionsInflicted": null,
@@ -734,7 +762,16 @@
         "imposesDisadvantage": {
           "on": "targets_next_weapon_attack_roll",
           "duration": "until end of its next turn"
-        }
+        },
+        "modifiers": [
+          {
+            "kind": "ATTACK_MODE",
+            "mode": "DISADVANTAGE",
+            "weaponOnly": true,
+            "oneShot": true,
+            "until": "TARGET_TURN_END"
+          }
+        ]
       }
     ],
     "conditionsInflicted": null,
@@ -863,7 +900,14 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Once before the spell ends, the target can roll a d4 and add it to one ability check of its choice. Can roll before or after making the check. Spell ends after use."
+        "description": "Once before the spell ends, the target can roll a d4 and add it to one ability check of its choice. Can roll before or after making the check. Spell ends after use.",
+        "modifiers": [
+          {
+            "kind": "CHECK",
+            "dice": "1d4",
+            "oneShot": true
+          }
+        ]
       }
     ],
     "conditionsInflicted": null,
@@ -1360,7 +1404,15 @@
       },
       {
         "effectType": "DEBUFF",
-        "description": "Target subtracts 1d4 from the next saving throw it makes before the end of your next turn."
+        "description": "Target subtracts 1d4 from the next saving throw it makes before the end of your next turn.",
+        "modifiers": [
+          {
+            "kind": "SAVE",
+            "dice": "-1d4",
+            "oneShot": true,
+            "until": "CASTER_TURN_END"
+          }
+        ]
       }
     ],
     "conditionsInflicted": null,
@@ -1747,7 +1799,14 @@
       },
       {
         "effectType": "DEBUFF",
-        "description": "Target's speed is reduced by 10 feet until the start of your next turn."
+        "description": "Target's speed is reduced by 10 feet until the start of your next turn.",
+        "modifiers": [
+          {
+            "kind": "SPEED",
+            "flat": -10,
+            "until": "CASTER_TURN_START"
+          }
+        ]
       }
     ],
     "conditionsInflicted": null,
@@ -1797,7 +1856,14 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Once before the spell ends, the target can roll a d4 and add it to one saving throw of its choice. Can roll before or after making the save. Spell ends after use."
+        "description": "Once before the spell ends, the target can roll a d4 and add it to one saving throw of its choice. Can roll before or after making the save. Spell ends after use.",
+        "modifiers": [
+          {
+            "kind": "SAVE",
+            "dice": "1d4",
+            "oneShot": true
+          }
+        ]
       }
     ],
     "conditionsInflicted": null,
@@ -2461,13 +2527,13 @@
       "materialCostGp": null
     },
     "concentration": true,
-    "durationRounds": 1,
+    "durationRounds": 2,
     "durationText": "1 round",
-    "deliveryMethod": "NONE",
+    "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
     "saveAbility": null,
     "halfOnSave": false,
-    "autoHit": false,
+    "autoHit": true,
     "targetType": "SINGLE_TARGET",
     "targetCount": 1,
     "targetCountUpcastScaling": null,
@@ -2484,7 +2550,16 @@
         "grantsAdvantage": {
           "on": "next_attack_against_target",
           "duration": "on your next turn"
-        }
+        },
+        "modifiers": [
+          {
+            "kind": "ATTACK_MODE",
+            "mode": "ADVANTAGE",
+            "scope": "CASTER_VS_AFFECTED",
+            "oneShot": true,
+            "until": "CASTER_TURN_END"
+          }
+        ]
       }
     ],
     "conditionsInflicted": null,
@@ -2550,7 +2625,15 @@
         "imposesDisadvantage": {
           "on": "targets_next_attack_roll",
           "duration": "until end of its next turn"
-        }
+        },
+        "modifiers": [
+          {
+            "kind": "ATTACK_MODE",
+            "mode": "DISADVANTAGE",
+            "oneShot": true,
+            "until": "TARGET_TURN_END"
+          }
+        ]
       }
     ],
     "conditionsInflicted": null,
@@ -2653,25 +2736,38 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Resistance to the triggering damage type until the start of your next turn"
-      },
-      {
-        "effectType": "DAMAGE",
-        "damageDice": "1d6",
-        "damageType": "varies (triggering type)",
-        "upcastScaling": {
-          "additionalDicePerLevel": "1d6",
-          "additionalFlatPerLevel": 0
-        },
-        "cantripScaling": null
+        "description": "Resistance to the triggering damage type until the start of your next turn",
+        "modifiers": [
+          {
+            "kind": "RESISTANCE",
+            "damageTypes": [
+              "OPTION"
+            ],
+            "until": "CASTER_TURN_START"
+          },
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "1d6",
+            "damageTypes": [
+              "OPTION"
+            ],
+            "meleeOnly": true,
+            "oneShot": true,
+            "until": "CASTER_TURN_END",
+            "upcast": {
+              "every": 1,
+              "dice": "1d6"
+            }
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "Extra damage increases by 1d6 for each slot level above 1st",
     "specialMechanics": "Reaction cast when taking acid, cold, fire, lightning, or thunder damage. Grants resistance and stores energy for next melee attack. Two-phase effect: defensive (resistance) and offensive (extra melee damage).",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Two-phase effect: resistance on cast (reaction), extra damage on next melee hit. Damage type depends on triggering damage type.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Artificer",
@@ -2681,7 +2777,14 @@
       "Wizard"
     ],
     "notes": "Reaction trigger: taking acid, cold, fire, lightning, or thunder damage. Extra damage applies only to first melee attack on next turn.",
-    "reactionTrigger": "When you take acid, cold, fire, lightning, or thunder damage"
+    "reactionTrigger": "When you take acid, cold, fire, lightning, or thunder damage",
+    "castOptions": [
+      "acid",
+      "cold",
+      "fire",
+      "lightning",
+      "thunder"
+    ]
   },
   {
     "spellName": "Alarm",
@@ -2950,7 +3053,17 @@
     "effects": [
       {
         "effectType": "DEBUFF",
-        "description": "Target must subtract 1d4 from attack rolls and saving throws for the duration"
+        "description": "Target must subtract 1d4 from attack rolls and saving throws for the duration",
+        "modifiers": [
+          {
+            "kind": "ATTACK_ROLL",
+            "dice": "-1d4"
+          },
+          {
+            "kind": "SAVE",
+            "dice": "-1d4"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -3050,7 +3163,17 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target can add 1d4 to attack rolls and saving throws for the duration"
+        "description": "Target can add 1d4 to attack rolls and saving throws for the duration",
+        "modifiers": [
+          {
+            "kind": "ATTACK_ROLL",
+            "dice": "1d4"
+          },
+          {
+            "kind": "SAVE",
+            "dice": "1d4"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -3618,20 +3741,28 @@
     "effects": [
       {
         "effectType": "DEBUFF",
-        "description": "Target has disadvantage on attack rolls against creatures other than caster. Must make WIS save to move more than 30 feet from caster."
+        "description": "Target has disadvantage on attack rolls against creatures other than caster. Must make WIS save to move more than 30 feet from caster.",
+        "modifiers": [
+          {
+            "kind": "ATTACK_MODE",
+            "mode": "DISADVANTAGE",
+            "scope": "AFFECTED_VS_OTHERS"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": "Ends if caster attacks another creature, casts harmful spell on non-target, friendly creature damages/harms target, or caster ends turn 30+ feet from target.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Complex end conditions: ends if caster attacks others, casts harmful spells on non-target, ally harms target, or caster moves 30+ feet away.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SAVE_CONDITION",
     "classes": [
       "Paladin"
     ],
-    "notes": "Bonus action cast. Concentration. Multiple complex end conditions."
+    "notes": "Bonus action cast. Concentration. Multiple complex end conditions.",
+    "reminder": "Moving more than 30 feet from the caster needs a Wisdom save; the DM applies it."
   },
   {
     "spellName": "Comprehend Languages",
@@ -4145,7 +4276,17 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Weapon attacks deal an extra 1d4 radiant damage on a hit"
+        "description": "Weapon attacks deal an extra 1d4 radiant damage on a hit",
+        "modifiers": [
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "1d4",
+            "damageTypes": [
+              "radiant"
+            ],
+            "weaponOnly": true
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -4464,7 +4605,17 @@
         "grantsAdvantage": {
           "on": "attack_rolls_against_target",
           "duration": "until spell ends"
-        }
+        },
+        "modifiers": [
+          {
+            "kind": "ATTACKED_MODE",
+            "mode": "ADVANTAGE",
+            "requires": "SEEN"
+          },
+          {
+            "kind": "REVEALED"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -4754,7 +4905,7 @@
       "materialCostGp": null
     },
     "concentration": false,
-    "durationRounds": null,
+    "durationRounds": 4800,
     "durationText": "8 hours",
     "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
@@ -4773,7 +4924,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target adds 1d8 to initiative rolls for the duration"
+        "description": "Target adds 1d8 to initiative rolls for the duration",
+        "modifiers": [
+          {
+            "kind": "INITIATIVE",
+            "dice": "1d8"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -5172,7 +5329,17 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target immune to frightened condition. Gains temp HP equal to caster's spellcasting ability modifier at start of each turn."
+        "description": "Target immune to frightened condition. Gains temp HP equal to caster's spellcasting ability modifier at start of each turn.",
+        "modifiers": [
+          {
+            "kind": "TEMP_HP_EACH_TURN",
+            "spellcastingModifier": true
+          },
+          {
+            "kind": "CONDITION_IMMUNITY",
+            "condition": "frightened"
+          }
+        ]
       },
       {
         "effectType": "TEMP_HP",
@@ -5183,8 +5350,8 @@
     "healing": null,
     "upcastDescription": "One additional creature per slot level above 1st",
     "specialMechanics": "Temp HP refreshed at start of each of target's turns (equal to caster's spellcasting modifier). Frightened immunity.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Recurring temp HP at start of each turn requires per-turn tracking. Amount equals caster's spellcasting ability modifier.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "BUFF_NO_ROLL",
     "classes": [
       "Bard",
@@ -5224,28 +5391,41 @@
     "canTargetEnemies": true,
     "effects": [
       {
-        "effectType": "DAMAGE",
-        "damageDice": "1d6",
-        "damageType": "necrotic",
-        "upcastScaling": null,
-        "cantripScaling": null
-      },
-      {
         "effectType": "DEBUFF",
-        "description": "Target has disadvantage on ability checks with one chosen ability"
+        "description": "Target has disadvantage on ability checks with one chosen ability",
+        "modifiers": [
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "1d6",
+            "damageTypes": [
+              "necrotic"
+            ],
+            "scope": "CASTER_VS_AFFECTED"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "3rd-4th level: concentration up to 8 hours. 5th+ level: concentration up to 24 hours",
     "specialMechanics": "Extra 1d6 necrotic on EVERY hit against target. Can transfer to new target as bonus action when current target drops to 0 HP. Upcast extends duration, not damage.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Extra damage on every hit (not just once). Transferable to new target on kill. Upcast extends concentration duration rather than increasing damage.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Warlock"
     ],
-    "notes": "Bonus action. No save. Extra 1d6 necrotic on EVERY attack hit. Transferable. Upcast extends duration not damage. Key Warlock spell. durationRounds is intentionally null because Hex has variable duration by cast level (1h/8h/24h) and persists through target death via the transfer mechanic."
+    "notes": "Bonus action. No save. Extra 1d6 necrotic on EVERY attack hit. Transferable. Upcast extends duration not damage. Key Warlock spell. durationRounds is intentionally null because Hex has variable duration by cast level (1h/8h/24h) and persists through target death via the transfer mechanic.",
+    "castOptions": [
+      "STR",
+      "DEX",
+      "CON",
+      "INT",
+      "WIS",
+      "CHA"
+    ],
+    "retargetable": true,
+    "reminder": "The cursed creature has disadvantage on ability checks with the chosen ability; the DM applies it."
   },
   {
     "spellName": "Hunter's Mark",
@@ -5279,28 +5459,30 @@
     "canTargetEnemies": true,
     "effects": [
       {
-        "effectType": "DAMAGE",
-        "damageDice": "1d6",
-        "damageType": "same as weapon",
-        "upcastScaling": null,
-        "cantripScaling": null
-      },
-      {
         "effectType": "BUFF",
-        "description": "Advantage on Perception and Survival checks to find the target"
+        "description": "Advantage on Perception and Survival checks to find the target",
+        "modifiers": [
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "1d6",
+            "weaponOnly": true,
+            "scope": "CASTER_VS_AFFECTED"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "3rd-4th level: concentration up to 8 hours. 5th+ level: concentration up to 24 hours",
     "specialMechanics": "Extra 1d6 on EVERY weapon hit against target. Can transfer to new target as bonus action when current target drops to 0 HP. Upcast extends duration, not damage.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Extra damage on every weapon hit (not just once). Transferable to new target on kill. Upcast extends concentration duration rather than increasing damage.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Ranger"
     ],
-    "notes": "Bonus action. No save. Extra 1d6 on EVERY weapon hit. Weapon attacks only (not spell attacks). Transferable. Key Ranger spell. durationRounds is intentionally null because Hunter's Mark has variable duration by cast level (1h/8h/24h) and persists through target death via the transfer mechanic."
+    "notes": "Bonus action. No save. Extra 1d6 on EVERY weapon hit. Weapon attacks only (not spell attacks). Transferable. Key Ranger spell. durationRounds is intentionally null because Hunter's Mark has variable duration by cast level (1h/8h/24h) and persists through target death via the transfer mechanic.",
+    "retargetable": true
   },
   {
     "spellName": "Ice Knife",
@@ -5638,7 +5820,7 @@
       "materialCostGp": null
     },
     "concentration": false,
-    "durationRounds": null,
+    "durationRounds": 600,
     "durationText": "1 hour",
     "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
@@ -5659,7 +5841,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target's speed increases by 10 feet for the duration"
+        "description": "Target's speed increases by 10 feet for the duration",
+        "modifiers": [
+          {
+            "kind": "SPEED",
+            "flat": 10
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -5692,7 +5880,7 @@
       "materialCostGp": null
     },
     "concentration": false,
-    "durationRounds": null,
+    "durationRounds": 4800,
     "durationText": "8 hours",
     "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
@@ -5711,7 +5899,14 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target's base AC becomes 13 + Dexterity modifier. Ends if target dons armor."
+        "description": "Target's base AC becomes 13 + Dexterity modifier. Ends if target dons armor.",
+        "modifiers": [
+          {
+            "kind": "AC_BASE",
+            "flat": 13,
+            "plusDex": true
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -5877,7 +6072,21 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Protected against aberrations, celestials, elementals, fey, fiends, undead: they have disadvantage on attacks against target, target can't be charmed/frightened/possessed by them, advantage on saves against relevant effects"
+        "description": "Protected against aberrations, celestials, elementals, fey, fiends, undead: they have disadvantage on attacks against target, target can't be charmed/frightened/possessed by them, advantage on saves against relevant effects",
+        "modifiers": [
+          {
+            "kind": "ATTACKED_MODE",
+            "mode": "DISADVANTAGE",
+            "attackerTypes": [
+              "aberration",
+              "celestial",
+              "elemental",
+              "fey",
+              "fiend",
+              "undead"
+            ]
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -6169,7 +6378,14 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "+5 bonus to AC until the start of your next turn, including against the triggering attack. Immune to Magic Missile."
+        "description": "+5 bonus to AC until the start of your next turn, including against the triggering attack. Immune to Magic Missile.",
+        "modifiers": [
+          {
+            "kind": "AC",
+            "flat": 5,
+            "until": "CASTER_TURN_START"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -6219,7 +6435,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "+2 bonus to AC for the duration"
+        "description": "+2 bonus to AC for the duration",
+        "modifiers": [
+          {
+            "kind": "AC",
+            "flat": 2
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -7191,7 +7413,17 @@
         "upcastScaling": {
           "additionalDicePerLevel": null,
           "additionalFlatPerLevel": 5
-        }
+        },
+        "modifiers": [
+          {
+            "kind": "HP_MAX",
+            "flat": 5,
+            "upcast": {
+              "every": 1,
+              "flat": 5
+            }
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -7492,7 +7724,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target's AC can't be less than 16, regardless of armor worn"
+        "description": "Target's AC can't be less than 16, regardless of armor worn",
+        "modifiers": [
+          {
+            "kind": "AC_FLOOR",
+            "flat": 16
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -7669,7 +7907,14 @@
         "imposesDisadvantage": {
           "on": "attack_rolls_against_caster",
           "duration": "until spell ends"
-        }
+        },
+        "modifiers": [
+          {
+            "kind": "ATTACKED_MODE",
+            "mode": "DISADVANTAGE",
+            "requires": "SIGHTED"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -8491,22 +8736,55 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Enlarge: size doubles, +1d4 weapon damage, advantage on STR checks/saves. Reduce: size halves, -1d4 weapon damage (min 1), disadvantage on STR checks/saves."
+        "description": "Enlarge: size doubles, +1d4 weapon damage, advantage on STR checks/saves. Reduce: size halves, -1d4 weapon damage (min 1), disadvantage on STR checks/saves.",
+        "modifiers": [
+          {
+            "kind": "SAVE_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "STR",
+            "option": "enlarge"
+          },
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "1d4",
+            "weaponOnly": true,
+            "option": "enlarge"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "DISADVANTAGE",
+            "ability": "STR",
+            "option": "reduce"
+          },
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "-1d4",
+            "weaponOnly": true,
+            "option": "reduce"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Two modes (Enlarge/Reduce) with different effects. CON save only if unwilling. Modifies weapon damage, size, STR checks/saves.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Artificer",
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "CON save only for unwilling targets. Enlarge: +1d4 to weapon damage, advantage STR. Reduce: -1d4 weapon damage (min 1), disadvantage STR."
+    "notes": "CON save only for unwilling targets. Enlarge: +1d4 to weapon damage, advantage STR. Reduce: -1d4 weapon damage (min 1), disadvantage STR.",
+    "castOptions": [
+      "enlarge",
+      "reduce"
+    ],
+    "noSaveOptions": [
+      "enlarge"
+    ]
   },
   {
     "spellName": "Enthrall",
@@ -9755,13 +10033,33 @@
     "aoeShape": null,
     "aoeSize": null,
     "selfOnly": false,
-    "canTargetSelf": false,
+    "canTargetSelf": true,
     "canTargetAllies": true,
     "canTargetEnemies": false,
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Nonmagical weapon becomes magic with +1 bonus to attack and damage rolls"
+        "description": "Nonmagical weapon becomes magic with +1 bonus to attack and damage rolls",
+        "modifiers": [
+          {
+            "kind": "ATTACK_ROLL",
+            "flat": 1,
+            "weaponOnly": true,
+            "upcast": {
+              "every": 2,
+              "flat": 1
+            }
+          },
+          {
+            "kind": "HIT_DAMAGE",
+            "flat": 1,
+            "weaponOnly": true,
+            "upcast": {
+              "every": 2,
+              "flat": 1
+            }
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -10275,12 +10573,12 @@
     "concentration": true,
     "durationRounds": 600,
     "durationText": "1 hour",
-    "deliveryMethod": "SELF",
+    "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
     "saveAbility": null,
     "halfOnSave": false,
     "autoHit": false,
-    "targetType": "SELF_EMANATION",
+    "targetType": "MULTI_TARGET",
     "targetCount": null,
     "targetCountUpcastScaling": null,
     "aoeShape": null,
@@ -10292,7 +10590,14 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "+10 bonus to Dexterity (Stealth) checks for each chosen creature within 30ft. Can't be tracked except by magical means. No tracks left."
+        "description": "+10 bonus to Dexterity (Stealth) checks for each chosen creature within 30ft. Can't be tracked except by magical means. No tracks left.",
+        "modifiers": [
+          {
+            "kind": "CHECK",
+            "flat": 10,
+            "skill": "Stealth"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -11567,20 +11872,37 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target gains +1 AC, +1 saving throws, resistance to all damage. Caster takes the same amount of damage the target takes."
+        "description": "Target gains +1 AC, +1 saving throws, resistance to all damage. Caster takes the same amount of damage the target takes.",
+        "modifiers": [
+          {
+            "kind": "AC",
+            "flat": 1
+          },
+          {
+            "kind": "SAVE",
+            "flat": 1
+          },
+          {
+            "kind": "RESISTANCE",
+            "damageTypes": [
+              "all"
+            ]
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Target gains +1 AC, +1 saves, resistance to all damage. But caster takes the same damage the target takes. Ends if >60ft apart or caster drops to 0 HP.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Cleric"
     ],
-    "notes": "50gp platinum rings required (not consumed, worn during duration). No concentration. 1 hour. Caster takes same damage as target (after resistance). Ends at >60ft separation or caster 0 HP."
+    "notes": "50gp platinum rings required (not consumed, worn during duration). No concentration. 1 hour. Caster takes same damage as target (after resistance). Ends at >60ft separation or caster 0 HP.",
+    "reminder": "Each time the warded creature takes damage, the caster takes the same amount; the DM applies it."
   },
   {
     "spellName": "Warding Wind",
@@ -12184,7 +12506,19 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Advantage on Wisdom saving throws and death saving throws. Regains maximum number of hit points from any healing."
+        "description": "Advantage on Wisdom saving throws and death saving throws. Regains maximum number of hit points from any healing.",
+        "modifiers": [
+          {
+            "kind": "SAVE_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "WIS"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "DEATH"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -12939,34 +13273,57 @@
     "aoeShape": null,
     "aoeSize": null,
     "selfOnly": false,
-    "canTargetSelf": false,
+    "canTargetSelf": true,
     "canTargetAllies": true,
     "canTargetEnemies": false,
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Nonmagical weapon becomes magic with +1 to attack rolls and deals extra 1d4 damage of chosen type (acid, cold, fire, lightning, or thunder)."
-      },
-      {
-        "effectType": "DAMAGE",
-        "damageDice": "1d4",
-        "damageType": "varies",
-        "upcastScaling": null,
-        "cantripScaling": null
+        "description": "Nonmagical weapon becomes magic with +1 to attack rolls and deals extra 1d4 damage of chosen type (acid, cold, fire, lightning, or thunder).",
+        "modifiers": [
+          {
+            "kind": "ATTACK_ROLL",
+            "flat": 1,
+            "weaponOnly": true,
+            "upcast": {
+              "every": 2,
+              "flat": 1
+            }
+          },
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "1d4",
+            "damageTypes": [
+              "OPTION"
+            ],
+            "weaponOnly": true,
+            "upcast": {
+              "every": 2,
+              "dice": "1d4"
+            }
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "5th-6th level: +2 attack, 2d4 extra damage. 7th+ level: +3 attack, 3d4 extra damage.",
     "specialMechanics": "Choose damage type when cast: acid, cold, fire, lightning, or thunder. Touch range. Weapon becomes magical. Upcast scaling is non-linear: jumps at 5th and 7th level slots.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Modifies weapon attack rolls and damage; non-linear upcast scaling (+2/2d4 at 5th, +3/3d4 at 7th) requires special handling",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "BUFF_NO_ROLL",
     "classes": [
       "Artificer",
       "Paladin"
     ],
-    "notes": "REVIEW: Non-standard upcast scaling — not per-level linear. damageType is 'varies' because caster chooses from 5 options."
+    "notes": "REVIEW: Non-standard upcast scaling — not per-level linear. damageType is 'varies' because caster chooses from 5 options.",
+    "castOptions": [
+      "acid",
+      "cold",
+      "fire",
+      "lightning",
+      "thunder"
+    ]
   },
   {
     "spellName": "Enemies Abound",
@@ -13638,7 +13995,21 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target's speed is doubled, gains +2 bonus to AC, has advantage on Dexterity saving throws, and gains an additional action each turn (Attack [one weapon attack only], Dash, Disengage, Hide, or Use an Object only)."
+        "description": "Target's speed is doubled, gains +2 bonus to AC, has advantage on Dexterity saving throws, and gains an additional action each turn (Attack [one weapon attack only], Dash, Disengage, Hide, or Use an Object only).",
+        "modifiers": [
+          {
+            "kind": "AC",
+            "flat": 2
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "DEX"
+          },
+          {
+            "kind": "SPEED_DOUBLED"
+          }
+        ]
       },
       {
         "effectType": "DEBUFF",
@@ -13649,15 +14020,17 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": "Lethargy effect when spell ends: target can't move or take actions until after its next turn. Extra action limited to Attack (one weapon attack), Dash, Disengage, Hide, or Use an Object.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Multiple simultaneous buffs (speed doubling, AC bonus, advantage on DEX saves, extra action) plus debilitating lethargy effect when spell ends",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "BUFF_NO_ROLL",
     "classes": [
       "Artificer",
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "One of the most impactful level 3 buffs. Lethargy on end is a significant downside if concentration is broken."
+    "notes": "One of the most impactful level 3 buffs. Lethargy on end is a significant downside if concentration is broken.",
+    "reminder": "The hasted creature gains an extra action on each of its turns, for one weapon attack, Dash, Disengage, Hide or Use an Object; the DM grants it.",
+    "endReminder": "{target} can't move or take actions until after its next turn, as Haste ends."
   },
   {
     "spellName": "Hunger of Hadar",
@@ -13928,7 +14301,30 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target has resistance to psychic damage and advantage on Intelligence, Wisdom, and Charisma saving throws for the duration."
+        "description": "Target has resistance to psychic damage and advantage on Intelligence, Wisdom, and Charisma saving throws for the duration.",
+        "modifiers": [
+          {
+            "kind": "RESISTANCE",
+            "damageTypes": [
+              "psychic"
+            ]
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "INT"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "WIS"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "CHA"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -14572,7 +14968,14 @@
       },
       {
         "effectType": "BUFF",
-        "description": "Advantage on Wisdom saving throws. If hit by an attack, has advantage on the next attack roll it makes. Spell ends for a creature when it loses the temporary hit points."
+        "description": "Advantage on Wisdom saving throws. If hit by an attack, has advantage on the next attack roll it makes. Spell ends for a creature when it loses the temporary hit points.",
+        "modifiers": [
+          {
+            "kind": "SAVE_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "WIS"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -14769,7 +15172,15 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target gains resistance to one damage type of your choice: acid, cold, fire, lightning, or thunder"
+        "description": "Target gains resistance to one damage type of your choice: acid, cold, fire, lightning, or thunder",
+        "modifiers": [
+          {
+            "kind": "RESISTANCE",
+            "damageTypes": [
+              "OPTION"
+            ]
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -14787,7 +15198,14 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": null
+    "notes": null,
+    "castOptions": [
+      "acid",
+      "cold",
+      "fire",
+      "lightning",
+      "thunder"
+    ]
   },
   {
     "spellName": "Pulse Wave",
@@ -15103,21 +15521,37 @@
         "effectType": "DEBUFF",
         "description": "Speed halved, -2 AC, -2 DEX saves, can't use reactions, can use action or bonus action (not both), max one melee or ranged attack per turn. Spells with 1 action casting time have 50% chance of being delayed to next turn.",
         "saveToEndEachTurn": true,
-        "saveToEndAbility": "WIS"
+        "saveToEndAbility": "WIS",
+        "modifiers": [
+          {
+            "kind": "AC",
+            "flat": -2
+          },
+          {
+            "kind": "SAVE",
+            "flat": -2,
+            "ability": "DEX"
+          },
+          {
+            "kind": "SPEED_HALVED"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": "Up to 6 creatures in a 40-foot cube. WIS save each turn to end effect. On spell cast attempt (1 action), roll d20: 11+ spell delayed to next turn.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Multiple complex debuff effects (AC penalty, save penalty, action economy restrictions, spell delay mechanic), per-turn saves to end",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "REVIEW: No standard condition inflicted despite heavy debuff. The spell's effects are a unique combination not matching any standard condition. Affected creatures repeat WIS save at end of each turn to end the effect."
+    "notes": "REVIEW: No standard condition inflicted despite heavy debuff. The spell's effects are a unique combination not matching any standard condition. Affected creatures repeat WIS save at end of each turn to end the effect.",
+    "modifierRepeatSave": "WIS",
+    "reminder": "A slowed creature can't take reactions, takes an action or a bonus action but not both, makes at most one attack, and may lose a spell of 1 action to a d20 of 10 or less; the DM applies it."
   },
   {
     "spellName": "Speak with Dead",

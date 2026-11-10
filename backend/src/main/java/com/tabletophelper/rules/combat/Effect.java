@@ -78,9 +78,11 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
      *                       (PHB p.72) and 18 with its Superior Critical (PHB p.73)
      * @param rescue         what the attacker adds once its roll is known to miss (M17); {@link Rescue#NONE} for
      *                       nothing
+     * @param weapon         a weapon attack, which weapon-only Ongoing Modifiers change (D184), such as Magic Weapon's
+     *                       bonus (PHB p.257); false for a spell attack
      */
     public record Attack(int bonus, RollMode rollMode, boolean withinFiveFeet, boolean forcedCritical,
-                         HitSave hitSave, List<RollMode> otherSources, int critRange, Rescue rescue)
+                         HitSave hitSave, List<RollMode> otherSources, int critRange, Rescue rescue, boolean weapon)
             implements Delivery {
 
         public Attack {
@@ -92,6 +94,12 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
             rescue = rescue != null ? rescue : Rescue.NONE;
         }
 
+        /** A weapon attack (or one counted as such). */
+        public Attack(int bonus, RollMode rollMode, boolean withinFiveFeet, boolean forcedCritical, HitSave hitSave,
+                      List<RollMode> otherSources, int critRange, Rescue rescue) {
+            this(bonus, rollMode, withinFiveFeet, forcedCritical, hitSave, otherSources, critRange, rescue, true);
+        }
+
         /** An attack that adds nothing once its roll misses. */
         public Attack(int bonus, RollMode rollMode, boolean withinFiveFeet, boolean forcedCritical, HitSave hitSave,
                       List<RollMode> otherSources, int critRange) {
@@ -100,7 +108,14 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
 
         /** The same attack, adding the rescue once its roll misses. */
         public Attack withRescue(Rescue added) {
-            return new Attack(bonus, rollMode, withinFiveFeet, forcedCritical, hitSave, otherSources, critRange, added);
+            return new Attack(bonus, rollMode, withinFiveFeet, forcedCritical, hitSave, otherSources, critRange, added,
+                    weapon);
+        }
+
+        /** The same attack as a weapon attack or not, such as a spell attack (D184). */
+        public Attack withWeapon(boolean isWeapon) {
+            return new Attack(bonus, rollMode, withinFiveFeet, forcedCritical, hitSave, otherSources, critRange, rescue,
+                    isWeapon);
         }
 
         /** An attack that is a critical hit only on a 20. */

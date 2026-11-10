@@ -47,6 +47,18 @@ export type SpellTrigger = SpellEffect['triggers'][number];
 export type EndSpellEffectRequest = Schemas['EndSpellEffectRequest'];
 
 /**
+ * A spell whose Ongoing Modifiers are on a participant (D184), shown as a chip such as "Bless" or "Faerie Fire": what
+ * they do in words, and whether they work against the creature. Players don't see a hidden caster.
+ */
+export type SpellModifier = Schemas['SpellModifierResponse'];
+
+/** The DM's record that a caster's lasting spell is already going, with nothing spent (D184). */
+export type ActiveSpellRequest = Schemas['ActiveSpellRequest'];
+
+/** Moves Hunter's Mark or Hex to a new creature once its creature drops to 0 HP (PHB p.251, D184). */
+export type MoveSpellEffectRequest = Schemas['MoveSpellEffectRequest'];
+
+/**
  * One turn in an encounter's computed order (D163): a participant's, or the Lair's on initiative 20. The
  * encounter's currentTurnIndex points into its turnOrder, and each participant's sortOrder is its turn's
  * place there. The Player View leaves out turns players can't see and numbers the rest again (D157).

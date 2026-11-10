@@ -20,7 +20,9 @@ import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.ActionEconomy;
 import com.tabletophelper.rules.combat.Charge;
+import com.tabletophelper.rules.combat.OngoingModifiers;
 import com.tabletophelper.rules.combat.Resolver;
+import com.tabletophelper.rules.combat.RollModifiers;
 import com.tabletophelper.rules.combat.StandardActions;
 import com.tabletophelper.rules.combat.StandardActions.Action;
 import com.tabletophelper.rules.combat.TurnBudget;
@@ -35,6 +37,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -208,11 +211,18 @@ public class StandardActionService {
             d20 = resolver.d20();
             dice = "d20(" + d20 + ")";
         }
-        int total = d20 + modifier;
-        String description = taken + ": Dexterity (Stealth) " + dice + signed(modifier) + " = " + total
+        // The Ongoing Modifiers on the check, as Guidance's d4 (PHB p.248) or Pass without Trace's +10 (PHB p.264); a
+        // one-shot one is spent (D184)
+        List<RollModifiers.Bonus> bonuses = OngoingModifiers.checkBonuses(STEALTH,
+                ActiveModifiers.labelledOn(participant));
+        List<RollModifiers.RolledBonus> rolled = resolver.rollBonuses(bonuses);
+        int total = d20 + modifier + Resolver.sum(rolled);
+        String added = rolled.stream().map(bonus -> " " + bonus.describe()).collect(Collectors.joining());
+        String description = taken + ": Dexterity (Stealth) " + dice + signed(modifier) + added + " = " + total
                 + "; the DM decides whether it is hidden.";
         combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.STANDARD_ACTION,
                 description), participant, null).rollValue(d20).rollTotal(total));
+        effectApplier.spendModifiers(encounter, EffectApplier.oneShotsOf(bonuses));
     }
 
     /**

@@ -9,6 +9,8 @@ import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.rules.combat.ActionCost;
+import com.tabletophelper.rules.combat.OngoingModifier;
+import com.tabletophelper.rules.combat.RollMode;
 import com.tabletophelper.rules.combat.SpellTrigger;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.JacksonDefaults;
@@ -195,6 +197,59 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         return effectTriggers.stream().filter(trigger -> trigger.when().contains(when)).findFirst();
     }
 
+    /** Every Ongoing Modifier its effects give (D184), in order. */
+    public List<ModifierDefinition> modifiers() {
+        return effects.stream().flatMap(effect -> effect.modifiers().stream()).toList();
+    }
+
+    /** The options a cast chooses between (D184), such as "enlarge" and "reduce"; empty when it has none. */
+    public List<String> castOptions() {
+        return texts("castOptions");
+    }
+
+    /** The cast options that need no saving throw (D184), such as Enlarge on a willing creature; empty for none. */
+    public List<String> noSaveOptions() {
+        return texts("noSaveOptions");
+    }
+
+    /**
+     * The saving throw each affected creature repeats at the end of each of its turns, ending the Ongoing Modifiers for
+     * itself on a success, as Slow's Wisdom save (PHB p.277); null for none.
+     */
+    public String modifierRepeatSave() {
+        return json != null ? text(json, "modifierRepeatSave") : null;
+    }
+
+    /** A reminder the cast logs for what the app leaves to the table, such as Haste's extra action (PHB p.250). */
+    public String reminder() {
+        return json != null ? text(json, "reminder") : null;
+    }
+
+    /** A reminder logged when its Spell Effect ends, such as Haste's lethargy (PHB p.250); null for none. */
+    public String endReminder() {
+        return json != null ? text(json, "endReminder") : null;
+    }
+
+    /**
+     * Whether its caster can move it to a new creature with a bonus action once its creature drops to 0 hit points, as
+     * Hunter's Mark (PHB p.251) and Hex (PHB p.251) can.
+     */
+    public boolean retargetable() {
+        return json != null && json.path("retargetable").asBoolean(false);
+    }
+
+    // The JSON's list of texts under the key; empty when there is none
+    private List<String> texts(String key) {
+        if (json == null || !json.path(key).isArray()) {
+            return List.of();
+        }
+        List<String> texts = new java.util.ArrayList<>();
+        json.path(key).forEach(node -> {
+            if (node.isString()) texts.add(node.asString(""));
+        });
+        return List.copyOf(texts);
+    }
+
     /** The first effect with damage dice, if any. */
     public Optional<Part> firstDamageEffect() {
         return effects.stream().filter(effect -> effect.damageDice() != null).findFirst();
@@ -219,11 +274,68 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Part(String damageDice, String damageType, Map<String, String> cantripScaling,
-                       Upcast upcastScaling) {
+                       Upcast upcastScaling, List<ModifierDefinition> modifiers) {
 
         public Part {
             cantripScaling = cantripScaling == null ? Map.of()
                     : Collections.unmodifiableMap(new LinkedHashMap<>(cantripScaling));
+            modifiers = listOf(modifiers);
+        }
+
+        /** A part with no Ongoing Modifiers. */
+        public Part(String damageDice, String damageType, Map<String, String> cantripScaling, Upcast upcastScaling) {
+            this(damageDice, damageType, cantripScaling, upcastScaling, List.of());
+        }
+    }
+
+    /**
+     * An Ongoing Modifier as a BUFF or DEBUFF effect's {@code modifiers} list gives it (D184), before casting fixes its
+     * numbers: what {@link OngoingModifier} holds, and how the cast decides the rest.
+     *
+     * @param option               the cast option it belongs to, such as "enlarge" for Enlarge/Reduce (PHB p.237); null
+     *                             for every cast. A damage type of "OPTION" is the option chosen, as Protection from
+     *                             Energy's (PHB p.270)
+     * @param upcast               what each step of slot levels above the spell's own adds
+     * @param spellcastingModifier its flat amount is the caster's spellcasting modifier, as Heroism's temporary hit points
+     *                             (PHB p.250)
+     * @param plusDex              its flat amount adds the creature's Dexterity modifier, as Mage Armor's 13 + DEX (PHB
+     *                             p.256)
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record ModifierDefinition(OngoingModifier.Kind kind, OngoingModifier.Scope scope, String dice, Integer flat,
+                                     RollMode mode, String ability, List<String> damageTypes, boolean weaponOnly,
+                                     boolean meleeOnly, boolean oneShot, OngoingModifier.Until until, String requires,
+                                     List<String> attackerTypes, String condition, String skill, String option,
+                                     ModifierUpcast upcast, boolean spellcastingModifier, boolean plusDex) {
+
+        public ModifierDefinition {
+            Objects.requireNonNull(kind, "A modifier needs a kind");
+            damageTypes = listOf(damageTypes);
+            attackerTypes = listOf(attackerTypes);
+            if (dice != null && !dice.isBlank()) {
+                com.tabletophelper.rules.Dice.parse(dice.trim().replaceFirst("^[+-]", ""));
+            }
+        }
+
+        /** Its flat amount, 0 when it has none. */
+        public int flatAmount() {
+            return flat != null ? flat : 0;
+        }
+    }
+
+    /**
+     * What an Ongoing Modifier gains for each step of slot levels above its spell's own (D184), such as Magic Weapon's
+     * +1 for every two (PHB p.257) or Aid's 5 hit points for each (PHB p.211).
+     *
+     * @param every how many slot levels make a step; 1 when the data doesn't say
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record ModifierUpcast(Integer every, Integer flat, String dice) {
+
+        /** How many steps a slot of slotLevel gives a spell of spellLevel. */
+        public int steps(int spellLevel, int slotLevel) {
+            int interval = Math.max(1, every != null ? every : 1);
+            return Math.max(0, slotLevel - spellLevel) / interval;
         }
     }
 

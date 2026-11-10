@@ -11,11 +11,13 @@ import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.EncounterRepository;
 import com.tabletophelper.encounter.EncounterService;
+import com.tabletophelper.encounter.dto.ActiveSpellRequest;
 import com.tabletophelper.encounter.dto.CastSpellRequest;
 import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.dto.ConcentrationRequest;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.dto.EndSpellEffectRequest;
+import com.tabletophelper.encounter.dto.MoveSpellEffectRequest;
 import com.tabletophelper.encounter.dto.RepeatSpellEffectRequest;
 import com.tabletophelper.encounter.dto.SpellOption;
 import com.tabletophelper.encounter.dto.SpellSlotRequest;
@@ -105,6 +107,8 @@ public class SpellcastingService {
         ActionCost cost = quickened ? ActionCost.BONUS_ACTION : payment.castingTime().cost().orElse(ActionCost.ACTION);
         access.requireTurnForCost(encounter, actorParticipantId, userId, cost);
         requireTargetCount(payment, request.getTargetIds().size(), metamagic.has(Metamagic.Option.TWINNED));
+        // A spell with options is cast with one of them (D184)
+        String option = spellEffects.option(payment.spellName(), request.getOption());
         List<EncounterParticipant> targets = CombatAccess.targets(encounter, request.getTargetIds(), userId);
         SpellNumbers own = numbers(caster, payment.origin());
         List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(own.attackBonus(), own.saveDc(),
@@ -135,7 +139,8 @@ public class SpellcastingService {
         Set<UUID> ending = EffectApplier.endingOnAttackOrCast(caster);
         SpellCaster.CastResult result = spellCaster.cast(encounter, caster, payment.spellName(), payment.castLevel(),
                 targets, own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
-                saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote, metamagic, summon);
+                saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote, metamagic, summon,
+                option);
         if (summon != null) {
             summoner.afterCast(encounter, caster, summon, payment.castLevel(),
                     attackBonus(own, request.getOverrideSpellAttackBonus()),
@@ -182,7 +187,10 @@ public class SpellcastingService {
         EncounterParticipant participant = CombatAccess.target(encounter, participantId, userId);
         accessPolicy.requireControls(campaignId, participant.getControlledByUserId(), userId);
         String ban = castingBan(participant);
-        List<SpellOption> options = metamagicCasting.withMetamagic(participant, casterSpells.options(participant));
+        List<SpellOption> options = metamagicCasting.withMetamagic(participant, casterSpells.options(participant))
+                .stream()
+                .map(option -> option.withCastOptions(castOptions(option.name())))
+                .toList();
         return ban == null ? options : options.stream().map(option -> option.unavailable(ban)).toList();
     }
 
@@ -296,6 +304,86 @@ public class SpellcastingService {
             effectApplier.endConcentration(encounter, caster, effect.spell() + " ended by hand");
         }
         return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    /**
+     * The DM's record that a caster's lasting spell is already going (D184), such as Mage Armor or Aid cast before the
+     * fight, or Bless cast just before initiative, while the encounter is prepared or under way: no slot is spent and
+     * nothing is cast, rolled or logged as a cast. A concentration spell starts the caster's concentration, ending any
+     * other with its Spell Effect, and the spell's Ongoing Modifiers start on the targets, or on the caster for a spell
+     * on the caster. Under way it is a command undo covers.
+     */
+    @Transactional
+    public EncounterResponse startActiveSpell(UUID encounterId, ActiveSpellRequest request, UUID userId) {
+        Encounter encounter = access.beginAsDmPreparingOrActive(encounterId, userId);
+        EncounterParticipant caster = CombatAccess.participant(encounter, request.getCasterId());
+        String spellName = spellEffects.spellName(request.getSpellName())
+                .orElseThrow(() -> new ValidationException("No spell named " + request.getSpellName()));
+        int spellLevel = spellEffects.spellLevel(spellName);
+        int slotLevel = request.getSlotLevel() != null ? request.getSlotLevel() : spellLevel;
+        if (slotLevel < spellLevel || (spellLevel == 0 && slotLevel != 0)) {
+            throw new ValidationException(spellName + " can't be cast at level " + slotLevel);
+        }
+        String option = spellEffects.option(spellName, request.getOption());
+        List<UUID> targetIds = request.getTargetIds() != null ? request.getTargetIds() : List.of();
+        spellEffects.maxTargets(spellName, slotLevel).ifPresent(max -> {
+            if (targetIds.size() > max) {
+                throw new ValidationException(spellName + " can affect at most " + max + " creature"
+                        + (max == 1 ? "" : "s") + " at level " + slotLevel);
+            }
+        });
+        List<EncounterParticipant> targets = CombatAccess.targets(encounter, targetIds, userId);
+        if (targets.isEmpty() && !spellEffects.selfOnly(spellName)
+                && !spellEffects.modifiers(spellName, slotLevel, option, 0, null).modifiers().isEmpty()) {
+            throw new ValidationException("Choose the creatures " + spellName + " affects");
+        }
+        CombatAccess.requireNotDead(targets);
+        spellCaster.startActive(encounter, caster, spellName, slotLevel, targets, option);
+        return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    /**
+     * Moves a caster's Hunter's Mark or Hex to a new creature (PHB p.251, D184): with a bonus action on the caster's
+     * turn, once every creature it was on has dropped to 0 hit points. The DM's for anyone, a player's for their own
+     * character.
+     */
+    @Transactional
+    public EncounterResponse moveSpellEffect(UUID encounterId, MoveSpellEffectRequest request, UUID userId) {
+        Encounter encounter = access.beginOnTurnFor(encounterId, request.getParticipantId(), userId,
+                CombatAccess.OFF_TURN_SPELL_EFFECT);
+        EncounterParticipant caster = CombatAccess.participant(encounter, request.getParticipantId());
+        SpellEffectEntry effect = EffectApplier.effects(caster).stream()
+                .filter(candidate -> candidate.id().equals(request.getEffectId()))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("Spell Effect not found"));
+        if (!spellEffects.retargetable(effect.spell())) {
+            throw new ConflictException(effect.spell() + " can't be moved to another creature");
+        }
+        boolean standing = encounter.getParticipants().stream()
+                .filter(p -> effect.affected().contains(p.getId()))
+                .anyMatch(p -> p.getHpCurrent() != null && p.getHpCurrent() > 0
+                        && p.getLifeState() != com.tabletophelper.rules.combat.LifeState.DEAD);
+        if (standing) {
+            throw new ConflictException(effect.spell() + " moves only once its creature has dropped to 0 hit points");
+        }
+        EncounterParticipant target = CombatAccess.target(encounter, request.getTargetId(), userId);
+        CombatAccess.requireNotDead(List.of(target));
+        economy.charge(encounter, caster, Charge.of(ActionCost.BONUS_ACTION,
+                        EncounterTurns.isCurrentTurn(encounter, caster.getId())), userId,
+                new ActionEconomyKeeper.Command(CombatActionType.SPELL_EFFECT_REPEAT,
+                        caster.getDisplayName() + "'s " + effect.spell() + " (bonus action)"));
+        effectApplier.moveTo(encounter, caster, effect, target);
+        return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    // The options a cast of the spell chooses between (D184); none when its template can't be read, so the rest of the
+    // list still loads
+    private List<String> castOptions(String spellName) {
+        try {
+            return spellEffects.castOptions(spellName);
+        } catch (ConflictException e) {
+            return List.of();
+        }
     }
 
     // The effect the request names, or the caster's only one that fits; a 409 for none, or several to choose from

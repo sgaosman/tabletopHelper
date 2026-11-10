@@ -310,6 +310,30 @@ public class CombatController {
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    // The DM's record that a caster's lasting spell is already going, with its concentration and Ongoing Modifiers,
+    // while the encounter is prepared or under way (D184)
+    @PostMapping("/active-spell")
+    public ResponseEntity<EncounterResponse> startActiveSpell(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody ActiveSpellRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = spellcastingService.startActiveSpell(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // Moves a caster's Hunter's Mark or Hex to a new creature with a bonus action once its creature has dropped to 0
+    // hit points (PHB p.251, D184): the DM's for anyone, a player's for their own character on its turn
+    @PostMapping("/spell-effect/move")
+    public ResponseEntity<EncounterResponse> moveSpellEffect(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody MoveSpellEffectRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = spellcastingService.moveSpellEffect(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
     // What a summoning spell can bring when the caster casts it at the slot level (D182): the DM's for anyone, a
     // player's for a participant they control
     @GetMapping("/summon-options")

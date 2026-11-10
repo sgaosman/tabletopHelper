@@ -1,7 +1,7 @@
 import api from './axiosConfig';
 import type {
-  CommandSummonsRequest, CompanionSummonRequest, DismissSummonsRequest, Encounter, EndSpellEffectRequest,
-  PlaceSummonRequest, SummonOptions,
+  ActiveSpellRequest, CommandSummonsRequest, CompanionSummonRequest, DismissSummonsRequest, Encounter,
+  EndSpellEffectRequest, MoveSpellEffectRequest, PlaceSummonRequest, SummonOptions,
 } from '../types/encounter';
 import type {
   AttackOption,
@@ -161,6 +161,16 @@ export const combatApi = {
   // Ends a Spell Effect by hand, and the concentration it belongs to (M15): the DM's for anyone, a player's for their own
   endSpellEffect(encounterId: string, request: EndSpellEffectRequest) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/spell-effect/end`, request);
+  },
+
+  // The DM's record that a caster's lasting spell is already going, while prepared or under way (D184)
+  startActiveSpell(encounterId: string, request: ActiveSpellRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/active-spell`, request);
+  },
+
+  // Moves Hunter's Mark or Hex to a new creature with a bonus action (PHB p.251, D184)
+  moveSpellEffect(encounterId: string, request: MoveSpellEffectRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/spell-effect/move`, request);
   },
 
   // The DM's alone (M14): undoes the newest `steps` commands (one when left out), refused with 409 when

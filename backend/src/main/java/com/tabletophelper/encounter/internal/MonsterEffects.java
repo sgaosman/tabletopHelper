@@ -247,8 +247,12 @@ public class MonsterEffects {
                         .map(save -> new Effect.HitSave(save.ability(), save.dc(),
                                 List.copyOf(parts.conditionSaves().keySet())))
                         .orElse(null);
+                // A melee or ranged spell attack in a stat block is no weapon attack, which weapon-only Ongoing
+                // Modifiers need (D184)
                 delivery = new Effect.Attack(attackBonus, SpellEffects.rollMode(overrides.advantage()),
-                        withinFiveFeet(action.attackType()), false, hitSave);
+                        withinFiveFeet(action.attackType()), false, hitSave)
+                        .withWeapon(action.attackType() == null
+                                || !action.attackType().toUpperCase().contains("SPELL"));
             }
             case "SAVING_THROW" -> delivery = new Effect.Save(Ability.parse(action.saveAbility()).orElse(null), saveDc,
                     action.halfOnSave());

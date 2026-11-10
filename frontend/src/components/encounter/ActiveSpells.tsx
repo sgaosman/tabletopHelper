@@ -8,11 +8,12 @@ import SummonGroupCard from './SummonGroupCard';
  * Moonbeam, indented beneath it (M15). `onUse` adds the caster's button to direct an effect, greyed with
  * `blockedBy`'s reason where the turn can't pay for it; `onEnd` adds the button that ends one by hand. A summoning's
  * effect has its creatures beneath it, found among `participants` (D182), where its End button goes, with the DM's
- * `onReplaceSummon`, `onDismissSummon`, `onDismissAllSummons` and `onCommandSummons`.
+ * `onReplaceSummon`, `onDismissSummon`, `onDismissAllSummons` and `onCommandSummons`. `onMove` moves Hunter's Mark or
+ * Hex to another living creature (D184).
  */
 export default function ActiveSpells({
   participant: p, roundNumber, onUse, blockedBy, onEnd, participants = [], onReplaceSummon, onDismissSummon,
-  onDismissAllSummons, onCommandSummons,
+  onDismissAllSummons, onCommandSummons, onMove,
 }: {
   participant: EncounterParticipant;
   roundNumber: number;
@@ -24,6 +25,7 @@ export default function ActiveSpells({
   onDismissSummon?: (creature: EncounterParticipant) => void;
   onDismissAllSummons?: (creatures: EncounterParticipant[]) => void;
   onCommandSummons?: (creatures: EncounterParticipant[]) => void;
+  onMove?: (effect: SpellEffect, targetId: string) => void;
 }) {
   return (
     <>
@@ -51,6 +53,13 @@ export default function ActiveSpells({
           onUse={onUse ? () => onUse(effect) : undefined}
           blockedReason={blockedBy?.(effect) ?? null}
           onEnd={onEnd ? () => onEnd(effect) : undefined}
+          moveTargets={participants
+            .filter(other => other.lifeState !== 'DEAD' && !(effect.affectedIds ?? []).includes(other.id))
+            .map(other => ({ id: other.id, name: other.displayName }))}
+          onMove={onMove ? targetId => onMove(effect, targetId) : undefined}
+          affectedNames={(effect.affectedIds ?? [])
+            .map(id => participants.find(other => other.id === id)?.displayName)
+            .filter((name): name is string => !!name)}
         />
       ))}
     </>

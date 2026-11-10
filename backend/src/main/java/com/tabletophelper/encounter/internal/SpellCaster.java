@@ -11,6 +11,7 @@ import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.Metamagic;
+import com.tabletophelper.rules.combat.OngoingModifier;
 import com.tabletophelper.rules.combat.Outcome;
 import com.tabletophelper.rules.combat.Resolver;
 import com.tabletophelper.rules.combat.RollMode;
@@ -87,8 +88,23 @@ public class SpellCaster {
                            List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
                            Boolean advantage, String costNote, MetamagicCasting.Plan metamagic,
                            Summoner.Prepared summoning) {
+        return cast(encounter, caster, spellName, slotLevel, targets, castingAbility, attackBonus, saveDc, advantage,
+                costNote, metamagic, summoning, null);
+    }
+
+    /**
+     * As {@link #cast(Encounter, EncounterParticipant, String, int, List, String, int, int, Boolean, String,
+     * MetamagicCasting.Plan, Summoner.Prepared)}, with the option chosen for a spell that has them, already checked
+     * (D184). A spell whose template gives Ongoing Modifiers leaves them on a Spell Effect, on the creatures it reached:
+     * those it hit, those that failed its save, every target of a spell that needs no roll, or its caster for a spell on
+     * the caster.
+     */
+    public CastResult cast(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
+                           List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
+                           Boolean advantage, String costNote, MetamagicCasting.Plan metamagic,
+                           Summoner.Prepared summoning, String option) {
         SpellEffects.SpellPlan plan = spellEffects.forCast(spellName, slotLevel, caster, castingAbility, attackBonus,
-                saveDc, advantage);
+                saveDc, advantage, option);
         if (metamagic.has(Metamagic.Option.EXTENDED)) {
             plan = extended(plan);
         }
@@ -104,7 +120,7 @@ public class SpellCaster {
             String summary = lead + " — " + (summoning != null ? summoning.castNote() : plan.manualReason())
                     + forTheDm(metamagic, targets);
             effectApplier.summary(encounter, use(caster, spellName, costNote, instance), summary);
-            leaveEffect(encounter, caster, spellName, slotLevel, instance, false, metamagic);
+            leaveEffect(encounter, caster, spellName, slotLevel, instance, false, metamagic, ModifierCast.NONE);
             return new CastResult(spellName, plan.spellLevel(), plan.concentration(), manualReason, summary,
                     List.of());
         }
@@ -123,14 +139,64 @@ public class SpellCaster {
                 : null;
         EffectApplier.Use use = use(caster, spellName, costNote, instance);
         effectApplier.summary(encounter, use, lead + ".");
-        List<Resolver.Target> resolvedAgainst = stats.targets(reached, effect).stream()
+        List<Resolver.Target> resolvedAgainst = stats.targets(reached, effect, caster).stream()
                 .map(target -> withMetamagic(target, metamagic))
                 .toList();
         List<EffectApplier.Applied> applied = effectApplier.apply(encounter, use, effect,
                 resolver.resolve(effect, CreatureStats.side(caster), resolvedAgainst, metamagic.empoweredDice()));
-        leaveEffect(encounter, caster, spellName, slotLevel, instance, !reached.isEmpty(), metamagic);
-        return new CastResult(spellName, plan.spellLevel(), plan.concentration(), null, summary(lead, applied),
-                outcomes(effect, applied));
+        List<EncounterParticipant> affected = applied.stream()
+                .filter(result -> switch (result.outcome().outcome()) {
+                    case HIT, CRITICAL, SAVE_FAIL, AUTOMATIC -> true;
+                    default -> false;
+                })
+                .map(EffectApplier.Applied::target)
+                .filter(target -> target.getLifeState() != LifeState.DEAD)
+                .toList();
+        int spellcastingModifier = stats.spellcastingModifier(caster, castingAbility, attackBonus);
+        SpellEffects.ModifierPlan modifiers = spellEffects.modifiers(spellName, slotLevel, option,
+                spellcastingModifier, affected.isEmpty() ? null : affected.getFirst());
+        String modifierNote = leaveEffect(encounter, caster, spellName, slotLevel, instance, !reached.isEmpty(),
+                metamagic, new ModifierCast(modifiers, affected, saveDc));
+        return new CastResult(spellName, plan.spellLevel(), plan.concentration(), null,
+                summary(lead, applied) + modifierNote, outcomes(effect, applied));
+    }
+
+    /**
+     * The Ongoing Modifiers a cast leaves (D184), on the creatures it affected, with the save DC a repeated save is
+     * made against.
+     */
+    record ModifierCast(SpellEffects.ModifierPlan plan, List<EncounterParticipant> affected, int saveDc) {
+        static final ModifierCast NONE = new ModifierCast(SpellEffects.ModifierPlan.NONE, List.of(), 0);
+    }
+
+    /**
+     * Starts a spell that is already going on its caster without casting it (D184): the DM's record of a spell cast
+     * before the encounter or before initiative, such as Mage Armor or Bless. No slot is spent and nothing is rolled;
+     * a concentration spell starts the caster's concentration, ending any other, and a lasting spell or one with
+     * Ongoing Modifiers leaves its Spell Effect, on the targets, or on the caster for a spell on the caster.
+     */
+    public String startActive(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
+                              List<EncounterParticipant> targets, String option) {
+        boolean concentration = spellEffects.concentration(spellName);
+        Integer rounds = spellEffects.durationOf(spellName);
+        ConcentrationInstance instance = concentration
+                ? effectApplier.startConcentration(encounter, caster, spellName, slotLevel > 0 ? slotLevel : null,
+                        rounds)
+                : null;
+        List<EncounterParticipant> affected = spellEffects.selfOnly(spellName) ? List.of(caster) : targets;
+        int spellcastingModifier = stats.spellcastingModifier(caster, caster.getSpellcastingAbility(),
+                caster.getSpellAttackBonus() != null ? caster.getSpellAttackBonus() : 0);
+        SpellEffects.ModifierPlan modifiers = spellEffects.modifiers(spellName, slotLevel, option,
+                spellcastingModifier, affected.isEmpty() ? null : affected.getFirst());
+        String summary = "DM: " + caster.getDisplayName() + "'s " + spellName
+                + (option != null ? " (" + option + ")" : "") + " is already active"
+                + (slotLevel > 0 ? " at level " + slotLevel : "")
+                + (concentration ? ", and " + caster.getDisplayName() + " is concentrating on it" : "") + ".";
+        effectApplier.summary(encounter, use(caster, spellName, "", instance), summary);
+        String note = leaveEffect(encounter, caster, spellName, slotLevel, instance, false, MetamagicCasting.Plan.NONE,
+                new ModifierCast(modifiers, affected,
+                        caster.getSpellSaveDc() != null ? caster.getSpellSaveDc() : 10));
+        return summary + note;
     }
 
     // Careful Spell's creatures succeed on the save, and Heightened Spell's rolls its first with disadvantage
@@ -195,22 +261,47 @@ public class SpellCaster {
     /**
      * The Spell Effect a lasting spell leaves on its caster (M15), linked to the Concentration Instance the cast
      * started. A cast that sent something at creatures has spent one of the effect's uses, such as the first of Melf's
-     * Minute Meteors (XGE p.161).
+     * Minute Meteors (XGE p.161). A spell with Ongoing Modifiers that affected anyone leaves one too, holding them
+     * (D184); one kept up without concentration leaves an earlier casting's alone, as a second Mage Armor on another
+     * creature does. What the log adds for the modifiers, or nothing.
      */
-    private void leaveEffect(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
-                             ConcentrationInstance instance, boolean spentOne, MetamagicCasting.Plan metamagic) {
-        spellEffects.lasting(spellName, slotLevel).ifPresent(lasting -> {
-            Integer uses = lasting.uses();
-            if (uses != null && spentOne) {
-                uses = Math.max(0, uses - 1);
-            }
-            Integer rounds = lasting.durationRounds();
-            if (rounds != null && metamagic.has(Metamagic.Option.EXTENDED)) {
-                rounds = Metamagic.extendedRounds(rounds);
-            }
-            effectApplier.startEffect(encounter, caster, spellName, slotLevel > 0 ? slotLevel : null, instance,
-                    rounds, uses);
-        });
+    private String leaveEffect(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
+                               ConcentrationInstance instance, boolean spentOne, MetamagicCasting.Plan metamagic,
+                               ModifierCast modifiers) {
+        Optional<SpellEffects.Lasting> lasting = spellEffects.lasting(spellName, slotLevel);
+        SpellEffects.ModifierPlan plan = modifiers.plan();
+        boolean withModifiers = plan.any() && !modifiers.affected().isEmpty();
+        String notes = plan.notes().isEmpty() ? "" : " " + String.join(". ", plan.notes()) + ".";
+        if (lasting.isEmpty() && !withModifiers) {
+            return notes;
+        }
+        Integer uses = lasting.map(SpellEffects.Lasting::uses).orElse(null);
+        if (uses != null && spentOne) {
+            uses = Math.max(0, uses - 1);
+        }
+        // Modifiers that each end by a turn of their own, as Mind Sliver's at the end of its caster's next turn (TCE
+        // p.108), leave the effect to end with them rather than by the spell's rounds
+        boolean endsByTurns = !plan.modifiers().isEmpty() && plan.modifiers().stream().allMatch(m -> m.until() != null);
+        Integer rounds = lasting.isPresent() ? lasting.get().durationRounds()
+                : endsByTurns ? null : plan.durationRounds();
+        if (rounds != null && metamagic.has(Metamagic.Option.EXTENDED)) {
+            rounds = Metamagic.extendedRounds(rounds);
+        }
+        SpellEffectEntry effect = effectApplier.startEffect(encounter, caster, spellName,
+                slotLevel > 0 ? slotLevel : null, instance, rounds, uses, lasting.isPresent());
+        if (!withModifiers) {
+            return notes;
+        }
+        SpellEffectEntry.EffectSave save = plan.repeatSave() != null
+                ? new SpellEffectEntry.EffectSave(plan.repeatSave(), modifiers.saveDc()) : null;
+        effectApplier.startModifiers(encounter, caster, effect.id(), modifiers.affected(), plan.modifiers(),
+                plan.option(), save, plan.endReminder(), lasting.isEmpty());
+        String label = ActiveModifiers.label(effect.withModifiers(List.of(), List.of(), plan.option(), null, null,
+                false));
+        String text = label + ": " + plan.modifiers().stream().map(OngoingModifier::describe)
+                .collect(Collectors.joining("; ")) + "." + (plan.reminder() != null ? " " + plan.reminder() : "");
+        effectApplier.summary(encounter, use(caster, spellName, "", instance), text);
+        return notes + " " + text;
     }
 
     /**
@@ -249,7 +340,7 @@ public class SpellCaster {
                     .filter(target -> target.getLifeState() != LifeState.DEAD)
                     .toList();
             applied.addAll(effectApplier.apply(encounter, use, effect,
-                    resolver.resolve(effect, CreatureStats.side(caster), stats.targets(standing, effect))));
+                    resolver.resolve(effect, CreatureStats.side(caster), stats.targets(standing, effect, caster))));
         }
         return new CastResult(spellName, plan.spellLevel(), false, null, summary(lead, applied),
                 outcomes(effect, applied));
@@ -366,7 +457,8 @@ public class SpellCaster {
         CombatAccess.requireNotDead(targets);
         effectApplier.summary(encounter, use, lead + ".");
         List<EffectApplier.Applied> applied = effectApplier.apply(encounter, use, plan.effect(),
-                resolver.resolve(plan.effect(), CreatureStats.side(caster), stats.targets(targets, plan.effect())));
+                resolver.resolve(plan.effect(), CreatureStats.side(caster),
+                        stats.targets(targets, plan.effect(), caster)));
         endOnSave(encounter, caster, spellEffect, when, applied);
         return new CastResult(spellName, plan.spellLevel(), false, null, summary(lead, applied),
                 outcomes(plan.effect(), applied));

@@ -187,7 +187,7 @@ public class AttackService {
         manualModifiers.log(encounter, CombatActionType.ATTACK, actor, attack.subject(), userId, attack.modifiers());
         List<EffectApplier.Applied> applied = effectApplier.apply(encounter, use, attack.effect(),
                 resolver.resolve(attack.effect(), CreatureStats.side(actor),
-                        List.of(stats.target(target, attack.effect()))));
+                        List.of(stats.target(target, attack.effect(), actor))));
         if (actor != null) {
             recordHit(encounter, actor, target, attack, applied.getFirst());
             if (applied.getFirst().outcome().guidedStrike()) {
@@ -321,8 +321,12 @@ public class AttackService {
             accessPolicy.requireControls(campaignId, attacker.getControlledByUserId(), userId);
         }
         EncounterParticipant target = CombatAccess.target(encounter, targetId, userId);
-        AttackRules.Setup setup = AttackRules.setup(List.of(), CreatureStats.side(attacker),
-                CreatureStats.side(target), withinFiveFeet);
+        // The Ongoing Modifiers' sources too (D184), such as Faerie Fire's, counted for a weapon attack
+        Effect probe = new Effect("preview", new Effect.Attack(0, RollMode.NORMAL, withinFiveFeet, false), List.of(),
+                null, List.of(), false, null);
+        Resolver.Target against = stats.target(target, probe, attacker);
+        AttackRules.Setup setup = AttackRules.setup(List.of(), CreatureStats.side(attacker), against.side(),
+                withinFiveFeet, against.modifiers().attackSources());
         return new AttackRollPreview(setup.rollMode(), setup.automatic().stream()
                 .map(source -> new AttackRollPreview.RollSource(source.mode(), source.reason()))
                 .toList(), setup.hitIsCritical());
