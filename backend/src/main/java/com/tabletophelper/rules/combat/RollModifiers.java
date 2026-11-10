@@ -37,6 +37,16 @@ public record RollModifiers(List<AttackRules.Source> attackSources, List<Bonus> 
         attackOneShots = attackOneShots != null ? Set.copyOf(attackOneShots) : Set.of();
     }
 
+    /**
+     * The same changes with one more source of advantage or disadvantage on the attack roll, as Shocking Grasp's
+     * advantage against a target in metal armour (PHB p.275, D199) or Pack Tactics' (MM p.11).
+     */
+    public RollModifiers withAttackSource(AttackRules.Source source) {
+        List<AttackRules.Source> sources = new java.util.ArrayList<>(attackSources);
+        sources.add(source);
+        return new RollModifiers(sources, attackBonuses, hitDamage, saveBonuses, attackOneShots, revealed);
+    }
+
     /** Only these save bonuses. */
     public static RollModifiers saves(List<Bonus> saveBonuses) {
         return new RollModifiers(List.of(), List.of(), List.of(), saveBonuses, Set.of(), false);

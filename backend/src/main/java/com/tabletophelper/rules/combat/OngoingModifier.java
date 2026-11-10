@@ -31,19 +31,33 @@ import java.util.UUID;
  * @param requires      what the attacker needs: "SEEN" (it can see the creature, Faerie Fire PHB p.239) or "SIGHTED"
  *                      (it has neither blindsight nor truesight, Blur PHB p.219); for a RESISTANCE, "NONMAGICAL" when it
  *                      resists only nonmagical damage (Stoneskin, PHB p.278); for a CONDITION_IMMUNITY, "MAGICAL" when it
- *                      guards only against magic (Freedom of Movement, PHB p.244); null for nothing
+ *                      guards only against magic (Freedom of Movement, PHB p.244); for a SPEED, the one speed it
+ *                      changes, such as "walk" for Kinetic Jaunt's walking speed (D199), null for every speed; for a
+ *                      GRANTED_SPEED, the speed it gives, such as "fly" (D199); null for nothing
  * @param attackerTypes the creature types an attacker must have for it to apply, such as Protection from Evil and
  *                      Good's (PHB p.270); empty for any attacker
  * @param condition     the condition it makes the creature immune to, for CONDITION_IMMUNITY; for a SAVE_MODE, the
  *                      conditions, comma-separated, of the effects whose saves it changes, as Aura of Purity's (PHB
  *                      p.216, D185), null for every save
  * @param skill         the skill a CHECK modifier is limited to, such as "Stealth"; null for any ability check the
- *                      engine rolls (Hide and initiative)
+ *                      engine rolls (Hide and initiative). For a CHECK_MODE, the skill it is limited to, or
+ *                      {@value #INITIATIVE_CHECK} for initiative only; null for every check of its ability (D199)
+ * @param note          for a NOTE, what the spell gives that the app doesn't roll, shown on the creature, such as
+ *                      Darkvision's "darkvision out to 60 feet" (D199); null for any other kind
  */
 public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int flat, RollMode mode, String ability,
                               List<String> damageTypes, boolean weaponOnly, boolean meleeOnly, boolean oneShot,
                               Until until, boolean armed, String requires, List<String> attackerTypes, String condition,
-                              String skill) {
+                              String skill, String note) {
+
+    /** A modifier with no note, which is every kind but NOTE. */
+    public OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int flat, RollMode mode, String ability,
+                           List<String> damageTypes, boolean weaponOnly, boolean meleeOnly, boolean oneShot,
+                           Until until, boolean armed, String requires, List<String> attackerTypes, String condition,
+                           String skill) {
+        this(id, kind, scope, dice, flat, mode, ability, damageTypes, weaponOnly, meleeOnly, oneShot, until, armed,
+                requires, attackerTypes, condition, skill, null);
+    }
 
     /** What a modifier changes. */
     public enum Kind {
@@ -122,7 +136,34 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
          * The creature deals only half damage with weapon attacks that use Strength, as under Ray of Enfeeblement (PHB
          * p.271, D197).
          */
-        HALF_STRENGTH_DAMAGE
+        HALF_STRENGTH_DAMAGE,
+        /**
+         * The creature can't take reactions, as after Shocking Grasp's hit (PHB p.275) or a failed save against Arms of
+         * Hadar (PHB p.215, D199): a reaction it is charged for is over the action economy.
+         */
+        NO_REACTIONS,
+        /**
+         * Advantage or disadvantage on the ability checks the engine rolls (D199), of {@link #ability} or of every
+         * ability, as Enhance Ability's advantage on one ability's checks (PHB p.237) or Jim's Glowing Coin's
+         * disadvantage on Wisdom (Perception) checks and initiative (Acquisitions Incorporated p.76): initiative, Hide's Dexterity (Stealth),
+         * spellcasting ability checks such as Counterspell's, contests and escape checks.
+         */
+        CHECK_MODE,
+        /** The creature sees invisible creatures as if they were visible, as See Invisibility gives (PHB p.274, D199). */
+        SEE_INVISIBLE,
+        /**
+         * A speed the creature gains (D199), named by {@link #requires}: {@link #flat} feet, as Fly's flying speed of 60
+         * feet (PHB p.243), or its walking speed for 0, as Spider Climb's climbing speed (PHB p.277); a higher speed of
+         * that kind it already has stays.
+         */
+        GRANTED_SPEED,
+        /** The creature can take the Dash action as a bonus action, as Expeditious Retreat gives (PHB p.238, D199). */
+        BONUS_DASH,
+        /**
+         * What the spell gives that the app doesn't roll, in {@link #note}, so it shows on the creature as long as the
+         * spell lasts, as Darkvision's darkvision (PHB p.230) or Water Breathing's breathing underwater (PHB p.287, D199).
+         */
+        NOTE
     }
 
     /** Whose rolls a modifier changes. */
@@ -144,7 +185,9 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
         /** The end of the caster's next turn. */
         CASTER_TURN_END,
         /** The end of the affected creature's next turn. */
-        TARGET_TURN_END
+        TARGET_TURN_END,
+        /** The start of the affected creature's next turn, as Shocking Grasp's loss of reactions (PHB p.275, D199). */
+        TARGET_TURN_START
     }
 
     public OngoingModifier {
@@ -161,7 +204,13 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
     /** The same modifier, armed: the turn whose end ends it has started. */
     public OngoingModifier armedNow() {
         return new OngoingModifier(id, kind, scope, dice, flat, mode, ability, damageTypes, weaponOnly, meleeOnly,
-                oneShot, until, true, requires, attackerTypes, condition, skill);
+                oneShot, until, true, requires, attackerTypes, condition, skill, note);
+    }
+
+    /** The same modifier with an ID of its own, for a copy on another creature's Spell Effect (D199). */
+    public OngoingModifier copied() {
+        return new OngoingModifier(UUID.randomUUID(), kind, scope, dice, flat, mode, ability, damageTypes, weaponOnly,
+                meleeOnly, oneShot, until, armed, requires, attackerTypes, condition, skill, note);
     }
 
     /** Its dice without the sign, or null for none. */
@@ -215,7 +264,9 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
             case HIT_DAMAGE -> amount + (damageTypes.isEmpty() ? "" : " " + damageTypes.getFirst()) + " damage on "
                     + (oneShot ? "its next " : "") + (meleeOnly ? "melee " : weaponOnly ? "weapon " : "") + "hit"
                     + (oneShot ? "" : "s") + (scope == Scope.CASTER_VS_AFFECTED ? " by the caster against it" : "");
-            case SPEED -> "speed " + signed(flat) + " ft.";
+            case SPEED -> (requires == null || requires.isBlank() ? ""
+                    : WALK.equalsIgnoreCase(requires) ? "walking " : requires.toLowerCase(Locale.ROOT) + " ")
+                    + "speed " + signed(flat) + " ft.";
             case SPEED_DOUBLED -> "speed doubled";
             case SPEED_HALVED -> "speed halved";
             case RESISTANCE -> "resistance to " + ("NONMAGICAL".equalsIgnoreCase(requires) ? "nonmagical " : "")
@@ -245,6 +296,13 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
             case TRUESIGHT -> "truesight";
             case SPELL_IMMUNITY -> "spells of level " + flat + " or lower cast from outside have no effect";
             case HALF_STRENGTH_DAMAGE -> "half damage with weapon attacks that use Strength";
+            case NO_REACTIONS -> "can't take reactions";
+            case CHECK_MODE -> modeWord() + " on " + checkWords();
+            case SEE_INVISIBLE -> "sees invisible creatures";
+            case GRANTED_SPEED -> (requires != null ? requires.toLowerCase(Locale.ROOT) : "other") + " speed "
+                    + (flat > 0 ? flat + " ft." : "equal to its walking speed");
+            case BONUS_DASH -> "can Dash as a bonus action";
+            case NOTE -> note != null && !note.isBlank() ? note : "an effect the DM applies";
         } + (until != null ? " (" + untilWords() + ")" : "");
     }
 
@@ -269,6 +327,30 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
         return mode == RollMode.DISADVANTAGE ? "disadvantage" : "advantage";
     }
 
+    // The checks a CHECK_MODE covers, such as "Wisdom (Perception) checks" or "initiative"
+    private String checkWords() {
+        if (INITIATIVE_CHECK.equalsIgnoreCase(skill)) {
+            return "initiative";
+        }
+        String of = ability == null ? "" : switch (ability.toUpperCase(Locale.ROOT)) {
+            case "STR" -> "Strength ";
+            case "DEX" -> "Dexterity ";
+            case "CON" -> "Constitution ";
+            case "INT" -> "Intelligence ";
+            case "WIS" -> "Wisdom ";
+            case "CHA" -> "Charisma ";
+            default -> ability + " ";
+        };
+        return of + (skill != null && !skill.isBlank() ? "(" + skill + ") " : "") + (of.isEmpty() && skill == null
+                ? "ability checks" : "checks");
+    }
+
+    /** The {@link #skill} of a CHECK_MODE for initiative alone, as Jim's Glowing Coin's (Acquisitions Incorporated p.76, D199). */
+    public static final String INITIATIVE_CHECK = "Initiative";
+
+    /** The walking speed's name, in a SPEED's {@link #requires} (D199). */
+    public static final String WALK = "walk";
+
     private String saveWords() {
         if (ability == null) return "saving throws";
         if (DEATH.equalsIgnoreCase(ability)) return "death saving throws";
@@ -280,6 +362,7 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
             case CASTER_TURN_START -> "until the start of the caster's next turn";
             case CASTER_TURN_END -> "until the end of the caster's next turn";
             case TARGET_TURN_END -> "until the end of its next turn";
+            case TARGET_TURN_START -> "until the start of its next turn";
         };
     }
 

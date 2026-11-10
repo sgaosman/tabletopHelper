@@ -47,10 +47,18 @@ public final class AttackRules {
      * sight, so it works while blinded and finds invisible creatures; truesight sees invisible creatures, but it is
      * sight, so a blinded creature loses it. Their ranges aren't checked: there is no map, so the other creature is
      * taken to be within range.
+     *
+     * @param seesInvisible it sees invisible creatures as if they were visible, as See Invisibility gives (PHB p.274,
+     *                      D199): sight, as truesight is, but nothing more, so it doesn't see through Blur (PHB p.219)
      */
-    public record Senses(boolean blindsight, boolean truesight) {
+    public record Senses(boolean blindsight, boolean truesight, boolean seesInvisible) {
 
         public static final Senses NONE = new Senses(false, false);
+
+        /** Senses with nothing that sees only invisible creatures. */
+        public Senses(boolean blindsight, boolean truesight) {
+            this(blindsight, truesight, false);
+        }
 
         /** The senses a stat block's senses text names, such as "blindsight 30 ft., darkvision 60 ft.". */
         public static Senses of(String sensesText) {
@@ -93,7 +101,8 @@ public final class AttackRules {
 
         // Whether it perceives an invisible creature: blindsight works blinded, truesight only while it can see
         boolean perceivesInvisible() {
-            return senses.blindsight() || (senses.truesight() && !has(Conditions.BLINDED));
+            return senses.blindsight() || ((senses.truesight() || senses.seesInvisible())
+                    && !has(Conditions.BLINDED));
         }
 
         // Whether it can see or otherwise perceive the other creature (PHB p.194, MM p.8-9)

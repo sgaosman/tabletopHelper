@@ -6,9 +6,12 @@ import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
+import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
+import com.tabletophelper.rules.combat.ActionEconomy;
+import com.tabletophelper.rules.combat.AttackRules;
 import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.LifeState;
@@ -227,8 +230,12 @@ public class SpellCaster {
             applied.addAll(rays(encounter, caster, use, spellName, effect, seventh.rays(), normal, saveDc));
         } else if (!normal.isEmpty() || maximised.isEmpty()) {
             // With no targets at all the spell still resolves, rolling its dice as before (D177)
+            String advantageVs = spellEffects.attackAdvantageVs(spellName);
+            boolean foesAdvantaged = spellEffects.foesSaveWithAdvantage(spellName);
             List<Resolver.Target> resolvedAgainst = stats.spellTargets(normal, effect, caster).stream()
                     .map(target -> withMetamagic(withCastRules(target, normal, rules), metamagic))
+                    .map(target -> withAttackAdvantage(target, normal, advantageVs))
+                    .map(target -> foesAdvantaged ? asFoe(target, normal, caster) : target)
                     .toList();
             applied.addAll(effectApplier.apply(encounter, use, effect,
                     resolver.resolve(effect, CreatureStats.side(caster), resolvedAgainst, metamagic.empoweredDice()),
@@ -267,6 +274,13 @@ public class SpellCaster {
         if (tempHp != null) {
             affected.forEach(creature -> effectApplier.gainTempHp(encounter, caster, creature, tempHp, spellName));
         }
+        // Or rolled for each creature, as Enhance Ability's Bear's Endurance's 2d6 (PHB p.237, D199)
+        String tempHpDice = spellEffects.tempHitPointsDice(spellName, option);
+        if (tempHpDice != null) {
+            Dice dice = Dice.parse(tempHpDice);
+            affected.forEach(creature -> effectApplier.gainTempHp(encounter, caster, creature, rolled(dice),
+                    spellName));
+        }
         // Damage still to come for the creatures the outcome names, as Vitriolic Sphere's after a failed save (D185)
         SpellEffects.Later later = spellEffects.later(spellName, slotLevel, option);
         List<EncounterParticipant> delayedOn = later.delayedDice() == null ? List.of() : applied.stream()
@@ -281,6 +295,11 @@ public class SpellCaster {
         boolean spentOne = !reached.isEmpty() && !(effect.delivery() instanceof Effect.Self);
         String modifierNote = leaveEffect(encounter, caster, spellName, slotLevel, instance, spentOne,
                 metamagic, new ModifierCast(modifiers, affected, saveDc), later, delayedOn, dealt);
+        // The save a creature holding the heated object makes, as against Heat Metal (PHB p.250, D199)
+        modifierNote += heldObject(encounter, caster, use, spellName, slotLevel, option, applied, saveDc, null);
+        // A spell that lets its caster Dash as a bonus action lets it Dash as it casts, as Expeditious Retreat does
+        // (PHB p.238, D199)
+        modifierNote += dashOnCast(encounter, caster, use, spellName, modifiers, affected);
         String fifthNote = afterCast(encounter, caster, spellName, option, use, instance, reached, applied,
                 affected, saveDc, castingAbility, attackBonus);
         String seventhNote = afterSeventh(encounter, caster, spellName, slotLevel, option, use, seventh, normal,
@@ -886,8 +905,15 @@ public class SpellCaster {
             if (creature.getLifeState() == LifeState.DEAD) {
                 continue;
             }
-            int casterRoll = resolver.d20();
-            int creatureRoll = resolver.d20();
+            // Each side's advantage or disadvantage on its check, as Enhance Ability's Bull's Strength on the creature's
+            // Strength (PHB p.237, D199)
+            AbilityChecks.Roll casterCheck = AbilityChecks.roll(resolver::d20, AbilityChecks.sources(caster,
+                    Ability.parse(castingAbility != null ? castingAbility : caster.getSpellcastingAbility())
+                            .orElse(null), null));
+            AbilityChecks.Roll creatureCheck = AbilityChecks.roll(resolver::d20,
+                    AbilityChecks.sources(creature, ability, null));
+            int casterRoll = casterCheck.d20();
+            int creatureRoll = creatureCheck.d20();
             int creatureModifier = com.tabletophelper.rules.Ability.modifier(stats.abilityScore(creature, ability));
             int casterTotal = casterRoll + casterModifier;
             int creatureTotal = creatureRoll + creatureModifier;
@@ -896,9 +922,9 @@ public class SpellCaster {
                     + (contest.winNote() != null ? ": " + contest.winNote() : "")
                     : casterTotal == creatureTotal ? " - a tie, nothing changes"
                     : " - " + creature.getDisplayName() + " wins";
-            String text = "Contest: " + caster.getDisplayName() + " d20(" + casterRoll + ")" + signed(casterModifier)
-                    + " = " + casterTotal + " vs " + creature.getDisplayName() + "'s " + ability.name() + " d20("
-                    + creatureRoll + ")" + signed(creatureModifier) + " = " + creatureTotal + outcome + ".";
+            String text = "Contest: " + caster.getDisplayName() + " " + casterCheck.dice() + signed(casterModifier)
+                    + " = " + casterTotal + " vs " + creature.getDisplayName() + "'s " + ability.name() + " "
+                    + creatureCheck.dice() + signed(creatureModifier) + " = " + creatureTotal + outcome + ".";
             effectApplier.summary(encounter, use, text);
             notes.add(text);
             if (won) {
@@ -1270,6 +1296,22 @@ public class SpellCaster {
         if (rounds != null && metamagic.has(Metamagic.Option.EXTENDED)) {
             rounds = Metamagic.extendedRounds(rounds);
         }
+        SpellEffectEntry.EffectSave repeatSave = plan.repeatSave() != null
+                ? new SpellEffectEntry.EffectSave(plan.repeatSave(), modifiers.saveDc()) : null;
+        // Modifiers that end with a turn of the creature they affect, as Arms of Hadar's loss of reactions until each
+        // creature's next turn (PHB p.215), go on a Spell Effect for each creature, so each ends on its own turn (D199)
+        if (withModifiers && byCreature(instance, lasting.isPresent(), forLater, delayedOn, modifiers)) {
+            SpellEffectEntry first = null;
+            for (EncounterParticipant creature : modifiers.affected()) {
+                SpellEffectEntry own = effectApplier.startEffect(encounter, caster, spellName,
+                        slotLevel > 0 ? slotLevel : null, null, rounds, uses, false);
+                effectApplier.startModifiers(encounter, caster, own.id(), List.of(creature),
+                        plan.modifiers().stream().map(OngoingModifier::copied).toList(), plan.option(), repeatSave,
+                        plan.endReminder(), !spellEffects.fifthLevel(spellName).keepsEffect());
+                first = first != null ? first : own;
+            }
+            return notes + " " + modifierText(encounter, caster, instance, first, plan);
+        }
         SpellEffectEntry effect = effectApplier.startEffect(encounter, caster, spellName,
                 slotLevel > 0 ? slotLevel : null, instance, rounds, uses, lasting.isPresent());
         // What the effect keeps for later: Guardian of Faith's damage budget, Fire Shield's retaliation, the Faithful
@@ -1284,23 +1326,150 @@ public class SpellCaster {
             effectApplier.spendBudget(encounter, caster, effect.id(), dealt);
             return notes;
         }
-        SpellEffectEntry.EffectSave save = plan.repeatSave() != null
-                ? new SpellEffectEntry.EffectSave(plan.repeatSave(), modifiers.saveDc()) : null;
         // A spell whose effect outlives its spent rider, as Banishing Smite's banishment (PHB p.216, D187), doesn't end
         // with its last modifier
         effectApplier.startModifiers(encounter, caster, effect.id(), modifiers.affected(), plan.modifiers(),
-                plan.option(), save, plan.endReminder(),
+                plan.option(), repeatSave, plan.endReminder(),
                 lasting.isEmpty() && !spellEffects.fifthLevel(spellName).keepsEffect());
         effectApplier.spendBudget(encounter, caster, effect.id(), dealt);
         if (modifiers.affected().isEmpty()) {
             return notes;
         }
+        return notes + " " + modifierText(encounter, caster, instance, effect, plan);
+    }
+
+    // What the log says of the modifiers a cast left, with the spell's reminder, as one summary entry
+    private String modifierText(Encounter encounter, EncounterParticipant caster, ConcentrationInstance instance,
+                                SpellEffectEntry effect, SpellEffects.ModifierPlan plan) {
         String label = ActiveModifiers.label(effect.withModifiers(List.of(), List.of(), plan.option(), null, null,
                 false));
         String text = label + ": " + plan.modifiers().stream().map(OngoingModifier::describe)
                 .collect(Collectors.joining("; ")) + "." + (plan.reminder() != null ? " " + plan.reminder() : "");
-        effectApplier.summary(encounter, use(caster, spellName, "", instance), text);
-        return notes + " " + text;
+        effectApplier.summary(encounter, use(caster, effect.spell(), "", instance), text);
+        return text;
+    }
+
+    /*
+     * Whether a cast's modifiers go on a Spell Effect for each creature (D199): some end with a turn of the creature
+     * they affect, which one effect can follow for one creature only, there are several creatures, and the effect holds
+     * nothing else, no concentration, area or damage to come.
+     */
+    private static boolean byCreature(ConcentrationInstance instance, boolean lasting, boolean forLater,
+                                      List<EncounterParticipant> delayedOn, ModifierCast modifiers) {
+        return instance == null && !lasting && !forLater && delayedOn.isEmpty() && modifiers.affected().size() > 1
+                && modifiers.plan().modifiers().stream().anyMatch(m -> m.until() == OngoingModifier.Until.TARGET_TURN_END
+                || m.until() == OngoingModifier.Until.TARGET_TURN_START);
+    }
+
+    /*
+     * The save each creature the spell's damage reached makes while it holds the spell's object, as Heat Metal's
+     * Constitution save to drop it (PHB p.250, D199): one that keeps the object, by succeeding or because it can't drop
+     * it, as armour it wears (the cast's worn option), has the modifiers, disadvantage on attack rolls and ability checks
+     * until the start of the caster's next turn; one that fails drops it, so it has none. They go on the spell's Spell
+     * Effect, replacing the last use's. What the log adds, or nothing.
+     */
+    private String heldObject(Encounter encounter, EncounterParticipant caster, EffectApplier.Use use,
+                              String spellName, int slotLevel, String option, List<EffectApplier.Applied> applied,
+                              int saveDc, SpellEffectEntry spellEffect) {
+        Optional<SpellEffects.HeldObject> held = spellEffects.heldObject(spellName, slotLevel, option);
+        Optional<SpellEffectEntry> effect = spellEffect != null ? Optional.of(spellEffect)
+                : EffectApplier.effects(caster).stream()
+                        .filter(each -> each.spell().equalsIgnoreCase(spellName))
+                        .reduce((first, second) -> second);
+        if (held.isEmpty() || effect.isEmpty()) {
+            return "";
+        }
+        List<EncounterParticipant> burned = applied.stream()
+                .filter(result -> result.damageTaken() > 0 && result.target().getLifeState() != LifeState.DEAD)
+                .map(EffectApplier.Applied::target)
+                .distinct()
+                .toList();
+        boolean worn = held.get().wornOption() != null && held.get().wornOption().equalsIgnoreCase(option);
+        Ability ability = Ability.parse(held.get().ability()).orElse(Ability.CON);
+        List<EncounterParticipant> keeping = new ArrayList<>();
+        List<String> notes = new ArrayList<>();
+        for (EncounterParticipant creature : burned) {
+            if (worn) {
+                keeping.add(creature);
+                notes.add(creature.getDisplayName() + " can't drop the armour it wears");
+                continue;
+            }
+            Effect save = new Effect(spellName, new Effect.Save(ability, saveDc, false), List.of(), null, List.of(),
+                    false, null);
+            List<EffectApplier.Applied> saved = effectApplier.apply(encounter, use, save, resolver.resolve(save,
+                    CreatureStats.side(caster), stats.spellTargets(List.of(creature), save, caster)));
+            if (saved.stream().anyMatch(result -> result.outcome().outcome() == Outcome.SAVE_FAIL)) {
+                notes.add(creature.getDisplayName() + " drops the object, which the spell no longer burns it with "
+                        + "unless it takes hold of it again");
+            } else {
+                keeping.add(creature);
+                notes.add(creature.getDisplayName() + " keeps hold of the object");
+            }
+        }
+        List<OngoingModifier> modifiers = keeping.isEmpty() ? List.of() : held.get().modifiers();
+        effectApplier.startModifiers(encounter, caster, effect.get().id(), keeping, modifiers, option, null,
+                null, false);
+        if (burned.isEmpty()) {
+            return "";
+        }
+        String text = String.join("; ", notes) + (keeping.isEmpty() ? "." : ", so " + names(keeping)
+                + (keeping.size() == 1 ? " has " : " have ") + modifiers.stream().map(OngoingModifier::describe)
+                .collect(Collectors.joining(" and ")) + ".");
+        effectApplier.summary(encounter, use, text);
+        return " " + text;
+    }
+
+    /*
+     * The Dash a spell that lets its caster Dash as a bonus action gives as it is cast, on the caster's own turn: "when
+     * you cast this spell, and then as a bonus action on each of your turns", Expeditious Retreat's (PHB p.238, D199).
+     */
+    private String dashOnCast(Encounter encounter, EncounterParticipant caster, EffectApplier.Use use,
+                              String spellName, SpellEffects.ModifierPlan plan, List<EncounterParticipant> affected) {
+        if (plan.modifiers().stream().noneMatch(m -> m.kind() == OngoingModifier.Kind.BONUS_DASH)
+                || !affected.contains(caster) || !EncounterTurns.isCurrentTurn(encounter, caster.getId())) {
+            return "";
+        }
+        TurnEconomy economy = caster.getTurnEconomy() != null ? caster.getTurnEconomy() : TurnEconomy.fresh();
+        caster.setTurnEconomy(economy.withBudget(ActionEconomy.dash(economy.budget())));
+        String text = caster.getDisplayName() + " takes the Dash action as it casts " + spellName
+                + ", gaining extra movement equal to its speed this turn.";
+        effectApplier.summary(encounter, use, text);
+        return " " + text;
+    }
+
+    // Shocking Grasp's advantage against a target in metal armour (PHB p.275, D199), as a source the log names
+    private Resolver.Target withAttackAdvantage(Resolver.Target target, List<EncounterParticipant> creatures,
+                                                String against) {
+        if (!SpellTemplate.METAL_ARMOUR.equals(against)) {
+            return target;
+        }
+        EncounterParticipant creature = creatures.stream().filter(c -> c.getId().equals(target.id())).findFirst()
+                .orElse(null);
+        if (creature == null || !stats.wearsMetalArmour(creature)) {
+            return target;
+        }
+        return target.withModifiers(target.modifiers().withAttackSource(
+                new AttackRules.Source(RollMode.ADVANTAGE, "target wears metal armour")));
+    }
+
+    // A creature the caster's side is fighting saves with advantage, as against Enthrall (PHB p.238, D199): one of the
+    // other side in the encounter
+    private static Resolver.Target asFoe(Resolver.Target target, List<EncounterParticipant> creatures,
+                                         EncounterParticipant caster) {
+        return creatures.stream().filter(c -> c.getId().equals(target.id())).findFirst()
+                .filter(creature -> !CreatureStats.allegiance(creature).equals(CreatureStats.allegiance(caster)))
+                .map(creature -> target.withNamedSaveSource(new AttackRules.Source(RollMode.ADVANTAGE,
+                        "fought by the caster's side")))
+                .orElse(target);
+    }
+
+    // The dice rolled, never below 0
+    private int rolled(Dice dice) {
+        int total = dice.modifier();
+        for (int i = 0; i < dice.count(); i++) {
+            total += resolver.roll(dice.sides());
+        }
+        return Math.max(0, total);
     }
 
     // The creatures' names, joined
@@ -1390,6 +1559,9 @@ public class SpellCaster {
         String extra = fifth.contest() != null
                 ? " " + contest(encounter, caster, spellName, fifth.contest(), use, targets, castingAbility, attackBonus)
                 : "";
+        // Each use's damage brings the held-object save again, as Heat Metal's (PHB p.250, D199)
+        extra += heldObject(encounter, caster, use, spellName, spellEffect.castLevel(), spellEffect.option(), applied,
+                saveDc, spellEffect);
         if (fifth.repeatEndsSpell()) {
             ConcentrationInstance held = instanceOf(caster, spellEffect);
             if (held != null) {

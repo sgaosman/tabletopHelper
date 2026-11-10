@@ -458,6 +458,49 @@ public class SpellEffects {
     }
 
     /**
+     * The dice of temporary hit points a cast with the option rolls for each creature it affects, as Enhance Ability's
+     * Bear's Endurance's 2d6 (PHB p.237, D199); null for none.
+     */
+    public String tempHitPointsDice(String spellName, String option) {
+        return template(spellName).map(template -> template.tempHitPointsDice(option)).orElse(null);
+    }
+
+    /**
+     * What gives the spell's attack advantage against a target, as Shocking Grasp's metal armour (PHB p.275, D199);
+     * null for nothing.
+     */
+    public String attackAdvantageVs(String spellName) {
+        return template(spellName).map(SpellTemplate::attackAdvantageVs).orElse(null);
+    }
+
+    /** Whether a creature the caster's side is fighting saves against the spell with advantage, as Enthrall (D199). */
+    public boolean foesSaveWithAdvantage(String spellName) {
+        return template(spellName).map(SpellTemplate::foesSaveWithAdvantage).orElse(false);
+    }
+
+    /**
+     * The save a creature that takes the spell's damage while holding its object makes, as Heat Metal's (PHB p.250,
+     * D199), with the modifiers it has while it keeps the object, their numbers fixed as a cast fixes them.
+     *
+     * @param ability    the save's ability
+     * @param wornOption the cast option for an object it can't drop, as worn armour; null for none
+     * @param modifiers  what it has while it keeps the object
+     */
+    public record HeldObject(String ability, String wornOption, List<OngoingModifier> modifiers) {
+    }
+
+    /** The spell's held-object save (D199); empty for a spell without one. */
+    public Optional<HeldObject> heldObject(String spellName, int slotLevel, String option) {
+        Optional<SpellTemplate> found = template(spellName);
+        if (found.isEmpty() || found.get().heldObjectSave() == null) {
+            return Optional.empty();
+        }
+        SpellTemplate.HeldObjectSave save = found.get().heldObjectSave();
+        return Optional.of(new HeldObject(save.ability(), save.wornOption(),
+                fixed(found.get(), save.modifiers(), spellName, slotLevel, option, 0, null, new ArrayList<>())));
+    }
+
+    /**
      * What the 5th-level spells' keys make a cast or a use again do (D187).
      *
      * @param removesConditions the conditions a cast ends, or the cast options that do so
@@ -739,9 +782,19 @@ public class SpellEffects {
             return ModifierPlan.NONE;
         }
         SpellTemplate template = found.get();
-        List<OngoingModifier> modifiers = new ArrayList<>();
         List<String> notes = new ArrayList<>();
-        for (SpellTemplate.ModifierDefinition definition : template.modifiers()) {
+        List<OngoingModifier> modifiers = fixed(template, template.modifiers(), spellName, slotLevel, option,
+                spellcastingModifier, first, notes);
+        return new ModifierPlan(modifiers, option, template.modifierRepeatSave(), template.reminder(),
+                template.endReminder(), template.durationRounds(slotLevel), notes);
+    }
+
+    // The modifiers' definitions with their numbers fixed for a cast with the option; what the log adds goes to notes
+    private List<OngoingModifier> fixed(SpellTemplate template, List<SpellTemplate.ModifierDefinition> definitions,
+                                        String spellName, int slotLevel, String option, int spellcastingModifier,
+                                        EncounterParticipant first, List<String> notes) {
+        List<OngoingModifier> modifiers = new ArrayList<>();
+        for (SpellTemplate.ModifierDefinition definition : definitions) {
             if (definition.option() != null && !definition.option().equalsIgnoreCase(option)) {
                 continue;
             }
@@ -773,10 +826,9 @@ public class SpellEffects {
             modifiers.add(new OngoingModifier(UUID.randomUUID(), definition.kind(), definition.scope(), dice, flat,
                     definition.mode(), definition.ability(), types, definition.weaponOnly(), definition.meleeOnly(),
                     definition.oneShot(), definition.until(), false, definition.requires(),
-                    definition.attackerTypes(), definition.condition(), definition.skill()));
+                    definition.attackerTypes(), definition.condition(), definition.skill(), definition.note()));
         }
-        return new ModifierPlan(modifiers, option, template.modifierRepeatSave(), template.reminder(),
-                template.endReminder(), template.durationRounds(slotLevel), notes);
+        return modifiers;
     }
 
     /**

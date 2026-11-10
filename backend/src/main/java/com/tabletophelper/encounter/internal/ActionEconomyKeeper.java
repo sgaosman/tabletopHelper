@@ -6,8 +6,10 @@ import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.EncounterViews;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
+import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.ActionEconomy;
 import com.tabletophelper.rules.combat.Charge;
+import com.tabletophelper.rules.combat.OngoingModifier;
 import com.tabletophelper.rules.combat.TurnBudget;
 import com.tabletophelper.shared.ConflictException;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +24,8 @@ import java.util.UUID;
  * been checked and before anything rolls or is spent, inside the encounter's lock (D160). A player's command over
  * budget is refused with a 409 that says why; the DM's never is: it applies, and for a creature on the players' side
  * the combat log says it went over the action economy. The DM's monsters are tracked the same way, but going over
- * with them isn't logged.
+ * with them isn't logged. A reaction by a creature an Ongoing Modifier keeps from taking reactions, as Shocking
+ * Grasp's target (PHB p.275), is over budget the same way (D199).
  */
 @Component
 @RequiredArgsConstructor
@@ -50,6 +53,13 @@ public class ActionEconomyKeeper {
                        UUID userId, Command command) {
         TurnBudget budget = budget(actor);
         Optional<String> reason = ActionEconomy.check(budget, charge, conditionNames(actor));
+        // A spell that takes reactions away, as Shocking Grasp (PHB p.275) or Tasha's Mind Whip (TCE p.115) (D199)
+        if (reason.isEmpty() && charge.cost() == ActionCost.REACTION) {
+            reason = ActiveModifiers.on(actor).stream()
+                    .filter(found -> found.modifier().kind() == OngoingModifier.Kind.NO_REACTIONS)
+                    .findFirst()
+                    .map(found -> "It can't take reactions (" + ActiveModifiers.label(found.effect()) + ")");
+        }
         if (overReason != null) {
             reason = Optional.of(reason.map(other -> overReason + "; " + lowerFirst(other)).orElse(overReason));
         }

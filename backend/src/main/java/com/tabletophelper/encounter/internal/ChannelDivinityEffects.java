@@ -224,11 +224,11 @@ public class ChannelDivinityEffects {
                                 Map.of("restrained", new Effect.ConditionEnd(null, new Effect.RepeatSave(ability, dc)))),
                         false);
             }
-            case FRIGHTEN -> saveAgainst(encounter, user, plan.targets(), option,
+            case FRIGHTEN -> abjure(encounter, user, option, saveAgainst(encounter, user, plan.targets(), option,
                     new Effect(option.label(), new Effect.Save(Ability.WIS, dc, false), List.of(), null,
                             List.of("frightened"), false, ChannelDivinity.MINUTE_ROUNDS,
                             Map.of("frightened", Effect.ConditionEnd.untilDamaged(ChannelDivinity.MINUTE_ROUNDS))),
-                    true);
+                    true));
             case INVISIBLE -> {
                 // Invisible until the end of the cleric's next turn: on its own turn that is a round on; it becomes
                 // visible if it attacks or casts a spell (PHB p.63)
@@ -295,12 +295,26 @@ public class ChannelDivinityEffects {
     }
 
     // Each creature picked makes its Wisdom save, with advantage for one whose stat block resists turning, such as a
-    // vampire spawn's Turn Resistance; Destroy Undead destroys a cleric's turned undead of a low enough rating
-    private void turn(Encounter encounter, EncounterParticipant user, List<EncounterParticipant> targets, Option option,
+    // vampire spawn's Turn Resistance; Destroy Undead destroys a cleric's turned undead of a low enough rating. One
+    // whose trait makes it immune to turning, as a revenant's Turn Immunity (MM p.259), is left out (D199)
+    private void turn(Encounter encounter, EncounterParticipant user, List<EncounterParticipant> picked, Option option,
                       int dc, int classLevel) {
         Effect effect = new Effect(option.label(), new Effect.Save(Ability.WIS, dc, false), List.of(), null,
                 List.of(ChannelDivinity.TURNED), false, ChannelDivinity.MINUTE_ROUNDS,
                 Map.of(ChannelDivinity.TURNED, Effect.ConditionEnd.untilDamaged(ChannelDivinity.MINUTE_ROUNDS)));
+        List<EncounterParticipant> targets = new ArrayList<>();
+        for (EncounterParticipant target : picked) {
+            String immunity = turnImmunity(target);
+            if (immunity == null) {
+                targets.add(target);
+            } else {
+                effectApplier.summary(encounter, use(user, option), target.getDisplayName()
+                        + " is immune to being turned (" + immunity + ").");
+            }
+        }
+        if (targets.isEmpty()) {
+            return;
+        }
         List<Resolver.Target> rolled = targets.stream()
                 .map(target -> {
                     Resolver.Target base = stats.target(target, effect);
@@ -326,8 +340,61 @@ public class ChannelDivinityEffects {
         }
     }
 
-    private void saveAgainst(Encounter encounter, EncounterParticipant user, List<EncounterParticipant> targets,
-                             Option option, Effect effect, boolean fiendsAndUndeadDisadvantaged) {
+    /*
+     * The name of the trait that makes the creature immune to being turned (D199), as Turn Immunity (MM p.259) or Lord
+     * Soth's Marshal Undead while he isn't incapacitated; null for none. A creature in another form has its form's traits
+     * (D195).
+     */
+    private String turnImmunity(EncounterParticipant target) {
+        boolean incapacitated = CreatureStats.conditionNames(target).stream()
+                .anyMatch(name -> INCAPACITATED.contains(name.toLowerCase(java.util.Locale.ROOT)));
+        return stats.traits(target).stream()
+                .filter(trait -> ChannelDivinity.immuneToTurning(trait.description(), incapacitated))
+                .map(CreatureStats.Trait::name)
+                .findFirst()
+                .orElse(null);
+    }
+
+    // The conditions that include being incapacitated (PHB p.290-292)
+    private static final Set<String> INCAPACITATED = Set.of("incapacitated", "paralyzed", "petrified", "stunned",
+            "unconscious");
+
+    /*
+     * Abjure Enemy's hold on the creature's speed (PHB p.88, D199): one that failed its save and is frightened has speed
+     * 0 while the fear lasts, 1 minute or until it takes damage; one that succeeded has its speed halved for 1 minute or
+     * until it takes damage. Each is an entry that ends as the fear does, which the speed rules read (TurnEconomies).
+     * A creature immune to being frightened has no speed 0 from it.
+     */
+    private void abjure(Encounter encounter, EncounterParticipant user, Option option,
+                        List<EffectApplier.Applied> applied) {
+        for (EffectApplier.Applied result : applied) {
+            EncounterParticipant target = result.target();
+            if (target.getLifeState() == com.tabletophelper.rules.combat.LifeState.DEAD) {
+                continue;
+            }
+            boolean failed = result.outcome().outcome() == Outcome.SAVE_FAIL;
+            boolean frightened = CreatureStats.conditionNames(target).stream().anyMatch("frightened"::equalsIgnoreCase);
+            if (failed && !frightened) {
+                continue;
+            }
+            String name = failed ? ChannelDivinity.ABJURED : ChannelDivinity.ABJURED_SLOWED;
+            effectApplier.addFeatureEntry(target, new ConditionEntry(UUID.randomUUID(), name,
+                    ChannelDivinity.MINUTE_ROUNDS, encounter.getRoundNumber(), option.label(), user.getId(), null,
+                    null, EndRule.afterRounds(user.getId()), null).onDamage(true, null));
+            effectApplier.summary(encounter, use(user, option), target.getDisplayName()
+                    + (failed ? "'s speed is 0" : "'s speed is halved") + " for 1 minute or until it takes damage ("
+                    + option.label() + ").");
+        }
+    }
+
+    private static EffectApplier.Use use(EncounterParticipant user, Option option) {
+        return new EffectApplier.Use(user, user.getDisplayName(), CombatActionType.POOL_USE,
+                "channels divinity: " + option.label(), "at", option.label(), null);
+    }
+
+    private List<EffectApplier.Applied> saveAgainst(Encounter encounter, EncounterParticipant user,
+                                                    List<EncounterParticipant> targets, Option option, Effect effect,
+                                                    boolean fiendsAndUndeadDisadvantaged) {
         List<Resolver.Target> rolled = targets.stream()
                 .map(target -> {
                     Resolver.Target base = stats.target(target, effect);
@@ -337,14 +404,12 @@ public class ChannelDivinityEffects {
                             ? base.withSaveSource(RollMode.DISADVANTAGE) : base;
                 })
                 .toList();
-        apply(encounter, user, option, effect, rolled);
+        return apply(encounter, user, option, effect, rolled);
     }
 
     private List<EffectApplier.Applied> apply(Encounter encounter, EncounterParticipant user, Option option,
                                               Effect effect, List<Resolver.Target> targets) {
-        EffectApplier.Use use = new EffectApplier.Use(user, user.getDisplayName(), CombatActionType.POOL_USE,
-                "channels divinity: " + option.label(), "at", option.label(), null);
-        return effectApplier.apply(encounter, use, effect, resolver.resolve(effect, targets));
+        return effectApplier.apply(encounter, use(user, option), effect, resolver.resolve(effect, targets));
     }
 
     // Vow of Enmity: one vow at a time, so an earlier one by the paladin ends; War God's Blessing lasts until the

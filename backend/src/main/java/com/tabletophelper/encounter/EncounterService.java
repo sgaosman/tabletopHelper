@@ -14,6 +14,7 @@ import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.encounter.internal.AbilityChecks;
 import com.tabletophelper.encounter.internal.ActiveModifiers;
 import com.tabletophelper.encounter.internal.CreatureStats;
 import com.tabletophelper.encounter.internal.ChannelDivinityEffects;
@@ -37,6 +38,7 @@ import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.rules.combat.AttackFeatures;
+import com.tabletophelper.rules.combat.AttackRules;
 import com.tabletophelper.rules.combat.ChannelDivinity;
 import com.tabletophelper.rules.combat.KenseiFeatures;
 import com.tabletophelper.rules.combat.LifeState;
@@ -445,19 +447,22 @@ public class EncounterService {
         // A summoned group rolls once, with its first creature's modifier (PHB p.189, p.225; D182). Initiative is a
         // Dexterity check (PHB p.189), so exhaustion gives it disadvantage (PHB p.291, D183), and the Ongoing
         // Modifiers on ability checks and initiative add their dice, as Guidance's d4 (PHB p.248) and Gift of Alacrity's
-        // d8 (XGE p.157) do; a one-shot one, as Guidance's, is spent (D184)
+        // d8 (XGE p.157) do; a one-shot one, as Guidance's, is spent (D184); and their advantage or disadvantage on
+        // Dexterity checks or initiative counts, as Enhance Ability's Cat's Grace (PHB p.237) and Jim's Glowing Coin's
+        // distraction (Acquisitions Incorporated p.76) (D199)
         Map<UUID, Integer> groupRolls = new HashMap<>();
         Set<UUID> spent = new HashSet<>();
         for (EncounterParticipant p : EncounterTurns.present(encounter)) {
             int mod = p.getInitiativeModifier() != null ? p.getInitiativeModifier() : 0;
-            boolean disadvantage = Exhaustion.abilityCheckDisadvantage(Exhaustion.clamp(p.getExhaustionLevel()));
+            List<AttackRules.Source> sources = AbilityChecks.sources(p, Ability.DEX, OngoingModifier.INITIATIVE_CHECK);
             List<RollModifiers.Bonus> bonuses = OngoingModifiers.checkBonuses(null, ActiveModifiers.labelledOn(p));
             UUID group = p.getSummon() != null ? p.getSummon().groupId() : null;
             int roll;
             if (group != null && groupRolls.containsKey(group)) {
                 roll = groupRolls.get(group);
             } else {
-                roll = initiativeD20(disadvantage) + mod + initiativeBonus(bonuses);
+                roll = AbilityChecks.roll(EncounterService::initiativeD20, sources).d20() + mod
+                        + initiativeBonus(bonuses);
                 spent.addAll(EffectApplier.oneShotsOf(bonuses));
                 if (group != null) {
                     groupRolls.put(group, roll);
@@ -485,10 +490,9 @@ public class EncounterService {
         return total;
     }
 
-    // One d20 for initiative, or the lower of two with disadvantage
-    private static int initiativeD20(boolean disadvantage) {
-        int d20 = ThreadLocalRandom.current().nextInt(1, 21);
-        return disadvantage ? Math.min(d20, ThreadLocalRandom.current().nextInt(1, 21)) : d20;
+    // One d20 for initiative
+    private static int initiativeD20() {
+        return ThreadLocalRandom.current().nextInt(1, 21);
     }
 
     @Transactional
@@ -908,7 +912,8 @@ public class EncounterService {
             case ATTACK_MODE, SAVE_MODE -> modifier.mode() == RollMode.DISADVANTAGE;
             case ATTACKED_MODE -> modifier.mode() == RollMode.ADVANTAGE;
             case AC, SPEED -> modifier.flat() < 0;
-            case REVEALED, SPEED_HALVED, NO_HEALING, SPEED_MAX, HALF_STRENGTH_DAMAGE -> true;
+            case CHECK_MODE -> modifier.mode() == RollMode.DISADVANTAGE;
+            case REVEALED, SPEED_HALVED, NO_HEALING, SPEED_MAX, HALF_STRENGTH_DAMAGE, NO_REACTIONS -> true;
             default -> false;
         };
     }

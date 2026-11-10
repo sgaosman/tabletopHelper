@@ -7,16 +7,20 @@ import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.rules.combat.ActionEconomy;
+import com.tabletophelper.rules.combat.ChannelDivinity;
+import com.tabletophelper.rules.combat.OngoingModifier;
 import com.tabletophelper.rules.combat.OngoingModifiers;
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -56,15 +60,38 @@ public final class TurnEconomies {
      * them 0 from level 5 (PHB p.291, D183); a druid's exhaustion carries into its beast form, and a summoned creature
      * has its own.
      * The Ongoing Modifiers on it come first (D184): feet added or taken, as Longstrider's +10 (PHB p.256), then Haste's
-     * doubling (PHB p.250) and Slow's halving (PHB p.277), and exhaustion last, so level 5 still makes it 0.
+     * doubling (PHB p.250) and Slow's halving (PHB p.277), and exhaustion last, so level 5 still makes it 0. Abjure
+     * Enemy's speed 0 or halving counts among the modifiers (PHB p.88, D199).
      * Empty when neither has one.
      */
     public static Map<String, Integer> speed(EncounterParticipant participant, ObjectMapper objectMapper) {
         int exhaustion = Exhaustion.clamp(participant.getExhaustionLevel());
         Map<String, Integer> speeds = new LinkedHashMap<>();
-        OngoingModifiers.speeds(baseSpeed(participant, objectMapper), ActiveModifiers.modifiersOn(participant))
+        List<OngoingModifier> modifiers = new ArrayList<>(ActiveModifiers.modifiersOn(participant));
+        modifiers.addAll(abjured(participant));
+        OngoingModifiers.speeds(baseSpeed(participant, objectMapper), modifiers)
                 .forEach((kind, feet) -> speeds.put(kind, Exhaustion.speed(feet, exhaustion)));
         return speeds;
+    }
+
+    /*
+     * Abjure Enemy's hold on the creature's speed (PHB p.88, D199), as the modifiers it amounts to: speed 0 with no bonus
+     * to it while the creature is frightened by it, a cap of 0 feet; and its speed halved after a successful save. Both
+     * are magic, so Freedom of Movement keeps them off (PHB p.244).
+     */
+    private static List<OngoingModifier> abjured(EncounterParticipant participant) {
+        List<String> conditions = CreatureStats.conditionNames(participant);
+        List<OngoingModifier> modifiers = new ArrayList<>();
+        if (conditions.stream().anyMatch(ChannelDivinity.ABJURED::equalsIgnoreCase)
+                && conditions.stream().anyMatch("frightened"::equalsIgnoreCase)) {
+            modifiers.add(new OngoingModifier(UUID.randomUUID(), OngoingModifier.Kind.SPEED_MAX, null, null, 0, null,
+                    null, List.of(), false, false, false, null, false, null, List.of(), null, null));
+        }
+        if (conditions.stream().anyMatch(ChannelDivinity.ABJURED_SLOWED::equalsIgnoreCase)) {
+            modifiers.add(new OngoingModifier(UUID.randomUUID(), OngoingModifier.Kind.SPEED_HALVED, null, null, 0, null,
+                    null, List.of(), false, false, false, null, false, null, List.of(), null, null));
+        }
+        return modifiers;
     }
 
     // The participant's speeds before exhaustion

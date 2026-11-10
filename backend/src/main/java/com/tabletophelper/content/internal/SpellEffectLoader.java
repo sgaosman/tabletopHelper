@@ -31,7 +31,8 @@ import java.util.Map;
  * the 8th- and 9th-level spells' (D190), such as escapeCheck, healingPool, castsSpell and critRange, and since version
  * 8 the keys that close the high-level gaps (D195), such as layers, concentrationSave and a retaliation's save, and
  * since version 9 the low-level spells D196 automates, and since version 10 those D197 automates, and since version
- * 11 Branding Smite's rider.
+ * 11 Branding Smite's rider, and since version 13 the low-level spells D199 automates, with the Ongoing Modifier
+ * kinds and keys they add, such as heldObjectSave and attackAdvantageVs.
  */
 @Component
 @RequiredArgsConstructor
@@ -60,8 +61,9 @@ public class SpellEffectLoader implements ContentLoader {
         // close the high-level gaps, such as layers and concentrationSave (D195); 9: the low-level spells automated in
         // D196, such as Counterspell, Dispel Magic, Mirror Image and Sanctuary; 10: the low-level spells automated in
         // D197, such as Zephyr Strike, Flame Arrows and Ray of Enfeeblement; 11: Branding Smite as a weapon-hit
-        // rider instead of damage to its caster; 12: Psychic Scream's kill note (D198)
-        return 12;
+        // rider instead of damage to its caster; 12: Psychic Scream's kill note (D198); 13: the low-level spells whose
+        // buffs and debuffs were only logged, automated in D199, such as Shocking Grasp, Heat Metal and Enhance Ability
+        return 13;
     }
 
     @Override

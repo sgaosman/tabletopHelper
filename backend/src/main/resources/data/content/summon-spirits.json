@@ -45,7 +45,7 @@
           "traits": [
             {
               "name": "Pack Tactics",
-              "description": "The beast has advantage on an attack roll against a creature if at least one of the beast's allies is within 5 feet of the creature and the ally isn't incapacitated. The DM gives the advantage by hand."
+              "description": "The beast has advantage on an attack roll against a creature if at least one of the beast's allies is within 5 feet of the creature and the ally isn't incapacitated. With no map, any other ally that isn't incapacitated counts, and the DM takes the advantage off when none is near."
             }
           ]
         },
@@ -56,7 +56,7 @@
           "traits": [
             {
               "name": "Pack Tactics",
-              "description": "The beast has advantage on an attack roll against a creature if at least one of the beast's allies is within 5 feet of the creature and the ally isn't incapacitated. The DM gives the advantage by hand."
+              "description": "The beast has advantage on an attack roll against a creature if at least one of the beast's allies is within 5 feet of the creature and the ally isn't incapacitated. With no map, any other ally that isn't incapacitated counts, and the DM takes the advantage off when none is near."
             },
             {
               "name": "Water Breathing",
@@ -872,7 +872,7 @@
           "traits": [
             {
               "name": "Magic Resistance",
-              "description": "The fiend has advantage on saving throws against spells and other magical effects. The DM gives the advantage by hand."
+              "description": "The fiend has advantage on saving throws against spells and other magical effects."
             },
             {
               "name": "Death Throes",
@@ -905,7 +905,7 @@
           "traits": [
             {
               "name": "Magic Resistance",
-              "description": "The fiend has advantage on saving throws against spells and other magical effects. The DM gives the advantage by hand."
+              "description": "The fiend has advantage on saving throws against spells and other magical effects."
             },
             {
               "name": "Devil's Sight",
@@ -939,7 +939,7 @@
           "traits": [
             {
               "name": "Magic Resistance",
-              "description": "The fiend has advantage on saving throws against spells and other magical effects. The DM gives the advantage by hand."
+              "description": "The fiend has advantage on saving throws against spells and other magical effects."
             }
           ]
         }

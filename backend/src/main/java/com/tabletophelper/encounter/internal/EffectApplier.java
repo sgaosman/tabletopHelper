@@ -1619,12 +1619,15 @@ public class EffectApplier {
                     escaped = true;
                     text = name + " escapes " + caster.getDisplayName() + "'s " + spell + " without a check";
                 } else {
-                    int d20 = resolver.d20();
+                    // Its advantage or disadvantage on the check counts, as exhaustion's (PHB p.291, D199)
+                    AbilityChecks.Roll rolled = AbilityChecks.roll(resolver::d20,
+                            AbilityChecks.sources(held, ability, null));
+                    int d20 = rolled.d20();
                     int modifier = com.tabletophelper.rules.Ability.modifier(stats.abilityScore(held, ability));
                     int total = d20 + modifier;
                     escaped = total >= check.dc();
                     text = name + " tries to escape " + caster.getDisplayName() + "'s " + spell + ": " + ability.name()
-                            + " check d20(" + d20 + ")" + (modifier >= 0 ? " + " + modifier : " - " + (-modifier))
+                            + " check " + rolled.dice() + (modifier >= 0 ? " + " + modifier : " - " + (-modifier))
                             + " = " + total + " against DC " + check.dc() + (escaped ? ", and escapes" : ", and fails");
                 }
                 combatLog.write(encounter, CombatActionType.SPELL_EFFECT_REPEAT, text, caster, held);
@@ -1971,7 +1974,8 @@ public class EffectApplier {
 
     /**
      * The start of a creature's turn for the Ongoing Modifiers (D184): those that last until the start of its next turn
-     * as their caster end, as Ray of Frost's -10 feet (PHB p.271); those that last until the end of its next turn, as
+     * as their caster end, as Ray of Frost's -10 feet (PHB p.271), or as the creature they affect, as Shocking Grasp's
+     * loss of reactions (PHB p.275, D199); those that last until the end of its next turn, as
      * their caster or as the creature they affect, are armed, so that turn's end ends them; and Heroism gives the
      * creature its temporary hit points, which don't add to any it has (PHB p.250, p.198).
      */
@@ -1984,7 +1988,9 @@ public class EffectApplier {
                 List<OngoingModifier> kept = new ArrayList<>();
                 boolean changed = false;
                 for (OngoingModifier modifier : effect.modifiers()) {
-                    if (modifier.until() == OngoingModifier.Until.CASTER_TURN_START && casterTurn) {
+                    // Shocking Grasp's loss of reactions ends as its creature's next turn starts (PHB p.275, D199)
+                    if (modifier.until() == OngoingModifier.Until.CASTER_TURN_START && casterTurn
+                            || modifier.until() == OngoingModifier.Until.TARGET_TURN_START && affectedTurn) {
                         changed = true;
                         continue;
                     }
