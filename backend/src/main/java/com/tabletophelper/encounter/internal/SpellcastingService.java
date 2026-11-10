@@ -29,7 +29,9 @@ import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.CastingTime;
 import com.tabletophelper.rules.combat.Charge;
 import com.tabletophelper.rules.combat.ClassFeatures;
+import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.Metamagic;
+import com.tabletophelper.rules.combat.RollMode;
 import com.tabletophelper.rules.combat.SpellTrigger;
 import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.shared.ConflictException;
@@ -172,6 +174,10 @@ public class SpellcastingService {
         SpellCaster.CastResult result = SpellCounters.handles(casting.spellName())
                 ? counterCast(encounter, caster, casting, targets, own.ability(),
                         attackBonus(own, request.getOverrideSpellAttackBonus()), costNote, counterNote)
+                : spellEffects.weaponAttack(casting.spellName()) && attackService != null
+                ? bladeCast(encounter, caster, casting.spellName(), targets, option, own.ability(),
+                        attackBonus(own, request.getOverrideSpellAttackBonus()),
+                        saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote)
                 : spellCaster.cast(encounter, caster, casting.spellName(), casting.castLevel(),
                 targets, own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
                 saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(),
@@ -218,6 +224,50 @@ public class SpellcastingService {
             consents.put(targetId, affected);
         });
         return consents;
+    }
+
+    // The weapon attacks a spell makes as it is cast, as Booming Blade's (D199); set by Spring, and absent in unit tests
+    // that build this by hand without it, which then leave such a spell to its template
+    private AttackService attackService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setAttackService(AttackService attackService) {
+        this.attackService = attackService;
+    }
+
+    /*
+     * A cantrip that makes a melee weapon attack as it is cast, as Booming Blade and Green-Flame Blade (TCE p.106-107,
+     * D199): the first target is the attack's, the cast option names the weapon (the first melee weapon the caster holds
+     * when it names none), and the attack is the caster's own weapon attack with the spell's damage added to its hit;
+     * then the spell does what follows its hit, Green-Flame Blade's fire leaping to the second creature listed and
+     * Booming Blade's sheathing. A monster's weapons are its actions, so for one the DM resolves the attack.
+     */
+    private SpellCaster.CastResult bladeCast(Encounter encounter, EncounterParticipant caster, String spellName,
+                                             List<EncounterParticipant> targets, String weapon, String ability,
+                                             int attackBonus, int saveDc, Boolean advantage, String costNote) {
+        EffectApplier.Use use = new EffectApplier.Use(caster, caster.getDisplayName(), CombatActionType.SPELL_CAST,
+                "casts " + spellName + costNote, "at", spellName, null);
+        String lead = caster.getDisplayName() + " casts " + spellName + costNote;
+        if (caster.getCharacter() == null) {
+            String reason = spellName + " makes a melee weapon attack, which the DM resolves for "
+                    + caster.getDisplayName() + " with its own attack";
+            effectApplier.summary(encounter, use, lead + " — " + reason);
+            return new SpellCaster.CastResult(spellName, 0, false, reason, lead + " — " + reason, List.of());
+        }
+        if (targets.isEmpty()) {
+            throw new ValidationException("Choose the creature " + spellName + "'s weapon attack is against");
+        }
+        EncounterParticipant target = targets.getFirst();
+        CombatAccess.requireNotDead(List.of(target));
+        effectApplier.summary(encounter, use, lead + ".");
+        EffectApplier.Applied attack = attackService.spellWeaponAttack(encounter, caster, target, weapon, spellName,
+                spellEffects.weaponAttackDamage(spellName, caster), advantage);
+        String note = spellCaster.afterWeaponAttack(encounter, caster, spellName, use, attack,
+                targets.subList(1, targets.size()), ability, attackBonus, saveDc);
+        Effect attacked = new Effect(spellName, new Effect.Attack(0, RollMode.NORMAL, true, false), List.of(), null,
+                List.of(), false, null);
+        return new SpellCaster.CastResult(spellName, 0, false, null, lead + ". " + attack.description() + note,
+                SpellCaster.outcomes(attacked, List.of(attack)));
     }
 
     // Counterspell, whose counter is already resolved, or Dispel Magic on its one target (D196)

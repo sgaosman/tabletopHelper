@@ -236,7 +236,7 @@ public final class OngoingModifiers {
         for (Labelled labelled : modifiers) {
             OngoingModifier modifier = labelled.modifier();
             if (modifier.kind() != OngoingModifier.Kind.HIT_DAMAGE || (modifier.weaponOnly() && !weapon)
-                    || (modifier.meleeOnly() && !melee) || (melee && AMMUNITION.equalsIgnoreCase(modifier.requires()))) {
+                    || (modifier.meleeOnly() && !melee) || (melee && rangedOnly(modifier))) {
                 continue;
             }
             String type = modifier.damageTypes().isEmpty() ? null : modifier.damageTypes().getFirst();
@@ -249,8 +249,35 @@ public final class OngoingModifiers {
                 damage.add(new RollModifiers.HitDamage(labelled.label(), new Dice(0, 0, Math.abs(modifier.flat())),
                         modifier.flat() < 0 ? -1 : 1, type, modifier.id(), modifier.oneShot()));
             }
+            // A one-shot rider with no damage of its own, as Hail of Thorns' or Ensnaring Strike's (PHB p.249, p.237),
+            // marks the hit that spends it; it adds nothing (D199)
+            if (dice == null && modifier.flat() == 0 && modifier.oneShot()) {
+                damage.add(new RollModifiers.HitDamage(labelled.label(), NO_DAMAGE, 1, type, modifier.id(), true));
+            }
         }
         return damage;
+    }
+
+    /** The dice of a rider that marks the hit spending it and adds no damage (D199). */
+    public static final Dice NO_DAMAGE = new Dice(0, 0, 0);
+
+    /**
+     * The {@code requires} of a HIT_DAMAGE that only a weapon attack from beyond 5 feet gets, there being no map, so a
+     * ranged one, as Hail of Thorns' rider on the next ranged weapon hit (PHB p.249, D199); spent on that hit.
+     */
+    public static final String RANGED = "RANGED";
+
+    /**
+     * The {@code requires} of a one-shot HIT_DAMAGE whose dice replace the damage of the next weapon attack from beyond 5
+     * feet, half of them on a miss, spent hit or miss, as Lightning Arrow's 4d8 lightning in place of the weapon's normal
+     * damage (PHB p.255, D199).
+     */
+    public static final String REPLACES_RANGED = "REPLACES_RANGED";
+
+    // Whether the modifier adds only to a weapon attack from beyond 5 feet: magical ammunition and ranged riders
+    private static boolean rangedOnly(OngoingModifier modifier) {
+        return AMMUNITION.equalsIgnoreCase(modifier.requires()) || RANGED.equalsIgnoreCase(modifier.requires())
+                || REPLACES_RANGED.equalsIgnoreCase(modifier.requires());
     }
 
     /** The {@code requires} of a one-shot HIT_DAMAGE that the next attack it could add to spends, hit or miss (D197). */
@@ -274,6 +301,10 @@ public final class OngoingModifiers {
         }
         if (AMMUNITION.equalsIgnoreCase(modifier.requires())) {
             return !melee;
+        }
+        // Lightning Arrow's is spent by the next ranged weapon attack, hit or miss (PHB p.255, D199)
+        if (REPLACES_RANGED.equalsIgnoreCase(modifier.requires())) {
+            return modifier.oneShot() && !melee;
         }
         return modifier.oneShot() && ON_ATTACK.equalsIgnoreCase(modifier.requires());
     }

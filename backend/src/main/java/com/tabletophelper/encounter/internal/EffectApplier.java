@@ -133,6 +133,15 @@ public class EffectApplier {
         this.spellRepository = spellRepository;
     }
 
+    // The spell templates' rules, for what a one-shot weapon rider does after its hit (D199); set by Spring, and absent
+    // in unit tests that build this by hand without it, which then follow up no rider
+    private SpellEffects spellEffects;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setSpellEffects(SpellEffects spellEffects) {
+        this.spellEffects = spellEffects;
+    }
+
     /**
      * Who uses an Effect, and how its entries read: the actor's name, the action and, for another target, the
      * preposition, as in "Wizard casts Fireball at Goblin" or "Rogue attacks Goblin".
@@ -215,7 +224,8 @@ public class EffectApplier {
                     ? defensiveSpells.redirect(encounter, use.actor(), target, outcome) : null;
             String spared = warded != null ? warded : duplicate;
             applied.add(spared != null ? spared(encounter, outcome, spared)
-                    : applyTo(encounter, use, effect, outcome, null, rules));
+                    : applyTo(encounter, use, effect, attack ? replacedOnHit(encounter, outcome) : outcome, null,
+                            rules));
         }
         endOnAttackOrCast(encounter, use.actor(), ending, "it attacks");
         if (attack) {
@@ -498,6 +508,8 @@ public class EffectApplier {
         afterConditions(encounter, target, added);
         // A one-shot rider's hit-point threshold, as Banishing Smite's (PHB p.216, D187), before it is spent
         banishAtThreshold(encounter, target, outcome.spentOneShots());
+        // And what a spent weapon rider does next, as Wrathful Smite's Wisdom save (PHB p.289, D199)
+        riderFollowUps(encounter, effect, target, outcome);
         // The one-shot Ongoing Modifiers the roll used are spent (D184)
         spendModifiers(encounter, outcome.spentOneShots());
 
@@ -949,6 +961,10 @@ public class EffectApplier {
         }
         ConditionEntry condition = found.get();
         RepeatSave save = condition.repeatSave();
+        if (save.madeByAction() && actionCheck(condition)) {
+            abilityCheckToEnd(encounter, participant, conditions, condition);
+            return;
+        }
         int modifier = stats.saveModifier(participant, save.ability());
         CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(participant, save.ability(),
                 List.of(condition.name()));
@@ -993,6 +1009,48 @@ public class EffectApplier {
         }
         participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
         spendModifiers(encounter, roll.spentOneShots());
+    }
+
+    // Whether the condition's spell ends it by an ability check made with an action rather than a save, as Wrathful
+    // Smite's Wisdom check (PHB p.289) and Ensnaring Strike's Strength check (PHB p.237) (D199)
+    private boolean actionCheck(ConditionEntry condition) {
+        Optional<com.tabletophelper.reference.SpellTemplate.ActionSave> action = spellEffects != null
+                ? Optional.ofNullable(spellEffects.actionSave(condition.sourceSpellName()))
+                : templateOf(condition.sourceSpellName()).map(com.tabletophelper.reference.SpellTemplate::actionSave);
+        return action.filter(each -> each.check() && each.condition().equalsIgnoreCase(condition.name())).isPresent();
+    }
+
+    /*
+     * The ability check a creature makes with its action against its spell's save DC to end the condition (D199), as a
+     * creature frightened by Wrathful Smite steels its resolve with a Wisdom check (PHB p.289) or one restrained by
+     * Ensnaring Strike's vines pulls free with a Strength check (PHB p.237): a d20 and the ability's modifier, no save
+     * proficiency or save bonus, with disadvantage when the creature is frightened or poisoned or has exhaustion (PHB
+     * p.290, p.292, p.291), the source of a fear being in sight there being no map. A success ends the condition; the
+     * caller ends the spell with it.
+     */
+    private void abilityCheckToEnd(Encounter encounter, EncounterParticipant participant,
+                                   List<ConditionEntry> conditions, ConditionEntry condition) {
+        RepeatSave save = condition.repeatSave();
+        List<String> names = CreatureStats.conditionNames(participant);
+        boolean hindered = names.stream().anyMatch(name -> name.equalsIgnoreCase("frightened")
+                || name.equalsIgnoreCase("poisoned")) || Exhaustion.clamp(participant.getExhaustionLevel()) >= 1;
+        int first = resolver.d20();
+        int d20 = hindered ? Math.min(first, resolver.d20()) : first;
+        int modifier = Ability.modifier(stats.abilityScore(participant, save.ability()));
+        int total = d20 + modifier;
+        boolean success = total >= save.dc();
+        String name = participant.getDisplayName();
+        combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.REPEAT_SAVE, name
+                        + " uses its action on a " + save.ability().name() + " check against " + condition.name()
+                        + (hindered ? " (disadvantage)" : "") + ": d20(" + d20 + ")" + signed(modifier) + " = " + total
+                        + " vs DC " + save.dc() + (success ? " — succeeds, and " + condition.name() + " ends."
+                        : " — fails, and stays " + condition.name() + ".")), null, participant)
+                .rollValue(d20).rollTotal(total));
+        if (success) {
+            conditions.remove(condition);
+            participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
+            releaseFreed(encounter);
+        }
     }
 
     /**
@@ -1218,6 +1276,12 @@ public class EffectApplier {
         return changed;
     }
 
+    /** Keeps what the Spell Effect's rider or triggers need later on it (D199): the DC, and the creatures picked. */
+    public void startRider(EncounterParticipant caster, UUID effectId, SpellEffectEntry.Rider rider) {
+        effects(caster).stream().filter(e -> e.id().equals(effectId)).findFirst()
+                .ifPresent(effect -> replaceEffect(caster, effect.withRider(rider)));
+    }
+
     /** Adds damage a creature takes at the end of its next turn to the Spell Effect (D185). */
     public void delay(EncounterParticipant caster, UUID effectId, EncounterParticipant target, String dice,
                       String type) {
@@ -1321,6 +1385,165 @@ public class EffectApplier {
                         caster, target);
             }
         }
+    }
+
+    // ── One-shot weapon riders that follow up their hit (D199) ───
+
+    /*
+     * Lightning Arrow's hit (PHB p.255, D199): the attack's own damage, the weapon's dice and modifier and whatever was
+     * added to them, gives way to the riders' damage, so the 4d8 lightning replaces the weapon's normal damage while other
+     * riders, as Hunter's Mark's, still add theirs. Any other outcome is unchanged.
+     */
+    private Resolver.TargetOutcome replacedOnHit(Encounter encounter, Resolver.TargetOutcome outcome) {
+        boolean hit = outcome.outcome() == Outcome.HIT || outcome.outcome() == Outcome.CRITICAL;
+        if (!hit || outcome.spentOneShots().isEmpty() || spentModifiers(encounter, outcome.spentOneShots()).stream()
+                .noneMatch(m -> OngoingModifiers.REPLACES_RANGED.equalsIgnoreCase(m.requires()))) {
+            return outcome;
+        }
+        return outcome.withDamage(ridersOnly(outcome.riders()));
+    }
+
+    /** The riders' damage alone, by type, each type's total at least 0 (D199). */
+    static List<Resolver.Damage> ridersOnly(List<RollModifiers.RolledDamage> riders) {
+        Map<String, Integer> byType = new java.util.LinkedHashMap<>();
+        for (RollModifiers.RolledDamage rider : riders) {
+            byType.merge(rider.type() != null ? rider.type() : "", rider.sign() * rider.amount(), Integer::sum);
+        }
+        List<Resolver.Damage> damage = new ArrayList<>();
+        byType.forEach((type, amount) -> damage.add(new Resolver.Damage(type.isEmpty() ? null : type,
+                Math.max(0, amount))));
+        return damage;
+    }
+
+    // The Ongoing Modifiers with these IDs, wherever they are in the encounter
+    private static List<OngoingModifier> spentModifiers(Encounter encounter, Set<UUID> ids) {
+        List<OngoingModifier> found = new ArrayList<>();
+        for (EncounterParticipant caster : encounter.getParticipants()) {
+            for (SpellEffectEntry effect : effects(caster)) {
+                effect.modifiers().stream().filter(m -> ids.contains(m.id())).forEach(found::add);
+            }
+        }
+        return found;
+    }
+
+    /*
+     * What a one-shot weapon rider does once its attack spends it (D199), before the rider itself is spent:
+     * - Lightning Arrow's miss still deals half its dice to the target (PHB p.255);
+     * - its spell's follow-up, at the caster's spell save DC when cast: the creature hit makes the save, as against
+     *   Wrathful Smite (PHB p.289), Thunderous Smite (PHB p.282), Blinding Smite (PHB p.219) and Ensnaring Strike, a Large
+     *   or larger creature with advantage (PHB p.237), or takes its conditions with no save, as Searing Smite's burning
+     *   (PHB p.274); and the creatures the caster picked at the cast too, as those Hail of Thorns' thorns (PHB p.249) and
+     *   Lightning Arrow's burst (PHB p.255) also strike, there being no map.
+     * Conditions that last until the spell ends are held by its concentration, so the spell goes on while a creature
+     * has them; otherwise, or when nobody got them, the spell is over once its hit is resolved, and ends with its
+     * concentration.
+     */
+    private void riderFollowUps(Encounter encounter, Effect effect, EncounterParticipant target,
+                                Resolver.TargetOutcome outcome) {
+        if (spellEffects == null || outcome.spentOneShots().isEmpty()
+                || !(effect.delivery() instanceof Effect.Attack attack) || !attack.weapon()) {
+            return;
+        }
+        boolean hit = outcome.outcome() == Outcome.HIT || outcome.outcome() == Outcome.CRITICAL;
+        for (EncounterParticipant caster : List.copyOf(encounter.getParticipants())) {
+            for (SpellEffectEntry rider : effects(caster)) {
+                List<OngoingModifier> spent = rider.modifiers().stream()
+                        .filter(modifier -> outcome.spentOneShots().contains(modifier.id()))
+                        .toList();
+                if (spent.isEmpty() || !spellEffects.hitRider(rider.spell())) {
+                    continue;
+                }
+                followUp(encounter, caster, rider, spent, target, hit);
+            }
+        }
+    }
+
+    // One spent rider's follow-up, then the end of its spell unless a condition it gave holds it (D199)
+    private void followUp(Encounter encounter, EncounterParticipant caster, SpellEffectEntry rider,
+                          List<OngoingModifier> spent, EncounterParticipant target, boolean hit) {
+        int dc = rider.rider() != null ? rider.rider().saveDc()
+                : caster.getSpellSaveDc() != null ? caster.getSpellSaveDc() : 10;
+        Optional<SpellEffects.FollowUp> found = spellEffects.followUp(rider.spell(), rider.castLevel(), caster,
+                caster.getSpellcastingAbility(), caster.getSpellAttackBonus() != null ? caster.getSpellAttackBonus() : 0,
+                dc);
+        if (found.isEmpty() || !hit && !found.get().save().onAttack()) {
+            return;
+        }
+        com.tabletophelper.reference.SpellTemplate.FollowUpSave save = found.get().save();
+        String source = caster.getDisplayName() + "'s " + rider.spell();
+        // Lightning Arrow's miss: half its dice still strike the target (PHB p.255)
+        spent.stream()
+                .filter(modifier -> OngoingModifiers.REPLACES_RANGED.equalsIgnoreCase(modifier.requires()))
+                .filter(modifier -> !hit && modifier.diceOnly() != null && target.getLifeState() != LifeState.DEAD)
+                .findFirst()
+                .ifPresent(modifier -> halfOnMiss(encounter, caster, rider, target, modifier));
+        List<EncounterParticipant> creatures = new ArrayList<>();
+        if (save.includesTarget() && target.getLifeState() != LifeState.DEAD) {
+            creatures.add(target);
+        }
+        if (save.alsoPicked() && rider.rider() != null) {
+            rider.rider().picked().stream()
+                    .map(id -> participant(encounter, id))
+                    .flatMap(Optional::stream)
+                    .filter(creature -> !creature.getId().equals(target.getId())
+                            && creature.getLifeState() != LifeState.DEAD && !EncounterTurns.dismissed(creature)
+                            && !CombatAccess.banished(creature))
+                    .forEach(creatures::add);
+        }
+        ConcentrationInstance held = caster.getConcentration() != null
+                && caster.getConcentration().id().equals(rider.concentrationInstanceId()) ? caster.getConcentration()
+                : null;
+        Use use = new Use(caster, source, CombatActionType.SPELL_EFFECT_REPEAT, "reaches", "", rider.spell(),
+                save.untilSpellEnds() ? held : null);
+        boolean holds = false;
+        if (!creatures.isEmpty()) {
+            Effect then = found.get().effect();
+            if (then.delivery() instanceof Effect.Save each) {
+                combatLog.write(encounter, CombatActionType.SPELL_EFFECT_REPEAT, creatures.stream()
+                        .map(EncounterParticipant::getDisplayName).collect(Collectors.joining(", "))
+                        + " make" + (creatures.size() == 1 ? "s" : "") + " a DC " + each.dc() + " "
+                        + each.ability().name() + " save against " + source + ".", caster, null);
+            }
+            List<Resolver.Target> against = stats.spellTargets(creatures, then, caster).stream()
+                    .map(each -> sizeAdvantage(encounter, each, save.advantageSizes()))
+                    .toList();
+            List<Applied> results = apply(encounter, use, then,
+                    resolver.resolve(then, CreatureStats.side(caster), against));
+            holds = save.untilSpellEnds() && held != null
+                    && results.stream().anyMatch(result -> !result.conditionsAdded().isEmpty());
+        }
+        if (!holds) {
+            // Nothing lasts, so the spell is done, with its concentration, before the rider is spent
+            Optional<SpellEffectEntry> still = effects(caster).stream()
+                    .filter(each -> each.id().equals(rider.id())).findFirst();
+            still.ifPresent(each -> endWholeEffect(encounter, caster, each, "is resolved"));
+        }
+    }
+
+    // A creature of one of the sizes makes the follow-up's save with advantage, as a Large one against Ensnaring Strike
+    private Resolver.Target sizeAdvantage(Encounter encounter, Resolver.Target target, List<String> sizes) {
+        if (sizes.isEmpty()) {
+            return target;
+        }
+        String size = participant(encounter, target.id()).map(CreatureStats::size).orElse(null);
+        return size != null && sizes.contains(size.toLowerCase(Locale.ROOT))
+                ? target.withNamedSaveSource(new AttackRules.Source(RollMode.ADVANTAGE, size)) : target;
+    }
+
+    // Lightning Arrow's miss: half its dice, rounded down, to the target with no roll (PHB p.255, D199)
+    private void halfOnMiss(Encounter encounter, EncounterParticipant caster, SpellEffectEntry rider,
+                            EncounterParticipant target, OngoingModifier modifier) {
+        com.tabletophelper.rules.Dice dice = modifier.diceOnly();
+        String type = modifier.damageTypes().isEmpty() ? null : modifier.damageTypes().getFirst();
+        Effect half = new Effect(rider.spell(), new Effect.Automatic(), List.of(new Effect.DamagePart(dice, type)),
+                null, List.of(), false, null);
+        Resolver.TargetOutcome rolled = resolver.resolve(half, List.of(stats.target(target, half))).getFirst();
+        List<Resolver.Damage> halved = rolled.damage().stream()
+                .map(each -> new Resolver.Damage(each.type(), each.amount() / 2))
+                .toList();
+        Use use = new Use(caster, caster.getDisplayName() + "'s " + rider.spell(), CombatActionType.SPELL_EFFECT_REPEAT,
+                "misses, and half its lightning still strikes", "", rider.spell(), null);
+        applyTo(encounter, use, half, rolled.withDamage(halved), null, SpellEffects.CastRules.NONE);
     }
 
     /**

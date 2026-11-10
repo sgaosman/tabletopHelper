@@ -624,6 +624,25 @@ public class CreatureStats {
         return participant.getMonster() != null ? participant.getMonster().getType() : null;
     }
 
+    /**
+     * The creature's size as a spell reads it (D199), such as "Large", for a save a size makes with advantage, as against
+     * Ensnaring Strike (PHB p.237): a monster's or a summoned creature's stat block, a player character's race, Medium
+     * when the race gives none; null for a creature in a form, whose size is the DM's.
+     */
+    public static String size(EncounterParticipant participant) {
+        if (WildShapeForm.of(participant).isPresent()) {
+            return null;
+        }
+        if (participant.getMonster() != null) {
+            return participant.getMonster().getSize();
+        }
+        if (participant.getCharacter() != null) {
+            com.tabletophelper.reference.Race race = participant.getCharacter().getRaceRef();
+            return race != null && race.getSize() != null && !race.getSize().isBlank() ? race.getSize() : "Medium";
+        }
+        return null;
+    }
+
     // The creatures whose stat blocks give no head (D198): beyond oozes and swarms, the MM's shapeless ones, such as the
     // air and water elementals, a whirlwind and a wave, and the gibbering mouther, a mass of mouths and eyes
     private static final Set<String> HEADLESS = Set.of("air elemental", "water elemental", "water weird",

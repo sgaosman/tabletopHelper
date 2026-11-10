@@ -365,7 +365,7 @@ class SpellEffectsTest {
         }
 
         @Test
-        @DisplayName("The bundled data's 69 lasting spells each leave a Spell Effect its caster directs at the cost "
+        @DisplayName("The bundled data's 70 lasting spells each leave a Spell Effect its caster directs at the cost "
                 + "the spell's text gives, or whose area acts by itself at the moments it gives, or both (M15)")
         void bundledLastingSpells() throws IOException {
             Map<String, ActionCost> costs = new LinkedHashMap<>();
@@ -454,8 +454,11 @@ class SpellEffectsTest {
             // Storm of Vengeance's and Tsunami's uses deal their round's damage at no cost (PHB p.279, p.284, D195)
             expected.put("Storm of Vengeance", ActionCost.NONE);
             expected.put("Tsunami", ActionCost.NONE);
+            // Booming Blade's thunder for a sheathed creature that moves is the DM's use of it, costing its caster
+            // nothing (TCE p.106, D199)
+            expected.put("Booming Blade", ActionCost.NONE);
             // Web's webs repeat its DEX save for a creature entering them or starting its turn there (PHB p.287, D197)
-            assertEquals(69, triggers.size());
+            assertEquals(70, triggers.size());
             assertEquals(List.of(SpellTrigger.ENTER, SpellTrigger.START_OF_TURN), triggers.get("Web"));
             assertEquals(List.of(SpellTrigger.END_OF_TURN), triggers.get("Weird"));
             assertEquals(List.of(SpellTrigger.ENTER, SpellTrigger.START_OF_TURN), triggers.get("Ravenous Void"));

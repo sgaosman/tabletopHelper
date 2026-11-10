@@ -522,6 +522,10 @@ public final class Resolver {
                                                         String ownType) {
         List<RollModifiers.RolledDamage> rolled = new ArrayList<>();
         for (RollModifiers.HitDamage rider : riders) {
+            // A rider that only marks the hit spending it adds no damage (D199)
+            if (rider.dice().equals(OngoingModifiers.NO_DAMAGE)) {
+                continue;
+            }
             Dice dice = critical ? rider.dice().doubled() : rider.dice();
             String type = rider.type() != null ? rider.type().trim().toLowerCase() : ownType;
             rolled.add(new RollModifiers.RolledDamage(rider.label(), dice, rider.sign(), type, dice.roll(rng)));

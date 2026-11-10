@@ -129,6 +129,10 @@ public class SpellCaster {
         String lead = caster.getDisplayName() + " casts " + spellName
                 + (slotLevel > 0 && slotLevel > plan.spellLevel() ? " at level " + slotLevel : "") + costNote
                 + metamagic.note();
+        // The targets after the spell's own are creatures the caster picks for what follows, as those Ice Knife's
+        // shard bursts over (XGE p.157) or Hail of Thorns' thorns fall on (PHB p.249), there being no map (D199)
+        List<EncounterParticipant> picked = picked(spellName, targets, metamagic);
+        targets = targets.subList(0, targets.size() - picked.size());
 
         if (!plan.automated()) {
             ConcentrationInstance instance = plan.concentration()
@@ -222,7 +226,21 @@ public class SpellCaster {
                     .collect(Collectors.joining(", ")) + ".");
         }
         List<EffectApplier.Applied> applied = new ArrayList<>();
-        if (!seventh.rays().isEmpty()) {
+        SpellTemplate.Darts darts = spellEffects.darts(spellName);
+        SpellTemplate.TypeDice typeDice = spellEffects.typeDice(spellName);
+        int transfer = spellEffects.selfDamageHeals(spellName);
+        String rollNote = "";
+        if (darts != null) {
+            // Darts that each strike on their own, as Magic Missile's (PHB p.257, D199)
+            applied.addAll(darts(encounter, caster, use, spellName, effect, rules,
+                    darts.at(plan.spellLevel(), slotLevel), normal, metamagic.empoweredDice()));
+        } else if (typeDice != null) {
+            // A damage type from the dice, and a leap on a double, as Chaos Bolt's (XGE p.151, D199)
+            applied.addAll(typedBolts(encounter, caster, use, spellName, effect, rules, typeDice, normal, picked));
+        } else if (transfer > 0) {
+            // The caster's own damage heals the targets, as Life Transference's (XGE p.160, D199)
+            rollNote = transfer(encounter, caster, spellName, effect, transfer, normal, metamagic.empoweredDice());
+        } else if (!seventh.rays().isEmpty()) {
             // A table each creature rolls on, as Prismatic Spray's d8 (PHB p.267, D189)
             applied.addAll(rays(encounter, caster, use, spellName, effect, seventh.rays(), normal, saveDc));
         } else if (!normal.isEmpty() || maximised.isEmpty()) {
@@ -284,7 +302,8 @@ public class SpellCaster {
         String fifthNote = afterCast(encounter, caster, spellName, option, use, instance, reached, applied,
                 affected, saveDc, castingAbility, attackBonus);
         String seventhNote = afterSeventh(encounter, caster, spellName, slotLevel, option, use, seventh, normal,
-                applied, saveDc);
+                applied, saveDc, castingAbility, attackBonus, picked) + rollNote;
+        keepRider(caster, spellName, saveDc, picked);
         String highNote = afterHighLevelCast(encounter, caster, spellName, slotLevel, high, use, affected);
         // What the DM still rolls for a spell with no Ongoing Modifiers to carry its reminder, as Heat Metal's drop
         // save (PHB p.250, D197)
@@ -632,7 +651,8 @@ public class SpellCaster {
      */
     private String afterSeventh(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
                                 String option, EffectApplier.Use use, SpellEffects.SeventhLevel seventh,
-                                List<EncounterParticipant> reached, List<EffectApplier.Applied> applied, int saveDc) {
+                                List<EncounterParticipant> reached, List<EffectApplier.Applied> applied, int saveDc,
+                                String castingAbility, int attackBonus, List<EncounterParticipant> picked) {
         if (seventh.equals(SpellEffects.SeventhLevel.NONE)) {
             return "";
         }
@@ -682,29 +702,33 @@ public class SpellCaster {
             }
         }
         SpellTemplate.FollowUpSave followUp = seventh.followUp();
-        if (followUp != null && (followUp.option() == null || followUp.option().equalsIgnoreCase(option))) {
-            boolean afterSave = "FAILED_SAVE".equalsIgnoreCase(followUp.on());
-            List<EncounterParticipant> hit = applied.stream()
-                    .filter(result -> afterSave ? result.outcome().outcome() == Outcome.SAVE_FAIL
-                            : result.outcome().outcome() == Outcome.HIT
-                            || result.outcome().outcome() == Outcome.CRITICAL)
-                    .map(EffectApplier.Applied::target)
-                    .filter(target -> target.getLifeState() != LifeState.DEAD)
-                    .toList();
-            if (!hit.isEmpty()) {
-                Ability ability = Ability.parse(followUp.ability()).orElse(Ability.CHA);
-                List<String> conditions = followUp.conditions().stream().map(SpellTemplate.ConditionInflicted::name)
-                        .filter(java.util.Objects::nonNull).toList();
-                Map<String, Effect.ConditionEnd> ends = new LinkedHashMap<>();
-                followUp.conditions().stream().filter(c -> c.name() != null && c.durationRounds() != null)
-                        .forEach(c -> ends.put(c.name(), new Effect.ConditionEnd(c.durationRounds(), null, null,
-                                false)));
-                Effect then = new Effect(spellName, new Effect.Save(ability, saveDc, false), List.of(), null,
-                        conditions, false, null, ends);
-                effectApplier.summary(encounter, use, names(hit) + " makes a DC " + saveDc + " " + ability.name()
-                        + " save against " + spellName + ".");
-                effectApplier.apply(encounter, use, then, resolver.resolve(then,
-                        CreatureStats.side(caster), stats.spellTargets(hit, then, caster)));
+        // A one-shot weapon rider's follow-up waits for its weapon hit (D199)
+        if (followUp != null && (followUp.option() == null || followUp.option().equalsIgnoreCase(option))
+                && !spellEffects.hitRider(spellName)) {
+            if ("FAILED_SAVE".equalsIgnoreCase(followUp.on())) {
+                List<EncounterParticipant> failed = applied.stream()
+                        .filter(result -> result.outcome().outcome() == Outcome.SAVE_FAIL)
+                        .map(EffectApplier.Applied::target)
+                        .filter(target -> target.getLifeState() != LifeState.DEAD)
+                        .toList();
+                if (!failed.isEmpty()) {
+                    Ability ability = Ability.parse(followUp.ability()).orElse(Ability.CHA);
+                    List<String> conditions = followUp.conditions().stream()
+                            .map(SpellTemplate.ConditionInflicted::name).filter(java.util.Objects::nonNull).toList();
+                    Map<String, Effect.ConditionEnd> ends = new LinkedHashMap<>();
+                    followUp.conditions().stream().filter(c -> c.name() != null && c.durationRounds() != null)
+                            .forEach(c -> ends.put(c.name(), new Effect.ConditionEnd(c.durationRounds(), null, null,
+                                    false)));
+                    Effect then = new Effect(spellName, new Effect.Save(ability, saveDc, false), List.of(), null,
+                            conditions, false, null, ends);
+                    effectApplier.summary(encounter, use, names(failed) + " makes a DC " + saveDc + " "
+                            + ability.name() + " save against " + spellName + ".");
+                    effectApplier.apply(encounter, use, then, resolver.resolve(then,
+                            CreatureStats.side(caster), stats.spellTargets(failed, then, caster)));
+                }
+            } else {
+                afterAttack(encounter, caster, spellName, slotLevel, use, applied, picked, castingAbility,
+                        attackBonus, saveDc);
             }
         }
         SpellTemplate.RaisesOnKill raises = seventh.raises();
@@ -748,6 +772,331 @@ public class SpellCaster {
         String joined = notes.stream().filter(note -> note != null && !note.isBlank())
                 .collect(Collectors.joining(" "));
         return joined.isEmpty() ? "" : " " + joined;
+    }
+
+    // ── The low-level spells' keys (D199) ────────────────────────
+
+    /*
+     * The creatures the caster picked for what follows the spell, there being no map (D199): the targets after the
+     * template's primaryTargets, one more being the spell's own with Twinned Spell, as those Ice Knife's shard bursts
+     * over (XGE p.157); every target for a spell on its caster, as Hail of Thorns (PHB p.249). Empty for a spell
+     * without primaryTargets.
+     */
+    private List<EncounterParticipant> picked(String spellName, List<EncounterParticipant> targets,
+                                              MetamagicCasting.Plan metamagic) {
+        Integer primary = spellEffects.primaryTargets(spellName);
+        if (primary == null) {
+            return List.of();
+        }
+        int own = primary + (primary > 0 && metamagic.has(Metamagic.Option.TWINNED) ? 1 : 0);
+        return targets.size() > own ? List.copyOf(targets.subList(own, targets.size())) : List.of();
+    }
+
+    /*
+     * Keeps on the cast's Spell Effect what its one-shot weapon rider or its own triggers need later (D199): the
+     * caster's spell save DC, for Wrathful Smite's save on its hit (PHB p.289) or Searing Smite's at the start of the
+     * burning creature's turns (PHB p.274), and the creatures picked, as Hail of Thorns' (PHB p.249).
+     */
+    private void keepRider(EncounterParticipant caster, String spellName, int saveDc,
+                           List<EncounterParticipant> picked) {
+        if (!spellEffects.hitRider(spellName)
+                && spellEffects.conditionedTriggers(spellName, SpellTrigger.START_OF_TURN).isEmpty()) {
+            return;
+        }
+        EffectApplier.effects(caster).stream()
+                .filter(effect -> effect.spell().equalsIgnoreCase(spellName))
+                .reduce((first, second) -> second)
+                .ifPresent(effect -> effectApplier.startRider(caster, effect.id(), new SpellEffectEntry.Rider(saveDc,
+                        picked.stream().map(EncounterParticipant::getId).toList())));
+    }
+
+    /**
+     * A spell's follow-up once its attack has resolved (D189, D199): each creature it hit, or every creature it attacked
+     * for a follow-up on the attack, and the creatures the caster picked when the follow-up says so, make the follow-up's
+     * save or take it with none: Plane Shift's Charisma save after its hit (PHB p.266), Ice Knife's burst over its target
+     * and the creatures beside it, hit or miss, 2d6 cold on a failed DEX save (XGE p.157), and Green-Flame Blade's fire
+     * leaping from the creature it hit to another (TCE p.107).
+     */
+    void afterAttack(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
+                     EffectApplier.Use use, List<EffectApplier.Applied> applied, List<EncounterParticipant> picked,
+                     String castingAbility, int attackBonus, int saveDc) {
+        Optional<SpellEffects.FollowUp> found = spellEffects.followUp(spellName, slotLevel, caster, castingAbility,
+                attackBonus, saveDc);
+        if (found.isEmpty()) {
+            return;
+        }
+        SpellTemplate.FollowUpSave save = found.get().save();
+        List<EncounterParticipant> struck = applied.stream()
+                .filter(result -> save.onAttack() || result.outcome().outcome() == Outcome.HIT
+                        || result.outcome().outcome() == Outcome.CRITICAL)
+                .map(EffectApplier.Applied::target)
+                .distinct()
+                .toList();
+        List<EncounterParticipant> creatures = new ArrayList<>();
+        if (save.includesTarget()) {
+            creatures.addAll(struck);
+        }
+        // The picked creatures, when the attack reached anyone, or for a follow-up hit or miss
+        if (save.alsoPicked() && (save.onAttack() || !struck.isEmpty())) {
+            picked.stream().filter(creature -> !creatures.contains(creature)).forEach(creatures::add);
+        }
+        List<EncounterParticipant> living = creatures.stream()
+                .filter(creature -> creature.getLifeState() != LifeState.DEAD && !CombatAccess.banished(creature))
+                .toList();
+        if (living.isEmpty()) {
+            return;
+        }
+        Effect then = found.get().effect();
+        if (then.delivery() instanceof Effect.Save each) {
+            effectApplier.summary(encounter, use, names(living) + " makes a DC " + each.dc() + " "
+                    + each.ability().name() + " save against " + spellName + ".");
+        }
+        effectApplier.apply(encounter, use, then, resolver.resolve(then, CreatureStats.side(caster),
+                stats.spellTargets(living, then, caster)));
+    }
+
+    /*
+     * Darts that each strike on their own (D199): Magic Missile's three, one more for each slot level above 1st, each
+     * 1d4 + 1 force with no roll to hit (PHB p.257), or Jim's Magic Missile's, each a ranged spell attack of 2d4 force,
+     * 5d4 on a critical hit (AcqInc p.75). The caster shares them among the targets as listed, a target named more than once
+     * taking more, and the darts left over going round the targets in order. Each dart rolls its own damage and is its own
+     * damage, so a concentrating creature makes a check for each (PHB p.203) (rules call: each dart rolls its own 1d4). A
+     * creature under Shield takes none from Magic Missile (PHB p.275). Empowered Spell rerolls the first dart's dice. For
+     * Jim's darts, any attack roll of a natural 1 makes every dart miss and deal the backfire's damage to the caster
+     * instead.
+     */
+    private List<EffectApplier.Applied> darts(Encounter encounter, EncounterParticipant caster,
+                                              EffectApplier.Use use, String spellName, Effect effect,
+                                              SpellEffects.CastRules rules, int count,
+                                              List<EncounterParticipant> targets, int empoweredDice) {
+        if (targets.isEmpty()) {
+            return List.of();
+        }
+        List<EncounterParticipant> struck = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            struck.add(targets.get(i % targets.size()));
+        }
+        effectApplier.summary(encounter, use, spellName + ": " + count + " darts, at " + struck.stream()
+                .map(EncounterParticipant::getDisplayName).collect(Collectors.joining(", ")) + ".");
+        List<Resolver.TargetOutcome> rolled = new ArrayList<>();
+        List<EncounterParticipant> rolledAt = new ArrayList<>();
+        for (int i = 0; i < struck.size(); i++) {
+            EncounterParticipant target = struck.get(i);
+            if (blockedByShield(spellName, target)) {
+                effectApplier.summary(encounter, use, target.getDisplayName() + "'s Shield blocks a dart of "
+                        + spellName + ".");
+                continue;
+            }
+            rolled.add(resolver.resolve(effect, CreatureStats.side(caster),
+                    stats.spellTargets(List.of(target), effect, caster), i == 0 ? empoweredDice : 0).getFirst());
+            rolledAt.add(target);
+        }
+        SpellTemplate.Backfire backfire = spellEffects.backfireOnOne(spellName);
+        if (backfire != null && effect.delivery() instanceof Effect.Attack
+                && rolled.stream().anyMatch(outcome -> Integer.valueOf(1).equals(outcome.d20()))) {
+            effectApplier.summary(encounter, use, "A dart of " + spellName + " rolls a natural 1, so every dart misses "
+                    + "and each deals " + backfire.damage() + " " + backfire.damageType() + " damage to "
+                    + caster.getDisplayName() + ".");
+            Effect back = new Effect(spellName, new Effect.Automatic(), List.of(new Effect.DamagePart(
+                    new Dice(0, 0, backfire.damage()), backfire.damageType())), null, List.of(), false, null);
+            EffectApplier.Use backUse = new EffectApplier.Use(caster, caster.getDisplayName() + "'s " + spellName,
+                    CombatActionType.SPELL_CAST, "backfires on", "", spellName, null);
+            List<EffectApplier.Applied> applied = new ArrayList<>();
+            for (int i = 0; i < count && caster.getLifeState() != LifeState.DEAD; i++) {
+                applied.addAll(effectApplier.apply(encounter, backUse, back, resolver.resolve(back,
+                        List.of(stats.target(caster, back)))));
+            }
+            return applied;
+        }
+        List<EffectApplier.Applied> applied = new ArrayList<>();
+        for (int i = 0; i < rolled.size(); i++) {
+            if (rolledAt.get(i).getLifeState() == LifeState.DEAD) {
+                continue;
+            }
+            applied.addAll(effectApplier.apply(encounter, use, effect, List.of(rolled.get(i)), rules));
+        }
+        return applied;
+    }
+
+    // Whether the spell is the one the creature's Shield blocks, as Magic Missile is (PHB p.275, D199)
+    private boolean blockedByShield(String spellName, EncounterParticipant target) {
+        return spellEffects.blockedByShield(spellName) && ActiveModifiers.on(target).stream()
+                .anyMatch(found -> SHIELD.equalsIgnoreCase(found.effect().spell()));
+    }
+
+    private static final String SHIELD = "Shield";
+
+    /*
+     * Chaos Bolt (XGE p.151, D199): a ranged spell attack at each of its targets, and on a hit 2d8 + 1d6 damage, 1d6 more
+     * for each slot level above 1st, the dice doubled on a critical hit; the first d8's face gives the type from the
+     * template's table (rules call: the caster's choice of die is the first rolled). When the two d8s match, the bolt
+     * leaps to the next creature the caster picked, which it hasn't struck yet, with a new attack and damage roll, and
+     * can leap again; with none picked, the log leaves the leap to the DM. A creature is struck only once.
+     */
+    private List<EffectApplier.Applied> typedBolts(Encounter encounter, EncounterParticipant caster,
+                                                   EffectApplier.Use use, String spellName, Effect effect,
+                                                   SpellEffects.CastRules rules, SpellTemplate.TypeDice typeDice,
+                                                   List<EncounterParticipant> targets,
+                                                   List<EncounterParticipant> picked) {
+        if (!(effect.delivery() instanceof Effect.Attack)) {
+            return List.of();
+        }
+        List<EffectApplier.Applied> applied = new ArrayList<>();
+        List<EncounterParticipant> struck = new ArrayList<>(targets);
+        List<EncounterParticipant> leaps = new ArrayList<>(picked);
+        java.util.Deque<EncounterParticipant> queue = new java.util.ArrayDeque<>(targets);
+        Effect attackOnly = new Effect(spellName, effect.delivery(), List.of(), null, List.of(), false, null);
+        while (!queue.isEmpty()) {
+            EncounterParticipant target = queue.poll();
+            if (target.getLifeState() == LifeState.DEAD) {
+                continue;
+            }
+            Resolver.TargetOutcome outcome = resolver.resolve(attackOnly, CreatureStats.side(caster),
+                    stats.spellTargets(List.of(target), attackOnly, caster)).getFirst();
+            applied.addAll(effectApplier.apply(encounter, use, attackOnly, List.of(outcome), rules));
+            if (outcome.outcome() != Outcome.HIT && outcome.outcome() != Outcome.CRITICAL) {
+                continue;
+            }
+            boolean critical = outcome.outcome() == Outcome.CRITICAL;
+            List<Integer> faces = new ArrayList<>();
+            int total = 0;
+            boolean typed = false;
+            for (Effect.DamagePart part : effect.damage()) {
+                Dice dice = part.dice();
+                boolean typing = !typed && dice.sides() == typeDice.sides() && dice.count() >= typeDice.count();
+                typed |= typing;
+                int count = critical ? dice.count() * 2 : dice.count();
+                for (int i = 0; i < count; i++) {
+                    int face = resolver.roll(dice.sides());
+                    if (typing && i < typeDice.count()) {
+                        faces.add(face);
+                    }
+                    total += face;
+                }
+                total += dice.modifier();
+            }
+            String type = faces.isEmpty() ? null : typeDice.types().get(Math.min(faces.getFirst(),
+                    typeDice.types().size()) - 1);
+            Effect bolt = new Effect(spellName, new Effect.Automatic(),
+                    List.of(new Effect.DamagePart(new Dice(0, 0, Math.max(0, total)), type)), null, List.of(), false,
+                    null);
+            effectApplier.summary(encounter, use, spellName + "'s d" + typeDice.sides() + "s show "
+                    + faces.stream().map(String::valueOf).collect(Collectors.joining(" and ")) + ": " + type
+                    + " damage" + (critical ? ", its dice doubled" : "") + ".");
+            applied.addAll(effectApplier.apply(encounter, use, bolt, resolver.resolve(bolt,
+                    CreatureStats.side(caster), stats.spellTargets(List.of(target), bolt, caster)), rules));
+            boolean doubled = typeDice.leapsOnDouble() && faces.size() >= 2 && faces.stream().distinct().count() == 1;
+            if (!doubled) {
+                continue;
+            }
+            Optional<EncounterParticipant> next = leaps.stream()
+                    .filter(creature -> !struck.contains(creature) && creature.getLifeState() != LifeState.DEAD)
+                    .findFirst();
+            if (next.isPresent()) {
+                struck.add(next.get());
+                queue.add(next.get());
+                effectApplier.summary(encounter, use, spellName + " leaps from " + target.getDisplayName() + " to "
+                        + next.get().getDisplayName() + ".");
+            } else {
+                effectApplier.summary(encounter, use, spellName + " leaps from " + target.getDisplayName()
+                        + " to another creature of " + caster.getDisplayName() + "'s choice within 30 feet of it, "
+                        + "which it hasn't struck: the DM resolves it, as none was picked.");
+            }
+        }
+        return applied;
+    }
+
+    /*
+     * Life Transference (XGE p.160, D199): the caster takes the spell's necrotic damage, 4d8 and 1d8 more for each slot
+     * level above 3rd, which can't be reduced in any way, so it goes through no resistance or immunity, and each target
+     * regains the multiple of what was rolled, twice for Life Transference. Temporary hit points still take it first,
+     * as they take any damage (PHB p.198; rules call). What the log adds.
+     */
+    private String transfer(Encounter encounter, EncounterParticipant caster, String spellName, Effect effect,
+                            int multiple, List<EncounterParticipant> targets, int empoweredDice) {
+        Effect own = new Effect(spellName, new Effect.Automatic(), effect.damage(), null, List.of(), false, null);
+        Resolver.TargetOutcome rolled = resolver.resolve(own, List.of(stats.target(caster, own)), empoweredDice)
+                .getFirst();
+        int amount = rolled.damage().stream().mapToInt(Resolver.Damage::amount).sum();
+        String type = effect.damage().isEmpty() ? null : effect.damage().getFirst().type();
+        effectApplier.damage(encounter, caster, caster.getDisplayName() + "'s " + spellName, caster, amount, null);
+        String note = caster.getDisplayName() + " takes " + amount + (type != null ? " " + type : "")
+                + " damage, which can't be reduced";
+        for (EncounterParticipant target : targets) {
+            if (target.getLifeState() != LifeState.DEAD) {
+                effectApplier.heal(encounter, caster, target, amount * multiple, spellName + ": " + multiple
+                        + " times the " + amount + " damage " + caster.getDisplayName() + " took");
+                note += ", and " + target.getDisplayName() + " regains up to " + amount * multiple + " hit points";
+            }
+        }
+        return " " + note + ".";
+    }
+
+    /**
+     * The start of a creature's turn for the triggers the engine applies itself (D199): each Spell Effect whose spell
+     * has a trigger at the start of a turn for a condition the creature has from that effect's caster acts on it now,
+     * as Searing Smite's flames, a Constitution save against 1d6 fire, a success ending the spell (PHB p.274), and
+     * Ensnaring Strike's thorns, 1d6 piercing, more with a higher slot (PHB p.237). The DC is the caster's when cast.
+     */
+    public void conditionedTriggersAtTurnStart(Encounter encounter, EncounterParticipant creature) {
+        if (creature.getLifeState() == LifeState.DEAD || EncounterTurns.dismissed(creature)
+                || CombatAccess.banished(creature)) {
+            return;
+        }
+        for (EncounterParticipant caster : List.copyOf(encounter.getParticipants())) {
+            for (SpellEffectEntry effect : EffectApplier.effects(caster)) {
+                List<SpellTemplate.EffectTrigger> triggers = spellEffects.conditionedTriggers(effect.spell(),
+                        SpellTrigger.START_OF_TURN);
+                boolean held = triggers.stream().anyMatch(trigger -> hasFrom(creature, trigger.onConditioned(),
+                        effect.spell(), caster));
+                if (!held || EffectApplier.effects(caster).stream().noneMatch(e -> e.id().equals(effect.id()))) {
+                    continue;
+                }
+                int dc = effect.rider() != null ? effect.rider().saveDc()
+                        : caster.getSpellSaveDc() != null ? caster.getSpellSaveDc() : 10;
+                try {
+                    trigger(encounter, caster, effect, SpellTrigger.START_OF_TURN, List.of(creature),
+                            caster.getSpellcastingAbility(),
+                            caster.getSpellAttackBonus() != null ? caster.getSpellAttackBonus() : 0, dc);
+                } catch (ConflictException unreachable) {
+                    // Nothing reaches the creature now, as inside Otiluke's Resilient Sphere (D185); the turn goes on
+                    effectApplier.summary(encounter, use(caster, effect.spell(), "", null), effect.spell()
+                            + " can't reach " + creature.getDisplayName() + " now: " + unreachable.getMessage());
+                }
+                if (creature.getLifeState() == LifeState.DEAD) {
+                    return;
+                }
+            }
+        }
+    }
+
+    /**
+     * What a spell that makes a weapon attack does once its attack has resolved (D199): Green-Flame Blade's fire leaps
+     * from the creature it hit to the one the caster picked (TCE p.107); Booming Blade sheathes the creature it hit in
+     * booming energy until the start of the caster's next turn, a Spell Effect the DM uses on it, as no map shows its
+     * moving, dealing its thunder and ending the spell (TCE p.106). What the log adds.
+     */
+    public String afterWeaponAttack(Encounter encounter, EncounterParticipant caster, String spellName,
+                                    EffectApplier.Use use, EffectApplier.Applied attack,
+                                    List<EncounterParticipant> picked, String castingAbility, int attackBonus,
+                                    int saveDc) {
+        boolean hit = attack.outcome().outcome() == Outcome.HIT || attack.outcome().outcome() == Outcome.CRITICAL;
+        if (!hit) {
+            return "";
+        }
+        afterAttack(encounter, caster, spellName, 0, use, List.of(attack), picked, castingAbility, attackBonus,
+                saveDc);
+        if (spellEffects.lasting(spellName, 0).isEmpty() || attack.target().getLifeState() == LifeState.DEAD) {
+            return "";
+        }
+        SpellEffectEntry effect = effectApplier.startEffect(encounter, caster, spellName, null, null,
+                spellEffects.templateRounds(spellName), null, true);
+        effectApplier.addAffected(caster, effect.id(), List.of(attack.target()));
+        String reminder = spellEffects.castReminder(spellName);
+        String text = attack.target().getDisplayName() + " is sheathed in " + spellName + " until the start of "
+                + caster.getDisplayName() + "'s next turn" + (reminder != null ? ": " + reminder : ".");
+        effectApplier.summary(encounter, use, text);
+        return " " + text;
     }
 
     /*
@@ -1287,10 +1636,12 @@ public class SpellCaster {
         SpellEffectEntry.EffectSave save = plan.repeatSave() != null
                 ? new SpellEffectEntry.EffectSave(plan.repeatSave(), modifiers.saveDc()) : null;
         // A spell whose effect outlives its spent rider, as Banishing Smite's banishment (PHB p.216, D187), doesn't end
-        // with its last modifier
+        // with its last modifier, nor does one whose rider's follow-up decides whether it goes on, as Wrathful Smite's
+        // fear (PHB p.289, D199)
         effectApplier.startModifiers(encounter, caster, effect.id(), modifiers.affected(), plan.modifiers(),
                 plan.option(), save, plan.endReminder(),
-                lasting.isEmpty() && !spellEffects.fifthLevel(spellName).keepsEffect());
+                lasting.isEmpty() && !spellEffects.fifthLevel(spellName).keepsEffect()
+                        && !spellEffects.hitRider(spellName));
         effectApplier.spendBudget(encounter, caster, effect.id(), dealt);
         if (modifiers.affected().isEmpty()) {
             return notes;
@@ -1496,7 +1847,10 @@ public class SpellCaster {
         String spellName = spellEffect.spell();
         SpellEffects.SpellPlan plan = spellEffects.forTrigger(spellName, when, spellEffect.castLevel(), caster,
                 castingAbility, attackBonus, saveDc);
-        String moment = switch (when) {
+        // A trigger on the creatures with its condition acts at their own turn, there being no area (D199)
+        boolean onCondition = !spellEffects.conditionedTriggers(spellName, when).isEmpty();
+        String moment = onCondition ? when == SpellTrigger.END_OF_TURN ? "at the end of its turn"
+                : "at the start of its turn" : switch (when) {
             case ENTER -> "entering it";
             case START_OF_TURN -> "starting a turn in it";
             case END_OF_TURN -> "ending a turn in it";
@@ -1504,7 +1858,8 @@ public class SpellCaster {
         EffectApplier.Use use = new EffectApplier.Use(caster, caster.getDisplayName(),
                 CombatActionType.SPELL_EFFECT_REPEAT, spellName + " (" + moment + ")", "on", spellName,
                 instanceOf(caster, spellEffect));
-        String lead = caster.getDisplayName() + "'s " + spellName + " acts on a creature " + moment;
+        String lead = caster.getDisplayName() + "'s " + spellName + " acts on "
+                + (onCondition ? names(targets) : "a creature") + " " + moment;
 
         if (!plan.automated()) {
             String summary = lead + " — " + plan.manualReason();

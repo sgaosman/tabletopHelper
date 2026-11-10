@@ -206,6 +206,58 @@ public class AttackService {
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 
+    /**
+     * The melee weapon attack a spell makes as part of its casting, as Booming Blade's and Green-Flame Blade's (TCE
+     * p.106-107, D199): the caster's own weapon attack with the weapon named, or its first melee weapon, as an attack
+     * from this service would be, its numbers, the caster's Ongoing Modifiers and riders all counting, with the spell's
+     * damage added to its dice, so a critical hit doubles it too (PHB p.196). The cast has already been charged, so the
+     * attack charges nothing; a hit can be followed by Divine Smite as any melee weapon hit can.
+     *
+     * @param extra the spell's damage on the hit, as Green-Flame Blade's 1d8 fire from 5th level; empty for none
+     * @throws ValidationException a caster that isn't a player character, without such a weapon, or with a ranged one
+     */
+    public EffectApplier.Applied spellWeaponAttack(Encounter encounter, EncounterParticipant caster,
+                                                   EncounterParticipant target, String weaponName, String spellName,
+                                                   List<Effect.DamagePart> extra, Boolean advantage) {
+        if (caster.getCharacter() == null) {
+            throw new ValidationException(spellName + " makes a melee attack with a weapon its caster holds, and "
+                    + caster.getDisplayName() + " has no weapons to choose from: the DM resolves it");
+        }
+        String weapon = weaponName != null ? weaponName : weapons(caster, caster.getCharacter()).stream()
+                .map(CharacterWeapons.Held::weapon)
+                .filter(held -> !held.ranged() && held != WeaponRules.UNARMED_STRIKE)
+                .map(WeaponRules.Weapon::name)
+                .findFirst()
+                .orElseThrow(() -> new ValidationException(caster.getDisplayName() + " holds no melee weapon for "
+                        + spellName));
+        AttackRollRequest request = new AttackRollRequest();
+        request.setTargetId(target.getId());
+        request.setWeapon(weapon);
+        request.setWithin5Ft(true);
+        request.setAdvantage(advantage);
+        Prepared attack = weaponAttack(encounter, caster, target, request, AttackCost.ACTION);
+        if (!attack.melee() || attack.weapon() == WeaponRules.UNARMED_STRIKE) {
+            throw new ValidationException(spellName + " needs a melee weapon, and "
+                    + (attack.weapon() == WeaponRules.UNARMED_STRIKE ? "an unarmed strike" : "the "
+                    + attack.weapon().name()) + " isn't one");
+        }
+        Effect effect = attack.effect();
+        List<Effect.DamagePart> damage = new ArrayList<>(effect.damage());
+        damage.addAll(extra);
+        Effect withSpell = new Effect(effect.name() + " (" + spellName + ")", effect.delivery(), damage,
+                effect.healing(), effect.conditions(), effect.concentration(), effect.durationRounds(),
+                effect.conditionEnds());
+        effectApplier.markAttackedOrDamaged(caster);
+        EffectApplier.Use use = new EffectApplier.Use(caster, caster.getDisplayName(), CombatActionType.ATTACK,
+                "uses " + withSpell.name(), "on", "", null);
+        List<Resolver.TargetOutcome> outcomes = resolver.resolve(withSpell, CreatureStats.side(caster),
+                List.of(stats.target(target, withSpell, caster)));
+        List<EffectApplier.Applied> applied = effectApplier.apply(encounter, use, withSpell,
+                attack.halved() ? Enfeeblement.halved(outcomes) : outcomes);
+        recordHit(encounter, caster, target, attack, applied.getFirst());
+        return applied.getFirst();
+    }
+
     // ── Decided after the roll ───────────────────────────────────
 
     /**
