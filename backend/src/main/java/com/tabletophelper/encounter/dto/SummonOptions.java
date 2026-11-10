@@ -105,6 +105,8 @@ public record SummonOptions(
      *
      * @param monsterId        its stat block's row
      * @param armourClass      its AC
+     * @param armourClasses    its AC by variant, where a variant adds to it, as the Celestial Spirit Defender's 2 (TCE
+     *                         p.110)
      * @param hitPoints        its hit points by variant
      * @param attacks          how many attacks its Multiattack makes
      * @param attackBonus      its attack bonus, the caster's spell attack bonus
@@ -114,6 +116,7 @@ public record SummonOptions(
             @Schema(requiredMode = REQUIRED) UUID monsterId,
             @Schema(requiredMode = REQUIRED) String name,
             @Schema(requiredMode = REQUIRED) int armourClass,
+            @Schema(requiredMode = REQUIRED) Map<String, Integer> armourClasses,
             @Schema(requiredMode = REQUIRED) Map<String, Integer> hitPoints,
             @Schema(requiredMode = REQUIRED) int attacks,
             @Schema(requiredMode = REQUIRED) int attackBonus,

@@ -199686,5 +199686,120 @@
         ]
       }
     ]
+  },
+  {
+    "monsterName": "Animated Object (Tiny)",
+    "source": "PHB",
+    "actions": [
+      {
+        "name": "Slam",
+        "actionType": "ACTION",
+        "deliveryMethod": "ATTACK_ROLL",
+        "attackType": "MELEE_WEAPON",
+        "attackBonus": 8,
+        "reach": 5,
+        "targetCount": 1,
+        "effects": [
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1d4 + 4",
+            "damageType": "bludgeoning"
+          }
+        ],
+        "dmNote": "The DM might rule that an object's slam deals slashing or piercing damage instead, by its form"
+      }
+    ]
+  },
+  {
+    "monsterName": "Animated Object (Small)",
+    "source": "PHB",
+    "actions": [
+      {
+        "name": "Slam",
+        "actionType": "ACTION",
+        "deliveryMethod": "ATTACK_ROLL",
+        "attackType": "MELEE_WEAPON",
+        "attackBonus": 6,
+        "reach": 5,
+        "targetCount": 1,
+        "effects": [
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1d8 + 2",
+            "damageType": "bludgeoning"
+          }
+        ],
+        "dmNote": "The DM might rule that an object's slam deals slashing or piercing damage instead, by its form"
+      }
+    ]
+  },
+  {
+    "monsterName": "Animated Object (Medium)",
+    "source": "PHB",
+    "actions": [
+      {
+        "name": "Slam",
+        "actionType": "ACTION",
+        "deliveryMethod": "ATTACK_ROLL",
+        "attackType": "MELEE_WEAPON",
+        "attackBonus": 5,
+        "reach": 5,
+        "targetCount": 1,
+        "effects": [
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6 + 1",
+            "damageType": "bludgeoning"
+          }
+        ],
+        "dmNote": "The DM might rule that an object's slam deals slashing or piercing damage instead, by its form"
+      }
+    ]
+  },
+  {
+    "monsterName": "Animated Object (Large)",
+    "source": "PHB",
+    "actions": [
+      {
+        "name": "Slam",
+        "actionType": "ACTION",
+        "deliveryMethod": "ATTACK_ROLL",
+        "attackType": "MELEE_WEAPON",
+        "attackBonus": 6,
+        "reach": 5,
+        "targetCount": 1,
+        "effects": [
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d10 + 2",
+            "damageType": "bludgeoning"
+          }
+        ],
+        "dmNote": "The DM might rule that an object's slam deals slashing or piercing damage instead, by its form"
+      }
+    ]
+  },
+  {
+    "monsterName": "Animated Object (Huge)",
+    "source": "PHB",
+    "actions": [
+      {
+        "name": "Slam",
+        "actionType": "ACTION",
+        "deliveryMethod": "ATTACK_ROLL",
+        "attackType": "MELEE_WEAPON",
+        "attackBonus": 8,
+        "reach": 5,
+        "targetCount": 1,
+        "effects": [
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d12 + 4",
+            "damageType": "bludgeoning"
+          }
+        ],
+        "dmNote": "The DM might rule that an object's slam deals slashing or piercing damage instead, by its form"
+      }
+    ]
   }
 ]

@@ -75,8 +75,9 @@ class CastingTimeTest {
             }
         }
 
-        assertEquals(new TreeSet<>(java.util.List.of("10_MINUTES", "1_HOUR", "1_MINUTE", "ACTION", "BONUS_ACTION",
-                "REACTION")), found);
+        // Awaken's 8 hours and Hallow's 24 (PHB p.216, p.249, D187)
+        assertEquals(new TreeSet<>(java.util.List.of("10_MINUTES", "1_HOUR", "1_MINUTE", "24_HOURS", "8_HOURS",
+                "ACTION", "BONUS_ACTION", "REACTION")), found);
         assertEquals(CastingTime.ACTION, CastingTime.of("ACTION"));
         assertEquals(CastingTime.BONUS_ACTION, CastingTime.of("BONUS_ACTION"));
         assertEquals(CastingTime.REACTION, CastingTime.of("REACTION"));

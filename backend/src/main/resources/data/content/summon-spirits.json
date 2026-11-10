@@ -685,6 +685,156 @@
           ]
         }
       ]
+    },
+    {
+      "spell": "Summon Celestial",
+      "monster": "Celestial Spirit",
+      "source": "TCE",
+      "page": 110,
+      "baseLevel": 5,
+      "acBase": 11,
+      "attack": null,
+      "actions": [
+        {
+          "name": "Healing Touch (1/Day)",
+          "actionType": "ACTION",
+          "automatable": false,
+          "description": "The celestial touches another creature. The target magically regains hit points equal to 2d8 + SPELL_LEVEL.",
+          "dmNote": "Once a day: the creature it touches regains 2d8 + SPELL_LEVEL hit points; the DM applies them"
+        }
+      ],
+      "bonusActions": [],
+      "variants": [
+        {
+          "name": "Avenger",
+          "hpBase": 40,
+          "hpPerLevel": 10,
+          "attack": "Radiant Bow",
+          "actions": [
+            {
+              "name": "Radiant Bow",
+              "actionType": "ACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "RANGED_WEAPON",
+              "attackBonus": "SPELL_ATTACK",
+              "range": {
+                "normal": 150,
+                "long": 600
+              },
+              "targetCount": 1,
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "2d6 + 2 + LEVEL",
+                  "damageType": "radiant"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Defender",
+          "hpBase": 40,
+          "hpPerLevel": 10,
+          "attack": "Radiant Mace",
+          "acBonus": 2,
+          "actions": [
+            {
+              "name": "Radiant Mace",
+              "actionType": "ACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "MELEE_WEAPON",
+              "attackBonus": "SPELL_ATTACK",
+              "reach": 5,
+              "targetCount": 1,
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "1d10 + 3 + LEVEL",
+                  "damageType": "radiant"
+                }
+              ],
+              "dmNote": "On a hit, the celestial can choose itself or another creature it can see within 10 feet of the target, which gains 1d10 temporary hit points; the DM applies them"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "spell": "Summon Draconic Spirit",
+      "monster": "Draconic Spirit",
+      "source": "FTD",
+      "page": 21,
+      "baseLevel": 5,
+      "acBase": 14,
+      "attack": "Rend",
+      "actions": [
+        {
+          "name": "Rend",
+          "actionType": "ACTION",
+          "deliveryMethod": "ATTACK_ROLL",
+          "attackType": "MELEE_WEAPON",
+          "attackBonus": "SPELL_ATTACK",
+          "reach": 10,
+          "targetCount": 1,
+          "effects": [
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "1d6 + 4 + LEVEL",
+              "damageType": "piercing"
+            }
+          ]
+        },
+        {
+          "name": "Breath Weapon",
+          "actionType": "ACTION",
+          "automatable": false,
+          "description": "The dragon exhales destructive energy in a 30-foot cone. Each creature in that area must make a DC SPELL_DC Dexterity saving throw, taking 2d6 damage of a type this dragon has resistance to (the caster's choice) on a failed save, or half as much damage on a successful one.",
+          "dmNote": "30-foot cone: each creature makes a DC SPELL_DC Dexterity save, taking 2d6 damage of a type the spirit resists (the caster's choice) on a failure and half on a success; the DM applies it"
+        }
+      ],
+      "bonusActions": [],
+      "multiattackExtra": [
+        "Breath Weapon"
+      ],
+      "variants": [
+        {
+          "name": "Chromatic",
+          "hpBase": 50,
+          "hpPerLevel": 10,
+          "damageResistances": [
+            "acid",
+            "cold",
+            "fire",
+            "lightning",
+            "poison"
+          ]
+        },
+        {
+          "name": "Gem",
+          "hpBase": 50,
+          "hpPerLevel": 10,
+          "damageResistances": [
+            "force",
+            "necrotic",
+            "psychic",
+            "radiant",
+            "thunder"
+          ]
+        },
+        {
+          "name": "Metallic",
+          "hpBase": 50,
+          "hpPerLevel": 10,
+          "damageResistances": [
+            "acid",
+            "cold",
+            "fire",
+            "lightning",
+            "poison"
+          ]
+        }
+      ]
     }
   ]
 }

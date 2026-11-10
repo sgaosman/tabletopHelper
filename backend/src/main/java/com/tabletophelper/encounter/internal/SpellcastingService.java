@@ -124,6 +124,13 @@ public class SpellcastingService {
         if (summon == null && request.getSummon() != null) {
             throw new ValidationException(payment.spellName() + " summons no creatures");
         }
+        // Summon Draconic Spirit's Shared Resistances is one of the spirit's own resistances (FTD p.21)
+        if (summon != null && summon.plan() != null && summon.plan().variant() != null && option != null
+                && !summon.plan().variant().damageResistances().isEmpty()
+                && summon.plan().variant().damageResistances().stream().noneMatch(option::equalsIgnoreCase)) {
+            throw new ValidationException("The " + summon.plan().variant().name() + " spirit doesn't resist "
+                    + option + "; choose one of " + String.join(", ", summon.plan().variant().damageResistances()));
+        }
 
         String costNote = quickened ? costNote(CastingTime.BONUS_ACTION) : costNote(payment.castingTime());
         Charge.SpellKind kind = payment.spellLevel() == 0 ? Charge.SpellKind.CANTRIP : Charge.SpellKind.LEVELLED;
@@ -146,7 +153,7 @@ public class SpellcastingService {
                 saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote, metamagic, summon,
                 option);
         if (summon != null) {
-            summoner.afterCast(encounter, caster, summon, payment.castLevel(),
+            summoner.afterCast(encounter, caster, summon, payment.castLevel(), own.ability(),
                     attackBonus(own, request.getOverrideSpellAttackBonus()),
                     saveDc(own, request.getOverrideSpellSaveDC()), "");
         }

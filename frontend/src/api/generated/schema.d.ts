@@ -3970,6 +3970,7 @@ export interface components {
         SpellEffectResponse: {
             affectedIds: string[];
             concentration: boolean;
+            controlledIds: string[];
             /** Format: int32 */
             damageLeft?: number | null;
             delayed: components["schemas"]["DelayedDamage"][];
@@ -3993,6 +3994,8 @@ export interface components {
             startedRound: number;
             summon?: components["schemas"]["SummonSpec"] | null;
             summonedParticipantIds: string[];
+            tallies: components["schemas"]["Tally"][];
+            tallyRule?: string | null;
             triggers: ("ENTER" | "START_OF_TURN" | "END_OF_TURN")[];
             /** Format: int32 */
             usesLeft?: number | null;
@@ -4073,6 +4076,9 @@ export interface components {
         SpiritPreview: {
             /** Format: int32 */
             armourClass: number;
+            armourClasses: {
+                [key: string]: number;
+            };
             /** Format: int32 */
             attackBonus: number;
             /** Format: int32 */
@@ -4170,7 +4176,7 @@ export interface components {
             /** @enum {string|null} */
             initiativeMode?: "FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL" | null;
             /** @enum {string|null} */
-            kind?: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | "CONJURE" | "GIANT_INSECT" | "GREATER_DEMON" | null;
+            kind?: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | "CONJURE" | "GIANT_INSECT" | "GREATER_DEMON" | "CONJURE_ELEMENTAL" | "INFERNAL_CALLING" | "ANIMATE_OBJECTS" | "DANSE_MACABRE" | null;
             needsCommand?: boolean | null;
             /** Format: int32 */
             slotLevel?: number | null;
@@ -4195,7 +4201,7 @@ export interface components {
             houseRuleModes: ("FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL")[];
             initiativeModes: ("FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL")[];
             /** @enum {string} */
-            kind: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | "CONJURE" | "GIANT_INSECT" | "GREATER_DEMON";
+            kind: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | "CONJURE" | "GIANT_INSECT" | "GREATER_DEMON" | "CONJURE_ELEMENTAL" | "INFERNAL_CALLING" | "ANIMATE_OBJECTS" | "DANSE_MACABRE";
             /** Format: int32 */
             multiplier: number;
             needsCommand: boolean;
@@ -4217,6 +4223,15 @@ export interface components {
             roll?: number | null;
             /** @enum {string|null} */
             status?: "AWAITING_DM" | "PLACED" | null;
+        };
+        Tally: {
+            /** Format: uuid */
+            creature: string;
+            done: boolean;
+            /** Format: int32 */
+            failures: number;
+            /** Format: int32 */
+            successes: number;
         };
         TargetOutcome: {
             /** Format: int32 */

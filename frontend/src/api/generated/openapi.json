@@ -11909,6 +11909,7 @@
         "required": [
           "affectedIds",
           "concentration",
+          "controlledIds",
           "delayed",
           "directedResolves",
           "id",
@@ -11917,6 +11918,7 @@
           "spell",
           "startedRound",
           "summonedParticipantIds",
+          "tallies",
           "triggers"
         ],
         "type": "object",
@@ -11930,6 +11932,13 @@
           },
           "concentration": {
             "type": "boolean"
+          },
+          "controlledIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           },
           "damageLeft": {
             "type": "integer",
@@ -12011,6 +12020,16 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "tallies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tally"
+            }
+          },
+          "tallyRule": {
+            "type": "string",
+            "nullable": true
           },
           "triggers": {
             "type": "array",
@@ -12321,6 +12340,7 @@
       "SpiritPreview": {
         "required": [
           "armourClass",
+          "armourClasses",
           "attackBonus",
           "attacks",
           "hitPoints",
@@ -12333,6 +12353,13 @@
           "armourClass": {
             "type": "integer",
             "format": "int32"
+          },
+          "armourClasses": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
           },
           "attackBonus": {
             "type": "integer",
@@ -12683,7 +12710,11 @@
               "TINY_SERVANT",
               "CONJURE",
               "GIANT_INSECT",
-              "GREATER_DEMON"
+              "GREATER_DEMON",
+              "CONJURE_ELEMENTAL",
+              "INFERNAL_CALLING",
+              "ANIMATE_OBJECTS",
+              "DANSE_MACABRE"
             ]
           },
           "needsCommand": {
@@ -12819,7 +12850,11 @@
               "TINY_SERVANT",
               "CONJURE",
               "GIANT_INSECT",
-              "GREATER_DEMON"
+              "GREATER_DEMON",
+              "CONJURE_ELEMENTAL",
+              "INFERNAL_CALLING",
+              "ANIMATE_OBJECTS",
+              "DANSE_MACABRE"
             ]
           },
           "multiplier": {
@@ -12889,6 +12924,32 @@
               "AWAITING_DM",
               "PLACED"
             ]
+          }
+        }
+      },
+      "Tally": {
+        "required": [
+          "creature",
+          "done",
+          "failures",
+          "successes"
+        ],
+        "type": "object",
+        "properties": {
+          "creature": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "failures": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "successes": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },

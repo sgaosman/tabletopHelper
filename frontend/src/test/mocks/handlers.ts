@@ -577,7 +577,7 @@ export function makeMockSpellEffect(spell = 'Spiritual Weapon', overrides: Parti
     id: `effect-${spell.toLowerCase().replace(/[^a-z]+/g, '-')}`, spell, slotLevel: 2, concentration: false,
     startedRound: 1, durationRounds: 10, usesLeft: null, directedCost: 'BONUS_ACTION', directedResolves: true,
     maxUsesEachTurn: null, triggers: [], summonedParticipantIds: [], affectedIds: [], modifiers: [],
-    retargetable: false, delayed: [],
+    retargetable: false, delayed: [], tallies: [], controlledIds: [],
   } satisfies SpellEffect;
   return { ...effect, ...overrides };
 }
@@ -737,7 +737,7 @@ export function makeMockSpiritOptions(overrides: Partial<SummonOptions> = {}): S
     variants: ['Air', 'Land', 'Water'], initiativeModes: ['FOLLOWS_CASTER'], defaultInitiativeMode: 'FOLLOWS_CASTER',
     houseRuleModes: [], creatureType: null,
     candidates: [{ monsterId: 'mon-bestial', name: 'Bestial Spirit', challengeRating: null, challengeRatingValue: null, hitPoints: 0, armourClass: 10, type: 'beast', size: 'S', source: 'TCE' }],
-    spirit: { monsterId: 'mon-bestial', name: 'Bestial Spirit', armourClass: 15, hitPoints: { Air: 30, Land: 40, Water: 40 }, attacks: 2, attackBonus: 7, saveDc: 15 },
+    spirit: { monsterId: 'mon-bestial', name: 'Bestial Spirit', armourClass: 15, armourClasses: { Air: 15, Land: 15, Water: 15 }, hitPoints: { Air: 30, Land: 40, Water: 40 }, attacks: 2, attackBonus: 7, saveDc: 15 },
     ...overrides,
   });
 }

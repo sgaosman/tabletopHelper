@@ -120,7 +120,7 @@ class CombatFixture {
     final SummonSpirits summonSpirits = SummonSpiritsFile.read(objectMapper);
     final SpiritTemplates spiritTemplates = new SpiritTemplates(summonSpirits, objectMapper);
     final Summoner summoner = new Summoner(monsterRepository, participantRepository, effectApplier, combatLog,
-            monsterPools, spiritTemplates, dice);
+            monsterPools, spiritTemplates, dice, stats);
 
     final HitPointService hitPoints = new HitPointService(access, effectApplier, encounterRepository, encounterService);
     final ConditionService conditionService =

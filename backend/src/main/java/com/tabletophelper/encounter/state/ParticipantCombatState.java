@@ -39,6 +39,9 @@ import java.util.UUID;
  * @param summon               what ties it to the spell that summoned it, with its caster's latest command (D182); null
  *                             for a creature nobody summoned, and in a snapshot taken before V34
  * @param exhaustionLevel      its exhaustion level (D183); null in a snapshot taken before V35, which leaves it as it is
+ * @param controlledByUserId   for a summoned creature, the user who acts for it, which Summon Greater Demon's demon
+ *                             (XGE p.166) and Conjure Elemental's elemental (PHB p.225) lose when they break free; null
+ *                             for one the DM runs, for anyone else and in an earlier snapshot, which leave it as it is
  */
 public record ParticipantCombatState(
         UUID id,
@@ -57,7 +60,21 @@ public record ParticipantCombatState(
         String lastLairActionUsed,
         @JsonInclude(JsonInclude.Include.NON_NULL) Boolean dismissed,
         @JsonInclude(JsonInclude.Include.NON_NULL) SummonLink summon,
-        @JsonInclude(JsonInclude.Include.NON_NULL) Integer exhaustionLevel) {
+        @JsonInclude(JsonInclude.Include.NON_NULL) Integer exhaustionLevel,
+        @JsonInclude(JsonInclude.Include.NON_NULL) UUID controlledByUserId) {
+
+    /** A state as snapshots recorded it before a summoned creature's controller was kept. */
+    public ParticipantCombatState(UUID id, Integer hpCurrent, Integer hpTemp, LifeState lifeState,
+                                  Integer deathSaveSuccesses, Integer deathSaveFailures, Boolean deathSaveDue,
+                                  List<ConditionEntry> activeConditions, ConcentrationInstance concentration,
+                                  List<SpellEffectEntry> activeEffects, Map<String, SpellSlot> spellSlotsCurrent,
+                                  List<ResourcePoolEntry> resourcePoolsCurrent, TurnEconomy turnEconomy,
+                                  String lastLairActionUsed, Boolean dismissed, SummonLink summon,
+                                  Integer exhaustionLevel) {
+        this(id, hpCurrent, hpTemp, lifeState, deathSaveSuccesses, deathSaveFailures, deathSaveDue, activeConditions,
+                concentration, activeEffects, spellSlotsCurrent, resourcePoolsCurrent, turnEconomy, lastLairActionUsed,
+                dismissed, summon, exhaustionLevel, null);
+    }
 
     /** A state as snapshots before V35 recorded it, without exhaustion. */
     public ParticipantCombatState(UUID id, Integer hpCurrent, Integer hpTemp, LifeState lifeState,
@@ -102,7 +119,8 @@ public record ParticipantCombatState(
                 participant.getLastLairActionUsed(),
                 Boolean.TRUE.equals(participant.getDismissed()),
                 participant.getSummon(),
-                participant.getExhaustionLevel() != null ? participant.getExhaustionLevel() : 0);
+                participant.getExhaustionLevel() != null ? participant.getExhaustionLevel() : 0,
+                participant.getSummon() != null ? participant.getControlledByUserId() : null);
     }
 
     /** Puts the state back on the participant, with lists and maps of its own that later commands may change. */
@@ -131,6 +149,10 @@ public record ParticipantCombatState(
         }
         if (exhaustionLevel != null) {
             participant.setExhaustionLevel(exhaustionLevel);
+        }
+        // A summoned creature that broke free of its caster goes back to the caster's player (D182)
+        if (summon != null && controlledByUserId != null) {
+            participant.setControlledByUserId(controlledByUserId);
         }
     }
 

@@ -53,7 +53,8 @@ export function reachable(
 /**
  * What a Spell Effect keeps for later, in words for its card (D185): the damage it can still deal, as Guardian of
  * Faith's, what it deals back to a melee attacker, as Fire Shield's, and damage due at the end of a creature's next
- * turn, as Vitriolic Sphere's, naming the creature when it is known.
+ * turn, as Vitriolic Sphere's, naming the creature when it is known; and (D187) the creatures it controls and each
+ * creature's count of saves.
  */
 export function laterNotes(effect: SpellEffect, nameOf: (id: string) => string | undefined): string[] {
   const notes: string[] = [];
@@ -62,6 +63,18 @@ export function laterNotes(effect: SpellEffect, nameOf: (id: string) => string |
   for (const delayed of effect.delayed ?? []) {
     const name = nameOf(delayed.target);
     notes.push(`${delayed.dice} ${delayed.type} to ${name ?? 'a creature'} at the end of its next turn`);
+  }
+  // The 5th-level spells (D187): creatures it controls, as Dominate Person's, and each creature's count of saves, as
+  // Contagion's, from its rule such as "CON 3/3"
+  const controlled = (effect.controlledIds ?? []).map(id => nameOf(id) ?? 'a creature');
+  if (controlled.length > 0) notes.push(`controls ${controlled.join(', ')}`);
+  const [ability, counts] = (effect.tallyRule ?? '').split(' ');
+  const [successes, failures] = (counts ?? '').split('/');
+  for (const tally of effect.tallies ?? []) {
+    const name = nameOf(tally.creature) ?? 'a creature';
+    notes.push(tally.done
+      ? `${name}: ${ability} saves done (${tally.successes} successes, ${tally.failures} failures)`
+      : `${name}: ${ability} saves ${tally.successes}/${successes} successes, ${tally.failures}/${failures} failures`);
   }
   return notes;
 }

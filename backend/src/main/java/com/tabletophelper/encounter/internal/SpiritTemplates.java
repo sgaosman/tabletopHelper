@@ -29,6 +29,8 @@ public class SpiritTemplates {
 
     private static final String SPELL_ATTACK = "SPELL_ATTACK";
     private static final String SPELL_DC = "SPELL_DC";
+    // The slot level in text, such as the Celestial Spirit's Healing Touch, "2d8 + the spell's level" (TCE p.110)
+    private static final String SPELL_LEVEL = "SPELL_LEVEL";
     private static final String DAMAGE_DICE = "damageDice";
 
     private final SummonSpirits spirits;
@@ -42,6 +44,14 @@ public class SpiritTemplates {
     /** The spirit's AC at this slot level. */
     public static int armourClass(SummonSpirits.Spirit spirit, int slotLevel) {
         return SpiritScaling.armourClass(spirit.acBase(), slotLevel);
+    }
+
+    /**
+     * The variant's AC at this slot level: the spirit's, plus what the variant adds, as the Celestial Spirit
+     * Defender's 2 (TCE p.110).
+     */
+    public static int armourClass(SummonSpirits.Spirit spirit, SummonSpirits.Variant variant, int slotLevel) {
+        return armourClass(spirit, slotLevel) + (variant != null && variant.acBonus() != null ? variant.acBonus() : 0);
     }
 
     /** The variant's hit points at this slot level. */
@@ -71,8 +81,12 @@ public class SpiritTemplates {
             multiattack.put("isMultiattack", true);
             ArrayNode components = multiattack.putArray("multiattackComponents");
             Collections.nCopies(attacks, attack).forEach(components::add);
+            // Beside its attacks, the Draconic Spirit uses its Breath Weapon (FTD p.21)
+            spirit.multiattackExtra().forEach(components::add);
             multiattack.put("multiattackDescription", "The spirit makes " + attacks + " attack"
-                    + (attacks != 1 ? "s" : "") + " with " + attack + ", half this spell's level rounded down.");
+                    + (attacks != 1 ? "s" : "") + " with " + attack + ", half this spell's level rounded down"
+                    + (spirit.multiattackExtra().isEmpty() ? "" : ", and uses "
+                    + String.join(" and ", spirit.multiattackExtra())) + ".");
         }
         add(actions, spirit.actions(), slotLevel, attackBonus, saveDc);
         add(actions, variant.actions(), slotLevel, attackBonus, saveDc);
@@ -91,7 +105,7 @@ public class SpiritTemplates {
     }
 
     // The template with its placeholders filled: SPELL_ATTACK and SPELL_DC as numbers where they stand alone and in
-    // words in text, and the slot level in damage dice
+    // words in text, and the slot level in damage dice and, as SPELL_LEVEL, in text
     private JsonNode filled(JsonNode node, String key, int slotLevel, int attackBonus, int saveDc) {
         if (node.isObject()) {
             ObjectNode copy = objectMapper.createObjectNode();
@@ -119,6 +133,7 @@ public class SpiritTemplates {
             return objectMapper.getNodeFactory().stringNode(SpiritScaling.damage(text, slotLevel));
         }
         return objectMapper.getNodeFactory().stringNode(text
+                .replace(SPELL_LEVEL, String.valueOf(slotLevel))
                 .replace(SPELL_DC, String.valueOf(saveDc))
                 .replace(SPELL_ATTACK, (attackBonus >= 0 ? "+" : "") + attackBonus));
     }

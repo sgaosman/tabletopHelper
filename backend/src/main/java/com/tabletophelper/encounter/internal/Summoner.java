@@ -14,6 +14,7 @@ import com.tabletophelper.encounter.state.SummonLink;
 import com.tabletophelper.encounter.state.SummonSpec;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Rng;
 import com.tabletophelper.rules.combat.SummonRules;
@@ -23,6 +24,8 @@ import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,6 +57,9 @@ import java.util.UUID;
  *       Steed's and Find Greater Steed's replacing each other (XGE p.156).</li>
  *   <li>A spirit's variant may resist or ignore damage its stat block's row doesn't, such as the Fire Elemental Spirit's
  *       immunity to fire (TCE p.111); the creature carries those defences.</li>
+ *   <li>Animate Objects counts its objects by size (PHB p.213), and its stat blocks' hit points, which the bestiary
+ *       gives only in words, come from {@link SummonRules#statBlockHitPoints}. Danse Macabre's undead add the caster's
+ *       spellcasting ability modifier to their attack and damage rolls (XGE p.153), kept in templates of their own.</li>
  * </ul>
  */
 @Component
@@ -67,6 +73,7 @@ public class Summoner {
     private final MonsterPools monsterPools;
     private final SpiritTemplates spiritTemplates;
     private final Rng rng;
+    private final CreatureStats stats;
 
     /** Creatures of one stat block, as checked. */
     public record Picked(Monster monster, int count) {
@@ -189,7 +196,10 @@ public class Summoner {
                     });
             picked.add(new Picked(monster, entry.getValue()));
         }
-        int total = picked.stream().mapToInt(Picked::count).sum();
+        // Animate Objects counts a Medium object as two, a Large as four and a Huge as eight (PHB p.213)
+        int total = picked.stream()
+                .mapToInt(p -> p.count() * SummonRules.weight(spell, p.monster().getSize()))
+                .sum();
         SummonRules.countRefusal(spell, option, total).ifPresent(reason -> {
             throw new ValidationException(reason);
         });
@@ -201,11 +211,13 @@ public class Summoner {
      * concentration the casting started, and the creatures, or a summoning that waits for the DM. Summon Lesser Demons
      * rolls its d6 here (XGE p.167).
      *
+     * @param ability     the ability the spell is cast with, whose modifier Danse Macabre's undead add (XGE p.153);
+     *                    null for the caster's main one
      * @param attackBonus the caster's spell attack bonus for this cast, which a Tasha's spirit attacks with
      * @param saveDc      the caster's spell save DC for this cast
      */
     public SpellEffectEntry afterCast(Encounter encounter, EncounterParticipant caster, Prepared prepared,
-                                      int slotLevel, int attackBonus, int saveDc, String how) {
+                                      int slotLevel, String ability, int attackBonus, int saveDc, String how) {
         SummonRules.Spell spell = prepared.spell();
         ConcentrationInstance instance = concentrationOn(caster, spell);
         replaceOneAtATime(encounter, caster, spell);
@@ -238,7 +250,7 @@ public class Summoner {
         SpellEffectEntry effect = effectApplier.startSummonEffect(encounter, caster, spell.name(), slotLevel,
                 instance, duration, new SummonSpec(prepared.plan().option().id(), multiplier, null,
                         SummonSpec.Status.PLACED));
-        place(encounter, caster, effect, prepared.plan(), attackBonus, saveDc, how, null);
+        place(encounter, caster, effect, prepared.plan(), ability, attackBonus, saveDc, how, null);
         return effect;
     }
 
@@ -281,7 +293,7 @@ public class Summoner {
         SpellEffectEntry effect = effectApplier.startSummonEffect(encounter, caster, spell.name(), plan.slotLevel(),
                 instance, spell.durationRounds(), new SummonSpec(plan.option().id(),
                         SummonRules.multiplier(spell, plan.slotLevel()), null, SummonSpec.Status.PLACED));
-        place(encounter, caster, effect, plan, numberOr(caster.getSpellAttackBonus(), 0),
+        place(encounter, caster, effect, plan, null, numberOr(caster.getSpellAttackBonus(), 0),
                 numberOr(caster.getSpellSaveDc(), 10), " (placed by the DM, no slot spent)", displayName);
         return effect;
     }
@@ -299,7 +311,7 @@ public class Summoner {
             }
         }
         SpellEffectEntry placed = effectApplier.updateSummon(caster, effect.id(), spec.placed(plan.option().id()));
-        place(encounter, caster, placed, plan, numberOr(caster.getSpellAttackBonus(), 0),
+        place(encounter, caster, placed, plan, null, numberOr(caster.getSpellAttackBonus(), 0),
                 numberOr(caster.getSpellSaveDc(), 10), " (chosen by the DM)", null);
     }
 
@@ -312,11 +324,17 @@ public class Summoner {
 
     // ── Making the creatures ─────────────────────────────────────
 
-    // displayName: the creatures' name in place of their stat block's, numbered when there are several
+    // displayName: the creatures' name in place of their stat block's, numbered when there are several; ability: the
+    // one the spell was cast with, or null for the caster's main one
     private void place(Encounter encounter, EncounterParticipant caster, SpellEffectEntry effect, Plan plan,
-                       int attackBonus, int saveDc, String how, String displayName) {
+                       String ability, int attackBonus, int saveDc, String how, String displayName) {
         int total = plan.picked().stream().mapToInt(Picked::count).sum();
         SummonRules.Spell spell = plan.spell();
+        // Danse Macabre's undead add the caster's spellcasting ability modifier to attack and damage rolls (XGE p.153)
+        Integer castersModifier = spell.addsSpellcastingModifier()
+                ? stats.spellcastingModifier(caster, ability != null ? ability : caster.getSpellcastingAbility(),
+                        attackBonus)
+                : null;
         int sortOrder = encounter.getParticipants().stream()
                 .map(EncounterParticipant::getSortOrder).filter(Objects::nonNull)
                 .mapToInt(Integer::intValue).max().orElse(-1) + 1;
@@ -385,13 +403,19 @@ public class Summoner {
                     int hp = SpiritTemplates.hitPoints(plan.spirit(), plan.variant(), plan.slotLevel());
                     creature.setHpMax(hp);
                     creature.setHpCurrent(hp);
-                    creature.setArmourClass(SpiritTemplates.armourClass(plan.spirit(), plan.slotLevel()));
+                    creature.setArmourClass(SpiritTemplates.armourClass(plan.spirit(), plan.variant(),
+                            plan.slotLevel()));
                     creature.setActionTemplates(spiritTemplates.templates(plan.spirit(), plan.variant(),
                             plan.slotLevel(), attackBonus, saveDc));
                 } else {
-                    int hp = monster.getHitPoints() != null && monster.getHitPoints() > 0 ? monster.getHitPoints() : 1;
+                    // Animate Objects' stat blocks give their hit points only in words (PHB p.213)
+                    int hp = monster.getHitPoints() != null && monster.getHitPoints() > 0 ? monster.getHitPoints()
+                            : SummonRules.statBlockHitPoints(monster.getName()).orElse(1);
                     creature.setHpMax(hp);
                     creature.setHpCurrent(hp);
+                    if (castersModifier != null) {
+                        creature.setActionTemplates(withBonus(MonsterTemplates.of(monster), castersModifier));
+                    }
                 }
                 encounter.getParticipants().add(creature);
                 // Saved at once, so it has an ID for the turn order, its log entries and undo
@@ -400,7 +424,44 @@ public class Summoner {
         }
         combatLog.write(encounter, CombatActionType.SUMMON, caster.getDisplayName() + "'s " + spell.name()
                 + " summons " + names(made) + initiativeNote(plan.initiativeMode(), made) + how
-                + controlNote(spell, saveDc), caster, null);
+                + controlNote(spell, saveDc)
+                + (castersModifier != null ? ", each adding " + signed(castersModifier) + " to its attack and damage "
+                        + "rolls (XGE p.153)" : ""), caster, null);
+    }
+
+    /**
+     * The stat block's actions with a bonus to every attack roll and to the damage of its hits, as Danse Macabre's
+     * undead have the caster's spellcasting ability modifier (XGE p.153).
+     */
+    MonsterTemplates withBonus(MonsterTemplates templates, int bonus) {
+        JsonNode json = templates.json();
+        if (json == null || !json.isObject()) {
+            return templates;
+        }
+        ObjectNode copy = (ObjectNode) json.deepCopy();
+        for (String list : List.of("actions", "bonusActions", "reactions")) {
+            for (JsonNode action : copy.path(list)) {
+                if (!(action instanceof ObjectNode attack)
+                        || !"ATTACK_ROLL".equalsIgnoreCase(attack.path("deliveryMethod").asString(""))) {
+                    continue;
+                }
+                if (attack.path("attackBonus").isNumber()) {
+                    attack.put("attackBonus", attack.path("attackBonus").asInt() + bonus);
+                }
+                for (JsonNode part : attack.path("effects")) {
+                    if (part instanceof ObjectNode effect && "DAMAGE".equalsIgnoreCase(
+                            effect.path("effectType").asString("")) && effect.path("damageDice").isString()) {
+                        effect.put("damageDice", SummonRules.withFlatBonus(effect.path("damageDice").asString(),
+                                bonus));
+                    }
+                }
+            }
+        }
+        return MonsterTemplates.of(copy);
+    }
+
+    private static String signed(int number) {
+        return (number >= 0 ? "+" : "") + number;
     }
 
     // What the DM keeps in mind for a creature that may break free or that the DM runs
@@ -413,6 +474,16 @@ public class Summoner {
         if (spell.kind() == SummonRules.Kind.GIANT_INSECT) {
             return "; they obey the caster's commands and act on its turn, and the DM resolves their actions and "
                     + "movement (PHB p.245)";
+        }
+        if (spell.turnsHostileWhenConcentrationBreaks()) {
+            return "; if the caster's concentration is broken it doesn't disappear but turns hostile, out of the "
+                    + "caster's control, and disappears 1 hour after it was summoned (PHB p.225)";
+        }
+        if (spell.kind() == SummonRules.Kind.INFERNAL_CALLING) {
+            return "; it is unfriendly and the DM runs it. A command it dislikes needs the caster's Charisma "
+                    + "(Deception, Intimidation or Persuasion) check against its Wisdom (Insight), with advantage for "
+                    + "its true name; on a failure it ignores the caster's commands for the rest of the spell (XGE "
+                    + "p.158)";
         }
         return "";
     }

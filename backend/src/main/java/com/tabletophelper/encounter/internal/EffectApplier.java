@@ -36,6 +36,7 @@ import com.tabletophelper.rules.combat.Resolver;
 import com.tabletophelper.rules.combat.RollMode;
 import com.tabletophelper.rules.combat.RollModifiers;
 import com.tabletophelper.rules.combat.StandardActions;
+import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.rules.combat.Vitals;
 import com.tabletophelper.rules.combat.VitalsChange;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +46,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -108,6 +110,15 @@ public class EffectApplier {
     private final CombatLogWriter combatLog;
     private final ResourcePoolService resourcePoolService;
 
+    // The spells data, for a one-shot rider's hit-point threshold (D187); set by Spring, and absent in unit tests that
+    // build this by hand, which then check no threshold
+    private com.tabletophelper.reference.SpellRepository spellRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setSpellRepository(com.tabletophelper.reference.SpellRepository spellRepository) {
+        this.spellRepository = spellRepository;
+    }
+
     /**
      * Who uses an Effect, and how its entries read: the actor's name, the action and, for another target, the
      * preposition, as in "Wizard casts Fireball at Goblin" or "Rogue attacks Goblin".
@@ -122,6 +133,11 @@ public class EffectApplier {
      */
     public record Use(EncounterParticipant actor, String actorName, CombatActionType actionType, String action,
                       String preposition, String conditionSource, ConcentrationInstance instance) {
+
+        /** The same use with its conditions held by no Concentration Instance, so they keep their own ends (D187). */
+        public Use withoutInstance() {
+            return new Use(actor, actorName, actionType, action, preposition, conditionSource, null);
+        }
     }
 
     /**
@@ -317,6 +333,8 @@ public class EffectApplier {
                 hitCheck);
         afterHealing(encounter, target, healingChange);
         afterConditions(encounter, target, added);
+        // A one-shot rider's hit-point threshold, as Banishing Smite's (PHB p.216, D187), before it is spent
+        banishAtThreshold(encounter, target, outcome.spentOneShots());
         // The one-shot Ongoing Modifiers the roll used are spent (D184)
         spendModifiers(encounter, outcome.spentOneShots());
 
@@ -661,6 +679,7 @@ public class EffectApplier {
         target.setActiveConditions(conditions.isEmpty() ? null : conditions);
         combatLog.write(encounter, CombatActionType.CONDITION_REMOVE,
                 target.getDisplayName() + " loses condition: " + name, null, target);
+        releaseFreed(encounter);
     }
 
     // ── Turn boundaries ──────────────────────────────────────────
@@ -845,9 +864,10 @@ public class EffectApplier {
         caster.setConcentration(null);
         combatLog.write(encounter, CombatActionType.CONCENTRATION_LOST, caster.getDisplayName()
                 + " loses concentration on " + instance.spell() + (why != null ? " (" + why + ")" : ""), null, caster);
+        boolean broken = concentrationBroken(why);
         for (SpellEffectEntry effect : effects(caster)) {
             if (instance.id().equals(effect.concentrationInstanceId())) {
-                endEffect(encounter, caster, effect.id(), "concentration lost");
+                endEffect(encounter, caster, effect.id(), "concentration lost", broken);
             }
         }
 
@@ -917,6 +937,24 @@ public class EffectApplier {
      * @param why what ended it, for the log, such as "its duration ends"
      */
     public void endEffect(Encounter encounter, EncounterParticipant caster, UUID effectId, String why) {
+        endEffect(encounter, caster, effectId, why, false);
+    }
+
+    /*
+     * Whether the caster's concentration ending this way breaks it, rather than the spell ending as it would: its
+     * duration over, the caster leaving the encounter, or the spell ended by hand. Conjure Elemental's elemental stays
+     * when concentration is broken (PHB p.225); the plain reading takes anything else that ends concentration, such
+     * as damage, incapacitation or another concentration spell, as breaking it.
+     */
+    private static boolean concentrationBroken(String why) {
+        return why == null || !(why.endsWith("ended by hand") || "its duration ends".equals(why)
+                || "leaves the encounter".equals(why));
+    }
+
+    // As endEffect; when the caster's concentration was broken, a creature that stays then turns hostile instead of
+    // disappearing (Conjure Elemental, PHB p.225)
+    private void endEffect(Encounter encounter, EncounterParticipant caster, UUID effectId, String why,
+                           boolean concentrationBroken) {
         List<SpellEffectEntry> effects = new ArrayList<>(effects(caster));
         Optional<SpellEffectEntry> ended = effects.stream().filter(effect -> effect.id().equals(effectId)).findFirst();
         if (ended.isEmpty()) {
@@ -927,8 +965,13 @@ public class EffectApplier {
         combatLog.write(encounter, CombatActionType.SPELL_EFFECT_END, caster.getDisplayName() + "'s "
                 + ended.get().spell() + " ends (" + why + ")", null, caster);
         afterModifiersEnd(encounter, ended.get(), ended.get().affected());
+        if (concentrationBroken) {
+            turnHostile(encounter, effectId);
+        }
         // A summoning's creatures leave with it: its concentration lost, its duration over, or ended by hand (D182)
         dismissSummons(encounter, effectId, ended.get().spell() + " ends");
+        // The creatures it controlled go back to their controllers (D187)
+        releaseAll(encounter, caster, ended.get());
         // The exhaustion it gave goes with it, as Sickening Radiance's (XGE p.164, D185)
         for (SpellEffectEntry.ExhaustionGiven given : ended.get().exhaustion()) {
             encounter.getParticipants().stream()
@@ -1018,6 +1061,216 @@ public class EffectApplier {
         List<UUID> affected = new ArrayList<>(found.get().affected());
         creatures.stream().map(EncounterParticipant::getId).filter(id -> !affected.contains(id)).forEach(affected::add);
         replaceEffect(caster, found.get().withAffected(affected));
+    }
+
+    // ── What the 5th-level spells leave on a Spell Effect (D187) ─────
+
+    /*
+     * A hit whose one-shot rider has a hit-point threshold, as Banishing Smite's 5d10 (PHB p.216): a creature the hit left
+     * alive at the threshold or fewer hit points gets the template's condition, held by the spell's concentration, so it
+     * returns when the spell ends.
+     */
+    private void banishAtThreshold(Encounter encounter, EncounterParticipant target, Set<UUID> spent) {
+        if (spent == null || spent.isEmpty() || spellRepository == null || target.getLifeState() == LifeState.DEAD
+                || target.getHpCurrent() == null) {
+            return;
+        }
+        for (EncounterParticipant caster : List.copyOf(encounter.getParticipants())) {
+            for (SpellEffectEntry effect : effects(caster)) {
+                if (effect.modifiers().stream().noneMatch(modifier -> spent.contains(modifier.id()))) {
+                    continue;
+                }
+                com.tabletophelper.reference.SpellTemplate.HitThreshold threshold = spellRepository
+                        .findByNameIgnoreCase(effect.spell())
+                        .map(com.tabletophelper.reference.Spell::getEffectTemplate)
+                        .flatMap(template -> template.readable(effect.spell() + "'s effect template"))
+                        .map(com.tabletophelper.reference.SpellTemplate::hitThreshold)
+                        .orElse(null);
+                if (threshold == null || target.getHpCurrent() > threshold.hp()) {
+                    continue;
+                }
+                ConcentrationInstance held = caster.getConcentration();
+                ConcentrationInstance instance = held != null && held.id().equals(effect.concentrationInstanceId())
+                        ? held : null;
+                List<ConditionEntry> conditions = conditions(target);
+                conditions.add(ConditionEntry.fromEffect(threshold.condition(), null, encounter.getRoundNumber(),
+                        effect.spell(), caster.getId(), instance));
+                target.setActiveConditions(conditions);
+                combatLog.write(encounter, CombatActionType.CONDITION_ADD, target.getDisplayName() + " is left at "
+                        + target.getHpCurrent() + " HP (" + threshold.hp() + " or fewer), so " + caster.getDisplayName()
+                        + "'s " + effect.spell() + " leaves it " + threshold.condition() + " until the spell ends",
+                        caster, target);
+            }
+        }
+    }
+
+    /**
+     * Ends every condition of the name on the creature, whatever gave it, for a spell that ends conditions, as Lesser
+     * Restoration's (PHB p.255) and Greater Restoration's (PHB p.246): logged as the spell ending it. A creature a spell
+     * controlled through that condition goes back to its controller. False when it had none.
+     */
+    public boolean endConditionBySpell(Encounter encounter, EncounterParticipant actor, EncounterParticipant target,
+                                       String condition, String spell) {
+        String name = condition.trim().toLowerCase(Locale.ROOT);
+        List<ConditionEntry> conditions = conditions(target);
+        if (!conditions.removeIf(c -> c.name().equalsIgnoreCase(name))) {
+            return false;
+        }
+        target.setActiveConditions(conditions.isEmpty() ? null : conditions);
+        combatLog.write(encounter, CombatActionType.CONDITION_REMOVE, actor.getDisplayName() + "'s " + spell
+                + " ends " + name + " on " + target.getDisplayName(), actor, target);
+        releaseFreed(encounter);
+        return true;
+    }
+
+    /**
+     * Puts the creatures under the caster's control while the Spell Effect lasts, as Dominate Person's charmed target
+     * (PHB p.235, D187): each is controlled by whoever controls the caster (a monster's caster: the DM), and the effect
+     * remembers who controlled it before. Undo restores it, the controller being part of its combat state (D176).
+     */
+    public void takeControl(Encounter encounter, EncounterParticipant caster, UUID effectId,
+                            List<EncounterParticipant> creatures, String condition) {
+        Optional<SpellEffectEntry> found = effects(caster).stream().filter(e -> e.id().equals(effectId)).findFirst();
+        if (found.isEmpty() || creatures.isEmpty()) {
+            return;
+        }
+        List<SpellEffectEntry.Controlled> controlled = new ArrayList<>(found.get().controlled());
+        for (EncounterParticipant creature : creatures) {
+            controlled.add(new SpellEffectEntry.Controlled(creature.getId(), creature.getControlledByUserId(),
+                    condition));
+            creature.setControlledByUserId(caster.getControlledByUserId());
+            combatLog.write(encounter, CombatActionType.SPELL_EFFECT_REPEAT, creature.getDisplayName()
+                    + " is under " + caster.getDisplayName() + "'s control (" + found.get().spell() + ")", caster,
+                    creature);
+        }
+        replaceEffect(caster, found.get().withControlled(controlled));
+    }
+
+    // Gives back every creature a Spell Effect controlled that no longer has the condition holding it (D187)
+    private void releaseFreed(Encounter encounter) {
+        for (EncounterParticipant caster : List.copyOf(encounter.getParticipants())) {
+            for (SpellEffectEntry effect : effects(caster)) {
+                if (effect.controlled().isEmpty()) {
+                    continue;
+                }
+                List<SpellEffectEntry.Controlled> kept = new ArrayList<>();
+                for (SpellEffectEntry.Controlled held : effect.controlled()) {
+                    Optional<EncounterParticipant> creature = participant(encounter, held.creature());
+                    boolean stillHeld = creature.isPresent() && (held.condition() == null || conditions(creature.get())
+                            .stream().anyMatch(c -> c.name().equalsIgnoreCase(held.condition())));
+                    if (stillHeld) {
+                        kept.add(held);
+                    } else {
+                        creature.ifPresent(c -> giveBack(encounter, caster, effect, held, c));
+                    }
+                }
+                if (kept.size() != effect.controlled().size()) {
+                    replaceEffect(caster, effect.withControlled(kept));
+                }
+            }
+        }
+    }
+
+    // Gives back every creature the ended Spell Effect controlled (D187)
+    private void releaseAll(Encounter encounter, EncounterParticipant caster, SpellEffectEntry effect) {
+        for (SpellEffectEntry.Controlled held : effect.controlled()) {
+            participant(encounter, held.creature()).ifPresent(creature -> giveBack(encounter, caster, effect, held,
+                    creature));
+        }
+    }
+
+    private void giveBack(Encounter encounter, EncounterParticipant caster, SpellEffectEntry effect,
+                          SpellEffectEntry.Controlled held, EncounterParticipant creature) {
+        creature.setControlledByUserId(held.previousController());
+        combatLog.write(encounter, CombatActionType.SPELL_EFFECT_END, creature.getDisplayName() + " is no longer under "
+                + caster.getDisplayName() + "'s control (" + effect.spell() + ")", caster, creature);
+    }
+
+    private static Optional<EncounterParticipant> participant(Encounter encounter, UUID id) {
+        return encounter.getParticipants().stream().filter(p -> p.getId().equals(id)).findFirst();
+    }
+
+    /** Starts a tally of saves on the Spell Effect for the creatures, as Contagion's (PHB p.227, D187). */
+    public void startCountedSave(EncounterParticipant caster, UUID effectId, SpellEffectEntry.CountedSave saves,
+                                 List<EncounterParticipant> creatures) {
+        Optional<SpellEffectEntry> found = effects(caster).stream().filter(e -> e.id().equals(effectId)).findFirst();
+        if (found.isEmpty()) {
+            return;
+        }
+        List<SpellEffectEntry.Tally> tallies = creatures.stream()
+                .map(creature -> new SpellEffectEntry.Tally(creature.getId(), 0, 0, false))
+                .toList();
+        replaceEffect(caster, found.get().withCountedSave(saves.withTallies(tallies)));
+    }
+
+    /*
+     * The end of a creature's turn for counted saves (D187): each Spell Effect counting its saves rolls one, as Contagion's
+     * Constitution save (PHB p.227). Reaching the successes ends the spell's conditions on it and the spell for it; reaching
+     * the failures ends them too and logs what takes hold, as Contagion's disease, which the DM applies. A spell with
+     * nobody left counting ends once every tally is done by successes.
+     */
+    private void countedSavesAtTurnEnd(Encounter encounter, EncounterParticipant creature) {
+        UUID id = creature.getId();
+        if (creature.getLifeState() == LifeState.DEAD) {
+            return;
+        }
+        for (EncounterParticipant caster : List.copyOf(encounter.getParticipants())) {
+            for (SpellEffectEntry effect : effects(caster)) {
+                SpellEffectEntry.CountedSave saves = effect.countedSave();
+                if (saves == null) {
+                    continue;
+                }
+                Optional<SpellEffectEntry.Tally> tally = saves.tallies().stream()
+                        .filter(t -> t.creature().equals(id) && !t.done()).findFirst();
+                Optional<Ability> ability = Ability.parse(saves.ability());
+                if (tally.isEmpty() || ability.isEmpty()) {
+                    continue;
+                }
+                int modifier = stats.saveModifier(creature, ability.get());
+                CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(creature, ability.get());
+                Resolver.SaveRoll roll = resolver.savingThrow(ability.get(), modifier, saves.dc(),
+                        CreatureStats.conditionNames(creature), stats.armourPenalty(creature), modifiers.modes(),
+                        modifiers.bonuses());
+                int successes = tally.get().successes() + (roll.success() ? 1 : 0);
+                int failures = tally.get().failures() + (roll.success() ? 0 : 1);
+                boolean cured = successes >= saves.successes();
+                boolean takesHold = failures >= saves.failures();
+                String name = creature.getDisplayName();
+                String rolled = roll.autoFailed() ? " vs DC " + saves.dc() + " — fails automatically"
+                        : ": " + saveDice(roll) + signed(modifier) + bonusText(roll.bonuses()) + " = " + roll.total()
+                                + " vs DC " + saves.dc() + (roll.success() ? " — succeeds" : " — fails");
+                String outcome = cured ? ", and " + effect.spell() + " ends for " + name + "."
+                        : takesHold ? ": " + saves.failures() + " failures. " + (saves.onFailures() != null
+                                ? saves.onFailures() : effect.spell() + " takes hold.")
+                        : " (" + successes + "/" + saves.successes() + " successes, " + failures + "/"
+                                + saves.failures() + " failures).";
+                combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.REPEAT_SAVE,
+                                name + " makes the " + ability.get().name() + " save against " + effect.spell()
+                                        + rolled + outcome), null, creature)
+                        .rollValue(roll.d20()).rollTotal(roll.total()));
+                spendModifiers(encounter, roll.spentOneShots());
+                if (cured || takesHold) {
+                    for (String condition : saves.endsConditions()) {
+                        List<ConditionEntry> conditions = conditions(creature);
+                        if (conditions.removeIf(c -> c.name().equalsIgnoreCase(condition)
+                                && effect.spell().equalsIgnoreCase(c.sourceSpellName()))) {
+                            creature.setActiveConditions(conditions.isEmpty() ? null : conditions);
+                            combatLog.write(encounter, CombatActionType.CONDITION_REMOVE, condition + " ends on " + name
+                                    + " (" + effect.spell() + ")", null, creature);
+                        }
+                    }
+                }
+                SpellEffectEntry.Tally changed = new SpellEffectEntry.Tally(id, successes, failures,
+                        cured || takesHold);
+                SpellEffectEntry current = find(caster, effect.id());
+                List<SpellEffectEntry.Tally> tallies = current.countedSave().tallies().stream()
+                        .map(t -> t.creature().equals(id) ? changed : t).toList();
+                replaceEffect(caster, current.withCountedSave(current.countedSave().withTallies(tallies)));
+                if (tallies.stream().allMatch(t -> t.done() && t.successes() >= saves.successes())) {
+                    endWholeEffect(encounter, caster, current, "every creature has shaken it off");
+                }
+            }
+        }
     }
 
     /**
@@ -1110,6 +1363,7 @@ public class EffectApplier {
      * once none is left.
      */
     public void effectsAtTurnEnd(Encounter encounter, EncounterParticipant creature) {
+        countedSavesAtTurnEnd(encounter, creature);
         UUID id = creature.getId();
         for (EncounterParticipant caster : List.copyOf(encounter.getParticipants())) {
             for (SpellEffectEntry effect : effects(caster)) {
@@ -1466,12 +1720,38 @@ public class EffectApplier {
         throw new IllegalArgumentException("No Spell Effect " + effectId);
     }
 
-    /** The creatures still in the fight that the Spell Effect summoned. */
+    /**
+     * The creatures still in the fight that the Spell Effect summoned, but for one that has turned hostile when its
+     * caster's concentration broke, which no longer belongs to the spell (PHB p.225).
+     */
     public static List<EncounterParticipant> summonedBy(Encounter encounter, UUID effectId) {
         return encounter.getParticipants().stream()
                 .filter(p -> !Boolean.TRUE.equals(p.getDismissed()) && p.getSummon() != null
-                        && effectId.equals(p.getSummon().effectId()))
+                        && effectId.equals(p.getSummon().effectId()) && !p.getSummon().hostile())
                 .toList();
+    }
+
+    /*
+     * Conjure Elemental's elemental when its caster's concentration is broken (PHB p.225): it doesn't disappear but
+     * turns hostile to the caster and its companions, out of the caster's control, which the caster can't take back
+     * or dismiss; it disappears 1 hour after it was summoned, which the DM sees to. Undo puts it back as it was, its
+     * link and controller being part of its combat state (D176).
+     */
+    private void turnHostile(Encounter encounter, UUID effectId) {
+        for (EncounterParticipant creature : summonedBy(encounter, effectId)) {
+            SummonLink link = creature.getSummon();
+            boolean stays = SummonRules.spell(link.spell())
+                    .filter(SummonRules.Spell::turnsHostileWhenConcentrationBreaks).isPresent();
+            if (!stays) {
+                continue;
+            }
+            creature.setSummon(link.withHostile());
+            creature.setControlledByUserId(null);
+            combatLog.write(encounter, CombatActionType.SUMMON, creature.getDisplayName() + " doesn't disappear: its "
+                    + "caster's concentration on " + link.spell() + " is broken, so it turns hostile to its caster "
+                    + "and their companions, out of the caster's control, and disappears 1 hour after it was summoned "
+                    + "(PHB p.225; the DM removes it then)", null, creature);
+        }
     }
 
     /** Dismisses every creature the Spell Effect summoned that is still in the fight. */

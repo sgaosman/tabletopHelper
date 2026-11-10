@@ -313,6 +313,18 @@ public class EncounterResponse {
 
         // What it deals back to a creature that hits its caster in melee, such as "2d8 fire" (D185); null for nothing
         private String retaliation;
+
+        // Each creature's count of saves against it, as Contagion's (D187); empty for none
+        @Schema(requiredMode = REQUIRED)
+        private List<SpellEffectEntry.Tally> tallies;
+
+        // The save the tallies count and how many successes and failures end them, such as "CON 3/3" (D187); null
+        // for none
+        private String tallyRule;
+
+        // The creatures it put under its caster's control, as Dominate Person's (D187); empty for none
+        @Schema(requiredMode = REQUIRED)
+        private List<UUID> controlledIds;
     }
 
     /** A spell whose Ongoing Modifiers are on a participant (D184), shown as a chip such as "Bless". */

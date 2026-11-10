@@ -6,6 +6,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -47,6 +49,20 @@ import java.util.stream.Stream;
  *   <li>Summon Greater Demon (XGE p.166): one demon of challenge rating 5 or lower, one higher for each slot level
  *       above 4th, with its own initiative; at the end of each of its turns it makes a Charisma saving throw, and on a
  *       success the caster's control ends.</li>
+ *   <li>Summon Celestial (TCE p.110) and Summon Draconic Spirit (FTD p.21): 5th-level spirits, as the other Tasha's
+ *       spirits; the Defender's AC is 2 higher than the Avenger's, and the draconic spirit's family sets what it
+ *       resists.</li>
+ *   <li>Conjure Elemental (PHB p.225): one elemental of challenge rating 5 or lower, one higher for each slot level
+ *       above 5th, with its own initiative; a minute to cast. If the caster's concentration is broken it doesn't
+ *       disappear: it turns hostile, the caster can't dismiss it, and it disappears 1 hour after it was summoned.</li>
+ *   <li>Infernal Calling (XGE p.158): one devil of challenge rating 6 or lower, one higher for each slot level above
+ *       5th, with its own initiative, unfriendly and under the DM's control; a minute to cast.</li>
+ *   <li>Animate Objects (PHB p.213): up to ten objects, two more for each slot level above 5th, a Medium object
+ *       counting as two, a Large as four and a Huge as eight; commanded with a bonus action, and at 0 hit points one
+ *       reverts to its object form.</li>
+ *   <li>Danse Macabre (XGE p.153): up to five zombies or skeletons, two more for each slot level above 5th, adding
+ *       the caster's spellcasting ability modifier to their attack and damage rolls; commanded with a bonus action,
+ *       concentration, up to 1 hour.</li>
  * </ul>
  * Group initiative for identical creatures follows PHB p.189: "The DM makes one roll for an entire group of identical
  * creatures".
@@ -61,7 +77,15 @@ public final class SummonRules {
         /** Giant Insect's giant centipedes, spiders, wasps or scorpion (PHB p.245) */
         GIANT_INSECT,
         /** Summon Greater Demon's one demon, which may break free of the caster's control (XGE p.166) */
-        GREATER_DEMON
+        GREATER_DEMON,
+        /** Conjure Elemental's one elemental, which turns hostile when the caster's concentration breaks (PHB p.225) */
+        CONJURE_ELEMENTAL,
+        /** Infernal Calling's one devil, under the DM's control (XGE p.158) */
+        INFERNAL_CALLING,
+        /** Animate Objects' objects, counted by size against the spell's ten (PHB p.213) */
+        ANIMATE_OBJECTS,
+        /** Danse Macabre's zombies and skeletons, with the caster's modifier to attack and damage (XGE p.153) */
+        DANSE_MACABRE
     }
 
     /** Where the summoned creatures take their turns. */
@@ -121,15 +145,41 @@ public final class SummonRules {
 
         /** Whether its creatures roll initiative per kind of identical creature rather than as one group. */
         public boolean groupsByCreature() {
-            return kind == Kind.ANIMATE_DEAD || kind == Kind.TINY_SERVANT;
+            return kind == Kind.ANIMATE_DEAD || kind == Kind.TINY_SERVANT || kind == Kind.ANIMATE_OBJECTS
+                    || kind == Kind.DANSE_MACABRE;
         }
 
         /**
          * Whether a creature count below the option's is allowed: the caster may animate fewer, or transform "up to"
-         * so many insects (PHB p.245).
+         * so many insects (PHB p.245), "up to ten" objects (PHB p.213) or "up to five" corpses (XGE p.153).
          */
         public boolean fewerAllowed() {
-            return kind == Kind.ANIMATE_DEAD || kind == Kind.TINY_SERVANT || kind == Kind.GIANT_INSECT;
+            return kind == Kind.ANIMATE_DEAD || kind == Kind.TINY_SERVANT || kind == Kind.GIANT_INSECT
+                    || kind == Kind.ANIMATE_OBJECTS || kind == Kind.DANSE_MACABRE;
+        }
+
+        /**
+         * Whether its creatures count against the option by size rather than one each: Animate Objects' Medium object
+         * counts as two, a Large as four and a Huge as eight (PHB p.213).
+         */
+        public boolean weighted() {
+            return kind == Kind.ANIMATE_OBJECTS;
+        }
+
+        /**
+         * Whether its creature stays when the caster's concentration is broken, hostile and out of the caster's
+         * control, disappearing 1 hour after it was summoned (Conjure Elemental, PHB p.225).
+         */
+        public boolean turnsHostileWhenConcentrationBreaks() {
+            return kind == Kind.CONJURE_ELEMENTAL;
+        }
+
+        /**
+         * Whether its creatures add the caster's spellcasting ability modifier to their attack and damage rolls
+         * (Danse Macabre, XGE p.153).
+         */
+        public boolean addsSpellcastingModifier() {
+            return kind == Kind.DANSE_MACABRE;
         }
 
         /**
@@ -207,8 +257,37 @@ public final class SummonRules {
     /** Summon Greater Demon's highest challenge rating with a 4th-level slot, one higher for each level above. */
     public static final int GREATER_DEMON_BASE_CR = 5;
 
-    /** Animate Dead's undead (PHB p.212). */
+    /** Animate Dead's undead (PHB p.212), which Danse Macabre raises too (XGE p.153). */
     public static final List<String> ANIMATE_DEAD_FORMS = List.of("Skeleton", "Zombie");
+
+    /** Conjure Elemental's highest challenge rating with a 5th-level slot, one higher for each level above (PHB p.225). */
+    public static final int CONJURE_ELEMENTAL_BASE_CR = 5;
+
+    /** Infernal Calling's highest challenge rating with a 5th-level slot, one higher for each level above (XGE p.158). */
+    public static final int INFERNAL_CALLING_BASE_CR = 6;
+
+    /**
+     * One of Animate Objects' stat blocks (PHB p.213), as the PHB bestiary names it.
+     *
+     * @param name      such as "Animated Object (Tiny)"
+     * @param size      Tiny, Small, Medium, Large or Huge
+     * @param weight    how many of the spell's objects it counts as: 1, 1, 2, 4 or 8
+     * @param hitPoints its hit points, which the bestiary gives only in words: 20, 25, 40, 50 or 80
+     */
+    public record AnimatedObject(String name, String size, int weight, int hitPoints) {
+    }
+
+    /** Animate Objects' five stat blocks, Tiny to Huge (PHB p.213). */
+    public static final List<AnimatedObject> ANIMATED_OBJECTS = List.of(
+            new AnimatedObject("Animated Object (Tiny)", "Tiny", 1, 20),
+            new AnimatedObject("Animated Object (Small)", "Small", 1, 25),
+            new AnimatedObject("Animated Object (Medium)", "Medium", 2, 40),
+            new AnimatedObject("Animated Object (Large)", "Large", 4, 50),
+            new AnimatedObject("Animated Object (Huge)", "Huge", 8, 80));
+
+    /** Animate Objects' stat blocks by name. */
+    public static final List<String> ANIMATED_OBJECT_FORMS = ANIMATED_OBJECTS.stream().map(AnimatedObject::name)
+            .toList();
 
     /** Tiny Servant's creature (XGE p.169). */
     public static final String TINY_SERVANT = "Tiny Servant";
@@ -229,6 +308,9 @@ public final class SummonRules {
     public static final Map<String, Set<String>> REPRINTS = Map.of("MPMM", Set.of("VGM", "MTF"));
 
     private static final List<InitiativeMode> GROUP_ONLY = List.of(InitiativeMode.GROUP);
+
+    // "1d6 + 2", "2d8-1" or "1d6": the dice and any one flat number
+    private static final Pattern DICE_AND_FLAT = Pattern.compile("^\\s*(\\d+d\\d+)\\s*(?:([+-])\\s*(\\d+))?\\s*$");
 
     private static final Map<String, Spell> SPELLS = Stream.of(
             new Spell("Conjure Animals", Kind.CONJURE_ANIMALS, 3, true, ONE_HOUR, true, false, true, false, false,
@@ -254,6 +336,28 @@ public final class SummonRules {
             spirit("Summon Construct", 4, "TCE", 111),
             spirit("Summon Elemental", 4, "TCE", 111),
             spirit("Spirit of Death", 4, "BMT", 50),
+            spirit("Summon Celestial", 5, "TCE", 110),
+            spirit("Summon Draconic Spirit", 5, "FTD", 21),
+            // PHB p.225: a minute to cast, so the DM places it as a companion (D182); "Roll initiative for the
+            // elemental, which has its own turns. It obeys any verbal commands that you issue to it"
+            new Spell("Conjure Elemental", Kind.CONJURE_ELEMENTAL, 5, true, ONE_HOUR, false, false, true, false, false,
+                    List.of(InitiativeMode.INDIVIDUAL), List.of(), Controller.CASTER, null, List.of(), "PHB", 225,
+                    "elemental", List.of(), List.of()),
+            // XGE p.158: a minute to cast; the devil is unfriendly, rolls its own initiative and is under the DM's
+            // control, obeying the caster's commands only when it likes them or loses a contested check
+            new Spell("Infernal Calling", Kind.INFERNAL_CALLING, 5, true, ONE_HOUR, false, false, true, false, false,
+                    List.of(InitiativeMode.INDIVIDUAL), List.of(), Controller.DM, null, List.of(), "XGE", 158,
+                    "devil", List.of(), List.of()),
+            // PHB p.213: concentration, up to 1 minute; commanded with a bonus action, and at 0 hit points an object
+            // reverts to its form, staying as a dead row as a tiny servant does. The spell gives no initiative, so
+            // they roll one per kind of identical creature, as Animate Dead's do (PHB p.189)
+            new Spell("Animate Objects", Kind.ANIMATE_OBJECTS, 5, true, 10, true, false, false, false, true,
+                    GROUP_ONLY, List.of(), Controller.CASTER, null, List.of(), "PHB", 213, null, List.of(),
+                    ANIMATED_OBJECT_FORMS),
+            // XGE p.153: concentration, up to 1 hour; commanded with a bonus action, as Animate Dead's undead
+            new Spell("Danse Macabre", Kind.DANSE_MACABRE, 5, true, ONE_HOUR, true, false, false, false, true,
+                    GROUP_ONLY, List.of(), Controller.CASTER, null, List.of(), "XGE", 153, null, List.of(),
+                    ANIMATE_DEAD_FORMS),
             // PHB p.245: "in combat, they act on your turn each round. The DM has the statistics for these creatures
             // and resolves their actions and movement", so they follow the caster and the DM controls them (rules
             // call); at 0 hit points one returns to its natural size, which takes it out of the fight as a dismissal
@@ -344,6 +448,16 @@ public final class SummonRules {
                         tier(8 * times, 0.25, what));
             }
             case GREATER_DEMON -> List.of(tier(1, GREATER_DEMON_BASE_CR + above, "demons"));
+            case CONJURE_ELEMENTAL -> List.of(tier(1, CONJURE_ELEMENTAL_BASE_CR + above, "elementals"));
+            case INFERNAL_CALLING -> List.of(tier(1, INFERNAL_CALLING_BASE_CR + above, "devils"));
+            // PHB p.213: ten objects, two more for each slot level above 5th
+            case ANIMATE_OBJECTS -> {
+                int objects = 10 + 2 * above;
+                yield List.of(new Option(String.valueOf(objects), objects, null, "Up to " + objects
+                        + " objects (Medium counts as 2, Large as 4, Huge as 8)", ANIMATED_OBJECT_FORMS));
+            }
+            // XGE p.153: five corpses, two more for each slot level above 5th
+            case DANSE_MACABRE -> List.of(single(5 + 2 * above, "undead"));
             case GIANT_INSECT -> {
                 List<Option> insects = new ArrayList<>();
                 for (int i = 0; i < GIANT_INSECT_FORMS.size(); i++) {
@@ -419,6 +533,29 @@ public final class SummonRules {
                     return Optional.of(name + " isn't a demon");
                 }
             }
+            // PHB p.225: an elemental, not a swarm (the 5etools filter on the page leaves swarms out)
+            case CONJURE_ELEMENTAL -> {
+                if (!lowerType.equals("elemental") || name.toLowerCase(Locale.ROOT).startsWith("swarm of")) {
+                    return Optional.of(name + " isn't an elemental Conjure Elemental can summon");
+                }
+            }
+            // XGE p.158: a devil, a fiend of the devil kind
+            case INFERNAL_CALLING -> {
+                if (!lowerSubtype.contains("devil") && !lowerType.equals("devil")) {
+                    return Optional.of(name + " isn't a devil");
+                }
+            }
+            case ANIMATE_OBJECTS -> {
+                if (!named(ANIMATED_OBJECT_FORMS, name)) {
+                    return Optional.of("Animate Objects animates a Tiny, Small, Medium, Large or Huge object, not "
+                            + name);
+                }
+            }
+            case DANSE_MACABRE -> {
+                if (!named(ANIMATE_DEAD_FORMS, name)) {
+                    return Optional.of("Danse Macabre raises zombies or skeletons, not " + name);
+                }
+            }
             case FAMILIAR, FLOCK_OF_FAMILIARS -> {
                 if (!named(FAMILIAR_FORMS, name) && !(pactOfTheChain && spell.kind() == Kind.FAMILIAR
                         && named(PACT_OF_THE_CHAIN_FORMS, name))) {
@@ -459,12 +596,61 @@ public final class SummonRules {
     }
 
     /**
+     * How many of the spell's creatures one of this size counts as: for Animate Objects, a Tiny or Small object one, a
+     * Medium two, a Large four and a Huge eight (PHB p.213); for any other spell, one.
+     */
+    public static int weight(Spell spell, String size) {
+        if (!spell.weighted()) {
+            return 1;
+        }
+        return ANIMATED_OBJECTS.stream()
+                .filter(object -> size != null && object.size().equalsIgnoreCase(size.trim()))
+                .mapToInt(AnimatedObject::weight)
+                .findFirst()
+                .orElse(1);
+    }
+
+    /**
+     * A stat block's hit points where the bestiary gives them only in words, as for Animate Objects' objects (PHB
+     * p.213); empty for any other.
+     */
+    public static Optional<Integer> statBlockHitPoints(String name) {
+        return ANIMATED_OBJECTS.stream()
+                .filter(object -> name != null && object.name().equalsIgnoreCase(name.trim()))
+                .map(AnimatedObject::hitPoints)
+                .findFirst();
+    }
+
+    /**
+     * Damage with a flat bonus added to its own, as Danse Macabre adds the caster's spellcasting ability modifier to
+     * its undead's damage rolls (XGE p.153): "1d6 + 2" with 3 is "1d6 + 5", "1d6" with 3 "1d6 + 3". Damage written any
+     * other way gets the bonus as a term of its own.
+     */
+    public static String withFlatBonus(String damage, int bonus) {
+        if (damage == null || bonus == 0) {
+            return damage;
+        }
+        Matcher matcher = DICE_AND_FLAT.matcher(damage);
+        if (!matcher.matches()) {
+            return damage.trim() + (bonus > 0 ? " + " + bonus : " - " + -bonus);
+        }
+        int flat = (matcher.group(3) != null ? Integer.parseInt(matcher.group(3)) : 0)
+                * ("-".equals(matcher.group(2)) ? -1 : 1) + bonus;
+        return matcher.group(1) + (flat > 0 ? " + " + flat : flat < 0 ? " - " + -flat : "");
+    }
+
+    /**
      * Why the number of creatures chosen doesn't fit the option, or empty: exactly its count, or for Animate Dead, Tiny
-     * Servant and Giant Insect from one up to it.
+     * Servant, Giant Insect, Animate Objects and Danse Macabre from one up to it. For Animate Objects the number is
+     * counted by size ({@link #weight}).
      */
     public static Optional<String> countRefusal(Spell spell, Option option, int chosen) {
         if (chosen < 1) {
             return Optional.of("Choose at least one creature");
+        }
+        if (spell.weighted() && chosen > option.count()) {
+            return Optional.of(spell.name() + " animates up to " + option.count() + " objects, a Medium one counting "
+                    + "as 2, a Large as 4 and a Huge as 8, but " + chosen + " were chosen");
         }
         if (spell.fewerAllowed() ? chosen > option.count() : chosen != option.count()) {
             return Optional.of(spell.name() + " brings " + (spell.fewerAllowed() ? "up to " : "") + option.count()

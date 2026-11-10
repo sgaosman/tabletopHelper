@@ -3463,3 +3463,30 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D161, D177, D178, D182, D183, D184, D186, [[Banished]], [[Delayed Damage]], [[Retaliation]]
 
 **Tests:** new `FourthLevelMechanicsTest` (23), `FourthLevelSpellsIT` (12), frontend `utils/spellEffects.test.ts`, additions to `SummonIT` and `SummonRulesTest`; 2,976 backend unit, 358 integration and 1,139 frontend.
+
+
+## D187: 5th-Level Spells
+
+**Date:** 2026-11-10
+**Status:** Accepted — implemented (no migration; spell templates v4)
+
+**Context:** the next level of the higher-level spell sweep ([[#D185]]). The survey of all 62 5th-level spells (PHB 42, XGE 16, one each AAG, EGW, FTD, TCE) found 15 more things the engine couldn't express (gaps 17–31).
+
+**Decision:** every 5th-level spell has a template, with these generic template keys added:
+- **`removesConditions`** with cast options: the chosen condition ends on the target whatever gave it, and an `exhaustion` option lowers exhaustion by one ([[#D183]]); options the app doesn't track (curse, disease, ability or HP-maximum reduction) are logged for the DM. Greater Restoration uses it, and **Lesser Restoration** (2nd) is now automated too.
+- **`controlTransfer`:** a creature that fails comes under the control of whoever controls the caster (the DM for a monster caster); the previous controller is kept on the Spell Effect and restored when the effect or its holding condition ends; undo covers it (`ParticipantCombatState` stores `controlledByUserId`, [[#D176]]).
+- **`lifeDrain`:** the caster regains half the damage actually taken, on the cast and each later use (Enervation; **Vampiric Touch** (3rd) now uses it).
+- **`endsOnInitialSave`** (Enervation, Immolation); **`countedSaves`**, a per-creature tally of end-of-turn saves whose successes end the conditions and the spell for that creature and whose failures end them with a reminder (Contagion; Flesh to Stone at 6th reuses it); **`repeatEndsSpell`** with conditions from that use outlasting the spell (Holy Weapon's burst); **`contest`**, the caster's spellcasting check against the target's ability check, a tie changing nothing (Telekinesis); **`hitThreshold`** (Banishing Smite banishes at 50 HP or fewer after the hit, held by concentration, via [[#D185]]'s Banished); a damage part of type **`OPTION`** takes the type chosen at cast (Destructive Wave, Conjure Volley).
+- **Summons** ([[#D182]]): Summon Celestial, Summon Draconic Spirit (FTD, sharing its resistance), Conjure Elemental and Infernal Calling (minute-long casts, brought in through the DM's add-companion path; Conjure Elemental's creature stays and turns hostile when concentration breaks), Animate Objects (a size-weighted budget) and Danse Macabre.
+- **Status:** automated 22 (Hold Monster, Cone of Cold, Cloudkill, Greater Restoration, Dominate Person, Flame Strike, Mass Cure Wounds, Insect Plague, Mislead, Contagion, Destructive Wave, Banishing Smite, Enervation, Immolation, Maelstrom, Conjure Volley, Dawn, Holy Weapon, Steel Wind Strike, Synaptic Static, Wall of Light, Telekinesis); partial 9 (Dispel Evil and Good, Bigby's Hand (Clenched Fist automated), Modify Memory, Circle of Power, Negative Energy Flood, Skill Empowerment, Swift Quiver, Temporal Shunt, Wrath of Nature); summons 6; manual 25 with reasons (Scrying, Wall of Force, Geas, Raise Dead, Wall of Stone, Dream, Seeming, Commune with Nature, Contact Other Plane, Antilife Shell, Rary's Telepathic Bond, Commune, Legend Lore, Creation, Hallow, Awaken, Tree Stride, Passwall, Teleportation Circle, Planar Binding, Control Winds, Create Spelljamming Helm, Far Step, Reincarnate, Transmute Rock).
+- **Rules calls (choices):** Enervation's successful save deals half of 4d8 rather than 2d8, the same average (XGE p.155). Flame Strike's upcast always goes to the fire part (PHB p.242). Telekinesis is a plain Strength check without Athletics, a tie changing nothing (p.280, p.174). Greater Restoration ends every condition of the chosen name (p.246). Dominate Person gives control to the caster's controlling user (p.235). Banishing Smite's threshold is checked after the hit (p.216). Contagion's three failures end poisoned and log the disease for the DM (p.227). Animate Objects rolls one initiative per kind of object (p.213, p.189). Conjure Elemental's "concentration broken" is any end except ending it by hand, the duration running out or the caster leaving (p.225).
+
+**Rationale:** the keys are generic, so 6th level and above reuse them (Flesh to Stone's tally, Dominate Monster's control, Heal's cures).
+
+**Trade-offs:** Wall of Light's blindness ends with the spell instead of lasting its own minute; Temporal Shunt's vanishing, Circle of Power, Synaptic Static's concentration penalty and INT 2 immunity, and Negative Energy Flood's undead branch are reminders; Conjure Elemental's one-hour vanish after turning hostile is a log line; Dispel Magic (3rd) is unchanged; golden counts changed (`MetamagicEligibilityGoldenTest`: 403 templates, Careful 143, Empowered 125, Extended 271, Quickened 311, Subtle 403, Twinned 156, 22 target-scaling; 42 lasting spells). Not checked in a browser.
+
+**Key files:** `reference/SpellTemplate.java`, `encounter/internal/SpellCaster.java`, `SpellEffects.java`, `EffectApplier.java`, `encounter/state/SpellEffectEntry.java`, `rules/combat/SummonRules.java`, `encounter/internal/Summoner.java`, `SummonService.java`, `data/spell-effects/spell-effect-definitions.json`, `data/content/summon-spirits.json`, `utils/spellEffects.ts`, `spellflow/SummonStep.tsx`
+
+**Related:** D176, D177, D182, D183, D184, D185, D186, [[Counted Save]], [[Controlled Creature]]
+
+**Tests:** new `FifthLevelMechanicsTest` (9), `FifthLevelSpellsIT` (15); 3,014 backend unit, 378 integration and 1,143 frontend.

@@ -33,3 +33,22 @@ describe('laterNotes (D185)', () => {
     expect(laterNotes(makeMockSpellEffect(), () => undefined)).toEqual([]);
   });
 });
+
+describe('laterNotes (D187)', () => {
+  it('names the creatures it controls and each creature\'s count of saves', () => {
+    const effect = makeMockSpellEffect('Contagion', {
+      controlledIds: ['bandit'],
+      tallyRule: 'CON 3/3',
+      tallies: [
+        { creature: 'ogre', successes: 1, failures: 2, done: false },
+        { creature: 'troll', successes: 0, failures: 3, done: true },
+      ],
+    });
+    const names: Record<string, string> = { bandit: 'Bandit', ogre: 'Ogre', troll: 'Troll' };
+    expect(laterNotes(effect, id => names[id])).toEqual([
+      'controls Bandit',
+      'Ogre: CON saves 1/3 successes, 2/3 failures',
+      'Troll: CON saves done (0 successes, 3 failures)',
+    ]);
+  });
+});

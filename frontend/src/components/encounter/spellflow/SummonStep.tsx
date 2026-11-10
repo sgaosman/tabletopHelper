@@ -2,7 +2,8 @@ import { useId, useMemo, useState } from 'react';
 import { Minus, Plus, Search } from 'lucide-react';
 import type { SummonOptions } from '../../../types/encounter';
 import {
-  INITIATIVE_MODE_LABELS, candidatesFor, draftProblem, fewerAllowed, isTieredConjuring, totalCount, type SummonDraft,
+  INITIATIVE_MODE_LABELS, budgetUsed, candidatesFor, creatureWeight, draftProblem, fewerAllowed, isTieredConjuring,
+  type SummonDraft,
 } from '../../../utils/summons';
 import Button from '../../ui/Button';
 import IconButton from '../../ui/IconButton';
@@ -43,7 +44,8 @@ export default function SummonStep({
   const option = options.options.find(o => o.id === draft.optionId);
   const dmWillChoose = options.dmChooses && !byDm;
   const problem = draftProblem(options, draft, byDm);
-  const total = totalCount(draft);
+  // Animate Objects counts its objects by size (PHB p.213); anything else one each
+  const total = budgetUsed(options, draft);
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
     return candidatesFor(options, option).filter(c => !q || c.name.toLowerCase().includes(q));
@@ -124,7 +126,7 @@ export default function SummonStep({
                 {shown.length === 0 && <li className={NOTE}>No creature fits.</li>}
                 {shown.map(c => {
                   const count = draft.counts[c.monsterId] ?? 0;
-                  const full = total >= option.count;
+                  const full = total + creatureWeight(options, c) > option.count;
                   return (
                     <li key={c.monsterId} className="flex items-center justify-between gap-2 px-3 py-1.5 bg-page-alt border border-rule">
                       <div className="min-w-0">
@@ -203,6 +205,18 @@ export default function SummonStep({
         {kind === 'GREATER_DEMON' && (
           <li className={NOTE}>At the end of each of its turns it makes a Charisma save against your spell save DC; on a success your control ends (XGE p.166).</li>
         )}
+        {kind === 'CONJURE_ELEMENTAL' && (
+          <li className={NOTE}>If your concentration is broken it doesn't disappear: it turns hostile, you can't dismiss it, and it disappears 1 hour after you summoned it (PHB p.225).</li>
+        )}
+        {kind === 'INFERNAL_CALLING' && (
+          <li className={NOTE}>A command it dislikes needs your Charisma check against its Wisdom (Insight); on a failure it ignores your commands for the rest of the spell (XGE p.158).</li>
+        )}
+        {kind === 'ANIMATE_OBJECTS' && (
+          <li className={NOTE}>A Medium object counts as 2, a Large as 4 and a Huge as 8 (PHB p.213).</li>
+        )}
+        {kind === 'DANSE_MACABRE' && (
+          <li className={NOTE}>They add your spellcasting ability modifier to their attack and damage rolls (XGE p.153).</li>
+        )}
         {options.cannotAttack && <li className={NOTE}>A familiar can't attack (PHB p.240).</li>}
         {options.needsCommand && <li className={NOTE}>They act only on your command, a bonus action on your turn.</li>}
         {options.concentration && <li className={NOTE}>Needs concentration: they vanish when it ends.</li>}
@@ -227,6 +241,9 @@ function SpiritChoice({ options, draft, onChange, name }: {
 }) {
   const spirit = options.spirit;
   const hp = spirit && draft.variant ? spirit.hitPoints[draft.variant] : undefined;
+  // A variant may add to the spirit's AC, as the Celestial Spirit Defender's 2 (TCE p.110)
+  const ac = spirit && draft.variant ? spirit.armourClasses?.[draft.variant] ?? spirit.armourClass
+    : spirit?.armourClass;
   return (
     <>
       {/* A spirit with one form, such as the reaper spirit (BMT p.50), takes it without asking */}
@@ -247,7 +264,7 @@ function SpiritChoice({ options, draft, onChange, name }: {
       {spirit && (
         <dl aria-label={`${spirit.name} at level ${options.slotLevel}`}
           className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-page-alt border border-rule p-3">
-          <Stat label="AC" value={spirit.armourClass} />
+          <Stat label="AC" value={ac ?? spirit.armourClass} />
           <Stat label="HP" value={hp ?? '—'} />
           <Stat label="Attacks" value={spirit.attacks} />
           <Stat label="To hit" value={`${spirit.attackBonus >= 0 ? '+' : ''}${spirit.attackBonus}`} />

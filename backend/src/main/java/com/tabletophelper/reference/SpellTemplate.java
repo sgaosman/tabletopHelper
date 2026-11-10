@@ -123,6 +123,12 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             template.delayedDamage();
             template.retaliation();
             template.durationRounds(Integer.MAX_VALUE);
+            // And the 5th-level spells' keys (D187)
+            template.lifeDrain();
+            template.countedSaves();
+            template.contest();
+            template.hitThreshold();
+            template.repeatConditions();
             return template;
         } catch (IllegalArgumentException | JacksonException e) {
             return empty(json, e.getMessage() != null ? e.getMessage() : e.toString());
@@ -413,6 +419,146 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      */
     public String turnReminder() {
         return json != null ? text(json, "turnReminder") : null;
+    }
+
+    // ── Keys the 5th-level spells added (D187), read from the stored JSON ──
+
+    /** The cast option that lowers the target's exhaustion by one level instead of ending a condition (D187). */
+    public static final String EXHAUSTION_OPTION = "exhaustion";
+
+    /**
+     * The conditions a cast ends on each creature it reaches, as Lesser Restoration's blinded, deafened, paralyzed or
+     * poisoned (PHB p.255) and Greater Restoration's charmed or petrified (PHB p.246): the template's
+     * {@code removesConditions}. With cast options, only the chosen one is ended; {@link #EXHAUSTION_OPTION} lowers
+     * exhaustion by one level instead (D183). Empty for none.
+     */
+    public List<String> removesConditions() {
+        return texts("removesConditions");
+    }
+
+    /**
+     * Whether a creature that fails the save comes under its caster's control while the spell lasts, as Dominate
+     * Person's (PHB p.235): the template's {@code controlTransfer} (D187).
+     */
+    public boolean controlTransfer() {
+        return json != null && json.path("controlTransfer").asBoolean(false);
+    }
+
+    /**
+     * The share of the damage it deals that its caster regains as hit points, as Enervation's and Vampiric Touch's half
+     * (XGE p.155, PHB p.285): the template's {@code lifeDrain}, such as 0.5; 0 for none (D187).
+     */
+    public double lifeDrain() {
+        JsonNode node = json != null ? json.get("lifeDrain") : null;
+        if (node == null || node.isNull()) {
+            return 0;
+        }
+        if (!node.isNumber() || node.asDouble(0) < 0 || node.asDouble(0) > 1) {
+            throw new IllegalArgumentException("lifeDrain is not a share between 0 and 1");
+        }
+        return node.asDouble(0);
+    }
+
+    /**
+     * Whether the spell ends when every creature its cast reaches succeeds on the first save, as Enervation and
+     * Immolation do (XGE p.155, p.158): the template's {@code endsOnInitialSave} (D187).
+     */
+    public boolean endsOnInitialSave() {
+        return json != null && json.path("endsOnInitialSave").asBoolean(false);
+    }
+
+    /**
+     * Whether using its effect again ends the spell, as Holy Weapon's burst does (XGE p.157): the template's
+     * {@code repeatEndsSpell} (D187). The conditions that use gives then keep their own durations.
+     */
+    public boolean repeatEndsSpell() {
+        return json != null && json.path("repeatEndsSpell").asBoolean(false);
+    }
+
+    /**
+     * The conditions its repeat effect gives when it replaces the spell's own, as Holy Weapon's burst blinds (XGE
+     * p.157): the repeat effect's own {@code conditionsInflicted} (D187); empty for none.
+     */
+    public List<ConditionInflicted> repeatConditions() {
+        JsonNode node = json != null ? json.path("repeatEffect").path("conditionsInflicted") : null;
+        return node != null && node.isArray() ? READER.convertValue(node, CONDITIONS) : List.of();
+    }
+
+    /**
+     * A tally of saves each creature it reaches makes at the end of each of its turns, as Contagion's three successes
+     * or three failures (PHB p.227, D187).
+     *
+     * @param ability   the save's ability
+     * @param successes how many successes end the spell on the creature
+     * @param failures  how many failures make the spell's lasting effect take hold
+     * @param onFailures what the log reminds the DM of when the failures are reached, such as Contagion's disease
+     * @param endsConditions the spell's conditions that end on either outcome, as Contagion's poisoned
+     */
+    public record CountedSaves(String ability, int successes, int failures, String onFailures,
+                               List<String> endsConditions) {
+    }
+
+    /** The template's counted saves, or null for none. */
+    public CountedSaves countedSaves() {
+        JsonNode node = json != null ? json.get("countedSaves") : null;
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        if (text(node, "ability") == null || !node.path("successes").isInt() || !node.path("failures").isInt()) {
+            throw new IllegalArgumentException("countedSaves needs an ability and numbers of successes and failures");
+        }
+        List<String> ends = new java.util.ArrayList<>();
+        node.path("endsConditions").forEach(each -> {
+            if (each.isString()) ends.add(each.asString("").toLowerCase(java.util.Locale.ROOT));
+        });
+        return new CountedSaves(text(node, "ability"), node.path("successes").asInt(3), node.path("failures").asInt(3),
+                text(node, "onFailures"), List.copyOf(ends));
+    }
+
+    /**
+     * An ability check contest its cast and each use again roll against each target, as Telekinesis's spellcasting
+     * ability check against the creature's Strength check (PHB p.280, D187): the caster's win gives the condition until
+     * the end of the caster's next turn.
+     *
+     * @param targetAbility the target's ability, such as STR
+     * @param condition     the condition a win gives, or null for none
+     * @param winNote       what the log says a win does, such as "moves it up to 30 feet"
+     */
+    public record Contest(String targetAbility, String condition, String winNote) {
+    }
+
+    /** The template's contest, or null for none. */
+    public Contest contest() {
+        JsonNode node = json != null ? json.get("contest") : null;
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        if (text(node, "targetAbility") == null) {
+            throw new IllegalArgumentException("A contest needs the target's ability");
+        }
+        return new Contest(text(node, "targetAbility"), text(node, "condition"), text(node, "winNote"));
+    }
+
+    /**
+     * A hit-point threshold a one-shot weapon rider checks after its hit, as Banishing Smite's banishing a creature left
+     * at 50 hit points or fewer (PHB p.216, D187).
+     *
+     * @param hp        the threshold, inclusive
+     * @param condition the condition the creature then gets, held by the spell's concentration
+     */
+    public record HitThreshold(int hp, String condition) {
+    }
+
+    /** The template's hit-point threshold, or null for none. */
+    public HitThreshold hitThreshold() {
+        JsonNode node = json != null ? json.get("hitThreshold") : null;
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        if (!node.path("hp").isInt() || text(node, "condition") == null) {
+            throw new IllegalArgumentException("hitThreshold needs hp and a condition");
+        }
+        return new HitThreshold(node.path("hp").asInt(0), text(node, "condition").toLowerCase(java.util.Locale.ROOT));
     }
 
     /** Its components; combat reads only whether it has a verbal one. */

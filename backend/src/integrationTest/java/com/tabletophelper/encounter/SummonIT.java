@@ -33,7 +33,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 10: her familiar joins while the encounter is prepared, Conjure Animals at 5th brings sixteen wolves that undo takes
  * back, Summon Lesser Demons waits for the DM's demons, which players see as monsters, and removing a summoned
  * creature dismisses it. The 4th-level summonings (D185): Summon Elemental at 4th and 5th with each element's damage
- * and defences, and Summon Greater Demon's challenge rating cap and its demon breaking free.
+ * and defences, and Summon Greater Demon's challenge rating cap and its demon breaking free. The 5th-level ones
+ * (D187): Summon Celestial's Defender, Animate Objects' budget counted by size, Conjure Elemental's elemental staying
+ * hostile when concentration breaks, and Danse Macabre's count and bonus.
  */
 class SummonIT extends IntegrationTest {
 
@@ -545,6 +547,265 @@ class SummonIT extends IntegrationTest {
         // The players see it as they see a monster now
         JsonNode seen = participant(playerState(), demonId);
         assertThat(seen.get("hpCurrent").isNull()).isTrue();
+    }
+
+    // ── The 5th-level summonings (D187) ─────────────────────────
+
+    // Gives Aria 5th- and 6th-level slots and the 5th-level spell, after the start
+    private void fifthLevel(String spellName) {
+        EncounterParticipant brea = participantRepository.findById(UUID.fromString(breaId)).orElseThrow();
+        brea.setSpellSlotsCurrent(new HashMap<>(Map.of("5", new SpellSlot(2, 0), "6", new SpellSlot(1, 0))));
+        List<KnownSpell> known = new ArrayList<>(brea.getSpellsKnown());
+        known.add(new KnownSpell(null, spellName, 5, "class:Druid", true, null, null, null, null));
+        brea.setSpellsKnown(known);
+        participantRepository.save(brea);
+    }
+
+    private JsonNode actionsOf(String participantId) {
+        return expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId
+                + "/participants/" + participantId + "/actions", null, player.accessToken()));
+    }
+
+    private static JsonNode named(JsonNode actions, String name) {
+        for (JsonNode action : actions) {
+            if (name.equals(action.get("name").asString())) {
+                return action;
+            }
+        }
+        throw new AssertionError(name + " is not among the actions");
+    }
+
+    @Test
+    @DisplayName("Summon Celestial at 5th: the Defender has AC 18 to the Avenger's 16, 40 HP, a Radiant Mace of "
+            + "1d10 + 8 and acts right after its caster (TCE p.110)")
+    void summonCelestial_defender() {
+        spell("Summon Celestial", 5, true);
+        monsterRepository.save(Monster.builder().name("Celestial Spirit").type("celestial").source("TCE")
+                .hitPoints(40).armourClass(16).dexterity(14).charisma(16).damageResistances("[\"radiant\"]")
+                .build());
+        start();
+        fifthLevel("Summon Celestial");
+
+        JsonNode options = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId
+                + "/combat/summon-options?participantId=" + breaId + "&spellName=Summon Celestial&slotLevel=5", null,
+                player.accessToken()));
+        List<String> variants = new ArrayList<>();
+        options.get("variants").forEach(v -> variants.add(v.asString()));
+        assertThat(variants).containsExactly("Avenger", "Defender");
+        assertThat(options.get("spirit").get("armourClasses").get("Avenger").asInt()).isEqualTo(16);
+        assertThat(options.get("spirit").get("armourClasses").get("Defender").asInt()).isEqualTo(18);
+
+        JsonNode cast = castSummon("Summon Celestial", 5, Map.of("variant", "Defender"), HttpStatus.OK);
+        assertThat(cast.get("resultSummary").asString()).contains("summons Celestial Spirit (Defender)");
+        JsonNode defender = companions(dmState()).getFirst();
+        assertThat(defender.get("armourClass").asInt()).isEqualTo(18);
+        assertThat(defender.get("hpMax").asInt()).isEqualTo(40);
+        assertThat(defender.get("initiative").asInt()).isEqualTo(18);
+        assertThat(defender.get("summon").get("initiativeMode").asString()).isEqualTo("FOLLOWS_CASTER");
+        JsonNode actions = actionsOf(defender.get("id").asString()).get("actions");
+        JsonNode mace = named(actions, "Radiant Mace");
+        assertThat(mace.get("attackBonus").asInt()).isEqualTo(6);
+        assertThat(mace.get("effects").get(0).get("damageDice").asString()).isEqualTo("1d10 + 8");
+        assertThat(named(actions, "Multiattack").get("multiattackComponents").size()).isEqualTo(2);
+        assertThat(named(actions, "Healing Touch (1/Day)").get("description").asString()).contains("2d8 + 5");
+    }
+
+    @Test
+    @DisplayName("Animate Objects at 5th animates up to ten objects counted by size: a Huge and a Large is a 400, a "
+            + "Huge and two Tiny fit, with the stat blocks' hit points and one initiative per kind (PHB p.213)")
+    void animateObjects_budget() {
+        spell("Animate Objects", 5, true);
+        Monster huge = monsterRepository.save(Monster.builder().name("Animated Object (Huge)").type("construct")
+                .source("PHB").size("Huge").hitPoints(0).armourClass(10).dexterity(6).build());
+        Monster large = monsterRepository.save(Monster.builder().name("Animated Object (Large)").type("construct")
+                .source("PHB").size("Large").hitPoints(0).armourClass(10).dexterity(10).build());
+        Monster tiny = monsterRepository.save(Monster.builder().name("Animated Object (Tiny)").type("construct")
+                .source("PHB").size("Tiny").hitPoints(0).armourClass(18).dexterity(18).build());
+        start();
+        fifthLevel("Animate Objects");
+
+        JsonNode options = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId
+                + "/combat/summon-options?participantId=" + breaId + "&spellName=Animate Objects&slotLevel=5", null,
+                player.accessToken()));
+        assertThat(options.get("options").get(0).get("count").asInt()).isEqualTo(10);
+        assertThat(options.get("needsCommand").asBoolean()).isTrue();
+        assertThat(options.get("candidates").findValuesAsString("name"))
+                .contains("Animated Object (Huge)", "Animated Object (Large)", "Animated Object (Tiny)");
+        assertThat(options.get("candidates").findValues("hitPoints").stream().map(JsonNode::asInt).toList())
+                .contains(80, 50, 20);
+        JsonNode atSixth = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId
+                + "/combat/summon-options?participantId=" + breaId + "&spellName=Animate Objects&slotLevel=6", null,
+                player.accessToken()));
+        assertThat(atSixth.get("options").get(0).get("count").asInt()).isEqualTo(12);
+
+        castSummon("Animate Objects", 5, Map.of("optionId", "10", "creatures", List.of(
+                Map.of("monsterId", huge.getId(), "count", 1), Map.of("monsterId", large.getId(), "count", 1))),
+                HttpStatus.BAD_REQUEST);
+        assertThat(participant(dmState(), breaId).get("spellSlotsCurrent").get("5").get("used").asInt()).isZero();
+
+        // d20 4 + DEX 6's -2 for the Huge one, d20 11 + DEX 18's +4 for the Tiny ones
+        dice.script(4, 11);
+        castSummon("Animate Objects", 5, Map.of("optionId", "10", "creatures", List.of(
+                Map.of("monsterId", huge.getId(), "count", 1), Map.of("monsterId", tiny.getId(), "count", 2))),
+                HttpStatus.OK);
+        List<JsonNode> objects = companions(dmState());
+        assertThat(objects).hasSize(3);
+        JsonNode hugeObject = participant(dmState(), idOf(dmState(), "Animated Object (Huge)"));
+        assertThat(hugeObject.get("hpMax").asInt()).isEqualTo(80);
+        assertThat(hugeObject.get("initiative").asInt()).isEqualTo(2);
+        assertThat(hugeObject.get("summon").get("needsCommand").asBoolean()).isTrue();
+        JsonNode tinyObject = participant(dmState(), idOf(dmState(), "Animated Object (Tiny) 1"));
+        assertThat(tinyObject.get("hpMax").asInt()).isEqualTo(20);
+        assertThat(tinyObject.get("initiative").asInt()).isEqualTo(15);
+        assertThat(participant(dmState(), idOf(dmState(), "Animated Object (Tiny) 2")).get("initiative").asInt())
+                .isEqualTo(15);
+    }
+
+    @Test
+    @DisplayName("Conjure Elemental: placed by the DM, its own initiative; when Aria's concentration breaks it stays, "
+            + "hostile and the DM's; undo gives it back to her, and ending the spell by hand dismisses it (PHB p.225)")
+    void conjureElemental_hostileWhenConcentrationBreaks() {
+        spell("Conjure Elemental", 5, true);
+        Monster fireElemental = monster("Fire Elemental", "elemental", null, "5", 102, 13, 17);
+        monster("Invisible Stalker", "elemental", null, "6", 104, 14, 19);
+        start();
+
+        JsonNode options = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId
+                + "/combat/summon-options?participantId=" + breaId + "&spellName=Conjure Elemental&slotLevel=5", null,
+                dm.accessToken()));
+        assertThat(options.get("castInCombat").asBoolean()).isFalse();
+        assertThat(options.get("options").get(0).get("id").asString()).isEqualTo("1xCR5");
+        assertThat(options.get("candidates").findValuesAsString("name")).contains("Fire Elemental")
+                .doesNotContain("Invisible Stalker", "Wolf");
+
+        // d20 6 + DEX 17's +3
+        dice.script(6);
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/summons/companion",
+                Map.of("casterParticipantId", breaId, "spellName", "Conjure Elemental", "slotLevel", 5,
+                        "optionId", "1xCR5", "creatures", List.of(Map.of("monsterId", fireElemental.getId(),
+                                "count", 1))), dm.accessToken()));
+        JsonNode elemental = companions(dmState()).getFirst();
+        String elementalId = elemental.get("id").asString();
+        assertThat(elemental.get("initiative").asInt()).isEqualTo(9);
+        assertThat(elemental.get("controlledByUserId").asString()).isEqualTo(player.id().toString());
+        assertThat(participant(dmState(), breaId).get("concentrationSpell").asString())
+                .isEqualTo("Conjure Elemental");
+
+        // Aria drops to 0, which breaks her concentration: the elemental stays, hostile and the DM's
+        damage(breaId, 100, "fire");
+        JsonNode state = dmState();
+        JsonNode hostile = participant(state, elementalId);
+        assertThat(companions(state)).hasSize(1);
+        assertThat(hostile.get("controlledByUserId").isNull()).isTrue();
+        assertThat(hostile.get("summon").get("uncontrolled").asBoolean()).isTrue();
+        assertThat(participant(state, breaId).get("concentrationSpell").isNull()).isTrue();
+        assertThat(state.get("turnOrder").findValuesAsString("participantId")).contains(elementalId);
+        assertThat(participant(state, breaId).path("activeEffects").findValuesAsString("spell"))
+                .doesNotContain("Conjure Elemental");
+
+        String newest = state.get("undo").get("commandId").asString();
+        JsonNode undone = expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/undo", Map.of("expectedCommandId", newest), dm.accessToken()));
+        JsonNode back = participant(undone, elementalId);
+        assertThat(back.get("controlledByUserId").asString()).isEqualTo(player.id().toString());
+        assertThat(back.get("summon").has("uncontrolled")).isFalse();
+        assertThat(participant(undone, breaId).get("concentrationSpell").asString()).isEqualTo("Conjure Elemental");
+
+        // Ending the spell by hand isn't a broken concentration: the elemental disappears
+        String effectId = participant(undone, breaId).get("activeEffects").get(0).get("id").asString();
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/spell-effect/end",
+                Map.of("participantId", breaId, "effectId", effectId), dm.accessToken()));
+        assertThat(companions(dmState())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Danse Macabre at 5th raises up to five zombies or skeletons, seven at 6th, adding Aria's Wisdom "
+            + "modifier to their attacks and damage (XGE p.153)")
+    void danseMacabre_countAndBonus() {
+        spell("Danse Macabre", 5, true);
+        Monster zombie = monsterRepository.save(Monster.builder().name("Zombie").type("undead").challengeRating("1/4")
+                .source("MM").hitPoints(22).armourClass(8).dexterity(6)
+                .actionTemplates(MonsterTemplates.parse("""
+                        {"actions": [{"name": "Slam", "actionType": "ACTION", "deliveryMethod": "ATTACK_ROLL",
+                          "attackType": "MELEE_WEAPON", "attackBonus": 3, "targetCount": 1,
+                          "effects": [{"effectType": "DAMAGE", "damageDice": "1d6 + 1", "damageType": "bludgeoning"}]}]}"""))
+                .build());
+        Monster skeleton = monster("Skeleton", "undead", null, "1/4", 13, 13, 14);
+        PlayerCharacter sheet = characterRepository.findById(character).orElseThrow();
+        sheet.setWisdom(16);
+        characterRepository.save(sheet);
+        start();
+        fifthLevel("Danse Macabre");
+        // The test's Druid class names no spellcasting ability, so the participant's says Wisdom: 16, +3
+        EncounterParticipant brea = participantRepository.findById(UUID.fromString(breaId)).orElseThrow();
+        brea.setSpellcastingAbility("WIS");
+        participantRepository.save(brea);
+
+        JsonNode atFifth = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId
+                + "/combat/summon-options?participantId=" + breaId + "&spellName=Danse Macabre&slotLevel=5", null,
+                player.accessToken()));
+        assertThat(atFifth.get("options").get(0).get("count").asInt()).isEqualTo(5);
+        assertThat(atFifth.get("candidates").findValuesAsString("name")).containsExactlyInAnyOrder("Skeleton",
+                "Zombie");
+        JsonNode atSixth = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId
+                + "/combat/summon-options?participantId=" + breaId + "&spellName=Danse Macabre&slotLevel=6", null,
+                player.accessToken()));
+        assertThat(atSixth.get("options").get(0).get("count").asInt()).isEqualTo(7);
+
+        castSummon("Danse Macabre", 5, Map.of("optionId", "5", "creatures", List.of(
+                Map.of("monsterId", zombie.getId(), "count", 6))), HttpStatus.BAD_REQUEST);
+
+        dice.script(10, 12);
+        JsonNode cast = castSummon("Danse Macabre", 5, Map.of("optionId", "5", "creatures", List.of(
+                Map.of("monsterId", zombie.getId(), "count", 3), Map.of("monsterId", skeleton.getId(), "count", 1))),
+                HttpStatus.OK);
+        assertThat(cast.get("resultSummary").asString()).contains("Zombie ×3");
+        List<JsonNode> undead = companions(dmState());
+        assertThat(undead).hasSize(4);
+        assertThat(participant(dmState(), breaId).get("concentrationSpell").asString()).isEqualTo("Danse Macabre");
+        String zombieId = idOf(dmState(), "Zombie 1");
+        assertThat(participant(dmState(), zombieId).get("summon").get("needsCommand").asBoolean()).isTrue();
+        JsonNode slam = named(actionsOf(zombieId).get("actions"), "Slam");
+        assertThat(slam.get("attackBonus").asInt()).isEqualTo(6);
+        assertThat(slam.get("effects").get(0).get("damageDice").asString()).isEqualTo("1d6 + 4");
+    }
+
+    @Test
+    @DisplayName("Summon Draconic Spirit at 5th: a gem spirit with Shared Resistances to radiant halves radiant damage "
+            + "to Aria until the spell ends; fire, which a gem spirit doesn't resist, is a 400 (FTD p.21)")
+    void summonDraconicSpirit_sharedResistance() {
+        spellRepository.save(Spell.builder().name("Summon Draconic Spirit").level(5).source("FTD")
+                .castingTime("1 action").effectTemplate(SpellTemplate.parse("""
+                        {"spellLevel": 5, "concentration": true, "durationRounds": 600, "deliveryMethod": "NONE",
+                         "castOptions": ["acid", "cold", "fire", "lightning", "poison", "force", "necrotic",
+                                         "psychic", "radiant", "thunder"],
+                         "effects": [{"effectType": "SUMMON"},
+                                     {"effectType": "BUFF", "description": "Shared Resistances",
+                                      "modifiers": [{"kind": "RESISTANCE", "damageTypes": ["OPTION"]}]}],
+                         "requiresManualResolution": true, "manualResolutionReason": "Summons creatures"}"""))
+                .build());
+        monsterRepository.save(Monster.builder().name("Draconic Spirit").type("dragon").source("FTD")
+                .hitPoints(50).armourClass(19).dexterity(14).charisma(14).build());
+        start();
+        fifthLevel("Summon Draconic Spirit");
+
+        expect(HttpStatus.BAD_REQUEST, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/cast-spell?actorId=" + breaId, Map.of("spellName", "Summon Draconic Spirit",
+                "slotLevel", 5, "targetIds", List.of(), "option", "fire", "summon", Map.of("variant", "Gem")),
+                player.accessToken()));
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/cast-spell?actorId=" + breaId, Map.of("spellName", "Summon Draconic Spirit",
+                "slotLevel", 5, "targetIds", List.of(), "option", "radiant", "summon", Map.of("variant", "Gem")),
+                player.accessToken()));
+        JsonNode dragon = companions(dmState()).getFirst();
+        String dragonId = dragon.get("id").asString();
+        assertThat(dragon.get("displayName").asString()).isEqualTo("Draconic Spirit (Gem)");
+        assertThat(dragon.get("armourClass").asInt()).isEqualTo(19);
+        // Her concentration save, DC 10, succeeds
+        dice.script(20);
+        assertThat(participant(damage(breaId, 10, "radiant"), breaId).get("hpCurrent").asInt()).isEqualTo(35);
+        assertThat(participant(damage(dragonId, 10, "necrotic"), dragonId).get("hpCurrent").asInt()).isEqualTo(45);
+        assertThat(participant(damage(dragonId, 10, "fire"), dragonId).get("hpCurrent").asInt()).isEqualTo(35);
     }
 
     private void nextTurn() {

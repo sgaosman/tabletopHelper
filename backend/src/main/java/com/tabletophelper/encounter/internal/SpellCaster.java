@@ -121,7 +121,14 @@ public class SpellCaster {
             String summary = lead + " — " + (summoning != null ? summoning.castNote() : plan.manualReason())
                     + forTheDm(metamagic, targets);
             effectApplier.summary(encounter, use(caster, spellName, costNote, instance), summary);
-            leaveEffect(encounter, caster, spellName, slotLevel, instance, false, metamagic, ModifierCast.NONE,
+            // A summoning with an option may give its caster Ongoing Modifiers for it, as Summon Draconic Spirit's
+            // Shared Resistances, a resistance the spirit has, until the spell ends (FTD p.21)
+            ModifierCast onCaster = summoning != null && option != null
+                    ? new ModifierCast(spellEffects.modifiers(spellName, slotLevel, option,
+                            stats.spellcastingModifier(caster, castingAbility, attackBonus), caster),
+                            List.of(caster), saveDc)
+                    : ModifierCast.NONE;
+            leaveEffect(encounter, caster, spellName, slotLevel, instance, false, metamagic, onCaster,
                     spellEffects.later(spellName, slotLevel, option), List.of(), 0);
             return new CastResult(spellName, plan.spellLevel(), plan.concentration(), manualReason, summary,
                     List.of());
@@ -203,8 +210,163 @@ public class SpellCaster {
         int dealt = applied.stream().mapToInt(EffectApplier.Applied::damageTaken).sum();
         String modifierNote = leaveEffect(encounter, caster, spellName, slotLevel, instance, !reached.isEmpty(),
                 metamagic, new ModifierCast(modifiers, affected, saveDc), later, delayedOn, dealt);
+        String fifthNote = afterCast(encounter, caster, spellName, option, use, instance, reached, applied,
+                affected, saveDc, castingAbility, attackBonus);
         return new CastResult(spellName, plan.spellLevel(), plan.concentration(), null,
-                summary(lead, applied) + typeNote + modifierNote, outcomes(effect, applied));
+                summary(lead, applied) + typeNote + modifierNote + fifthNote, outcomes(effect, applied));
+    }
+
+    /*
+     * What the 5th-level spells' keys add once a cast has resolved (D187): the conditions or exhaustion it ends, as the
+     * Restoration spells' (PHB p.255, p.246); the hit points its caster drains, as Enervation's (XGE p.155); control of
+     * a creature that failed, as Dominate Person's (PHB p.235); the saves its creatures count, as Contagion's (PHB
+     * p.227); the contest it rolls, as Telekinesis's (PHB p.280); and its end when every creature saved against it, as
+     * Immolation's (XGE p.158). What the log adds, or nothing.
+     */
+    private String afterCast(Encounter encounter, EncounterParticipant caster, String spellName, String option,
+                             EffectApplier.Use use, ConcentrationInstance instance,
+                             List<EncounterParticipant> reached, List<EffectApplier.Applied> applied,
+                             List<EncounterParticipant> affected, int saveDc, String castingAbility, int attackBonus) {
+        SpellEffects.FifthLevel fifth = spellEffects.fifthLevel(spellName);
+        if (fifth.equals(SpellEffects.FifthLevel.NONE)) {
+            return "";
+        }
+        List<String> notes = new ArrayList<>();
+        if (!fifth.removesConditions().isEmpty()) {
+            notes.add(removeConditions(encounter, caster, spellName, option, fifth.removesConditions(), affected));
+        }
+        drain(encounter, caster, spellName, fifth, applied);
+        Optional<SpellEffectEntry> left = EffectApplier.effects(caster).stream()
+                .filter(effect -> effect.spell().equalsIgnoreCase(spellName))
+                .reduce((first, second) -> second);
+        if (fifth.controlTransfer() && left.isPresent()) {
+            effectApplier.takeControl(encounter, caster, left.get().id(), affected, fifth.controlCondition());
+        }
+        if (fifth.countedSaves() != null && left.isPresent() && !affected.isEmpty()) {
+            SpellTemplate.CountedSaves counted = fifth.countedSaves();
+            effectApplier.startCountedSave(caster, left.get().id(), new SpellEffectEntry.CountedSave(counted.ability(),
+                    saveDc, counted.successes(), counted.failures(), counted.onFailures(), counted.endsConditions(),
+                    List.of()), affected);
+            notes.add(names(affected) + " makes a " + counted.ability() + " save at the end of each of "
+                    + (affected.size() == 1 ? "its" : "their") + " turns: " + counted.successes() + " successes end "
+                    + spellName + ", " + counted.failures() + " failures make it take hold.");
+        }
+        if (fifth.contest() != null) {
+            notes.add(contest(encounter, caster, spellName, fifth.contest(), use, reached, castingAbility,
+                    attackBonus));
+        }
+        boolean allSaved = !applied.isEmpty() && applied.stream()
+                .allMatch(result -> result.outcome().outcome() == Outcome.SAVE_SUCCESS);
+        if (fifth.endsOnInitialSave() && allSaved) {
+            String why = names(applied.stream().map(EffectApplier.Applied::target).toList()) + " succeeds on the save";
+            if (instance != null && caster.getConcentration() != null
+                    && instance.id().equals(caster.getConcentration().id())) {
+                effectApplier.endConcentration(encounter, caster, spellName + " ends: " + why);
+            } else {
+                left.ifPresent(effect -> effectApplier.endEffect(encounter, caster, effect.id(), why));
+            }
+            notes.add(spellName + " ends, as " + why + ".");
+        }
+        String joined = notes.stream().filter(note -> note != null && !note.isBlank())
+                .collect(Collectors.joining(" "));
+        return joined.isEmpty() ? "" : " " + joined;
+    }
+
+    /*
+     * The Restoration spells (D187): the chosen condition ends on each creature reached, whatever gave it, as Lesser
+     * Restoration's blinded, deafened, paralyzed or poisoned (PHB p.255) or Greater Restoration's charmed or petrified
+     * (PHB p.246); the exhaustion option lowers exhaustion by one level (D183); an option the app doesn't track, as a
+     * curse or a disease, is left to the DM with a note.
+     */
+    private String removeConditions(Encounter encounter, EncounterParticipant caster, String spellName, String option,
+                                    List<String> removable, List<EncounterParticipant> creatures) {
+        if (option == null) {
+            return "";
+        }
+        boolean tracked = removable.stream().anyMatch(option::equalsIgnoreCase);
+        String lower = option.toLowerCase(java.util.Locale.ROOT);
+        List<String> notes = new ArrayList<>();
+        for (EncounterParticipant creature : creatures) {
+            if (!tracked) {
+                notes.add("The DM ends the " + lower + " on " + creature.getDisplayName() + ".");
+            } else if (SpellTemplate.EXHAUSTION_OPTION.equalsIgnoreCase(option)) {
+                int level = com.tabletophelper.rules.Exhaustion.clamp(creature.getExhaustionLevel());
+                if (level > 0) {
+                    effectApplier.setExhaustion(encounter, creature, level - 1);
+                    notes.add(creature.getDisplayName() + "'s exhaustion drops to level " + (level - 1) + ".");
+                } else {
+                    notes.add(creature.getDisplayName() + " has no exhaustion to remove.");
+                }
+            } else if (effectApplier.endConditionBySpell(encounter, caster, creature, lower, spellName)) {
+                notes.add(lower + " ends on " + creature.getDisplayName() + ".");
+            } else {
+                notes.add(creature.getDisplayName() + " isn't " + lower + ".");
+            }
+        }
+        return String.join(" ", notes);
+    }
+
+    /*
+     * Life drain (D187): the caster regains the template's share of the damage the creatures took, rounded down, as
+     * Enervation's and Vampiric Touch's half of the necrotic damage dealt (XGE p.155, PHB p.285).
+     */
+    private void drain(Encounter encounter, EncounterParticipant caster, String spellName,
+                       SpellEffects.FifthLevel fifth, List<EffectApplier.Applied> applied) {
+        int dealt = applied.stream().mapToInt(EffectApplier.Applied::damageTaken).sum();
+        int regained = (int) Math.floor(dealt * fifth.lifeDrain());
+        if (regained > 0 && caster.getLifeState() != LifeState.DEAD) {
+            effectApplier.heal(encounter, caster, caster, regained, spellName + ": half the damage dealt");
+        }
+    }
+
+    /*
+     * An ability check contest (D187), as Telekinesis's (PHB p.280): the caster's spellcasting ability check against
+     * each creature's check of the template's ability; a tie leaves things as they were (PHB p.174). A creature the
+     * caster beats gets the template's condition until the end of the caster's next turn.
+     */
+    private String contest(Encounter encounter, EncounterParticipant caster, String spellName,
+                           SpellTemplate.Contest contest, EffectApplier.Use use, List<EncounterParticipant> creatures,
+                           String castingAbility, int attackBonus) {
+        com.tabletophelper.rules.Ability ability = com.tabletophelper.rules.Ability.parse(contest.targetAbility())
+                .orElse(com.tabletophelper.rules.Ability.STR);
+        int casterModifier = stats.spellcastingModifier(caster, castingAbility, attackBonus);
+        List<String> notes = new ArrayList<>();
+        List<EncounterParticipant> beaten = new ArrayList<>();
+        for (EncounterParticipant creature : creatures) {
+            if (creature.getLifeState() == LifeState.DEAD) {
+                continue;
+            }
+            int casterRoll = resolver.d20();
+            int creatureRoll = resolver.d20();
+            int creatureModifier = com.tabletophelper.rules.Ability.modifier(stats.abilityScore(creature, ability));
+            int casterTotal = casterRoll + casterModifier;
+            int creatureTotal = creatureRoll + creatureModifier;
+            boolean won = casterTotal > creatureTotal;
+            String outcome = won ? " - " + caster.getDisplayName() + " wins"
+                    + (contest.winNote() != null ? ": " + contest.winNote() : "")
+                    : casterTotal == creatureTotal ? " - a tie, nothing changes"
+                    : " - " + creature.getDisplayName() + " wins";
+            String text = "Contest: " + caster.getDisplayName() + " d20(" + casterRoll + ")" + signed(casterModifier)
+                    + " = " + casterTotal + " vs " + creature.getDisplayName() + "'s " + ability.name() + " d20("
+                    + creatureRoll + ")" + signed(creatureModifier) + " = " + creatureTotal + outcome + ".";
+            effectApplier.summary(encounter, use, text);
+            notes.add(text);
+            if (won) {
+                beaten.add(creature);
+            }
+        }
+        if (contest.condition() != null && !beaten.isEmpty()) {
+            String condition = contest.condition().toLowerCase(java.util.Locale.ROOT);
+            Effect held = new Effect(spellName, new Effect.Automatic(), List.of(), null, List.of(condition), false,
+                    null, Map.of(condition, new Effect.ConditionEnd(null, null, null, true)));
+            effectApplier.apply(encounter, use, held, resolver.resolve(held, CreatureStats.side(caster),
+                    stats.targets(beaten, held, caster)));
+        }
+        return String.join(" ", notes);
+    }
+
+    private static String signed(int value) {
+        return value >= 0 ? " + " + value : " - " + (-value);
     }
 
     /**
@@ -379,7 +541,7 @@ public class SpellCaster {
         boolean withModifiers = plan.any() && (!modifiers.affected().isEmpty() || lasting.isPresent());
         String notes = plan.notes().isEmpty() ? "" : " " + String.join(". ", plan.notes()) + ".";
         boolean forLater = later.damageBudget() != null || later.retaliationDice() != null
-                || later.turnReminder() != null;
+                || later.turnReminder() != null || spellEffects.fifthLevel(spellName).keepsEffect();
         if (lasting.isEmpty() && !withModifiers && !forLater && delayedOn.isEmpty()) {
             return notes;
         }
@@ -425,8 +587,11 @@ public class SpellCaster {
         }
         SpellEffectEntry.EffectSave save = plan.repeatSave() != null
                 ? new SpellEffectEntry.EffectSave(plan.repeatSave(), modifiers.saveDc()) : null;
+        // A spell whose effect outlives its spent rider, as Banishing Smite's banishment (PHB p.216, D187), doesn't end
+        // with its last modifier
         effectApplier.startModifiers(encounter, caster, effect.id(), modifiers.affected(), plan.modifiers(),
-                plan.option(), save, plan.endReminder(), lasting.isEmpty());
+                plan.option(), save, plan.endReminder(),
+                lasting.isEmpty() && !spellEffects.fifthLevel(spellName).keepsEffect());
         effectApplier.spendBudget(encounter, caster, effect.id(), dealt);
         if (modifiers.affected().isEmpty()) {
             return notes;
@@ -475,15 +640,32 @@ public class SpellCaster {
         Effect effect = lifeDomainHealing(caster, plan.effect(), plan.spellLevel(), spellEffect.castLevel());
         lead += lifeDomainNote(caster, plan.effect(), plan.spellLevel(), spellEffect.castLevel());
         effectApplier.summary(encounter, use, lead + ".");
+        SpellEffects.FifthLevel fifth = spellEffects.fifthLevel(spellName);
+        // A use that ends the spell leaves its conditions on their own durations, as Holy Weapon's burst's blindness
+        // outlasts the spell it ends (XGE p.157, D187)
+        EffectApplier.Use applying = fifth.repeatEndsSpell() ? use.withoutInstance() : use;
         List<EffectApplier.Applied> applied = new ArrayList<>();
         for (int i = 0; i < times; i++) {
             List<EncounterParticipant> standing = targets.stream()
                     .filter(target -> target.getLifeState() != LifeState.DEAD)
                     .toList();
-            applied.addAll(effectApplier.apply(encounter, use, effect,
+            applied.addAll(effectApplier.apply(encounter, applying, effect,
                     resolver.resolve(effect, CreatureStats.side(caster), stats.targets(standing, effect, caster))));
         }
-        return new CastResult(spellName, plan.spellLevel(), false, null, summary(lead, applied),
+        drain(encounter, caster, spellName, fifth, applied);
+        String extra = fifth.contest() != null
+                ? " " + contest(encounter, caster, spellName, fifth.contest(), use, targets, castingAbility, attackBonus)
+                : "";
+        if (fifth.repeatEndsSpell()) {
+            ConcentrationInstance held = instanceOf(caster, spellEffect);
+            if (held != null) {
+                effectApplier.endConcentration(encounter, caster, spellName + " ends: its last use");
+            } else {
+                effectApplier.endEffect(encounter, caster, spellEffect.id(), "its last use");
+            }
+            extra += " " + spellName + " ends.";
+        }
+        return new CastResult(spellName, plan.spellLevel(), false, null, summary(lead, applied) + extra,
                 outcomes(effect, applied));
     }
 

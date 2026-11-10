@@ -1845,3 +1845,8 @@ Before R3, "not found" and "not allowed" both returned 400 (`IllegalArgumentExce
 ### 4th-level spells (D185)
 
 `SpellEffectResponse` gains `delayed`, `damageLeft` and `retaliation`; the Player View hides delayed damage aimed at hidden creatures. `SummonOptions.Option` gains a required `forms`, and the summon kind gains CONJURE, GIANT_INSECT and GREATER_DEMON. Attacks or spells against a banished or enclosed creature answer 409.
+
+
+### 5th-level spells (D187)
+
+`SpellEffectResponse` gains `tallies`, `tallyRule` (such as "CON 3/3") and `controlledIds`. `SummonOptions.SpiritPreview` gains `armourClasses`, and the summon kind gains four values. A spell with cast options (Greater Restoration, Destructive Wave and others) requires `option` on the cast.

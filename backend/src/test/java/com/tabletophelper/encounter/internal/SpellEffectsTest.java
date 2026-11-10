@@ -365,7 +365,7 @@ class SpellEffectsTest {
         }
 
         @Test
-        @DisplayName("The bundled data's 29 lasting spells each leave a Spell Effect its caster directs at the cost "
+        @DisplayName("The bundled data's 42 lasting spells each leave a Spell Effect its caster directs at the cost "
                 + "the spell's text gives, or whose area acts by itself at the moments it gives, or both (M15)")
         void bundledLastingSpells() throws IOException {
             Map<String, ActionCost> costs = new LinkedHashMap<>();
@@ -394,8 +394,9 @@ class SpellEffectsTest {
                 }
             }
             // Only Searing Smite's and Phantasmal Killer's texts end the spell on a successful save (PHB p.274, p.265);
-            // Ensnaring Strike's creature escapes with a Strength check as an action instead (PHB p.237)
-            assertEquals(Set.of("Searing Smite", "Phantasmal Killer"), endOnSave);
+            // Ensnaring Strike's creature escapes with a Strength check as an action instead (PHB p.237); Immolation's
+            // burning creature's success ends it too (XGE p.158, D187)
+            assertEquals(Set.of("Searing Smite", "Phantasmal Killer", "Immolation"), endOnSave);
 
             Map<String, ActionCost> expected = new LinkedHashMap<>();
             // PHB p.289, p.220, p.261, p.285, p.242; XGE p.161
@@ -416,10 +417,21 @@ class SpellEffectsTest {
             expected.put("Storm Sphere", ActionCost.BONUS_ACTION);
             expected.put("Watery Sphere", ActionCost.ACTION);
             expected.put("Mordenkainen's Faithful Hound", ActionCost.NONE);
-            assertEquals(29, triggers.size());
+            // 5th level (D187): Enervation's drain, Telekinesis and the beam of Wall of Light take an action (XGE p.155,
+            // PHB p.280, XGE p.170); Bigby's Hand, Dawn's move, Wrath of Nature's rocks, Holy Weapon's burst and Far
+            // Step are bonus actions (PHB p.218, XGE p.153, p.171, p.157, p.155); Geas's damage needs none (PHB p.244)
+            for (String spell : List.of("Enervation", "Telekinesis", "Wall of Light")) {
+                expected.put(spell, ActionCost.ACTION);
+            }
+            for (String spell : List.of("Bigby's Hand", "Dawn", "Wrath of Nature", "Holy Weapon", "Far Step")) {
+                expected.put(spell, ActionCost.BONUS_ACTION);
+            }
+            expected.put("Geas", ActionCost.NONE);
+            assertEquals(42, triggers.size());
             assertEquals(expected, Map.copyOf(costs));
-            // Only Moonbeam's and Dust Devil's uses move them without resolving anything (PHB p.261, XGE p.154)
-            assertEquals(Set.of("Moonbeam", "Dust Devil"), moves.entrySet().stream()
+            // Only Moonbeam's, Dust Devil's and Dawn's uses move them without resolving anything (PHB p.261, XGE p.154,
+            // p.153)
+            assertEquals(Set.of("Moonbeam", "Dust Devil", "Dawn"), moves.entrySet().stream()
                     .filter(Map.Entry::getValue).map(Map.Entry::getKey).collect(Collectors.toSet()));
 
             List<SpellTrigger> enterOrStart = List.of(SpellTrigger.ENTER, SpellTrigger.START_OF_TURN);

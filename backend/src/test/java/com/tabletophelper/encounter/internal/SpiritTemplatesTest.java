@@ -32,7 +32,7 @@ class SpiritTemplatesTest {
     void everySpell() {
         List<String> spells = SummonRules.spells().stream()
                 .filter(spell -> spell.kind() == SummonRules.Kind.SPIRIT).map(SummonRules.Spell::name).toList();
-        assertEquals(8, spells.size());
+        assertEquals(10, spells.size());
         spells.forEach(spell -> assertTrue(spirits.forSpell(spell).isPresent(), spell));
         // Each spirit's stat block is read from the book its spell names (D185)
         spells.forEach(spell -> assertEquals(SummonRules.spell(spell).orElseThrow().source(),
@@ -63,7 +63,8 @@ class SpiritTemplatesTest {
                     MonsterTemplates made = templates.templates(spirit, variant, slot, 7, 15);
                     assertNull(made.unreadable(), what);
                     MonsterTemplates.Action multiattack = made.find("ACTION", "Multiattack").orElseThrow();
-                    assertEquals(slot / 2, multiattack.multiattackComponents().size(), what);
+                    assertEquals(slot / 2 + spirit.multiattackExtra().size(),
+                            multiattack.multiattackComponents().size(), what);
                     String attack = SpiritTemplates.attack(spirit, variant);
                     MonsterTemplates.Action action = made.find("ACTION", attack).orElseThrow();
                     assertEquals(7, action.attackBonus(), what);
@@ -188,5 +189,53 @@ class SpiritTemplatesTest {
         assertEquals(40, SpiritTemplates.hitPoints(beast, land, 4));
         assertEquals(List.of("Maul", "Maul"), templates.templates(beast, land, 4, 5, 13)
                 .find("ACTION", "Multiattack").orElseThrow().multiattackComponents());
+    }
+
+    @Test
+    @DisplayName("Golden: a celestial Defender at 5th has AC 18, the Avenger 16; 40 HP, the bow 2d6 + 7, the mace "
+            + "1d10 + 8, and Healing Touch 2d8 + 5")
+    void celestial_fifthLevel() {
+        SummonSpirits.Spirit celestial = spirits.forSpell("Summon Celestial").orElseThrow();
+        assertEquals("TCE", celestial.source());
+        assertEquals(List.of("Avenger", "Defender"), celestial.variantNames());
+        SummonSpirits.Variant avenger = celestial.variant("Avenger").orElseThrow();
+        SummonSpirits.Variant defender = celestial.variant("Defender").orElseThrow();
+        assertEquals(16, SpiritTemplates.armourClass(celestial, avenger, 5));
+        assertEquals(18, SpiritTemplates.armourClass(celestial, defender, 5));
+        assertEquals(20, SpiritTemplates.armourClass(celestial, defender, 7));
+        assertEquals(40, SpiritTemplates.hitPoints(celestial, defender, 5));
+        assertEquals(60, SpiritTemplates.hitPoints(celestial, avenger, 7));
+        MonsterTemplates bow = templates.templates(celestial, avenger, 5, 7, 15);
+        assertEquals("2d6 + 7", bow.find("ACTION", "Radiant Bow").orElseThrow().effects().getFirst().damageDice());
+        assertEquals(List.of("Radiant Bow", "Radiant Bow"),
+                bow.find("ACTION", "Multiattack").orElseThrow().multiattackComponents());
+        assertTrue(bow.find("ACTION", "Radiant Mace").isEmpty());
+        MonsterTemplates mace = templates.templates(celestial, defender, 5, 7, 15);
+        MonsterTemplates.Action radiantMace = mace.find("ACTION", "Radiant Mace").orElseThrow();
+        assertEquals("1d10 + 8", radiantMace.effects().getFirst().damageDice());
+        assertTrue(radiantMace.dmNote().contains("1d10 temporary hit points"));
+        MonsterTemplates.Action touch = mace.find("ACTION", "Healing Touch (1/Day)").orElseThrow();
+        assertEquals(Boolean.FALSE, touch.automatable());
+        assertTrue(touch.description().contains("2d8 + 5"), touch.description());
+    }
+
+    @Test
+    @DisplayName("Golden: a gem draconic spirit at 6th has AC 20, 60 HP, three Rends of 1d6 + 10 and its Breath "
+            + "Weapon, resisting force, necrotic, psychic, radiant and thunder")
+    void draconic_sixthLevel() {
+        SummonSpirits.Spirit dragon = spirits.forSpell("Summon Draconic Spirit").orElseThrow();
+        assertEquals("FTD", dragon.source());
+        assertEquals(List.of("Chromatic", "Gem", "Metallic"), dragon.variantNames());
+        SummonSpirits.Variant gem = dragon.variant("Gem").orElseThrow();
+        assertEquals(20, SpiritTemplates.armourClass(dragon, gem, 6));
+        assertEquals(60, SpiritTemplates.hitPoints(dragon, gem, 6));
+        assertEquals(List.of("force", "necrotic", "psychic", "radiant", "thunder"), gem.damageResistances());
+        assertEquals(List.of("acid", "cold", "fire", "lightning", "poison"),
+                dragon.variant("Chromatic").orElseThrow().damageResistances());
+        MonsterTemplates made = templates.templates(dragon, gem, 6, 8, 16);
+        assertEquals(List.of("Rend", "Rend", "Rend", "Breath Weapon"),
+                made.find("ACTION", "Multiattack").orElseThrow().multiattackComponents());
+        assertEquals("1d6 + 10", made.find("ACTION", "Rend").orElseThrow().effects().getFirst().damageDice());
+        assertTrue(made.find("ACTION", "Breath Weapon").orElseThrow().dmNote().contains("DC 16 Dexterity"));
     }
 }

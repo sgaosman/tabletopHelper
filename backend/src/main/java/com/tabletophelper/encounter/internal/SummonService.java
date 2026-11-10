@@ -98,10 +98,13 @@ public class SummonService {
                     .orElseThrow(() -> new ConflictException(spirit.monster() + "'s stat block isn't loaded"));
             variants = spirit.variantNames();
             Map<String, Integer> hitPoints = new LinkedHashMap<>();
-            spirit.variants().forEach(variant -> hitPoints.put(variant.name(),
-                    SpiritTemplates.hitPoints(spirit, variant, slot)));
+            Map<String, Integer> armourClasses = new LinkedHashMap<>();
+            spirit.variants().forEach(variant -> {
+                hitPoints.put(variant.name(), SpiritTemplates.hitPoints(spirit, variant, slot));
+                armourClasses.put(variant.name(), SpiritTemplates.armourClass(spirit, variant, slot));
+            });
             preview = new SummonOptions.SpiritPreview(monster.getId(), monster.getName(),
-                    SpiritTemplates.armourClass(spirit, slot), hitPoints, SpiritScaling.attacks(slot),
+                    SpiritTemplates.armourClass(spirit, slot), armourClasses, hitPoints, SpiritScaling.attacks(slot),
                     caster.getSpellAttackBonus() != null ? caster.getSpellAttackBonus() : 0,
                     caster.getSpellSaveDc() != null ? caster.getSpellSaveDc() : 10);
             candidates = List.of(candidate(monster));
@@ -233,22 +236,27 @@ public class SummonService {
                                                      boolean pact) {
         List<Monster> pool = new ArrayList<>();
         switch (spell.kind()) {
-            case CONJURE_ANIMALS, CONJURE -> pool.addAll(monsterRepository.findByTypeIgnoreCase(spell.conjures()));
-            case LESSER_DEMONS, GREATER_DEMON -> pool.addAll(monsterRepository.findByTypeIgnoreCase("fiend"));
+            case CONJURE_ANIMALS, CONJURE, CONJURE_ELEMENTAL ->
+                    pool.addAll(monsterRepository.findByTypeIgnoreCase(spell.conjures()));
+            case LESSER_DEMONS, GREATER_DEMON, INFERNAL_CALLING ->
+                    pool.addAll(monsterRepository.findByTypeIgnoreCase("fiend"));
             case FAMILIAR, FLOCK_OF_FAMILIARS -> {
                 named(pool, SummonRules.FAMILIAR_FORMS);
                 if (pact && spell.kind() == SummonRules.Kind.FAMILIAR) {
                     named(pool, SummonRules.PACT_OF_THE_CHAIN_FORMS);
                 }
             }
-            case STEED, GIANT_INSECT, ANIMATE_DEAD -> named(pool, spell.forms());
+            case STEED, GIANT_INSECT, ANIMATE_DEAD, DANSE_MACABRE -> named(pool, spell.forms());
+            // Animate Objects' stat blocks are the Player's Handbook's (PHB p.213)
+            case ANIMATE_OBJECTS -> spell.forms().forEach(name -> monsterRepository
+                    .findByNameIgnoreCaseAndSource(name, "PHB").ifPresent(pool::add));
             case TINY_SERVANT -> monsterRepository.findByNameIgnoreCaseAndSource(SummonRules.TINY_SERVANT, "XGE")
                     .ifPresent(pool::add);
             default -> {
             }
         }
         return pool.stream()
-                .filter(monster -> BeastShapes.offered(monster.getSource(), monster.getHitPoints()))
+                .filter(monster -> BeastShapes.offered(monster.getSource(), hitPoints(monster)))
                 .filter(monster -> options.stream().anyMatch(option -> SummonRules.refusal(spell, option,
                         monster.getName(), monster.getChallengeRating(), monster.getType(), monster.getSubtype(), pact)
                         .isEmpty()))
@@ -269,11 +277,17 @@ public class SummonService {
         names.forEach(name -> monsterRepository.findByNameIgnoreCaseAndSource(name, "MM").ifPresent(pool::add));
     }
 
+    // Its hit points, the stat block's in words where the bestiary gives no number, as for Animate Objects' (PHB p.213)
+    private static int hitPoints(Monster monster) {
+        return monster.getHitPoints() != null && monster.getHitPoints() > 0 ? monster.getHitPoints()
+                : SummonRules.statBlockHitPoints(monster.getName()).orElse(0);
+    }
+
     private static SummonOptions.Candidate candidate(Monster monster) {
         return new SummonOptions.Candidate(monster.getId(), monster.getName(), monster.getChallengeRating(),
                 BeastShapes.challengeRating(monster.getChallengeRating()).isPresent()
                         ? BeastShapes.challengeRating(monster.getChallengeRating()).getAsDouble() : null,
-                monster.getHitPoints() != null ? monster.getHitPoints() : 0,
+                hitPoints(monster),
                 monster.getArmourClass() != null ? monster.getArmourClass() : 10,
                 monster.getType(), monster.getSize(), monster.getSource());
     }

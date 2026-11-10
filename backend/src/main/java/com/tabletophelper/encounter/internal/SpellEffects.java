@@ -136,6 +136,13 @@ public class SpellEffects {
             return manual(spellName, spellLevel, spellName + "'s dice can't be rolled automatically",
                     concentration, durationRounds, verbal);
         }
+        // A damage part of type OPTION deals the type chosen, as Destructive Wave's radiant or necrotic (PHB p.231) and
+        // Conjure Volley's ammunition (PHB p.226, D187)
+        damage = Optional.of(damage.get().stream()
+                .map(part -> "option".equals(part.type())
+                        ? new Effect.DamagePart(part.dice(), option != null ? option.toLowerCase(Locale.ROOT) : null)
+                        : part)
+                .toList());
 
         Map<String, Effect.ConditionEnd> ends = conditionEnds(template.conditionsInflicted(), template, saveDc);
         if (!java.util.Objects.equals(durationRounds, template.durationRounds())) {
@@ -292,6 +299,48 @@ public class SpellEffects {
         return template(spellName).map(template -> template.tempHitPoints(option)).orElse(null);
     }
 
+    /**
+     * What the 5th-level spells' keys make a cast or a use again do (D187).
+     *
+     * @param removesConditions the conditions a cast ends, or the cast options that do so
+     * @param controlTransfer   whether a creature that fails comes under the caster's control
+     * @param controlCondition  the condition that holds a controlled creature, or null
+     * @param lifeDrain         the share of the damage dealt the caster regains
+     * @param endsOnInitialSave whether the spell ends when every creature saves against the cast
+     * @param countedSaves      the saves its creatures count, or null
+     * @param repeatEndsSpell   whether a use again ends the spell
+     * @param contest           the ability check contest a cast and a use again roll, or null
+     * @param hitThreshold      whether a one-shot rider has a hit-point threshold, as Banishing Smite's, so its Spell
+     *                          Effect stays after the rider is spent
+     */
+    public record FifthLevel(List<String> removesConditions, boolean controlTransfer, String controlCondition,
+                             double lifeDrain, boolean endsOnInitialSave, SpellTemplate.CountedSaves countedSaves,
+                             boolean repeatEndsSpell, SpellTemplate.Contest contest, boolean hitThreshold) {
+
+        public static final FifthLevel NONE = new FifthLevel(List.of(), false, null, 0, false, null, false, null,
+                false);
+
+        /** Whether a cast must leave a Spell Effect to hold what these keys keep. */
+        public boolean keepsEffect() {
+            return controlTransfer || countedSaves != null || hitThreshold;
+        }
+    }
+
+    /** What the 5th-level spells' keys make the spell do (D187); nothing for a spell without a template. */
+    public FifthLevel fifthLevel(String spellName) {
+        return template(spellName).map(template -> new FifthLevel(template.removesConditions(),
+                template.controlTransfer(), template.conditionsInflicted().stream()
+                        .map(SpellTemplate.ConditionInflicted::name).filter(Objects::nonNull).findFirst().orElse(null),
+                template.lifeDrain(), template.endsOnInitialSave(), template.countedSaves(),
+                template.repeatEndsSpell(), template.contest(), template.hitThreshold() != null))
+                .orElse(FifthLevel.NONE);
+    }
+
+    /** The spell's hit-point threshold for its one-shot weapon rider (D187), or null for none. */
+    public SpellTemplate.HitThreshold hitThreshold(String spellName) {
+        return template(spellName).map(SpellTemplate::hitThreshold).orElse(null);
+    }
+
     /** The spell's creature-type rules; none for a spell without a template. */
     public TypeRules typeRules(String spellName) {
         return template(spellName).map(template -> new TypeRules(template.targetTypes(), template.noEffectOn(),
@@ -365,7 +414,10 @@ public class SpellEffects {
             }
         }
         boolean spellsOwn = ownConditions && !repeat.replaces();
-        List<SpellTemplate.ConditionInflicted> given = spellsOwn ? template.conditionsInflicted() : triggerConditions;
+        // A repeat that replaces the spell's effect gives the conditions it lists itself, as Holy Weapon's burst blinds
+        // (XGE p.157, D187)
+        List<SpellTemplate.ConditionInflicted> given = spellsOwn ? template.conditionsInflicted()
+                : ownConditions ? template.repeatConditions() : triggerConditions;
         Effect effect = new Effect(spellName, delivery, damage.get(), healing.get().dice(),
                 names(given), false, null, conditionEnds(given, template, saveDc));
         return new SpellPlan(spellName, spellLevel, effect, null, false, null, false);

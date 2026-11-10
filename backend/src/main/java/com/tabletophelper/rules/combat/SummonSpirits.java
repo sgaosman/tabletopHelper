@@ -6,8 +6,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The spirits of Tasha's summoning spells (TCE p.109–114, D182), and the Reaper Spirit of Spirit of Death (BMT p.50),
- * which works the same way, as {@code data/content/summon-spirits.json} holds them
+ * The spirits of Tasha's summoning spells (TCE p.109–114, D182), and the Reaper Spirit of Spirit of Death (BMT p.50)
+ * and the Draconic Spirit of Summon Draconic Spirit (FTD p.21), which work the same way, as {@code data/content/summon-spirits.json} holds them
  * and the content module reads them. Each spirit's statistics scale with the spell's slot level ({@link SpiritScaling});
  * its actions are kept in the monster action template schema, with the placeholders SPELL_ATTACK and SPELL_DC for the
  * caster's spell attack bonus and save DC, and LEVEL for the slot level, which the encounter fills in at the cast.
@@ -35,15 +35,18 @@ public record SummonSpirits(List<Spirit> spirits) {
      * @param actions      the actions every variant has, in the template schema
      * @param bonusActions the bonus actions every variant has
      * @param variants     the environments, moods or kinds the caster chooses among
+     * @param multiattackExtra the actions its Multiattack makes once beside its attacks, such as the Draconic Spirit's
+     *                         Breath Weapon (FTD p.21); empty for none
      */
     public record Spirit(String spell, String monster, String source, int page, int baseLevel, int acBase,
                          String attack, List<Map<String, Object>> actions, List<Map<String, Object>> bonusActions,
-                         List<Variant> variants) {
+                         List<Variant> variants, List<String> multiattackExtra) {
 
         public Spirit {
             actions = actions != null ? List.copyOf(actions) : List.of();
             bonusActions = bonusActions != null ? List.copyOf(bonusActions) : List.of();
             variants = variants != null ? List.copyOf(variants) : List.of();
+            multiattackExtra = multiattackExtra != null ? List.copyOf(multiattackExtra) : List.of();
         }
 
         /**
@@ -85,11 +88,13 @@ public record SummonSpirits(List<Spirit> spirits) {
      *                          Spirit's lightning and thunder (TCE p.111)
      * @param damageImmunities  the damage types it is immune to beside its stat block's, such as the Fire Elemental
      *                          Spirit's fire
+     * @param acBonus           what it adds to the spirit's AC, such as the Celestial Spirit Defender's 2 (TCE p.110);
+     *                          null for nothing
      */
     public record Variant(String name, int hpBase, int hpPerLevel, String attack, List<Map<String, Object>> actions,
                           List<Map<String, Object>> bonusActions, List<Map<String, Object>> reactions,
                           List<Map<String, Object>> traits, List<String> damageResistances,
-                          List<String> damageImmunities) {
+                          List<String> damageImmunities, Integer acBonus) {
 
         public Variant {
             actions = actions != null ? List.copyOf(actions) : List.of();

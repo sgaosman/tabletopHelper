@@ -12,6 +12,9 @@ export const SUMMONING_SPELLS = [
   // The 4th-level summonings (D185)
   'Summon Aberration', 'Summon Construct', 'Summon Elemental', 'Spirit of Death', 'Conjure Minor Elementals',
   'Conjure Woodland Beings', 'Giant Insect', 'Find Greater Steed', 'Summon Greater Demon',
+  // The 5th-level summonings (D187)
+  'Summon Celestial', 'Summon Draconic Spirit', 'Conjure Elemental', 'Infernal Calling', 'Animate Objects',
+  'Danse Macabre',
 ] as const;
 
 /**
@@ -20,7 +23,7 @@ export const SUMMONING_SPELLS = [
  */
 export const COMPANION_SPELLS = [
   'Find Familiar', 'Find Steed', 'Find Greater Steed', 'Animate Dead', 'Tiny Servant', 'Flock of Familiars',
-  'Conjure Minor Elementals',
+  'Conjure Minor Elementals', 'Conjure Elemental', 'Infernal Calling',
 ] as const;
 
 const SUMMONING = new Set(SUMMONING_SPELLS.map(name => name.toLowerCase()));
@@ -88,12 +91,26 @@ export function initialDraft(options: SummonOptions, optionId?: string | null): 
 }
 
 /**
- * Whether Animate Dead, Tiny Servant or Giant Insect, which may bring fewer than the option's count (PHB p.212, XGE
- * p.168, PHB p.245: "up to ten centipedes").
+ * Whether Animate Dead, Tiny Servant, Giant Insect, Animate Objects or Danse Macabre, which may bring fewer than the
+ * option's count (PHB p.212, XGE p.168, PHB p.245: "up to ten centipedes", PHB p.213, XGE p.153).
  */
 export function fewerAllowed(options: SummonOptions): boolean {
   const kind: string = options.kind;
-  return kind === 'ANIMATE_DEAD' || kind === 'TINY_SERVANT' || kind === 'GIANT_INSECT';
+  return kind === 'ANIMATE_DEAD' || kind === 'TINY_SERVANT' || kind === 'GIANT_INSECT'
+    || kind === 'ANIMATE_OBJECTS' || kind === 'DANSE_MACABRE';
+}
+
+/** How many of Animate Objects' objects each size counts as (PHB p.213). */
+const OBJECT_WEIGHTS: Record<string, number> = { tiny: 1, small: 1, medium: 2, large: 4, huge: 8 };
+
+/**
+ * How many of the option's creatures one of these counts as: for Animate Objects, a Medium object two, a Large four
+ * and a Huge eight (PHB p.213); one for anything else, as the server counts them.
+ */
+export function creatureWeight(options: SummonOptions, candidate: SummonCandidate | undefined): number {
+  const kind: string = options.kind;
+  if (kind !== 'ANIMATE_OBJECTS' || !candidate?.size) return 1;
+  return OBJECT_WEIGHTS[candidate.size.trim().toLowerCase()] ?? 1;
 }
 
 /**
@@ -113,6 +130,13 @@ export function totalCount(draft: SummonDraft): number {
   return Object.values(draft.counts).reduce((sum, n) => sum + n, 0);
 }
 
+/** The creatures counted so far against the option: by size for Animate Objects (PHB p.213), else one each. */
+export function budgetUsed(options: SummonOptions, draft: SummonDraft): number {
+  const byId = new Map(options.candidates.map(c => [c.monsterId, c]));
+  return Object.entries(draft.counts)
+    .reduce((sum, [id, n]) => sum + n * creatureWeight(options, byId.get(id)), 0);
+}
+
 /**
  * Why the choice can't be sent yet, or null when it can, as the server would check it (D182). When the DM chooses a
  * caster's creatures, the caster has only a tiered conjuring's option to choose. `byDm` is the DM placing them.
@@ -127,8 +151,8 @@ export function draftProblem(options: SummonOptions, draft: SummonDraft, byDm = 
   }
   const option = options.options.find(o => o.id === draft.optionId);
   if (!option) return 'Choose an option';
-  const total = totalCount(draft);
-  if (total < 1) return 'Choose at least one creature';
+  if (totalCount(draft) < 1) return 'Choose at least one creature';
+  const total = budgetUsed(options, draft);
   if (fewerAllowed(options) ? total > option.count : total !== option.count) {
     return `Choose ${fewerAllowed(options) ? 'up to ' : ''}${option.count} creature${option.count === 1 ? '' : 's'} (${total} chosen)`;
   }

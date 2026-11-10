@@ -22,7 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (XGE p.167), Flock of Familiars (LLK p.57), Animate Dead (PHB p.212), Tiny Servant (XGE p.168), Find Familiar and
  * Find Steed (PHB p.240) and the Tasha's spirits (TCE p.109–114); and the 4th-level ones: Conjure Minor Elementals and
  * Conjure Woodland Beings (PHB p.226), Giant Insect (PHB p.245), Find Greater Steed (XGE p.156), Summon Greater Demon
- * (XGE p.166), Summon Aberration, Construct and Elemental (TCE p.109–111) and Spirit of Death (BMT p.50).
+ * (XGE p.166), Summon Aberration, Construct and Elemental (TCE p.109–111) and Spirit of Death (BMT p.50); and the
+ * 5th-level ones: Summon Celestial (TCE p.110), Summon Draconic Spirit (FTD p.21), Conjure Elemental (PHB p.225),
+ * Infernal Calling (XGE p.158), Animate Objects (PHB p.213) and Danse Macabre (XGE p.153).
  */
 class SummonRulesTest {
 
@@ -217,7 +219,7 @@ class SummonRulesTest {
         void spell_lookup() {
             assertTrue(SummonRules.spell("conjure animals").isPresent());
             assertTrue(SummonRules.spell("Fireball").isEmpty());
-            assertEquals(20, SummonRules.spells().size());
+            assertEquals(26, SummonRules.spells().size());
         }
     }
 
@@ -445,6 +447,174 @@ class SummonRulesTest {
     }
 
     @Nested
+    @DisplayName("The 5th-level summonings (D187)")
+    class FifthLevel {
+
+        @ParameterizedTest(name = "{0}: {1} p.{2}")
+        @CsvSource({"Summon Celestial,TCE,110", "Summon Draconic Spirit,FTD,21"})
+        @DisplayName("Summon Celestial and Summon Draconic Spirit: level 5 spirits that follow the caster")
+        void spirits(String name, String source, int page) {
+            Spell spell = spell(name);
+            assertEquals(Kind.SPIRIT, spell.kind());
+            assertEquals(5, spell.level());
+            assertEquals(source, spell.source());
+            assertEquals(page, spell.page());
+            assertEquals(List.of(InitiativeMode.FOLLOWS_CASTER), spell.initiativeModes());
+            assertTrue(spell.concentration());
+            assertTrue(spell.castInCombat());
+            assertEquals(List.of(1), counts(name, 9));
+        }
+
+        @ParameterizedTest(name = "Conjure Elemental at level {0}: CR {1} or lower")
+        @CsvSource({"5,5", "6,6", "9,9"})
+        @DisplayName("Conjure Elemental: one elemental of CR 5 or lower, one higher per slot level above 5th")
+        void conjureElemental_challengeRating(int slot, double maxCr) {
+            List<Option> options = SummonRules.options(spell("Conjure Elemental"), slot, false);
+            assertEquals(1, options.size());
+            assertEquals(1, options.getFirst().count());
+            assertEquals(maxCr, options.getFirst().maxCr());
+        }
+
+        @Test
+        @DisplayName("Conjure Elemental: a minute to cast, its own initiative, the caster's, and it stays hostile when "
+                + "concentration breaks")
+        void conjureElemental_spell() {
+            Spell spell = spell("Conjure Elemental");
+            assertEquals(Kind.CONJURE_ELEMENTAL, spell.kind());
+            assertFalse(spell.castInCombat());
+            assertEquals(List.of(InitiativeMode.INDIVIDUAL), spell.initiativeModes());
+            assertEquals(SummonRules.Controller.CASTER, spell.controller());
+            assertTrue(spell.vanishesAtZero());
+            assertTrue(spell.turnsHostileWhenConcentrationBreaks());
+            assertFalse(spell("Summon Greater Demon").turnsHostileWhenConcentrationBreaks());
+            assertEquals(SummonRules.ONE_HOUR, spell.durationRounds());
+        }
+
+        @Test
+        @DisplayName("Conjure Elemental takes an elemental of its rating, not a swarm, a beast or one too strong")
+        void conjureElemental_refusal() {
+            Spell spell = spell("Conjure Elemental");
+            Option option = SummonRules.options(spell, 5, false).getFirst();
+            assertTrue(SummonRules.refusal(spell, option, "Fire Elemental", "5", "elemental", null, false).isEmpty());
+            assertTrue(SummonRules.refusal(spell, option, "Air Elemental", "5", "elemental", null, false).isEmpty());
+            assertTrue(SummonRules.refusal(spell, option, "Xorn", "5", "elemental", null, false).isEmpty());
+            assertTrue(SummonRules.refusal(spell, option, "Invisible Stalker", "6", "elemental", null, false)
+                    .isPresent());
+            assertTrue(SummonRules.refusal(spell, option, "Brown Bear", "1", "beast", null, false).isPresent());
+            Option sixth = SummonRules.options(spell, 6, false).getFirst();
+            assertTrue(SummonRules.refusal(spell, sixth, "Invisible Stalker", "6", "elemental", null, false)
+                    .isEmpty());
+        }
+
+        @ParameterizedTest(name = "Infernal Calling at level {0}: CR {1} or lower")
+        @CsvSource({"5,6", "7,8", "9,10"})
+        @DisplayName("Infernal Calling: one devil of CR 6 or lower, one higher per slot level above 5th")
+        void infernalCalling_challengeRating(int slot, double maxCr) {
+            Option option = SummonRules.options(spell("Infernal Calling"), slot, false).getFirst();
+            assertEquals(1, option.count());
+            assertEquals(maxCr, option.maxCr());
+        }
+
+        @Test
+        @DisplayName("Infernal Calling: a devil, the DM's, with its own initiative and a minute to cast")
+        void infernalCalling_spell() {
+            Spell spell = spell("Infernal Calling");
+            assertEquals(Kind.INFERNAL_CALLING, spell.kind());
+            assertEquals(SummonRules.Controller.DM, spell.controller());
+            assertEquals(List.of(InitiativeMode.INDIVIDUAL), spell.initiativeModes());
+            assertFalse(spell.castInCombat());
+            Option option = SummonRules.options(spell, 5, false).getFirst();
+            assertTrue(SummonRules.refusal(spell, option, "Barbed Devil", "5", "fiend", "devil", false).isEmpty());
+            assertTrue(SummonRules.refusal(spell, option, "Chain Devil", "8", "fiend", "devil", false).isPresent());
+            assertTrue(SummonRules.refusal(spell, option, "Vrock", "6", "fiend", "demon", false).isPresent());
+        }
+
+        @ParameterizedTest(name = "Animate Objects at level {0}: up to {1} objects")
+        @CsvSource({"5,10", "6,12", "9,18"})
+        @DisplayName("Animate Objects: ten objects, two more per slot level above 5th")
+        void animateObjects_budget(int slot, int objects) {
+            assertEquals(List.of(objects), counts("Animate Objects", slot));
+        }
+
+        @Test
+        @DisplayName("Animate Objects counts a Tiny or Small object as one, Medium two, Large four and Huge eight")
+        void animateObjects_weights() {
+            Spell spell = spell("Animate Objects");
+            assertTrue(spell.weighted());
+            assertEquals(1, SummonRules.weight(spell, "Tiny"));
+            assertEquals(1, SummonRules.weight(spell, "Small"));
+            assertEquals(2, SummonRules.weight(spell, "Medium"));
+            assertEquals(4, SummonRules.weight(spell, "Large"));
+            assertEquals(8, SummonRules.weight(spell, "Huge"));
+            assertEquals(1, SummonRules.weight(spell("Danse Macabre"), "Medium"));
+        }
+
+        @Test
+        @DisplayName("Animate Objects: up to its budget, counted by size; a Huge and a Large is twelve, too many")
+        void animateObjects_count() {
+            Spell spell = spell("Animate Objects");
+            Option option = SummonRules.options(spell, 5, false).getFirst();
+            assertTrue(SummonRules.countRefusal(spell, option, 10).isEmpty());
+            assertTrue(SummonRules.countRefusal(spell, option, 3).isEmpty());
+            assertTrue(SummonRules.countRefusal(spell, option, 12).isPresent());
+            assertTrue(SummonRules.countRefusal(spell, option, 0).isPresent());
+        }
+
+        @Test
+        @DisplayName("Animate Objects: its five stat blocks, their hit points, a command and a dead row at 0")
+        void animateObjects_spell() {
+            Spell spell = spell("Animate Objects");
+            assertEquals(Kind.ANIMATE_OBJECTS, spell.kind());
+            assertTrue(spell.castInCombat());
+            assertTrue(spell.needsCommand());
+            assertFalse(spell.vanishesAtZero());
+            assertTrue(spell.groupsByCreature());
+            assertTrue(spell.fewerAllowed());
+            assertEquals(10, spell.durationRounds());
+            Option option = SummonRules.options(spell, 5, false).getFirst();
+            assertTrue(SummonRules.refusal(spell, option, "Animated Object (Huge)", null, "construct", null, false)
+                    .isEmpty());
+            assertTrue(SummonRules.refusal(spell, option, "Animated Armor", "1", "construct", null, false)
+                    .isPresent());
+            assertEquals(List.of(20, 25, 40, 50, 80), SummonRules.ANIMATED_OBJECT_FORMS.stream()
+                    .map(name -> SummonRules.statBlockHitPoints(name).orElseThrow()).toList());
+            assertTrue(SummonRules.statBlockHitPoints("Zombie").isEmpty());
+        }
+
+        @ParameterizedTest(name = "Danse Macabre at level {0}: up to {1} undead")
+        @CsvSource({"5,5", "6,7", "9,13"})
+        @DisplayName("Danse Macabre: five corpses, two more per slot level above 5th")
+        void danseMacabre_count(int slot, int count) {
+            assertEquals(List.of(count), counts("Danse Macabre", slot));
+        }
+
+        @Test
+        @DisplayName("Danse Macabre: zombies or skeletons, fewer allowed, commanded, with the caster's modifier")
+        void danseMacabre_spell() {
+            Spell spell = spell("Danse Macabre");
+            assertEquals(Kind.DANSE_MACABRE, spell.kind());
+            assertTrue(spell.concentration());
+            assertTrue(spell.castInCombat());
+            assertTrue(spell.needsCommand());
+            assertTrue(spell.addsSpellcastingModifier());
+            assertFalse(spell("Animate Dead").addsSpellcastingModifier());
+            Option option = SummonRules.options(spell, 5, false).getFirst();
+            assertTrue(SummonRules.refusal(spell, option, "Zombie", "1/4", "undead", null, false).isEmpty());
+            assertTrue(SummonRules.refusal(spell, option, "Ghoul", "1", "undead", null, false).isPresent());
+            assertTrue(SummonRules.countRefusal(spell, option, 4).isEmpty());
+            assertTrue(SummonRules.countRefusal(spell, option, 6).isPresent());
+        }
+
+        @ParameterizedTest(name = "{0} with {1} is {2}")
+        @CsvSource({"1d6 + 2,3,1d6 + 5", "1d6+1,4,1d6 + 5", "1d6,3,1d6 + 3", "1d6 + 2,-2,1d6", "2d8 - 1,3,2d8 + 2",
+                "1d6 + 2,0,1d6 + 2"})
+        @DisplayName("A flat bonus folds into the damage's own number (XGE p.153)")
+        void withFlatBonus(String damage, int bonus, String expected) {
+            assertEquals(expected, SummonRules.withFlatBonus(damage, bonus));
+        }
+    }
+
+    @Nested
     @DisplayName("Labels and reprints")
     class Labels {
 
@@ -469,6 +639,11 @@ class SummonRulesTest {
             assertEquals("1 familiar", label("Find Familiar", 1, false));
             assertEquals("1 steed", label("Find Steed", 2, false));
             assertEquals("1 spirit", label("Summon Beast", 2, false));
+            assertEquals("1 elemental of challenge rating 5 or lower", label("Conjure Elemental", 5, false));
+            assertEquals("1 devil of challenge rating 6 or lower", label("Infernal Calling", 5, false));
+            assertEquals("5 undead", label("Danse Macabre", 5, false));
+            assertEquals("Up to 10 objects (Medium counts as 2, Large as 4, Huge as 8)",
+                    label("Animate Objects", 5, false));
         }
 
         @Test

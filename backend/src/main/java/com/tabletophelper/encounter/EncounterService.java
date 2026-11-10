@@ -827,6 +827,10 @@ public class EncounterService {
                     .damageLeft(effect.damageLeft())
                     .retaliation(effect.retaliation() != null
                             ? effect.retaliation().dice() + " " + effect.retaliation().type() : null)
+                    .tallies(effect.countedSave() != null ? effect.countedSave().tallies() : List.of())
+                    .tallyRule(effect.countedSave() != null ? effect.countedSave().ability() + " "
+                            + effect.countedSave().successes() + "/" + effect.countedSave().failures() : null)
+                    .controlledIds(effect.controlled().stream().map(SpellEffectEntry.Controlled::creature).toList())
                     .summonedParticipantIds(effect.summon() == null ? List.of()
                             : EffectApplier.summonedBy(encounter, effect.id()).stream()
                                     .sorted(Comparator.comparing(p -> p.getSortOrder() != null ? p.getSortOrder()

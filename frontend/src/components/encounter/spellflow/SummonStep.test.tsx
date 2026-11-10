@@ -191,7 +191,7 @@ describe('SummonStep for the 4th-level summonings', () => {
     const user = userEvent.setup();
     render(<Harness onContinue={onContinue} options={makeMockSpiritOptions({
       spellName: 'Spirit of Death', spellLevel: 4, variants: ['Reaper'],
-      spirit: { monsterId: 'mon-reaper', name: 'Reaper Spirit', armourClass: 15, hitPoints: { Reaper: 40 }, attacks: 2, attackBonus: 7, saveDc: 15 },
+      spirit: { monsterId: 'mon-reaper', name: 'Reaper Spirit', armourClass: 15, armourClasses: { Reaper: 15 }, hitPoints: { Reaper: 40 }, attacks: 2, attackBonus: 7, saveDc: 15 },
     })} />);
 
     expect(screen.queryByRole('radio', { name: 'Reaper' })).not.toBeInTheDocument();
@@ -225,6 +225,60 @@ describe('SummonStep for the 4th-level summonings', () => {
     expect(screen.getByText(/on a success your control ends \(XGE p\.166\)/)).toBeInTheDocument();
     // Every candidate here is CR 1 or lower, so all fit the CR 5 cap
     expect(within(screen.getByRole('list', { name: 'Creatures to summon' })).getByText('Brown Bear')).toBeInTheDocument();
+  });
+});
+
+describe('SummonStep for the 5th-level summonings (D187)', () => {
+  it('Summon Celestial: the Defender shows its AC 2 higher than the Avenger\'s (TCE p.110)', async () => {
+    const user = userEvent.setup();
+    render(<Harness options={makeMockSpiritOptions({
+      spellName: 'Summon Celestial', spellLevel: 5, slotLevel: 5, variants: ['Avenger', 'Defender'],
+      spirit: { monsterId: 'mon-celestial', name: 'Celestial Spirit', armourClass: 16, armourClasses: { Avenger: 16, Defender: 18 }, hitPoints: { Avenger: 40, Defender: 40 }, attacks: 2, attackBonus: 7, saveDc: 15 },
+    })} />);
+
+    const stats = screen.getByLabelText('Celestial Spirit at level 5');
+    expect(stats).toHaveTextContent('AC16');
+    await user.click(screen.getByRole('radio', { name: 'Defender' }));
+    expect(stats).toHaveTextContent('AC18');
+  });
+
+  it('Animate Objects: objects count by size against ten, so a Huge one and a Large one are too many (PHB p.213)', async () => {
+    const onContinue = vi.fn();
+    const user = userEvent.setup();
+    render(<Harness onContinue={onContinue} options={makeMockSummonOptions({
+      spellName: 'Animate Objects', kind: kindOf('ANIMATE_OBJECTS'), slotLevel: 5, spellLevel: 5, needsCommand: true,
+      options: [{ id: '10', count: 10, maxCr: null, label: 'Up to 10 objects (Medium counts as 2, Large as 4, Huge as 8)', forms: [] }],
+      initiativeModes: ['GROUP'], defaultInitiativeMode: 'GROUP', houseRuleModes: [], creatureType: null,
+      candidates: [
+        { monsterId: 'mon-tiny', name: 'Animated Object (Tiny)', challengeRating: null, challengeRatingValue: null, hitPoints: 20, armourClass: 18, type: 'construct', size: 'Tiny', source: 'PHB' },
+        { monsterId: 'mon-large', name: 'Animated Object (Large)', challengeRating: null, challengeRatingValue: null, hitPoints: 50, armourClass: 10, type: 'construct', size: 'Large', source: 'PHB' },
+        { monsterId: 'mon-huge', name: 'Animated Object (Huge)', challengeRating: null, challengeRatingValue: null, hitPoints: 80, armourClass: 10, type: 'construct', size: 'Huge', source: 'PHB' },
+      ],
+    })} />);
+
+    expect(screen.getByText(/a Large as 4 and a Huge as 8 \(PHB p\.213\)/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'One more Animated Object (Huge)' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Chosen 8 of up to 10');
+    // A Large one would make twelve
+    expect(screen.getByRole('button', { name: 'One more Animated Object (Large)' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'One more Animated Object (Tiny)' }));
+    await user.click(screen.getByRole('button', { name: 'One more Animated Object (Tiny)' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Chosen 10 of up to 10');
+    expect(screen.getByRole('button', { name: 'One more Animated Object (Tiny)' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(onContinue).toHaveBeenCalledWith(expect.objectContaining({
+      optionId: '10', creatures: [{ monsterId: 'mon-huge', count: 1 }, { monsterId: 'mon-tiny', count: 2 }],
+    }));
+  });
+
+  it('Conjure Elemental: a note that it turns hostile when concentration breaks (PHB p.225)', () => {
+    render(<Harness options={makeMockSummonOptions({
+      spellName: 'Conjure Elemental', kind: kindOf('CONJURE_ELEMENTAL'), slotLevel: 5, spellLevel: 5,
+      options: [{ id: '1xCR5', count: 1, maxCr: 5, label: '1 elemental of challenge rating 5 or lower', forms: [] }],
+      initiativeModes: ['INDIVIDUAL'], defaultInitiativeMode: 'INDIVIDUAL', houseRuleModes: [], creatureType: null,
+    })} />);
+
+    expect(screen.getByText(/it turns hostile, you can't dismiss it/)).toBeInTheDocument();
   });
 });
 

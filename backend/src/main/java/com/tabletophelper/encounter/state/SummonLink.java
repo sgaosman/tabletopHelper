@@ -32,8 +32,8 @@ import java.util.UUID;
  *                          Fire Elemental Spirit's fire; empty for none
  * @param controlSaveDc  the caster's spell save DC that Summon Greater Demon's demon saves against at the end of each of
  *                       its turns to break free (XGE p.166); null for any other creature
- * @param uncontrolled   true once such a demon has broken free, the caster's control over for the rest of the spell;
- *                       null otherwise
+ * @param uncontrolled   true once such a demon has broken free, the caster's control over for the rest of the spell,
+ *                       or once Conjure Elemental's elemental has turned hostile (PHB p.225); null otherwise
  */
 public record SummonLink(
         UUID effectId,
@@ -75,6 +75,22 @@ public record SummonLink(
         return new SummonLink(effectId, spell, slotLevel, kind, initiativeMode, groupId, variant, creatureType,
                 vanishesAtZero, cannotAttack, needsCommand, commandedRound, damageResistances, damageImmunities,
                 controlSaveDc, true);
+    }
+
+    /**
+     * The same link once Conjure Elemental's elemental has turned hostile because its caster's concentration broke
+     * (PHB p.225): out of the caster's control, as {@link #withControlBroken()} marks it.
+     */
+    public SummonLink withHostile() {
+        return withControlBroken();
+    }
+
+    /**
+     * Whether it is Conjure Elemental's elemental turned hostile when its caster's concentration broke (PHB p.225): it
+     * no longer belongs to the spell, so the spell's end leaves it, and it disappears 1 hour after it was summoned.
+     */
+    public boolean hostile() {
+        return Boolean.TRUE.equals(uncontrolled) && kind == SummonRules.Kind.CONJURE_ELEMENTAL;
     }
 
     /** Whether it still has to save at the end of its turns to stay under its caster's control (XGE p.166). */
