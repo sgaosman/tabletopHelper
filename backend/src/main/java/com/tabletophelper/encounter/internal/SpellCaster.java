@@ -156,6 +156,9 @@ public class SpellCaster {
         SpellEffects.TypeRules types = spellEffects.typeRules(spellName);
         SpellEffects.SeventhLevel seventh = spellEffects.seventhLevel(spellName);
         SpellEffects.CastRules rules = spellEffects.castRules(spellName);
+        // A creature whose ability score is too low is unaffected, as one of Intelligence 2 or lower by Psychic Scream
+        // (XGE p.163, D190)
+        SpellEffects.HighLevel high = spellEffects.highLevel(spellName);
         // A Globe of Invulnerability keeps out a spell of its level or lower cast from outside (PHB p.245, D188), and a
         // creature immune to the condition the spell needs is immune to it, as one that can't be charmed is to Mass
         // Suggestion (PHB p.258, D188)
@@ -175,7 +178,7 @@ public class SpellCaster {
         // as deafness does Divine Word (PHB p.234) (D189)
         List<EncounterParticipant> spared = reached.stream()
                 .filter(target -> !globed.contains(target) && !immune.contains(target) && !unaffected.contains(target)
-                        && spared(target, seventh))
+                        && (spared(target, seventh) || atOrBelow(target, high.unaffectedAtOrBelow())))
                 .toList();
         List<EncounterParticipant> maximised = reached.stream()
                 .filter(target -> !globed.contains(target) && !immune.contains(target) && !unaffected.contains(target)
@@ -187,7 +190,9 @@ public class SpellCaster {
                 .toList();
         if (!spared.isEmpty()) {
             effectApplier.summary(encounter, use, spellName + " has no effect on " + spared.stream()
-                    .map(target -> target.getDisplayName() + " (" + sparedWhy(target, seventh) + ")")
+                    .map(target -> target.getDisplayName() + " (" + (sparedWhy(target, seventh) != null
+                            ? sparedWhy(target, seventh) : high.unaffectedAtOrBelow().ability() + " "
+                            + high.unaffectedAtOrBelow().max() + " or lower") + ")")
                     .collect(Collectors.joining(", ")) + ".");
         }
         List<EffectApplier.Applied> applied = new ArrayList<>();
@@ -252,8 +257,82 @@ public class SpellCaster {
                 affected, saveDc, castingAbility, attackBonus);
         String seventhNote = afterSeventh(encounter, caster, spellName, slotLevel, option, use, seventh, normal,
                 applied, saveDc);
+        String highNote = afterHighLevelCast(encounter, caster, spellName, high, use, affected);
         return new CastResult(spellName, plan.spellLevel(), plan.concentration(), null,
-                summary(lead, applied) + typeNote + modifierNote + fifthNote + seventhNote, outcomes(effect, applied));
+                summary(lead, applied) + typeNote + modifierNote + fifthNote + seventhNote + highNote,
+                outcomes(effect, applied));
+    }
+
+    // Whether the creature's score in the floor's ability is at or below it (D190)
+    private boolean atOrBelow(EncounterParticipant creature, SpellTemplate.AbilityFloor floor) {
+        if (floor == null) {
+            return false;
+        }
+        return Ability.parse(floor.ability())
+                .map(ability -> stats.abilityScore(creature, ability) <= floor.max())
+                .orElse(false);
+    }
+
+    /*
+     * What the 8th- and 9th-level spells' keys add once a cast has resolved (D190): the dice it rolls for the table, as
+     * Time Stop's 1d4 + 1 turns (PHB p.283); healing to full, as Power Word Heal's (PHB p.266); and a pool of hit points
+     * divided among the creatures it reached, as Mass Heal's 700 (PHB p.258). What the log adds, or nothing.
+     */
+    private String afterHighLevelCast(Encounter encounter, EncounterParticipant caster, String spellName,
+                                      SpellEffects.HighLevel high, EffectApplier.Use use,
+                                      List<EncounterParticipant> affected) {
+        List<String> notes = new ArrayList<>();
+        if (high.castRoll() != null) {
+            Dice dice = Dice.parse(high.castRoll().dice().replace(" ", ""));
+            List<Integer> rolls = new ArrayList<>();
+            for (int i = 0; i < dice.count(); i++) {
+                rolls.add(resolver.roll(dice.sides()));
+            }
+            int total = dice.total(rolls.stream().mapToInt(Integer::intValue).sum());
+            String text = spellName + ": " + dice.count() + "d" + dice.sides()
+                    + (dice.modifier() > 0 ? " + " + dice.modifier() : dice.modifier() < 0 ? " - " + -dice.modifier() : "")
+                    + " (" + rolls.stream().map(String::valueOf).collect(Collectors.joining(", ")) + ") = " + total
+                    + (high.castRoll().note() != null ? " " + high.castRoll().note() : "") + ".";
+            effectApplier.summary(encounter, use, text);
+            notes.add(text);
+        }
+        List<EncounterParticipant> living = affected.stream()
+                .filter(creature -> creature.getLifeState() != LifeState.DEAD)
+                .toList();
+        if (high.healsToFull()) {
+            for (EncounterParticipant creature : living) {
+                effectApplier.heal(encounter, caster, creature, EffectApplier.missingHitPoints(creature),
+                        spellName + ": all its hit points");
+            }
+        }
+        if (high.healingPool() != null && !living.isEmpty()) {
+            Map<EncounterParticipant, Integer> shares = poolShares(high.healingPool(), living);
+            shares.forEach((creature, share) -> effectApplier.heal(encounter, caster, creature, share,
+                    spellName + ": " + share + " of " + high.healingPool()));
+            int used = shares.values().stream().mapToInt(Integer::intValue).sum();
+            notes.add(spellName + " restores " + used + " of its " + high.healingPool() + " hit points.");
+        }
+        return notes.isEmpty() ? "" : " " + String.join(" ", notes);
+    }
+
+    /**
+     * A pool of hit points divided among creatures (D190), as Mass Heal's 700 (PHB p.258), which the caster divides as
+     * they choose: here so none is wasted, each creature in turn, from the least hurt, taking what it is missing or an
+     * even share of what is left, whichever is less. Rules call: the app chooses the split.
+     */
+    static Map<EncounterParticipant, Integer> poolShares(int pool, List<EncounterParticipant> creatures) {
+        List<EncounterParticipant> order = creatures.stream()
+                .sorted(java.util.Comparator.comparingInt(EffectApplier::missingHitPoints))
+                .toList();
+        Map<EncounterParticipant, Integer> shares = new LinkedHashMap<>();
+        int left = pool;
+        for (int i = 0; i < order.size(); i++) {
+            EncounterParticipant creature = order.get(i);
+            int share = Math.min(EffectApplier.missingHitPoints(creature), left / (order.size() - i));
+            shares.put(creature, share);
+            left -= share;
+        }
+        return shares;
     }
 
     // Whether the 7th-level keys spare the creature (D189): more hit points than the spell allows, or a condition that
@@ -949,7 +1028,8 @@ public class SpellCaster {
         String notes = plan.notes().isEmpty() ? "" : " " + String.join(". ", plan.notes()) + ".";
         boolean forLater = later.damageBudget() != null || later.retaliationDice() != null
                 || later.turnReminder() != null || spellEffects.fifthLevel(spellName).keepsEffect()
-                || spellEffects.seventhLevel(spellName).keepsEffect();
+                || spellEffects.seventhLevel(spellName).keepsEffect()
+                || spellEffects.highLevel(spellName).keepsEffect();
         if (lasting.isEmpty() && !withModifiers && !forLater && delayedOn.isEmpty()) {
             return notes;
         }
@@ -1220,10 +1300,13 @@ public class SpellCaster {
                 .toList();
         List<EncounterParticipant> saving = outside.stream().filter(target -> !conditioned.contains(target)).toList();
         List<EffectApplier.Applied> applied = new ArrayList<>();
+        // The cast rules hold for what the area does too, as Dark Star's disintegrating a creature its damage leaves at 0
+        // hit points (EGW p.186, D190)
+        SpellEffects.CastRules triggerRules = spellEffects.castRules(spellName);
         if (!saving.isEmpty() || conditioned.isEmpty()) {
             applied.addAll(effectApplier.apply(encounter, use, plan.effect(),
                     resolver.resolve(plan.effect(), CreatureStats.side(caster),
-                            stats.targets(saving, plan.effect(), caster))));
+                            stats.targets(saving, plan.effect(), caster)), triggerRules));
         }
         Effect resolvedWith = plan.effect();
         if (!conditioned.isEmpty()) {
@@ -1233,7 +1316,7 @@ public class SpellCaster {
                 Effect noSave = automatic.get().effect();
                 applied.addAll(effectApplier.apply(encounter, use, noSave,
                         resolver.resolve(noSave, CreatureStats.side(caster),
-                                stats.targets(conditioned, noSave, caster))));
+                                stats.targets(conditioned, noSave, caster)), triggerRules));
                 if (saving.isEmpty()) {
                     resolvedWith = noSave;
                 }
@@ -1290,6 +1373,15 @@ public class SpellCaster {
      */
     private void endOnSave(Encounter encounter, EncounterParticipant caster, SpellEffectEntry spellEffect,
                            SpellTrigger when, List<EffectApplier.Applied> applied) {
+        // A success that ends the spell for that creature only, as Weird's (PHB p.288, D190)
+        if (spellEffects.triggerEndsForCreature(spellEffect.spell(), when)) {
+            applied.stream()
+                    .filter(result -> result.outcome().outcome() == Outcome.SAVE_SUCCESS)
+                    .map(EffectApplier.Applied::target)
+                    .forEach(creature -> effectApplier.endSpellConditions(encounter, caster, creature,
+                            spellEffect.spell(), creature.getDisplayName() + " succeeds on the save"));
+            return;
+        }
         Optional<EffectApplier.Applied> saved = applied.stream()
                 .filter(result -> result.outcome().outcome() == Outcome.SAVE_SUCCESS)
                 .findFirst();

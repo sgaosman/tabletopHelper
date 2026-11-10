@@ -365,7 +365,7 @@ class SpellEffectsTest {
         }
 
         @Test
-        @DisplayName("The bundled data's 57 lasting spells each leave a Spell Effect its caster directs at the cost "
+        @DisplayName("The bundled data's 66 lasting spells each leave a Spell Effect its caster directs at the cost "
                 + "the spell's text gives, or whose area acts by itself at the moments it gives, or both (M15)")
         void bundledLastingSpells() throws IOException {
             Map<String, ActionCost> costs = new LinkedHashMap<>();
@@ -442,7 +442,15 @@ class SpellEffectsTest {
             }
             expected.put("Soul Cage", ActionCost.BONUS_ACTION);
             expected.put("Mental Prison", ActionCost.NONE);
-            assertEquals(57, triggers.size());
+            // 8th and 9th level (D190): Illusory Dragon's breath and Blade of Disaster's attacks are bonus actions (XGE
+            // p.157, TCE p.106); Earthquake's prone save at the end of the caster's turns needs none (PHB p.236). Dark
+            // Star, Incendiary Cloud, Maddening Darkness, Prismatic Wall, Ravenous Void and Weird act by themselves
+            expected.put("Illusory Dragon", ActionCost.BONUS_ACTION);
+            expected.put("Blade of Disaster", ActionCost.BONUS_ACTION);
+            expected.put("Earthquake", ActionCost.NONE);
+            assertEquals(66, triggers.size());
+            assertEquals(List.of(SpellTrigger.END_OF_TURN), triggers.get("Weird"));
+            assertEquals(List.of(SpellTrigger.ENTER, SpellTrigger.START_OF_TURN), triggers.get("Ravenous Void"));
             assertEquals(expected, Map.copyOf(costs));
             // Only Moonbeam's, Dust Devil's and Dawn's uses move them without resolving anything (PHB p.261, XGE p.154,
             // p.153)

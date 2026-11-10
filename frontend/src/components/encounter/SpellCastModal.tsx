@@ -338,6 +338,7 @@ export default function SpellCastModal({
             castOptions={selectedSpell!.castOptions}
             option={castOption}
             onOptionChange={setCastOption}
+            duplicatesUpTo={selectedSpell!.duplicatesUpTo}
           />
           </>
         )}

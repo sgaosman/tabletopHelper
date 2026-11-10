@@ -586,7 +586,7 @@ public final class Resolver {
         List<Dice> dice = new ArrayList<>();
         List<int[]> rolls = new ArrayList<>();
         for (Effect.DamagePart part : parts) {
-            Dice rolled = critical ? part.dice().doubled() : part.dice();
+            Dice rolled = critical ? part.onCritical() : part.dice();
             dice.add(rolled);
             rolls.add(rolled.rollEach(rng, part.rerollUpTo()));
         }

@@ -12222,6 +12222,11 @@
               "LONGER"
             ]
           },
+          "duplicatesUpTo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "level": {
             "type": "integer",
             "format": "int32"

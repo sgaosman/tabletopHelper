@@ -221,14 +221,26 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
      *
      * @param rerollUpTo a die that shows this or less is rolled once more and the new roll kept, as Great Weapon
      *                   Fighting does with 1s and 2s (PHB p.72); 0 rerolls nothing
+     * @param critDice   the dice it deals on a critical hit in place of its doubled dice, as Blade of Disaster's 12d12
+     *                   (TCE p.106, D190); null for the doubled dice
      */
-    public record DamagePart(Dice dice, String type, int rerollUpTo) {
+    public record DamagePart(Dice dice, String type, int rerollUpTo, Dice critDice) {
 
         public DamagePart {
             Objects.requireNonNull(dice, "dice");
             if (rerollUpTo < 0) {
                 throw new IllegalArgumentException("A reroll needs a die face of 0 or more, not " + rerollUpTo);
             }
+        }
+
+        /** Damage whose dice double on a critical hit. */
+        public DamagePart(Dice dice, String type, int rerollUpTo) {
+            this(dice, type, rerollUpTo, null);
+        }
+
+        /** The dice it deals on a critical hit: its own override, or its dice doubled (PHB p.196). */
+        public Dice onCritical() {
+            return critDice != null ? critDice : dice.doubled();
         }
 
         /** Damage whose dice are never rolled again. */

@@ -113,7 +113,7 @@ public class SpellEffects {
             deliveryMethod = "AUTO_HIT";
         }
         Effect.Delivery delivery = delivery(deliveryMethod, template.spellAttackType(), template.saveAbility(),
-                template.halfOnSave(), attackBonus, saveDc, advantage);
+                template.halfOnSave(), attackBonus, saveDc, advantage, template.critRange());
         if (delivery == null) {
             return manual(spellName, spellLevel, "Delivery method '" + deliveryMethod + "' requires DM adjudication",
                     concentration, durationRounds, verbal);
@@ -128,7 +128,8 @@ public class SpellEffects {
         // A spell on its caster heals or gives conditions; any damage in its template is for others to take
         Optional<List<Effect.DamagePart>> damage = delivery instanceof Effect.Self
                 ? Optional.of(List.of())
-                : damage(template.damageEffects(), spellLevel, slotLevel, caster, modifier);
+                : damage(template.damageEffects(), spellLevel, slotLevel, caster, modifier)
+                        .map(parts -> withCritDice(parts, template));
         SpellTemplate.Healing healingData = template.healing();
         Optional<Healing> healing = healing(healingData != null ? healingData.anyDice() : null,
                 healingData != null ? healingData.upcastScaling() : null,
@@ -463,6 +464,42 @@ public class SpellEffects {
         return template(spellName).map(SpellTemplate::hitThreshold).orElse(null);
     }
 
+    /**
+     * What the 8th- and 9th-level spells' keys make a cast do (D190).
+     *
+     * @param unaffectedAtOrBelow   the ability score at or below which a creature is unaffected, or null
+     * @param escapeCheck           the check a creature it holds makes to escape, as Maze's, or null
+     * @param roundReminders        what the log reminds the table of on its caster's turn in each round
+     * @param castRoll              the dice its cast rolls for the table, as Time Stop's turns, or null
+     * @param healsToFull           whether each creature it reaches regains all its hit points
+     * @param healingPool           the hit points it divides among the creatures it reaches, or null
+     * @param castsSpellUpTo        the highest level of spell it duplicates, as Wish's 8th, or null
+     */
+    public record HighLevel(SpellTemplate.AbilityFloor unaffectedAtOrBelow, SpellTemplate.EscapeCheck escapeCheck,
+                            Map<Integer, String> roundReminders, SpellTemplate.CastRoll castRoll, boolean healsToFull,
+                            Integer healingPool, Integer castsSpellUpTo) {
+
+        public static final HighLevel NONE = new HighLevel(null, null, Map.of(), null, false, null, null);
+
+        /** Whether a cast must leave a Spell Effect to hold what these keys keep. */
+        public boolean keepsEffect() {
+            return !roundReminders.isEmpty();
+        }
+    }
+
+    /** What the 8th- and 9th-level spells' keys make the spell do (D190); nothing for a spell without a template. */
+    public HighLevel highLevel(String spellName) {
+        return template(spellName).map(template -> new HighLevel(template.unaffectedAtOrBelow(),
+                        template.escapeCheck(), template.roundReminders(), template.castRoll(), template.healsToFull(), template.healingPool(),
+                        template.castsSpellUpTo()))
+                .orElse(HighLevel.NONE);
+    }
+
+    /** Whether a successful save against the spell's trigger at that moment ends it for that creature only (D190). */
+    public boolean triggerEndsForCreature(String spellName, SpellTrigger when) {
+        return template(spellName).map(template -> template.triggerEndsForCreature(when)).orElse(false);
+    }
+
     /** The spell's creature-type rules; none for a spell without a template. */
     public TypeRules typeRules(String spellName) {
         return template(spellName).map(template -> new TypeRules(template.targetTypes(), template.noEffectOn(),
@@ -511,7 +548,8 @@ public class SpellEffects {
             spellAttackType = template.spellAttackType();
             saveAbility = template.saveAbility();
             halfOnSave = template.halfOnSave();
-            damage = damage(template.damageEffects(), spellLevel, slotLevel, caster, modifier);
+            damage = damage(template.damageEffects(), spellLevel, slotLevel, caster, modifier)
+                    .map(parts -> withCritDice(parts, template));
             healing = healing(template.healing() != null ? template.healing().anyDice() : null, null, 0, modifier);
         }
         if (damage.isEmpty() || healing.isEmpty()) {
@@ -525,7 +563,7 @@ public class SpellEffects {
             delivery = new Effect.Automatic();
         } else {
             delivery = delivery(deliveryMethod, spellAttackType, saveAbility, halfOnSave, attackBonus, saveDc,
-                    advantage);
+                    advantage, template.critRange());
             if (delivery == null || delivery instanceof Effect.Self) {
                 return manual(spellName, spellLevel,
                         "Repeat delivery method '" + deliveryMethod + "' requires DM adjudication", false, null, false);
@@ -888,10 +926,18 @@ public class SpellEffects {
     // Null for a delivery the app can't resolve
     private static Effect.Delivery delivery(String deliveryMethod, String spellAttackType, String saveAbility,
                                             Boolean halfOnSave, int attackBonus, int saveDc, Boolean advantage) {
+        return delivery(deliveryMethod, spellAttackType, saveAbility, halfOnSave, attackBonus, saveDc, advantage, 20);
+    }
+
+    // As above, with the lowest d20 a spell attack scores a critical hit with, as Blade of Disaster's 18 (TCE p.106)
+    private static Effect.Delivery delivery(String deliveryMethod, String spellAttackType, String saveAbility,
+                                            Boolean halfOnSave, int attackBonus, int saveDc, Boolean advantage,
+                                            int critRange) {
         return switch (deliveryMethod) {
             // There is no map, so a melee spell attack counts as within 5 feet and a ranged one as not (D161)
             case "SPELL_ATTACK" -> new Effect.Attack(attackBonus, rollMode(advantage),
-                    "MELEE".equalsIgnoreCase(spellAttackType != null ? spellAttackType : ""), false);
+                    "MELEE".equalsIgnoreCase(spellAttackType != null ? spellAttackType : ""), false, null, List.of(),
+                    critRange);
             case "SAVING_THROW" -> new Effect.Save(Ability.parse(saveAbility).orElse(null), saveDc,
                     Boolean.TRUE.equals(halfOnSave));
             case "AUTO_HIT" -> new Effect.Automatic();
@@ -920,6 +966,20 @@ public class SpellEffects {
             all.addAll(parts.get());
         }
         return Optional.of(all);
+    }
+
+    // The first part dealing the template's dice on a critical hit in place of its doubled dice, as Blade of Disaster's
+    // 12d12 (TCE p.106, D190); the parts unchanged when it has none
+    private static List<Effect.DamagePart> withCritDice(List<Effect.DamagePart> parts, SpellTemplate template) {
+        String critDice = template.critDamageDice();
+        if (critDice == null || parts.isEmpty()) {
+            return parts;
+        }
+        List<Effect.DamagePart> changed = new ArrayList<>(parts);
+        Effect.DamagePart first = changed.getFirst();
+        changed.set(0, new Effect.DamagePart(first.dice(), first.type(), first.rerollUpTo(),
+                Dice.parse(critDice.replace(" ", ""))));
+        return List.copyOf(changed);
     }
 
     private static Optional<List<Effect.DamagePart>> damageParts(String dice, String damageType,

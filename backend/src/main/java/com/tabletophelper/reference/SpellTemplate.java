@@ -138,6 +138,15 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             template.raisesOnKill();
             template.conditionsByOption();
             template.followUpSave();
+            // And the 8th- and 9th-level spells' keys (D190)
+            template.unaffectedAtOrBelow();
+            template.escapeCheck();
+            template.roundReminders();
+            template.castRoll();
+            template.healingPool();
+            template.castsSpellUpTo();
+            template.critRange();
+            template.critDamageDice();
             return template;
         } catch (IllegalArgumentException | JacksonException e) {
             return empty(json, e.getMessage() != null ? e.getMessage() : e.toString());
@@ -938,6 +947,191 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             return null;
         }
         return new ActionSave(text(node, "condition"), text(node, "ability"));
+    }
+
+    // ── Keys the 8th- and 9th-level spells added (D190), read from the stored JSON ──
+
+    /**
+     * An ability score at or below which a creature is unaffected, as Psychic Scream's Intelligence of 2 or lower (XGE
+     * p.163).
+     */
+    public record AbilityFloor(String ability, int max) {
+    }
+
+    /** The template's {@code unaffectedAtOrBelow}, or null for none. */
+    public AbilityFloor unaffectedAtOrBelow() {
+        JsonNode node = json != null ? json.get("unaffectedAtOrBelow") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isObject() || text(node, "ability") == null || !node.path("max").isInt()) {
+            throw new IllegalArgumentException("unaffectedAtOrBelow needs an ability and a max");
+        }
+        return new AbilityFloor(text(node, "ability").toUpperCase(java.util.Locale.ROOT), node.path("max").asInt(0));
+    }
+
+    /**
+     * An ability check a creature its condition holds makes to escape, as Maze's DC 20 Intelligence check (PHB p.258); a
+     * success ends the spell.
+     *
+     * @param autoSucceed names of creatures that escape without a roll, as minotaurs and goristros do
+     */
+    public record EscapeCheck(String ability, int dc, List<String> autoSucceed) {
+    }
+
+    /** The template's {@code escapeCheck}, or null for none. */
+    public EscapeCheck escapeCheck() {
+        JsonNode node = json != null ? json.get("escapeCheck") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isObject() || text(node, "ability") == null || !node.path("dc").isInt()) {
+            throw new IllegalArgumentException("escapeCheck needs an ability and a dc");
+        }
+        List<String> auto = new java.util.ArrayList<>();
+        node.path("autoSucceed").forEach(each -> {
+            if (each.isString()) auto.add(each.asString("").toLowerCase(java.util.Locale.ROOT));
+        });
+        return new EscapeCheck(text(node, "ability").toUpperCase(java.util.Locale.ROOT), node.path("dc").asInt(0),
+                List.copyOf(auto));
+    }
+
+    /**
+     * Whether a successful save against its trigger at that moment ends the spell for that creature only, as Weird's
+     * (PHB p.288): the trigger's {@code endsForCreatureOnSave}.
+     */
+    public boolean triggerEndsForCreature(SpellTrigger when) {
+        if (json == null || !json.path("effectTriggers").isArray()) {
+            return false;
+        }
+        for (JsonNode trigger : json.path("effectTriggers")) {
+            boolean at = false;
+            for (JsonNode moment : trigger.path("when")) {
+                at |= when.name().equals(moment.asString(""));
+            }
+            if (at && trigger.path("endsForCreatureOnSave").asBoolean(false)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * What the log reminds the table of at the start of its caster's turn in each round of the spell, the cast's round
+     * being 1, as Storm of Vengeance's acid rain in round 2 (PHB p.279): the template's {@code roundReminders}, by round;
+     * empty for none.
+     */
+    public Map<Integer, String> roundReminders() {
+        JsonNode node = json != null ? json.get("roundReminders") : null;
+        if (node == null || !node.isObject()) {
+            return Map.of();
+        }
+        Map<Integer, String> reminders = new java.util.TreeMap<>();
+        for (Map.Entry<String, JsonNode> entry : node.properties()) {
+            try {
+                if (entry.getValue().isString()) {
+                    reminders.put(Integer.parseInt(entry.getKey().trim()), entry.getValue().asString(""));
+                }
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("roundReminders needs round numbers as keys, not " + entry.getKey());
+            }
+        }
+        return Collections.unmodifiableMap(reminders);
+    }
+
+    /** Dice the cast rolls and logs for the table, as Time Stop's 1d4 + 1 turns (PHB p.283). */
+    public record CastRoll(String dice, String note) {
+    }
+
+    /** The template's {@code castRoll}, or null for none. */
+    public CastRoll castRoll() {
+        JsonNode node = json != null ? json.get("castRoll") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isObject() || text(node, "dice") == null) {
+            throw new IllegalArgumentException("castRoll needs dice");
+        }
+        checkDice(text(node, "dice"));
+        return new CastRoll(text(node, "dice"), text(node, "note"));
+    }
+
+    /**
+     * Whether each creature it reaches regains all its hit points, as Power Word Heal's (PHB p.266): the template's
+     * {@code healsToFull}.
+     */
+    public boolean healsToFull() {
+        return json != null && json.path("healsToFull").asBoolean(false);
+    }
+
+    /**
+     * Hit points it divides among the creatures it reaches, as Mass Heal's 700 (PHB p.258): the template's
+     * {@code healingPool}; null for none.
+     */
+    public Integer healingPool() {
+        JsonNode node = json != null ? json.get("healingPool") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isInt() || node.asInt(0) <= 0) {
+            throw new IllegalArgumentException("healingPool is not a whole number above 0");
+        }
+        return node.asInt(0);
+    }
+
+    /**
+     * The highest level of spell a cast may duplicate, as Wish's 8th (PHB p.288): the template's
+     * {@code castsSpell.maxLevel}; null when it duplicates none.
+     */
+    public Integer castsSpellUpTo() {
+        JsonNode node = json != null ? json.get("castsSpell") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isObject() || !node.path("maxLevel").isInt()) {
+            throw new IllegalArgumentException("castsSpell needs a maxLevel");
+        }
+        return node.path("maxLevel").asInt(0);
+    }
+
+    /**
+     * The lowest d20 its spell attack scores a critical hit with, as Blade of Disaster's 18 (TCE p.106): the template's
+     * {@code critRange}; 20 when it doesn't say.
+     */
+    public int critRange() {
+        JsonNode node = json != null ? json.get("critRange") : null;
+        if (node == null || node.isNull()) {
+            return 20;
+        }
+        if (!node.isInt() || node.asInt(0) < 2 || node.asInt(0) > 20) {
+            throw new IllegalArgumentException("critRange is not a d20 face from 2 to 20");
+        }
+        return node.asInt(0);
+    }
+
+    /**
+     * The dice its first damage part deals on a critical hit, in place of its doubled dice, as Blade of Disaster's 12d12
+     * (TCE p.106): the template's {@code critDamageDice}; null for the doubled dice.
+     */
+    public String critDamageDice() {
+        JsonNode node = json != null ? json.get("critDamageDice") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isString()) {
+            throw new IllegalArgumentException("critDamageDice is not dice");
+        }
+        checkDice(node.asString(""));
+        return node.asString("");
+    }
+
+    // Dice the app can roll, or an IllegalArgumentException naming them
+    private static void checkDice(String dice) {
+        try {
+            com.tabletophelper.rules.Dice.parse(dice.replace(" ", ""));
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("Not dice: " + dice);
+        }
     }
 
     /** Its components; combat reads only whether it has a verbal one. */

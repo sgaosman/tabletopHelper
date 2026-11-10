@@ -1210,6 +1210,11 @@ public class EffectApplier {
         }
         List<SpellEffectEntry.Controlled> controlled = new ArrayList<>(found.get().controlled());
         for (EncounterParticipant creature : creatures) {
+            // A creature the holding condition didn't take, as one Mind Blank makes immune to being charmed (PHB
+            // p.259, D190), stays its own
+            if (condition != null && conditions(creature).stream().noneMatch(c -> c.name().equalsIgnoreCase(condition))) {
+                continue;
+            }
             controlled.add(new SpellEffectEntry.Controlled(creature.getId(), creature.getControlledByUserId(),
                     condition));
             creature.setControlledByUserId(caster.getControlledByUserId());
@@ -1397,7 +1402,18 @@ public class EffectApplier {
                 combatLog.write(encounter, CombatActionType.SPELL_EFFECT_REPEAT, creature.getDisplayName() + "'s "
                         + effect.spell() + ": " + effect.turnReminder(), creature, null);
             }
+            // What this round of the spell brings, as Storm of Vengeance's acid rain in round 2 (PHB p.279, D190)
+            int round = (encounter.getRoundNumber() != null ? encounter.getRoundNumber() : 1) - effect.startedRound()
+                    + 1;
+            String byRound = templateOf(effect.spell())
+                    .map(template -> template.roundReminders().get(round))
+                    .orElse(null);
+            if (byRound != null && !byRound.isBlank()) {
+                combatLog.write(encounter, CombatActionType.SPELL_EFFECT_REPEAT, creature.getDisplayName() + "'s "
+                        + effect.spell() + ", round " + round + ": " + byRound, creature, null);
+            }
         }
+        escapeAttempts(encounter, creature);
         if (creature.getLifeState() == LifeState.ALIVE && conditions(creature).stream()
                 .anyMatch(c -> CONFUSED.equalsIgnoreCase(c.name()))) {
             confusedTurn(encounter, creature);
@@ -1406,6 +1422,101 @@ public class EffectApplier {
 
     /** The condition of a creature Confusion has affected (PHB p.224, D185). */
     public static final String CONFUSED = "confused";
+
+    /** The condition of a creature Feeblemind has affected, which can't cast spells (PHB p.239, D190). */
+    public static final String FEEBLEMINDED = "feebleminded";
+
+    // The spell's template from the spells data, when this has it; empty in unit tests built by hand
+    private Optional<com.tabletophelper.reference.SpellTemplate> templateOf(String spell) {
+        if (spellRepository == null || spell == null) {
+            return Optional.empty();
+        }
+        return spellRepository.findByNameIgnoreCase(spell)
+                .map(com.tabletophelper.reference.Spell::getEffectTemplate)
+                .flatMap(template -> template.readable(spell + "'s effect template"));
+    }
+
+    /*
+     * An escape from a spell's banishment by an ability check, as Maze's DC 20 Intelligence check, which minotaurs and
+     * goristros pass without rolling (PHB p.258, D190): a banished creature's own turns are skipped, so its attempt, the
+     * use of its action, is rolled once a round at the start of the caster's turn (rules call). A success ends the
+     * spell, and with it the banishment.
+     */
+    private void escapeAttempts(Encounter encounter, EncounterParticipant caster) {
+        if (spellRepository == null) {
+            return;
+        }
+        for (EncounterParticipant held : List.copyOf(encounter.getParticipants())) {
+            for (ConditionEntry condition : conditions(held)) {
+                if (!BANISHED.equalsIgnoreCase(condition.name()) || !caster.getId().equals(condition.sourceParticipantId())
+                        || held.getLifeState() == LifeState.DEAD) {
+                    continue;
+                }
+                com.tabletophelper.reference.SpellTemplate.EscapeCheck check = templateOf(condition.sourceSpellName())
+                        .map(com.tabletophelper.reference.SpellTemplate::escapeCheck)
+                        .orElse(null);
+                if (check == null) {
+                    continue;
+                }
+                String spell = condition.sourceSpellName();
+                String name = held.getDisplayName();
+                String monsterName = held.getMonster() != null ? held.getMonster().getName() : "";
+                boolean automatic = check.autoSucceed().stream().anyMatch(kind ->
+                        name.toLowerCase(Locale.ROOT).contains(kind) || monsterName.toLowerCase(Locale.ROOT).contains(kind));
+                com.tabletophelper.rules.Ability ability = com.tabletophelper.rules.Ability.parse(check.ability())
+                        .orElse(com.tabletophelper.rules.Ability.INT);
+                String text;
+                boolean escaped;
+                if (automatic) {
+                    escaped = true;
+                    text = name + " escapes " + caster.getDisplayName() + "'s " + spell + " without a check";
+                } else {
+                    int d20 = resolver.d20();
+                    int modifier = com.tabletophelper.rules.Ability.modifier(stats.abilityScore(held, ability));
+                    int total = d20 + modifier;
+                    escaped = total >= check.dc();
+                    text = name + " tries to escape " + caster.getDisplayName() + "'s " + spell + ": " + ability.name()
+                            + " check d20(" + d20 + ")" + (modifier >= 0 ? " + " + modifier : " - " + (-modifier))
+                            + " = " + total + " against DC " + check.dc() + (escaped ? ", and escapes" : ", and fails");
+                }
+                combatLog.write(encounter, CombatActionType.SPELL_EFFECT_REPEAT, text, caster, held);
+                if (!escaped) {
+                    continue;
+                }
+                ConcentrationInstance concentration = caster.getConcentration();
+                if (concentration != null && concentration.id().equals(condition.concentrationInstanceId())) {
+                    endConcentration(encounter, caster, spell + " ends: " + name + " escapes");
+                } else {
+                    endSpellConditions(encounter, caster, held, spell, name + " escapes");
+                }
+            }
+        }
+    }
+
+    /**
+     * Ends every condition the caster's spell gave the creature, as a successful save against Weird does for that
+     * creature only (PHB p.288, D190); the spell goes on for the others. False when it had none.
+     */
+    public boolean endSpellConditions(Encounter encounter, EncounterParticipant caster, EncounterParticipant creature,
+                                      String spell, String why) {
+        List<ConditionEntry> conditions = conditions(creature);
+        List<String> ended = conditions.stream()
+                .filter(c -> spell.equalsIgnoreCase(c.sourceSpellName())
+                        && caster.getId().equals(c.sourceParticipantId()))
+                .map(ConditionEntry::name)
+                .toList();
+        if (ended.isEmpty()) {
+            return false;
+        }
+        conditions.removeIf(c -> spell.equalsIgnoreCase(c.sourceSpellName())
+                && caster.getId().equals(c.sourceParticipantId()));
+        creature.setActiveConditions(conditions.isEmpty() ? null : conditions);
+        combatLog.write(encounter, CombatActionType.CONDITION_REMOVE, caster.getDisplayName() + "'s " + spell
+                + " ends for " + creature.getDisplayName() + " (" + String.join(", ", ended) + "): " + why, caster,
+                creature);
+        releaseFreed(encounter);
+        return true;
+    }
 
     /*
      * Confusion (PHB p.224, D185): a confused creature rolls a d10 at the start of its turn to see what it does that
@@ -2415,6 +2526,12 @@ public class EffectApplier {
     // ── Vitals ───────────────────────────────────────────────────
 
     /** The participant's hit points and life state as the rules read them (D161). */
+    /** The hit points the creature is missing below its maximum, which healing to full restores (D190). */
+    public static int missingHitPoints(EncounterParticipant participant) {
+        Vitals vitals = vitals(participant);
+        return Math.max(0, vitals.maxHp() - vitals.hp());
+    }
+
     public static Vitals vitals(EncounterParticipant participant) {
         return new Vitals(participant.getHpCurrent(), CreatureStats.hpMax(participant),
                 participant.getHpTemp() != null ? participant.getHpTemp() : 0, participant.getLifeState(),

@@ -41,6 +41,11 @@ interface Props {
   castOptions?: string[] | null;
   option?: string | null;
   onOptionChange?: (value: string) => void;
+  /**
+   * The highest level of spell a cast may duplicate, as Wish's 8th (D190): the option is then the spell's name, typed,
+   * with its own option after a colon. Left empty, the wish is the DM's.
+   */
+  duplicatesUpTo?: number | null;
 }
 
 const ADVANTAGE_MODES = [
@@ -54,6 +59,7 @@ export default function ConfirmStep({
   spellName, levelLabel, cost, castingTime, reactionTrigger, economyWarning, caster, targets, warnConcentration = false, advantage, onAdvantageChange,
   allowManualModifiers, overrideAttackBonus, overrideSaveDC, onOverrideAttackBonus, onOverrideSaveDC,
   submitLabel, busyLabel, submitIcon: SubmitIcon, submitting, onSubmit, onBack, castOptions, option, onOptionChange,
+  duplicatesUpTo,
 }: Props) {
   return (
     <>
@@ -102,6 +108,15 @@ export default function ConfirmStep({
         <Select label="Option" value={option ?? ''} onChange={e => onOptionChange(e.target.value)}>
           {castOptions.map(choice => <option key={choice} value={choice}>{choice}</option>)}
         </Select>
+      )}
+
+      {duplicatesUpTo != null && onOptionChange && (
+        <Input
+          label={`Spell to duplicate (level ${duplicatesUpTo} or lower)`}
+          placeholder="Fireball, or Protection from Energy: fire"
+          value={option ?? ''}
+          onChange={e => onOptionChange(e.target.value)}
+        />
       )}
 
       <div className="flex gap-2">

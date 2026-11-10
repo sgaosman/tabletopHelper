@@ -4045,6 +4045,8 @@ export interface components {
             /** @enum {string} */
             castingTime: "ACTION" | "BONUS_ACTION" | "REACTION" | "LONGER";
             /** Format: int32 */
+            duplicatesUpTo?: number | null;
+            /** Format: int32 */
             level: number;
             metamagic?: components["schemas"]["MetamagicOption"][] | null;
             name: string;

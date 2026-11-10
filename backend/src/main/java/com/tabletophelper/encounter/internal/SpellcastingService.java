@@ -106,23 +106,30 @@ public class SpellcastingService {
         // Quickened Spell makes a casting time of 1 action 1 bonus action (PHB p.102)
         ActionCost cost = quickened ? ActionCost.BONUS_ACTION : payment.castingTime().cost().orElse(ActionCost.ACTION);
         access.requireTurnForCost(encounter, actorParticipantId, userId, cost);
-        requireTargetCount(payment, request.getTargetIds().size(), metamagic.has(Metamagic.Option.TWINNED));
+        // Wish duplicating another spell (PHB p.288, D190): its option names the spell, which is then cast at its own
+        // level with Wish's slot paying for it; the spell's own option follows a colon, as "Protection from Energy: fire"
+        Duplicate duplicate = duplicate(payment.spellName(), request.getOption());
+        SpellSources.Payment casting = duplicate == null ? payment
+                : new SpellSources.Payment(duplicate.spellName(), duplicate.level(), payment.source(),
+                        duplicate.level(), payment.slotKey(), payment.pool(), payment.origin(), payment.castingTime());
+        requireTargetCount(casting, request.getTargetIds().size(), metamagic.has(Metamagic.Option.TWINNED));
         // A spell with options is cast with one of them (D184)
-        String option = spellEffects.option(payment.spellName(), request.getOption());
+        String option = spellEffects.option(casting.spellName(),
+                duplicate == null ? request.getOption() : duplicate.option());
         List<EncounterParticipant> targets = CombatAccess.targets(encounter, request.getTargetIds(), userId);
         // Nothing crosses Otiluke's Resilient Sphere, and a spell for one creature type refuses others (D185), checked
         // before anything is spent
         CombatAccess.requireReachable(caster, targets);
-        spellCaster.requireTargetTypes(payment.spellName(), targets);
+        spellCaster.requireTargetTypes(casting.spellName(), targets);
         SpellNumbers own = numbers(caster, payment.origin());
         List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(own.attackBonus(), own.saveDc(),
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC());
         // A summoning spell's creatures are checked before anything is spent (D182)
-        Summoner.Prepared summon = SummonRules.spell(payment.spellName())
-                .map(spell -> summoner.prepare(encounter, caster, spell, payment.castLevel(), request.getSummon()))
+        Summoner.Prepared summon = SummonRules.spell(casting.spellName())
+                .map(spell -> summoner.prepare(encounter, caster, spell, casting.castLevel(), request.getSummon()))
                 .orElse(null);
         if (summon == null && request.getSummon() != null) {
-            throw new ValidationException(payment.spellName() + " summons no creatures");
+            throw new ValidationException(casting.spellName() + " summons no creatures");
         }
         // Summon Draconic Spirit's Shared Resistances is one of the spirit's own resistances (FTD p.21)
         if (summon != null && summon.plan() != null && summon.plan().variant() != null && option != null
@@ -148,12 +155,12 @@ public class SpellcastingService {
         // Casting a spell ends the caster's invisibility from Invisibility (PHB p.254) or Cloak of Shadows (PHB p.63)
         // once the spell is cast, but not what the spell itself gives it
         Set<UUID> ending = EffectApplier.endingOnAttackOrCast(caster);
-        SpellCaster.CastResult result = spellCaster.cast(encounter, caster, payment.spellName(), payment.castLevel(),
+        SpellCaster.CastResult result = spellCaster.cast(encounter, caster, casting.spellName(), casting.castLevel(),
                 targets, own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
-                saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote, metamagic, summon,
-                option);
+                saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(),
+                costNote + (duplicate != null ? " through " + payment.spellName() : ""), metamagic, summon, option);
         if (summon != null) {
-            summoner.afterCast(encounter, caster, summon, payment.castLevel(), own.ability(),
+            summoner.afterCast(encounter, caster, summon, casting.castLevel(), own.ability(),
                     attackBonus(own, request.getOverrideSpellAttackBonus()),
                     saveDc(own, request.getOverrideSpellSaveDC()), "");
         }
@@ -179,6 +186,10 @@ public class SpellcastingService {
         if (ClassFeatures.raging(CreatureStats.conditionNames(caster))) {
             return caster.getDisplayName() + " can't cast spells while raging";
         }
+        // Feeblemind leaves a creature unable to cast spells (PHB p.239, D190)
+        if (CreatureStats.conditionNames(caster).stream().anyMatch(EffectApplier.FEEBLEMINDED::equalsIgnoreCase)) {
+            return caster.getDisplayName() + " can't cast spells while feebleminded";
+        }
         List<String> notProficient = stats.armour(caster).notProficient().stream().map(item -> item.getName()).toList();
         return notProficient.isEmpty() ? null : caster.getDisplayName() + " can't cast spells while wearing "
                 + String.join(" and ", notProficient) + " without proficiency";
@@ -200,7 +211,8 @@ public class SpellcastingService {
         String ban = castingBan(participant);
         List<SpellOption> options = metamagicCasting.withMetamagic(participant, casterSpells.options(participant))
                 .stream()
-                .map(option -> option.withCastOptions(castOptions(option.name())))
+                .map(option -> option.withCastOptions(castOptions(option.name()))
+                        .withDuplicatesUpTo(duplicatesUpTo(option.name())))
                 .toList();
         return ban == null ? options : options.stream().map(option -> option.unavailable(ban)).toList();
     }
@@ -404,6 +416,16 @@ public class SpellcastingService {
         }
     }
 
+    // The highest level of spell a cast of the spell duplicates, as Wish's 8th (D190); null for none, or when its
+    // template can't be read, so the rest of the list still loads
+    private Integer duplicatesUpTo(String spellName) {
+        try {
+            return spellEffects.highLevel(spellName).castsSpellUpTo();
+        } catch (ConflictException e) {
+            return null;
+        }
+    }
+
     // The effect the request names, or the caster's only one that fits; a 409 for none, or several to choose from
     private static SpellEffectEntry effectToUse(EncounterParticipant caster, UUID effectId,
                                                 Predicate<SpellEffectEntry> fits, String none) {
@@ -535,6 +557,43 @@ public class SpellcastingService {
     }
 
     // The template's limit at the cast level, and one more with Twinned Spell (PHB p.102)
+    /** The spell a cast of Wish duplicates (D190), at its own level, with its own option or null. */
+    private record Duplicate(String spellName, int level, String option) {
+    }
+
+    /**
+     * The spell a spell that duplicates others casts, as Wish duplicates any spell of 8th level or lower (PHB p.288,
+     * D190): the request's option names it, with that spell's own option after a colon. Null for a spell that duplicates
+     * none, or a Wish cast with no option, which is the DM's to resolve.
+     *
+     * @throws ValidationException an unknown spell, one too high, or the duplicating spell itself
+     */
+    private Duplicate duplicate(String spellName, String requested) {
+        Integer maxLevel = spellEffects.highLevel(spellName).castsSpellUpTo();
+        if (maxLevel == null || requested == null || requested.isBlank()) {
+            return null;
+        }
+        String wanted = requested.trim();
+        String ownOption = null;
+        Optional<String> found = spellEffects.spellName(wanted);
+        if (found.isEmpty() && wanted.contains(":")) {
+            int colon = wanted.lastIndexOf(':');
+            ownOption = wanted.substring(colon + 1).trim();
+            found = spellEffects.spellName(wanted.substring(0, colon).trim());
+        }
+        String name = found.orElseThrow(() -> new ValidationException(spellName + " can't duplicate " + wanted
+                + ": no such spell"));
+        if (name.equalsIgnoreCase(spellName)) {
+            throw new ValidationException(spellName + " can't duplicate itself");
+        }
+        int level = spellEffects.spellLevel(name);
+        if (level > maxLevel) {
+            throw new ValidationException(spellName + " can duplicate a spell of level " + maxLevel + " or lower, and "
+                    + name + " is level " + level);
+        }
+        return new Duplicate(name, level, ownOption != null && !ownOption.isBlank() ? ownOption : null);
+    }
+
     private void requireTargetCount(SpellSources.Payment payment, int targetCount, boolean twinned) {
         OptionalInt max = spellEffects.maxTargets(payment.spellName(), payment.castLevel());
         if (twinned) {

@@ -133,5 +133,14 @@ describe('ConfirmStep', () => {
   it('offers no option for a spell without them', () => {
     renderStep();
     expect(screen.queryByLabelText('Option')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Spell to duplicate/)).not.toBeInTheDocument();
+  });
+
+  it('takes the spell Wish duplicates as typed text (D190)', async () => {
+    const onOptionChange = vi.fn();
+    const { user } = renderStep({ duplicatesUpTo: 8, option: '', onOptionChange });
+
+    await user.type(screen.getByLabelText('Spell to duplicate (level 8 or lower)'), 'F');
+    expect(onOptionChange).toHaveBeenCalledWith('F');
   });
 });

@@ -27,7 +27,8 @@ import java.util.Map;
  * such as delayedDamage, retaliation and durationBySlot, are checked the same way, and since version 4 the 5th-level
  * spells' keys (D187), such as lifeDrain, countedSaves, contest and hitThreshold, and since version 5 the 7th-level
  * spells' keys (D189), such as hpThresholdEffects, rayTable, detonation and raisesOnKill, and since version 6 the
- * 6th-level spells' (D188), such as damageFloor, actionSave and conditionsByOption given whole.
+ * 6th-level spells' (D188), such as damageFloor, actionSave and conditionsByOption given whole, and since version 7
+ * the 8th- and 9th-level spells' (D190), such as escapeCheck, healingPool, castsSpell and critRange.
  */
 @Component
 @RequiredArgsConstructor
@@ -52,8 +53,8 @@ public class SpellEffectLoader implements ContentLoader {
     @Override
     public int version() {
         // 3: the 4th-level spells' templates and keys (D185); 4: the 5th-level spells' (D187); 5: the 7th-level
-        // spells' (D189); 6: the 6th-level spells' (D188)
-        return 6;
+        // spells' (D189); 6: the 6th-level spells' (D188); 7: the 8th- and 9th-level spells' (D190)
+        return 7;
     }
 
     @Override

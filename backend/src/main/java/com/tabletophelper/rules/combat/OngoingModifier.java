@@ -233,7 +233,9 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
             case SPEED_MAX -> "speed at most " + flat + " ft.";
             case HEAL_EACH_TURN -> "regains " + flat + " hit point" + (flat == 1 ? "" : "s")
                     + " at the start of each of its turns";
-            case DAMAGE_IMMUNITY -> "immune to " + String.join(", ", damageTypes) + " damage";
+            // "all" for every type, as Invulnerability's (XGE p.160, D190)
+            case DAMAGE_IMMUNITY -> "immune to " + (damageTypes.stream().anyMatch(ALL::equalsIgnoreCase)
+                    ? "all damage" : String.join(", ", damageTypes) + " damage");
             case EVASION -> "Evasion";
             case TRUESIGHT -> "truesight";
             case SPELL_IMMUNITY -> "spells of level " + flat + " or lower cast from outside have no effect";
