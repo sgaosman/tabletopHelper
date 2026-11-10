@@ -3702,3 +3702,30 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D176, D185, D187, D188, D189, D190, D191, D192, [[Extra Turns]]
 
 **Tests:** new `HighLevelGapsTest` (12), `HighLevelGapsIT` (5); 3,134 backend unit, 431 integration and 1,159 frontend.
+
+
+## D196: Counterspell, Dispel Magic and Protective Low-Level Spells
+
+**Date:** 2026-11-10
+**Status:** Accepted — implemented (no migration; spell templates v9)
+
+**Context:** at 3rd level or lower, 80 of 288 spells were still manual and 34 log-only, including Counterspell and Dispel Magic, which come up in most fights.
+
+**Decision:**
+- **Counterspell** (PHB p.228): casts don't pause, so Counterspell is cast from the Reactions menu at the creature that just cast, and counters the newest combat command, which must be that creature's spell cast (else 409). A spell at or below Counterspell's slot fails outright; a higher one needs a spellcasting ability check against DC 10 + the level it was cast at. A countered command is taken back through undo ([[#D176]]) and marked undone, while its caster keeps the costs: the slot, the action economy and spent pools. The counter records the command it took back, so undoing the Counterspell brings the spell back; `UndoService.revert` gains taking back a command inside another.
+- **Dispel Magic** (p.234): ends every spell on the target creature (one that gave it a condition or Ongoing Modifiers, or one its own caster cast on itself alone); each at or below the slot ends, each higher needs the check against DC 10 + its level. Ending a spell ends its caster's concentration, its Spell Effect and its conditions.
+- **Blink** (p.219): at the end of the caster's turn a d20 of 11+ makes it `ethereal` until the start of its next turn, and attacks or spells at it answer 409.
+- **Mirror Image** (p.260): three duplicates; each attack roll against the caster rolls a d20 needing 6+, 8+ or 11+ (for 3, 2 or 1 left) to hit a duplicate instead, compared to AC 10 + DEX (a critical always hits, a natural 1 never); a hit destroys one and the spell ends at none.
+- **Sanctuary** (p.272): an attacker, or the caster of a one-target harmful spell, makes a WIS save against the ward's DC first, and on a failure that attack or spell does nothing to the ward; the ward ends when the warded creature attacks or casts.
+- **Shillelagh** (p.275): a club or quarterstaff deals a d8 and uses the spellcasting ability when it is higher than Strength. **Spirit Shroud** (TCE p.108): 1d8 of the chosen type (radiant, necrotic or cold) on the caster's hits, +1d8 per two slot levels above 3rd, through modifiers ([[#D184]]).
+- **Rules calls (choices):** Counterspell compares against the level the spell was cast at (p.201), and a countered caster keeps its previous concentration, since the spell "has no effect"; the Counterspell and Dispel Magic check is d20 + the spellcasting modifier only (no Improved Abjuration or Jack of All Trades); Dispel Magic ends the whole spell; a countered spell that had ended Time Stop ([[#D195]]) gives the turns back.
+
+**Rationale:** taking a spell back through undo gives Counterspell without pausing every cast for reactions, which the engine has no prompt for.
+
+**Trade-offs:** no dedicated "Counter" button on the log entry; Sanctuary ends on any attack or spell the ward casts, and its new-target choice is the DM's; Mirror Image's blindsight and truesight exemption is the DM's; Shillelagh doesn't make the weapon magical or end when let go; Spirit Shroud's range, no-healing and speed effects are the DM's; Heat Metal's drop save, Ray of Enfeeblement, Shadow Blade, Silvery Barbs, Zephyr Strike, Flame Arrows and Ashardalon's Stride remain. Manual at 3rd level or lower is now 74, log-only 33. Golden counts: Careful and Heightened 186, Empowered 152. Not checked in a browser.
+
+**Key files:** `encounter/internal/SpellCounters.java`, `DefensiveSpells.java`, `SpellcastingService.java`, `EffectApplier.java`, `TurnProcessor.java`, `CombatAccess.java`, `AttackService.java`, `UndoService.java`, `encounter/state/ConditionEntry.java`, `CombatLogRepository.java`, `data/spell-effects/spell-effect-definitions.json`
+
+**Related:** D176, D177, D184, D185, D189, D191, D195, [[Counter]]
+
+**Tests:** new `LowLevelSpellsTest` (11), `LowLevelSpellsIT` (11); 3,145 backend unit, 442 integration and 1,159 frontend.
