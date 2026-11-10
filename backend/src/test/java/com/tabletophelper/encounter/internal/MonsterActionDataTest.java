@@ -64,8 +64,8 @@ class MonsterActionDataTest {
     }
 
     @Test
-    @DisplayName("320 actions, bonus actions, reactions and legendary actions have limited uses the pools count (MM "
-            + "p.11): 227 actions, 39 bonus actions, 52 reactions and 2 legendary actions; none also has a d6 recharge")
+    @DisplayName("350 actions, bonus actions, reactions and legendary actions have limited uses the pools count (MM "
+            + "p.11): 246 actions, 46 bonus actions, 56 reactions and 2 legendary actions; none also has a d6 recharge")
     void limitedUses() {
         Map<String, Integer> counts = new LinkedHashMap<>();
         List<String> alsoRecharge = new ArrayList<>();
@@ -83,13 +83,13 @@ class MonsterActionDataTest {
                 }
             }
         }
-        assertEquals(Map.of("ACTION", 227, "BONUS", 39, "REACTION", 52, "LEGENDARY", 2), counts);
+        assertEquals(Map.of("ACTION", 246, "BONUS", 46, "REACTION", 56, "LEGENDARY", 2), counts);
         assertEquals(List.of(), alsoRecharge);
     }
 
     @Test
-    @DisplayName("Every bonus action and reaction is found under its source and plans: 60 of the 235 bonus actions "
-            + "and 82 of the 339 reactions resolve automatically, and the rest are logged for the DM (D137, D138)")
+    @DisplayName("Every bonus action and reaction is found under its source and plans: 63 of the 266 bonus actions "
+            + "and 85 of the 359 reactions resolve automatically, and the rest are logged for the DM (D137, D138)")
     void bonusActionsAndReactions() {
         List<String> missing = new ArrayList<>();
         Map<String, int[]> counts = new LinkedHashMap<>(Map.of("BONUS", new int[2], "REACTION", new int[2]));
@@ -108,13 +108,13 @@ class MonsterActionDataTest {
         }
 
         assertEquals(List.of(), missing);
-        assertArrayEquals(new int[]{60, 175}, counts.get("BONUS"));
-        assertArrayEquals(new int[]{82, 257}, counts.get("REACTION"));
+        assertArrayEquals(new int[]{63, 203}, counts.get("BONUS"));
+        assertArrayEquals(new int[]{85, 274}, counts.get("REACTION"));
     }
 
     @Test
-    @DisplayName("A reaction that changes a hit or its damage after it is resolved, such as each of the 43 Parries and "
-            + "18 Uncanny Dodges, is the DM's: it logs its stat block and what to adjust by hand (Q4)")
+    @DisplayName("A reaction that changes a hit or its damage after it is resolved, such as each of the 47 Parries and "
+            + "19 Uncanny Dodges, is the DM's: it logs its stat block and what to adjust by hand (Q4)")
     void reactionsThatChangeAResolvedHit() {
         int parries = 0;
         int uncannyDodges = 0;
@@ -139,8 +139,8 @@ class MonsterActionDataTest {
                 uncannyDodges += uncannyDodge ? 1 : 0;
             }
         }
-        assertEquals(43, parries);
-        assertEquals(18, uncannyDodges);
+        assertEquals(47, parries);
+        assertEquals(19, uncannyDodges);
     }
 
     @ParameterizedTest(name = "{0} ({1}) {2}")

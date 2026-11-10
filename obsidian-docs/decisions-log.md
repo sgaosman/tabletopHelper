@@ -3651,3 +3651,25 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D176, D177, D178, D182, D185, D188, D190, D191, [[Form]]
 
 **Tests:** new `ShapeSpellsTest` (8), `FormStatsTest`, `FormSpellsIT`, frontend `FormStep` and `ChangeFormControl` tests; 3,109 backend unit, 424 integration and 1,158 frontend.
+
+
+## D194: Monster Actions From Stat Blocks
+
+**Date:** 2026-11-10
+**Status:** Accepted — implemented (no migration)
+
+**Context:** [[#D193]] gave 126 monsters their spellcasting, but they still had no attacks, multiattack, saves or reactions.
+
+**Decision:** `backend/scripts/generate_monster_actions.py` (deterministic, `--check`, beside the D193 script) builds actions, bonus actions and reactions from the 5etools stat blocks in the existing hand-built format and marks each entry `_actionsFromStatBlock`, leaving every other entry untouched. All 126 now have actions: 389 actions (192 attacks, 100 multiattacks that all resolve, 51 saving-throw actions, 46 for the DM), 31 bonus actions and 20 reactions; 52 recharges, 24 per-day limits (back on a long rest), 19 versatile weapons, 15 attacks that give a condition on a hit (with its save, duration, repeat save and escape DC) and areas as `targetType` and `aoeSize`. Generated attacks and saves keep the stat-block text as `description`.
+- **Left to the DM:** actions the format can't express (teleporting, Change Shape, summons, Counterspell-style reactions, healing, buffs) are `automatable: false` with their text; saves with several DCs or abilities, "X or Y" saves, saves on entering or starting a turn in an area, "one of the following" options and very long texts; riders on 66 attacks and 14 saves (the Pit Fiend bite's poison each turn, swallowing, pushes, exhaustion) are a `dmNote` beginning "Also on a hit, applied by hand:"; a damage-type choice uses the first type with a note; multiattack alternatives list every option, as existing entries do, and spellcasting parts of a multiattack are cast separately; Parry and Uncanny Dodge keep the existing "restore by hand" note.
+- **Rules calls (choices):** recharge as MM p.11 Limited Usage; the attack and save readings follow the stat-block text.
+
+**Rationale:** the same rerunnable script approach as [[#D193]], rather than hand-editing 126 entries.
+
+**Trade-offs:** none of the 126 has legendary, lair or mythic actions or Legendary Resistance in its stat block (the script would read Legendary Resistance); there is no legendary-group data for lair actions; traits other than Legendary Resistance aren't copied. Not checked in a browser.
+
+**Key files:** `backend/scripts/generate_monster_actions.py`, `data/monster-actions/monster-action-definitions.json`
+
+**Related:** D163, D165, D174, D193
+
+**Tests:** new `StatBlockActionsTest` (13: every generated attack's bonus and damage matched against the stat-block text, every multiattack resolves, samples for the Pit Fiend, Death Knight and Storm Giant) and `StatBlockActionsIT` (2: the Pit Fiend's multiattack and poisoning bite, the Storm Giant's recharge Lightning Strike); `MonsterActionDataTest` counts updated; 3,122 backend unit, 426 integration and 1,158 frontend.
