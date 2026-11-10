@@ -47,10 +47,12 @@ public final class Resolver {
      * @param senses       its blindsight and truesight, which let it perceive an invisible attacker (MM p.8-9)
      * @param modifiers    what the Ongoing Modifiers of the attacker and of the target do to an attack roll against it
      *                     or to its save (D184)
+     * @param evasion      it has Evasion (PHB p.79, p.96, D188), which changes a Dexterity save against damage halved by
+     *                     a success
      */
     public record Target(UUID id, int armourClass, int saveModifier, Collection<String> conditions,
                          boolean strDexDisadvantage, List<RollMode> saveSources, int inspirationSides,
-                         boolean autoSucceed, AttackRules.Senses senses, RollModifiers modifiers) {
+                         boolean autoSucceed, AttackRules.Senses senses, RollModifiers modifiers, boolean evasion) {
 
         public Target {
             Objects.requireNonNull(id, "id");
@@ -58,6 +60,23 @@ public final class Resolver {
             saveSources = saveSources != null ? List.copyOf(saveSources) : List.of();
             senses = senses != null ? senses : AttackRules.Senses.NONE;
             modifiers = modifiers != null ? modifiers : RollModifiers.NONE;
+        }
+
+        /** A target without Evasion. */
+        public Target(UUID id, int armourClass, int saveModifier, Collection<String> conditions,
+                      boolean strDexDisadvantage, List<RollMode> saveSources, int inspirationSides,
+                      boolean autoSucceed, AttackRules.Senses senses, RollModifiers modifiers) {
+            this(id, armourClass, saveModifier, conditions, strDexDisadvantage, saveSources, inspirationSides,
+                    autoSucceed, senses, modifiers, false);
+        }
+
+        /**
+         * The same target with Evasion or without (D188): on a Dexterity save against an effect that halves its damage
+         * on a success, it takes none on a success and half on a failure (PHB p.79, p.96).
+         */
+        public Target withEvasion(boolean has) {
+            return new Target(id, armourClass, saveModifier, conditions, strDexDisadvantage, saveSources,
+                    inspirationSides, autoSucceed, senses, modifiers, has);
         }
 
         /** A target no Ongoing Modifier changes. */
@@ -71,7 +90,7 @@ public final class Resolver {
         /** The same target with these Ongoing Modifiers' changes (D184). */
         public Target withModifiers(RollModifiers changed) {
             return new Target(id, armourClass, saveModifier, conditions, strDexDisadvantage, saveSources,
-                    inspirationSides, autoSucceed, senses, changed);
+                    inspirationSides, autoSucceed, senses, changed, evasion);
         }
 
         /** A target with no special senses. */
@@ -105,13 +124,13 @@ public final class Resolver {
             List<RollMode> sources = new ArrayList<>(saveSources);
             sources.add(source);
             return new Target(id, armourClass, saveModifier, conditions, strDexDisadvantage, sources,
-                    inspirationSides, autoSucceed, senses, modifiers);
+                    inspirationSides, autoSucceed, senses, modifiers, evasion);
         }
 
         /** The same target succeeding on the Effect's save without rolling (Careful Spell, PHB p.102). */
         public Target succeedingAutomatically() {
             return new Target(id, armourClass, saveModifier, conditions, strDexDisadvantage, saveSources,
-                    inspirationSides, true, senses, modifiers);
+                    inspirationSides, true, senses, modifiers, evasion);
         }
 
         /** A target whose saves nothing but its conditions changes. */
@@ -521,7 +540,17 @@ public final class Resolver {
         SaveRoll roll = target.autoSucceed() ? new SaveRoll(null, null, true, false)
                 : savingThrow(save.ability(), target.saveModifier(), save.dc(), target.conditions(),
                         target.strDexDisadvantage(), target.saveSources(), target.modifiers().saveBonuses());
-        List<Damage> onSuccess = save.halfDamageOnSuccess() ? halved(damage) : List.of();
+        // A success halves the damage, prevents it, or leaves it whole, as Mental Prison's (XGE p.161, D188)
+        List<Damage> onSuccess = save.fullDamageOnSuccess() ? damage
+                : save.halfDamageOnSuccess() ? halved(damage) : List.of();
+        // Evasion: on a Dexterity save against damage halved by a success, a success takes none and a failure half
+        // (PHB p.79, p.96, D188)
+        boolean evading = target.evasion() && save.ability() == Ability.DEX && save.halfDamageOnSuccess()
+                && !save.fullDamageOnSuccess();
+        if (evading) {
+            damage = halved(damage);
+            onSuccess = List.of();
+        }
         // A held Bardic Inspiration die is rolled on a failed save its holder rolled, not on one failed
         // automatically (PHB p.53)
         Inspiration inspiration = null;

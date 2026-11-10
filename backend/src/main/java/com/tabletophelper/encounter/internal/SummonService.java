@@ -246,7 +246,12 @@ public class SummonService {
                     named(pool, SummonRules.PACT_OF_THE_CHAIN_FORMS);
                 }
             }
-            case STEED, GIANT_INSECT, ANIMATE_DEAD, DANSE_MACABRE -> named(pool, spell.forms());
+            case STEED, GIANT_INSECT, ANIMATE_DEAD, DANSE_MACABRE, CREATE_UNDEAD -> named(pool, spell.forms());
+            // PHB p.226: a fey, or a fey spirit in a beast's form (D188)
+            case CONJURE_FEY -> {
+                pool.addAll(monsterRepository.findByTypeIgnoreCase("fey"));
+                pool.addAll(monsterRepository.findByTypeIgnoreCase("beast"));
+            }
             // Animate Objects' stat blocks are the Player's Handbook's (PHB p.213)
             case ANIMATE_OBJECTS -> spell.forms().forEach(name -> monsterRepository
                     .findByNameIgnoreCaseAndSource(name, "PHB").ifPresent(pool::add));

@@ -240,6 +240,12 @@ public class SpellcastingService {
                     + "applied when the creature enters it or starts its turn there");
         }
         int times = timesToUse(effect, how, request.getUses(), request.getTargetIds().isEmpty());
+        // Eyebite chooses its effect again for each new creature (PHB p.238, D188); no other use takes an option
+        String option = spellEffects.optionEachUse(spellName) && !request.getTargetIds().isEmpty()
+                ? spellEffects.option(spellName, request.getOption()) : null;
+        if (option == null && request.getOption() != null && !request.getOption().isBlank()) {
+            throw new ValidationException("Using " + spellName + " again takes no option");
+        }
         List<EncounterParticipant> targets = CombatAccess.targets(encounter, request.getTargetIds(), userId);
         SpellNumbers own = numbers(caster, casterSpells.origin(caster, spellName));
         List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(own.attackBonus(), own.saveDc(),
@@ -256,7 +262,7 @@ public class SpellcastingService {
         SpellCaster.CastResult result = how.directedResolves()
                 ? spellCaster.repeat(encounter, caster, effect, targets, own.ability(),
                         attackBonus(own, request.getOverrideSpellAttackBonus()),
-                        saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote, times)
+                        saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote, times, option)
                 : spellCaster.move(encounter, caster, effect, costNote);
         if (effect.usesLeft() != null && how.directedResolves() && !targets.isEmpty()) {
             effectApplier.spendEffectUses(caster, effect.id(), times);
@@ -374,7 +380,8 @@ public class SpellcastingService {
                 .filter(p -> effect.affected().contains(p.getId()))
                 .anyMatch(p -> p.getHpCurrent() != null && p.getHpCurrent() > 0
                         && p.getLifeState() != com.tabletophelper.rules.combat.LifeState.DEAD);
-        if (standing) {
+        // Fizban's Platinum Shield moves whenever its caster likes (FTD p.20, D188)
+        if (standing && !spellEffects.castRules(effect.spell()).movable()) {
             throw new ConflictException(effect.spell() + " moves only once its creature has dropped to 0 hit points");
         }
         EncounterParticipant target = CombatAccess.target(encounter, request.getTargetId(), userId);

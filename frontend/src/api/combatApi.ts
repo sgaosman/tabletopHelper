@@ -120,6 +120,11 @@ export const combatApi = {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/repeat-save`, { participantId, conditionId });
   },
 
+  // A save the creature makes with its action to end a condition, as Otto's Irresistible Dance's (D188)
+  rollActionSave(encounterId: string, participantId: string, conditionId: string) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/action-save`, { participantId, conditionId });
+  },
+
   setConcentration(encounterId: string, participantId: string, spellName: string | null) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/concentration`, { participantId, spellName });
   },

@@ -102,6 +102,30 @@ describe('RepeatEffectModal', () => {
     expect(cachedEncounter()).toEqual(encounterState);
   });
 
+  it("asks Eyebite's effect for each new creature and sends the option chosen (D188)", async () => {
+    targeting();
+    let body: unknown;
+    server.use(
+      http.post('/api/encounters/:id/combat/repeat-spell-effect', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(makeMockCastSpellResponse({ spellName: 'Eyebite', slotLevelUsed: 6 }));
+      }),
+    );
+    const eyebite = makeMockSpellEffect('Eyebite', {
+      slotLevel: 6, concentration: true, directedCost: 'ACTION', useOptions: ['asleep', 'panicked', 'sickened'],
+    });
+    const { user } = await renderModal({ effect: eyebite });
+
+    await user.selectOptions(screen.getByLabelText('Effect on this creature'), 'sickened');
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Repeat Effect' }));
+
+    await waitFor(() => expect(body).toEqual({
+      targetIds: ['part-goblin'], advantage: null, effectId: 'effect-eyebite', option: 'sickened',
+    }));
+  });
+
   it('looks up targeting at the slot level the effect was cast with', async () => {
     const lookups = targeting();
     const caster = makeMockParticipant('part-cleric', 'Brother Tuck', 'PLAYER');

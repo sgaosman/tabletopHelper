@@ -32,7 +32,7 @@ class SpiritTemplatesTest {
     void everySpell() {
         List<String> spells = SummonRules.spells().stream()
                 .filter(spell -> spell.kind() == SummonRules.Kind.SPIRIT).map(SummonRules.Spell::name).toList();
-        assertEquals(10, spells.size());
+        assertEquals(11, spells.size());
         spells.forEach(spell -> assertTrue(spirits.forSpell(spell).isPresent(), spell));
         // Each spirit's stat block is read from the book its spell names (D185)
         spells.forEach(spell -> assertEquals(SummonRules.spell(spell).orElseThrow().source(),
@@ -51,6 +51,30 @@ class SpiritTemplatesTest {
                 spirits.forSpell("Summon Shadowspawn").orElseThrow().variantNames());
         assertEquals(List.of("Ghostly", "Putrid", "Skeletal"),
                 spirits.forSpell("Summon Undead").orElseThrow().variantNames());
+        assertEquals(List.of("Demon", "Devil", "Yugoloth"),
+                spirits.forSpell("Summon Fiend").orElseThrow().variantNames());
+    }
+
+    @Test
+    @DisplayName("Golden: a demon at 6th has AC 18, 50 HP and three necrotic Bites of 1d12 + 9; a devil at 7th has 55 HP "
+            + "and hurls flame as a ranged spell attack for 2d6 + 10 fire (TCE p.112, D188)")
+    void fiend() {
+        SummonSpirits.Spirit fiend = spirits.forSpell("Summon Fiend").orElseThrow();
+        SummonSpirits.Variant demon = fiend.variant("Demon").orElseThrow();
+        assertEquals(18, SpiritTemplates.armourClass(fiend, 6));
+        assertEquals(50, SpiritTemplates.hitPoints(fiend, demon, 6));
+        MonsterTemplates made = templates.templates(fiend, demon, 6, 8, 16);
+        assertEquals(3, made.find("ACTION", "Multiattack").orElseThrow().multiattackComponents().size());
+        MonsterTemplates.Action bite = made.find("ACTION", "Bite").orElseThrow();
+        assertEquals("1d12 + 9", bite.effects().getFirst().damageDice());
+        assertEquals("necrotic", bite.effects().getFirst().damageType());
+
+        SummonSpirits.Variant devil = fiend.variant("Devil").orElseThrow();
+        assertEquals(55, SpiritTemplates.hitPoints(fiend, devil, 7));
+        MonsterTemplates.Action flame = templates.templates(fiend, devil, 7, 8, 16).find("ACTION", "Hurl Flame")
+                .orElseThrow();
+        assertEquals("2d6 + 10", flame.effects().getFirst().damageDice());
+        assertEquals(75, SpiritTemplates.hitPoints(fiend, fiend.variant("Yugoloth").orElseThrow(), 7));
     }
 
     @Test

@@ -776,9 +776,30 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
 
     /**
      * The conditions each cast option gives in place of the template's list, as Forcecage's cage and box (PHB p.243):
-     * the template's {@code conditionsByOption}, the names keyed by option in lower case; empty for none (D189).
+     * the template's {@code conditionsByOption}, the names keyed by option in lower case; empty for none (D189). An
+     * option's list names its conditions, or gives them whole with how they end, as Eyebite's asleep (PHB p.238, D188).
      */
     public Map<String, List<String>> conditionsByOption() {
+        Map<String, List<String>> byOption = new LinkedHashMap<>();
+        optionConditions().forEach((option, conditions) -> byOption.put(option, conditions.stream()
+                .map(ConditionInflicted::name).filter(Objects::nonNull).toList()));
+        return Map.copyOf(byOption);
+    }
+
+    /**
+     * The conditions the cast gives for the option chosen (D188, D189): the option's own list from
+     * {@code conditionsByOption}, an entry named alone taking how it ends from the template's conditionsInflicted, as
+     * Forcecage's box (PHB p.243), and one given whole keeping its own, as Eyebite's asleep (PHB p.238); the template's
+     * conditionsInflicted for no option, or one the key doesn't list.
+     */
+    public List<ConditionInflicted> conditionsFor(String option) {
+        List<ConditionInflicted> listed = option == null ? null
+                : optionConditions().get(option.toLowerCase(java.util.Locale.ROOT));
+        return listed != null ? listed : conditionsInflicted;
+    }
+
+    // The conditions of each option, keyed in lower case; an entry named alone is the template's own of that name
+    private Map<String, List<ConditionInflicted>> optionConditions() {
         JsonNode node = json != null ? json.get("conditionsByOption") : null;
         if (node == null || node.isNull()) {
             return Map.of();
@@ -786,13 +807,21 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         if (!node.isObject()) {
             throw new IllegalArgumentException("conditionsByOption is not an object");
         }
-        Map<String, List<String>> byOption = new LinkedHashMap<>();
+        Map<String, List<ConditionInflicted>> byOption = new LinkedHashMap<>();
         for (Map.Entry<String, JsonNode> entry : node.properties()) {
-            List<String> names = new java.util.ArrayList<>();
-            entry.getValue().forEach(each -> {
-                if (each.isString()) names.add(each.asString("").toLowerCase(java.util.Locale.ROOT));
-            });
-            byOption.put(entry.getKey().toLowerCase(java.util.Locale.ROOT), List.copyOf(names));
+            if (!entry.getValue().isArray()) {
+                throw new IllegalArgumentException("conditionsByOption's " + entry.getKey() + " is not a list");
+            }
+            List<ConditionInflicted> conditions = new java.util.ArrayList<>();
+            for (JsonNode each : entry.getValue()) {
+                ConditionInflicted read = ConditionInflicted.of(each);
+                ConditionInflicted own = each.isString() ? conditionsInflicted.stream()
+                        .filter(c -> c.name() != null && c.name().equals(read.name())).findFirst().orElse(null) : null;
+                if (read.name() != null) {
+                    conditions.add(own != null ? own : read);
+                }
+            }
+            byOption.put(entry.getKey().toLowerCase(java.util.Locale.ROOT), List.copyOf(conditions));
         }
         return Map.copyOf(byOption);
     }
@@ -821,6 +850,94 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
                 ? READER.convertValue(node.get("conditionsInflicted"), CONDITIONS) : List.of();
         return new FollowUpSave(text(node, "ability"), listOf(conditions), text(node, "option"),
                 text(node, "on") != null ? text(node, "on") : "HIT");
+    }
+
+    // ── Keys the 6th-level spells added (D188), read from the stored JSON ──
+
+    /** The fewest hit points its damage can leave a creature with, as Harm's 1 (PHB p.249); 0 for no floor. */
+    public int damageFloor() {
+        JsonNode node = json != null ? json.get("damageFloor") : null;
+        return node != null && node.isInt() ? Math.max(0, node.asInt(0)) : 0;
+    }
+
+    /**
+     * Whether a creature its damage leaves at 0 hit points is disintegrated, dead with no death saves, as Disintegrate's
+     * (PHB p.233).
+     */
+    public boolean disintegrates() {
+        return json != null && json.path("disintegrates").asBoolean(false);
+    }
+
+    /**
+     * Whether a creature that fails its save has its hit point maximum reduced by the damage it took, as Harm's for an
+     * hour (PHB p.249): the template's {@code hpMaxReducedByDamage} object.
+     */
+    public boolean reducesHpMax() {
+        return json != null && json.path("hpMaxReducedByDamage").isObject();
+    }
+
+    /** How many rounds that reduction lasts: the object's durationRounds, 600 (1 hour) when it doesn't say. */
+    public int hpMaxReductionRounds() {
+        JsonNode node = json != null ? json.path("hpMaxReducedByDamage").path("durationRounds") : null;
+        return node != null && node.isInt() ? node.asInt(600) : 600;
+    }
+
+    /**
+     * The condition whose immunity makes a creature immune to the spell, as one that can't be charmed is to Mass
+     * Suggestion (PHB p.258); null for none.
+     */
+    public String immuneIfImmuneTo() {
+        return json != null ? text(json, "immuneIfImmuneTo") : null;
+    }
+
+    /**
+     * The condition whose immunity makes a creature succeed on the spell's save automatically, as one that can't be
+     * charmed does against Mental Prison (XGE p.161); null for none.
+     */
+    public String succeedsIfImmuneTo() {
+        return json != null ? text(json, "succeedsIfImmuneTo") : null;
+    }
+
+    /** The creature types that make its save with disadvantage, as Sunbeam's undead and oozes (PHB p.279). */
+    public List<String> saveDisadvantageTypes() {
+        return texts("saveDisadvantageTypes");
+    }
+
+    /** Whether a successful save still takes all the damage, as against Mental Prison's 5d10 (XGE p.161). */
+    public boolean fullDamageOnSave() {
+        return json != null && json.path("fullDamageOnSave").asBoolean(false);
+    }
+
+    /** Whether its caster can't cast spells while its Spell Effect lasts, as with Tenser's Transformation (XGE p.168). */
+    public boolean blocksCasting() {
+        return json != null && json.path("blocksCasting").asBoolean(false);
+    }
+
+    /**
+     * Whether its caster can move its Spell Effect to another creature with a bonus action at any time, as Fizban's
+     * Platinum Shield (FTD p.20), not only once its creature drops to 0 hit points.
+     */
+    public boolean movable() {
+        return json != null && json.path("movable").asBoolean(false);
+    }
+
+    /**
+     * A condition its creature ends by using its action on a save, as Otto's Irresistible Dance's (PHB p.264), whose
+     * success ends the spell: the template's {@code actionSave}.
+     *
+     * @param condition the condition's name
+     * @param ability   the save's ability, such as "WIS"
+     */
+    public record ActionSave(String condition, String ability) {
+    }
+
+    /** The template's action save, or null when it has none. */
+    public ActionSave actionSave() {
+        JsonNode node = json != null ? json.get("actionSave") : null;
+        if (node == null || !node.isObject() || text(node, "condition") == null || text(node, "ability") == null) {
+            return null;
+        }
+        return new ActionSave(text(node, "condition"), text(node, "ability"));
     }
 
     /** Its components; combat reads only whether it has a verbal one. */

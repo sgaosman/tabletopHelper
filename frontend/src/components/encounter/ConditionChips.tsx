@@ -55,7 +55,9 @@ export default function ConditionChips({ participant, roundNumber, onRemove, sho
           : `${c.name}${c.sourceSpellName ? ` (${c.sourceSpellName})` : ''}${remaining != null ? ` (${remaining})` : ''}`;
         const chip = marker ? FEATURE_CHIP : CHIP;
         // A Repeat Save is rolled at the end of each of the creature's turns (D162)
-        const saveEnds = c.repeatSave ? `; ${c.repeatSave.ability} save DC ${c.repeatSave.dc} at the end of each turn ends it`
+        const saveEnds = c.repeatSave?.byAction
+          ? `; a ${c.repeatSave.ability} save DC ${c.repeatSave.dc} made with its action ends the spell`
+          : c.repeatSave ? `; ${c.repeatSave.ability} save DC ${c.repeatSave.dc} at the end of each turn ends it`
           : marker ? `: ${marker.description}` : '';
         return (
           <Fragment key={c.id}>

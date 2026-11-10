@@ -189,7 +189,8 @@ public class TurnProcessor {
         boolean playerRolls = creature.getParticipantType() == ParticipantType.PLAYER
                 && Boolean.TRUE.equals(encounter.getCampaign().getPromptPlayerRepeatSaves());
         for (ConditionEntry condition : conditions(creature)) {
-            if (condition.repeatSave() == null) {
+            // A save made with an action waits for the creature to spend it, as Otto's Irresistible Dance's (D188)
+            if (condition.repeatSave() == null || condition.repeatSave().madeByAction()) {
                 continue;
             }
             if (playerRolls) {

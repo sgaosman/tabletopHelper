@@ -2,7 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { render as plainRender, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { render, renderWithGlossary, setupAuthToken } from '../../test/test-utils';
-import { makeMockCondition, makeMockParticipant } from '../../test/mocks/handlers';
+import { http, HttpResponse } from 'msw';
+import { makeMockCondition, makeMockEncounter, makeMockParticipant } from '../../test/mocks/handlers';
+import { server } from '../../test/mocks/server';
 import { EncounterProvider } from '../../context/EncounterContext';
 import ConditionChips from './ConditionChips';
 
@@ -59,6 +61,29 @@ describe('ConditionChips', () => {
     );
     await waitFor(() => expect(screen.getByRole('button', { name: 'Roll CON save' })).toBeInTheDocument());
     expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+
+  it('offers a save made with an action on any turn, as Otto\'s Irresistible Dance\'s, and sends it (D188)', async () => {
+    setupAuthToken();
+    let sent: unknown = null;
+    server.use(http.post('/api/encounters/:id/combat/action-save', async ({ request }) => {
+      sent = await request.json();
+      return HttpResponse.json(makeMockEncounter());
+    }));
+    const dancing = makeMockCondition('dancing', {
+      sourceSpellName: "Otto's Irresistible Dance",
+      repeatSave: { ability: 'WIS', dc: 15, awaitingRoll: false, byAction: true },
+    });
+    const dancer = makeMockParticipant('p', 'Ogre', 'MONSTER', { activeConditions: [dancing] });
+    render(
+      <EncounterProvider encounterId="enc-001">
+        <ConditionChips participant={dancer} roundNumber={1} showRepeatSave />
+      </EncounterProvider>,
+    );
+    expect(screen.getByText("dancing (Otto's Irresistible Dance)"))
+      .toHaveAttribute('title', '; a WIS save DC 15 made with its action ends the spell');
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Action: WIS save' }));
+    await waitFor(() => expect(sent).toEqual({ participantId: 'p', conditionId: 'cond-dancing' }));
   });
 
   it("shows Rage and Reckless Attack as the creature's own features, with what they do (M17)", () => {

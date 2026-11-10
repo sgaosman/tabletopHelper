@@ -405,6 +405,7 @@ export function useEncounterAction() {
       setExhaustion: change(combatApi.setExhaustion),
       rollDeathSave: change(combatApi.rollDeathSave),
       rollRepeatSave: change(combatApi.rollRepeatSave),
+      rollActionSave: change(combatApi.rollActionSave),
       setConcentration: change(combatApi.setConcentration),
       spendSpellSlot: change(combatApi.useSpellSlot),
       restoreSpellSlot: change(combatApi.restoreSpellSlot),

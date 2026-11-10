@@ -836,6 +836,7 @@ public class EncounterService {
                             .ability(effect.detonation().ability()).dc(effect.detonation().dc())
                             .halfOnSave(effect.detonation().halfOnSave()).grows(effect.detonation().grows()).build())
                     .risingIds(effect.rising())
+                    .useOptions(useOptions(effect.spell()))
                     .summonedParticipantIds(effect.summon() == null ? List.of()
                             : EffectApplier.summonedBy(encounter, effect.id()).stream()
                                     .sorted(Comparator.comparing(p -> p.getSortOrder() != null ? p.getSortOrder()
@@ -851,6 +852,16 @@ public class EncounterService {
             return spellEffects.retargetable(spell);
         } catch (ConflictException e) {
             return false;
+        }
+    }
+
+    // The options each use of the spell's effect chooses between, as Eyebite's (D188); none when its template can't be
+    // read
+    private List<String> useOptions(String spell) {
+        try {
+            return spellEffects.optionEachUse(spell) ? spellEffects.castOptions(spell) : List.of();
+        } catch (ConflictException e) {
+            return List.of();
         }
     }
 

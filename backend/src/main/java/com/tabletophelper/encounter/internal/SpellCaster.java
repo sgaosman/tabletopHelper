@@ -105,6 +105,7 @@ public class SpellCaster {
                            List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
                            Boolean advantage, String costNote, MetamagicCasting.Plan metamagic,
                            Summoner.Prepared summoning, String option) {
+        requireCanCast(caster);
         SpellEffects.SpellPlan plan = spellEffects.forCast(spellName, slotLevel, caster, castingAbility, attackBonus,
                 saveDc, advantage, option);
         if (metamagic.has(Metamagic.Option.EXTENDED)) {
@@ -154,21 +155,35 @@ public class SpellCaster {
         // The creature types a spell ignores or treats harder, as Blight's undead and plants (PHB p.219, D185)
         SpellEffects.TypeRules types = spellEffects.typeRules(spellName);
         SpellEffects.SeventhLevel seventh = spellEffects.seventhLevel(spellName);
+        SpellEffects.CastRules rules = spellEffects.castRules(spellName);
+        // A Globe of Invulnerability keeps out a spell of its level or lower cast from outside (PHB p.245, D188), and a
+        // creature immune to the condition the spell needs is immune to it, as one that can't be charmed is to Mass
+        // Suggestion (PHB p.258, D188)
+        int spellLevel = plan.spellLevel();
+        List<EncounterParticipant> globed = reached.stream()
+                .filter(target -> globe(caster, target, spellLevel) != null)
+                .toList();
+        List<EncounterParticipant> immune = reached.stream()
+                .filter(target -> !globed.contains(target) && rules.immuneIfImmuneTo() != null
+                        && stats.immuneToCondition(target, rules.immuneIfImmuneTo(), true))
+                .toList();
         List<EncounterParticipant> unaffected = reached.stream()
-                .filter(target -> ofType(target, types.noEffectOn()))
+                .filter(target -> !globed.contains(target) && !immune.contains(target)
+                        && ofType(target, types.noEffectOn()))
                 .toList();
         // Too many hit points, as for Power Word Pain (XGE p.163), or a condition that keeps the spell from reaching it,
         // as deafness does Divine Word (PHB p.234) (D189)
         List<EncounterParticipant> spared = reached.stream()
-                .filter(target -> !unaffected.contains(target) && spared(target, seventh))
+                .filter(target -> !globed.contains(target) && !immune.contains(target) && !unaffected.contains(target)
+                        && spared(target, seventh))
                 .toList();
         List<EncounterParticipant> maximised = reached.stream()
-                .filter(target -> !unaffected.contains(target) && !spared.contains(target)
-                        && ofType(target, types.maximumDamageTo()))
+                .filter(target -> !globed.contains(target) && !immune.contains(target) && !unaffected.contains(target)
+                        && !spared.contains(target) && ofType(target, types.maximumDamageTo()))
                 .toList();
         List<EncounterParticipant> normal = reached.stream()
-                .filter(target -> !unaffected.contains(target) && !spared.contains(target)
-                        && !maximised.contains(target))
+                .filter(target -> !globed.contains(target) && !immune.contains(target) && !unaffected.contains(target)
+                        && !spared.contains(target) && !maximised.contains(target))
                 .toList();
         if (!spared.isEmpty()) {
             effectApplier.summary(encounter, use, spellName + " has no effect on " + spared.stream()
@@ -182,10 +197,11 @@ public class SpellCaster {
         } else if (!normal.isEmpty() || maximised.isEmpty()) {
             // With no targets at all the spell still resolves, rolling its dice as before (D177)
             List<Resolver.Target> resolvedAgainst = stats.targets(normal, effect, caster).stream()
-                    .map(target -> withMetamagic(target, metamagic))
+                    .map(target -> withMetamagic(withCastRules(target, normal, rules), metamagic))
                     .toList();
             applied.addAll(effectApplier.apply(encounter, use, effect,
-                    resolver.resolve(effect, CreatureStats.side(caster), resolvedAgainst, metamagic.empoweredDice())));
+                    resolver.resolve(effect, CreatureStats.side(caster), resolvedAgainst, metamagic.empoweredDice()),
+                    rules));
         }
         if (!maximised.isEmpty()) {
             Effect most = maximumDamage(effect);
@@ -193,9 +209,12 @@ public class SpellCaster {
                     .map(target -> withMetamagic(target.withSaveSource(RollMode.DISADVANTAGE), metamagic))
                     .toList();
             applied.addAll(effectApplier.apply(encounter, use, most,
-                    resolver.resolve(most, CreatureStats.side(caster), resolvedAgainst, 0)));
+                    resolver.resolve(most, CreatureStats.side(caster), resolvedAgainst, 0), rules));
         }
-        String typeNote = typeNote(spellName, unaffected, maximised);
+        String typeNote = globeNote(spellName, caster, globed, plan.spellLevel())
+                + immuneNote(spellName, immune, rules.immuneIfImmuneTo())
+                + typeNote(spellName, unaffected, maximised);
+        afterSixthLevelRules(encounter, caster, spellName, slotLevel, rules, applied);
         if (!typeNote.isEmpty()) {
             effectApplier.summary(encounter, use, typeNote.trim());
         }
@@ -515,10 +534,13 @@ public class SpellCaster {
             SpellTemplate.CountedSaves counted = fifth.countedSaves();
             effectApplier.startCountedSave(caster, left.get().id(), new SpellEffectEntry.CountedSave(counted.ability(),
                     saveDc, counted.successes(), counted.failures(), counted.onFailures(), counted.endsConditions(),
-                    List.of()), affected);
+                    List.of(), counted.failureCondition()), affected);
+            // The failures may leave a condition of their own, as Flesh to Stone's petrified (PHB p.243, D188)
             notes.add(names(affected) + " makes a " + counted.ability() + " save at the end of each of "
                     + (affected.size() == 1 ? "its" : "their") + " turns: " + counted.successes() + " successes end "
-                    + spellName + ", " + counted.failures() + " failures make it take hold.");
+                    + spellName + ", " + counted.failures() + " failures "
+                    + (counted.failureCondition() != null ? "leave it " + counted.failureCondition()
+                            : "make it take hold") + ".");
         }
         if (fifth.contest() != null) {
             notes.add(contest(encounter, caster, spellName, fifth.contest(), use, reached, castingAbility,
@@ -550,7 +572,20 @@ public class SpellCaster {
     private String removeConditions(Encounter encounter, EncounterParticipant caster, String spellName, String option,
                                     List<String> removable, List<EncounterParticipant> creatures) {
         if (option == null) {
-            return "";
+            // A spell without options ends every condition it lists, as Heal's blinded and deafened (PHB p.250, D188)
+            if (!spellEffects.castOptions(spellName).isEmpty()) {
+                return "";
+            }
+            List<String> ended = new ArrayList<>();
+            for (EncounterParticipant creature : creatures) {
+                for (String condition : removable) {
+                    String lower = condition.toLowerCase(java.util.Locale.ROOT);
+                    if (effectApplier.endConditionBySpell(encounter, caster, creature, lower, spellName)) {
+                        ended.add(lower + " ends on " + creature.getDisplayName() + ".");
+                    }
+                }
+            }
+            return String.join(" ", ended);
         }
         boolean tracked = removable.stream().anyMatch(option::equalsIgnoreCase);
         String lower = option.toLowerCase(java.util.Locale.ROOT);
@@ -676,6 +711,109 @@ public class SpellCaster {
                 .toList();
         return new Effect(effect.name(), effect.delivery(), parts, effect.healing(), effect.conditions(),
                 effect.concentration(), effect.durationRounds(), effect.conditionEnds());
+    }
+
+    // ── The 6th-level spells' rules (D188) ───────────────────────
+
+    /**
+     * Refuses a cast by a caster whose own Spell Effect forbids casting, as Tenser's Transformation does (XGE p.168,
+     * D188).
+     *
+     * @throws ConflictException while such an effect lasts
+     */
+    public void requireCanCast(EncounterParticipant caster) {
+        for (SpellEffectEntry effect : EffectApplier.effects(caster)) {
+            if (spellEffects.castRules(effect.spell()).blocksCasting()) {
+                throw new ConflictException(caster.getDisplayName() + " can't cast spells while " + effect.spell()
+                        + " lasts");
+            }
+        }
+    }
+
+    /**
+     * The Globe of Invulnerability that keeps a spell of this level from the target (PHB p.245, D188), or null: a
+     * modifier on it that blocks spells of that level or lower, from a Spell Effect its caster isn't under too, since a
+     * spell cast from inside the barrier reaches the creatures inside. With no map, the creatures the globe's caster chose
+     * are those inside. A spell's level is its own, whatever slot it was cast with ("even if cast using a higher level
+     * spell slot").
+     */
+    static SpellEffectEntry globe(EncounterParticipant caster, EncounterParticipant target, int spellLevel) {
+        if (caster == target) {
+            return null;
+        }
+        return ActiveModifiers.on(target).stream()
+                .filter(found -> found.modifier().kind() == OngoingModifier.Kind.SPELL_IMMUNITY
+                        && spellLevel <= found.modifier().flat()
+                        && !found.effect().affected().contains(caster.getId()))
+                .map(ActiveModifiers.Found::effect)
+                .findFirst()
+                .orElse(null);
+    }
+
+    // What the log adds for the creatures a Globe of Invulnerability kept the spell from
+    private static String globeNote(String spellName, EncounterParticipant caster,
+                                    List<EncounterParticipant> globed, int spellLevel) {
+        if (globed.isEmpty()) {
+            return "";
+        }
+        SpellEffectEntry first = globe(caster, globed.getFirst(), spellLevel);
+        return " " + spellName + " has no effect on " + names(globed) + ", inside "
+                + (first != null ? first.spell() : "a globe") + " (it was cast from outside).";
+    }
+
+    // What the log adds for the creatures immune to the spell through a condition immunity
+    private static String immuneNote(String spellName, List<EncounterParticipant> immune, String condition) {
+        return immune.isEmpty() ? "" : " " + names(immune) + (immune.size() == 1 ? " is" : " are")
+                + " immune to " + spellName + " (can't be " + condition + ").";
+    }
+
+    // The target's save as the spell's rules change it: an automatic success for a creature immune to the condition the
+    // spell names, as against Mental Prison (XGE p.161), and disadvantage for its types, as Sunbeam's undead (PHB p.279)
+    private Resolver.Target withCastRules(Resolver.Target target, List<EncounterParticipant> creatures,
+                                          SpellEffects.CastRules rules) {
+        EncounterParticipant creature = creatures.stream().filter(c -> c.getId().equals(target.id())).findFirst()
+                .orElse(null);
+        if (creature == null) {
+            return target;
+        }
+        Resolver.Target changed = target;
+        if (rules.succeedsIfImmuneTo() != null && stats.immuneToCondition(creature, rules.succeedsIfImmuneTo(), true)) {
+            changed = changed.succeedingAutomatically();
+        }
+        if (ofType(creature, rules.saveDisadvantageTypes())) {
+            changed = changed.withSaveSource(RollMode.DISADVANTAGE);
+        }
+        return changed;
+    }
+
+    /*
+     * What the spell's rules do once it is applied (D188): Harm lowers the maximum of a creature that failed its save by
+     * the damage it took, for an hour (PHB p.249).
+     */
+    private void afterSixthLevelRules(Encounter encounter, EncounterParticipant caster, String spellName,
+                                      int slotLevel, SpellEffects.CastRules rules,
+                                      List<EffectApplier.Applied> applied) {
+        for (EffectApplier.Applied result : applied) {
+            EncounterParticipant target = result.target();
+            Outcome outcome = result.outcome().outcome();
+            if (rules.reducesHpMax() && outcome == Outcome.SAVE_FAIL && result.damageTaken() > 0) {
+                effectApplier.reduceHpMax(encounter, caster, spellName, slotLevel > 0 ? slotLevel : null, target,
+                        result.damageTaken(), rules.hpMaxRounds());
+            }
+        }
+    }
+
+    // The creatures a Globe of Invulnerability keeps a use of the spell's lasting effect from, logged (PHB p.245, D188)
+    private List<EncounterParticipant> outsideGlobes(Encounter encounter, EffectApplier.Use use,
+                                                     EncounterParticipant caster, String spellName, int spellLevel,
+                                                     List<EncounterParticipant> targets) {
+        List<EncounterParticipant> globed = targets.stream()
+                .filter(target -> globe(caster, target, spellLevel) != null)
+                .toList();
+        if (!globed.isEmpty()) {
+            effectApplier.summary(encounter, use, globeNote(spellName, caster, globed, spellLevel).trim());
+        }
+        return targets.stream().filter(target -> !globed.contains(target)).toList();
     }
 
     // What the log adds for the creatures the spell's type rules touched
@@ -888,12 +1026,26 @@ public class SpellCaster {
     public CastResult repeat(Encounter encounter, EncounterParticipant caster, SpellEffectEntry spellEffect,
                              List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
                              Boolean advantage, String costNote, int times) {
+        return repeat(encounter, caster, spellEffect, targets, castingAbility, attackBonus, saveDc, advantage,
+                costNote, times, null);
+    }
+
+    /**
+     * As {@link #repeat(Encounter, EncounterParticipant, SpellEffectEntry, List, String, int, int, Boolean, String,
+     * int)}, with the option chosen for this use, as Eyebite's effect for each new creature (PHB p.238, D188). A creature
+     * inside a Globe of Invulnerability that keeps out the spell's level is left alone (PHB p.245), and the spell's
+     * creature types save with disadvantage, as Sunbeam's undead (PHB p.279).
+     */
+    public CastResult repeat(Encounter encounter, EncounterParticipant caster, SpellEffectEntry spellEffect,
+                             List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
+                             Boolean advantage, String costNote, int times, String option) {
         if (targets.isEmpty()) {
             return move(encounter, caster, spellEffect, costNote);
         }
         String spellName = spellEffect.spell();
         SpellEffects.SpellPlan plan = spellEffects.forRepeat(spellName, spellEffect.castLevel(), caster,
-                castingAbility, attackBonus, saveDc, advantage);
+                castingAbility, attackBonus, saveDc, advantage, option);
+        SpellEffects.CastRules rules = spellEffects.castRules(spellName);
         EffectApplier.Use use = new EffectApplier.Use(caster, caster.getDisplayName(),
                 CombatActionType.SPELL_EFFECT_REPEAT, "uses " + spellName + costNote, "on", spellName,
                 instanceOf(caster, spellEffect));
@@ -914,14 +1066,20 @@ public class SpellCaster {
         // A use that ends the spell leaves its conditions on their own durations, as Holy Weapon's burst's blindness
         // outlasts the spell it ends (XGE p.157, D187)
         EffectApplier.Use applying = fifth.repeatEndsSpell() ? use.withoutInstance() : use;
+        List<EncounterParticipant> outside = outsideGlobes(encounter, use, caster, spellName, plan.spellLevel(),
+                targets);
         List<EffectApplier.Applied> applied = new ArrayList<>();
         for (int i = 0; i < times; i++) {
-            List<EncounterParticipant> standing = targets.stream()
+            List<EncounterParticipant> standing = outside.stream()
                     .filter(target -> target.getLifeState() != LifeState.DEAD)
                     .toList();
+            List<Resolver.Target> resolvedAgainst = stats.targets(standing, effect, caster).stream()
+                    .map(target -> withCastRules(target, standing, rules))
+                    .toList();
             applied.addAll(effectApplier.apply(encounter, applying, effect,
-                    resolver.resolve(effect, CreatureStats.side(caster), stats.targets(standing, effect, caster))));
+                    resolver.resolve(effect, CreatureStats.side(caster), resolvedAgainst), rules));
         }
+        afterSixthLevelRules(encounter, caster, spellName, spellEffect.castLevel(), rules, applied);
         drain(encounter, caster, spellName, fifth, applied);
         String extra = fifth.contest() != null
                 ? " " + contest(encounter, caster, spellName, fifth.contest(), use, targets, castingAbility, attackBonus)
@@ -1050,14 +1208,17 @@ public class SpellCaster {
         CombatAccess.requireNotDead(targets);
         CombatAccess.requireReachable(caster, targets);
         effectApplier.summary(encounter, use, lead + ".");
+        // A Globe of Invulnerability keeps the spell's area out too (PHB p.245, D188)
+        List<EncounterParticipant> outside = outsideGlobes(encounter, use, caster, spellName, plan.spellLevel(),
+                targets);
         // A creature that already has the trigger's condition from this spell takes its damage with no save, as one
         // Evard's Black Tentacles already restrain (PHB p.238, D185)
         Optional<SpellTemplate.EffectTrigger> trigger = spellEffects.trigger(spellName, when);
         String held = trigger.map(SpellTemplate.EffectTrigger::whenConditioned).orElse(null);
-        List<EncounterParticipant> conditioned = held == null ? List.of() : targets.stream()
+        List<EncounterParticipant> conditioned = held == null ? List.of() : outside.stream()
                 .filter(target -> hasFrom(target, held, spellName, caster))
                 .toList();
-        List<EncounterParticipant> saving = targets.stream().filter(target -> !conditioned.contains(target)).toList();
+        List<EncounterParticipant> saving = outside.stream().filter(target -> !conditioned.contains(target)).toList();
         List<EffectApplier.Applied> applied = new ArrayList<>();
         if (!saving.isEmpty() || conditioned.isEmpty()) {
             applied.addAll(effectApplier.apply(encounter, use, plan.effect(),

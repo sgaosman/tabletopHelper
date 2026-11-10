@@ -182,11 +182,21 @@ public class EffectApplier {
      * does (PHB p.254): the attack was rolled while they lasted, so it had what they gave it.
      */
     public List<Applied> apply(Encounter encounter, Use use, Effect effect, List<Resolver.TargetOutcome> outcomes) {
+        return apply(encounter, use, effect, outcomes, SpellEffects.CastRules.NONE);
+    }
+
+    /**
+     * As {@link #apply(Encounter, Use, Effect, List)}, with what a spell's template adds to its damage (D188): a floor it
+     * can't take a creature below, as Harm's 1 hit point (PHB p.249), and the dust a creature it leaves at 0 hit points
+     * becomes, as Disintegrate's (PHB p.233).
+     */
+    public List<Applied> apply(Encounter encounter, Use use, Effect effect, List<Resolver.TargetOutcome> outcomes,
+                               SpellEffects.CastRules rules) {
         boolean attack = use.actor() != null && effect.delivery() instanceof Effect.Attack && !outcomes.isEmpty();
         Set<UUID> ending = attack ? endingOnAttackOrCast(use.actor()) : Set.of();
         List<Applied> applied = new ArrayList<>();
         for (Resolver.TargetOutcome outcome : outcomes) {
-            applied.add(applyTo(encounter, use, effect, outcome, null));
+            applied.add(applyTo(encounter, use, effect, outcome, null, rules));
         }
         endOnAttackOrCast(encounter, use.actor(), ending, "it attacks");
         if (attack) {
@@ -222,7 +232,7 @@ public class EffectApplier {
                 Use use = new Use(hit.target(), hit.target().getDisplayName() + "'s " + protection.spell(),
                         CombatActionType.SPELL_EFFECT_REPEAT, "strikes back at", "", protection.spell(), null);
                 applyTo(encounter, use, back, resolver.resolve(back, List.of(stats.target(attacker, back))).getFirst(),
-                        null);
+                        null, SpellEffects.CastRules.NONE);
             }
         }
     }
@@ -260,7 +270,7 @@ public class EffectApplier {
                                     ConcentrationCheck hitCheck) {
         List<Applied> applied = new ArrayList<>();
         for (Resolver.TargetOutcome outcome : outcomes) {
-            applied.add(applyTo(encounter, use, effect, outcome, hitCheck));
+            applied.add(applyTo(encounter, use, effect, outcome, hitCheck, SpellEffects.CastRules.NONE));
         }
         return applied;
     }
@@ -271,7 +281,7 @@ public class EffectApplier {
     }
 
     private Applied applyTo(Encounter encounter, Use use, Effect effect, Resolver.TargetOutcome outcome,
-                            ConcentrationCheck hitCheck) {
+                            ConcentrationCheck hitCheck, SpellEffects.CastRules rules) {
         EncounterParticipant target = CombatAccess.participant(encounter, outcome.targetId());
         Vitals before = vitals(target);
         Integer shownClass = CreatureStats.armourClass(target);
@@ -279,11 +289,19 @@ public class EffectApplier {
 
         boolean magical = magical(use);
         Defended damage = defended(target, outcome.damage(), magical);
+        // Harm can't reduce a creature below 1 hit point (PHB p.249, D188)
+        int dealt = floored(target, damage.total(), rules.damageFloor());
+        String floorNote = dealt < damage.total() ? " " + use.conditionSource() + " can't reduce "
+                + target.getDisplayName() + " below " + rules.damageFloor() + " hit point"
+                + (rules.damageFloor() == 1 ? "" : "s") + ": it takes " + dealt + "." : "";
         // Death Ward turns the first drop to 0 into a drop to 1 (PHB p.230, D185)
-        String warded = deathWard(encounter, target, damage.total());
-        Taken taken = takeDamage(target, warded != null ? wardedDamage(target) : damage.total(),
+        String warded = deathWard(encounter, target, dealt);
+        Taken taken = takeDamage(target, warded != null ? wardedDamage(target) : dealt,
                 outcome.outcome() == Outcome.CRITICAL);
         VitalsChange damageChange = taken.change();
+        // Disintegrate: a creature it leaves at 0 hit points is dust (PHB p.233, D188)
+        boolean dust = rules.disintegrates() && dealt > 0 && before.lifeState() != LifeState.DEAD
+                && damageChange.vitals().hp() == 0 && taken.form() == null;
 
         // A creature that can't regain hit points, as one Chill Touch hit, regains none (PHB p.221, D184)
         int healing = outcome.healing() > 0 && cannotRegain(target) ? 0 : outcome.healing();
@@ -316,17 +334,18 @@ public class EffectApplier {
         String description = describe(use, effect, target, armourClass, outcome, damage, healed, added, immune)
                 + (healing < outcome.healing() ? " " + target.getDisplayName() + " can't regain hit points ("
                         + noHealingSource(target) + ")." : "")
-                + (warded != null ? " " + warded : "");
+                + (warded != null ? " " + warded : "") + floorNote
+                + (dust ? " " + target.getDisplayName() + " is disintegrated, reduced to fine gray dust." : "");
         CombatLog.CombatLogBuilder entry = CombatLogWriter.about(
                         combatLog.entry(encounter, use.actionType(), description), use.actor(), target)
                 .rollValue(outcome.d20())
                 .rollTotal(outcome.total())
-                .damageDealt(damage.total() > 0 ? damage.total() : null)
+                .damageDealt(dealt > 0 ? dealt : null)
                 .healingDone(healed > 0 ? healed : null);
         if (offered) {
             entry.legendaryResistanceEligible(true)
                     .lrTargetId(target.getId())
-                    .lrDamageDealt(hitPointsLost(before, damage.total()))
+                    .lrDamageDealt(hitPointsLost(before, dealt))
                     .lrConditionsApplied(String.join(",", fromSave.stream().map(ConditionEntry::name).toList()))
                     .lrResolved(false)
                     .lrSuccessDamage(defended(target, outcome.successDamage(), magical).total())
@@ -335,8 +354,10 @@ public class EffectApplier {
         CombatLog saved = combatLog.save(entry);
         logReverted(encounter, target, taken);
 
-        ConcentrationCheck check = afterDamage(encounter, target, taken.before(), damageChange, damage.total(),
-                hitCheck);
+        ConcentrationCheck check = afterDamage(encounter, target, taken.before(), damageChange, dealt, hitCheck);
+        if (dust) {
+            disintegrate(encounter, use, target);
+        }
         afterHealing(encounter, target, healingChange);
         afterConditions(encounter, target, added);
         // A one-shot rider's hit-point threshold, as Banishing Smite's (PHB p.216, D187), before it is spent
@@ -344,8 +365,51 @@ public class EffectApplier {
         // The one-shot Ongoing Modifiers the roll used are spent (D184)
         spendModifiers(encounter, outcome.spentOneShots());
 
-        return new Applied(target, outcome, damage.total(), damage.firstType(), healed, added, offered, remaining,
+        return new Applied(target, outcome, dealt, damage.firstType(), healed, added, offered, remaining,
                 description, saved != null ? saved.getId() : null, check);
+    }
+
+    // The damage a floor lets through: none below it, as Harm's 1 hit point (PHB p.249, D188); all of it without one
+    private static int floored(EncounterParticipant target, int damage, int floor) {
+        Vitals now = vitals(target);
+        if (floor <= 0 || damage <= 0 || now.lifeState() != LifeState.ALIVE) {
+            return damage;
+        }
+        return Math.min(damage, Math.max(0, now.hp() + now.tempHp() - floor));
+    }
+
+    /*
+     * A creature Disintegrate left at 0 hit points is dust (PHB p.233, D188): dead outright through the kill-outright
+     * path (D189), with no death saves, so a player character doesn't lie dying; only true resurrection or a wish
+     * restores it, which is the DM's Set HP.
+     */
+    private void disintegrate(Encounter encounter, Use use, EncounterParticipant target) {
+        if (target.getLifeState() != LifeState.DEAD && use.actor() != null) {
+            killOutright(encounter, use.actor(), target, use.conditionSource());
+            endRage(encounter, target, "dead");
+            endSacredWeapon(encounter, target, "dead");
+        }
+    }
+
+    /**
+     * Harm's lowered hit point maximum (PHB p.249, D188): a Spell Effect of its own on the caster, with no concentration,
+     * holding a modifier that lowers the creature's maximum by the damage it took, for an hour. Its end restores the
+     * maximum; an hour that outlasts the encounter is the DM's to carry over.
+     */
+    public void reduceHpMax(Encounter encounter, EncounterParticipant caster, String spell, Integer slotLevel,
+                            EncounterParticipant creature, int amount, int rounds) {
+        if (amount <= 0 || creature.getLifeState() == LifeState.DEAD) {
+            return;
+        }
+        SpellEffectEntry effect = startEffect(encounter, caster, spell, slotLevel, null, rounds, null, false);
+        OngoingModifier lowered = new OngoingModifier(UUID.randomUUID(), OngoingModifier.Kind.HP_MAX,
+                OngoingModifier.Scope.AFFECTED, null, -amount, null, null, List.of(), false, false, false, null, false,
+                null, List.of(), null, null);
+        startModifiers(encounter, caster, effect.id(), List.of(creature), List.of(lowered), null, null,
+                creature.getDisplayName() + "'s hit point maximum returns to normal (" + spell + ")", true);
+        combatLog.write(encounter, CombatActionType.SPELL_CAST, creature.getDisplayName() + "'s hit point maximum is "
+                + "reduced by " + amount + " for 1 hour (" + spell + "); it is now " + CreatureStats.hpMax(creature)
+                + ". If the hour outlasts the encounter, note it on the sheet after Write-back.", caster, creature);
     }
 
     /*
@@ -1413,7 +1477,7 @@ public class EffectApplier {
                                 CombatActionType.SPELL_EFFECT_REPEAT, "deals its later damage to", "", effect.spell(),
                                 null);
                         applyTo(encounter, use, later, resolver.resolve(later, List.of(stats.target(creature, later)))
-                                .getFirst(), null);
+                                .getFirst(), null, SpellEffects.CastRules.NONE);
                     }
                 }
                 if (left.isEmpty() && effect.onlyForDelayed()) {
@@ -2627,7 +2691,8 @@ public class EffectApplier {
             Integer duration = end != null && end.durationRounds() != null ? end.durationRounds()
                     : effect.durationRounds();
             RepeatSave repeatSave = end != null && end.repeatSave() != null
-                    ? new RepeatSave(end.repeatSave().ability(), end.repeatSave().dc(), false) : null;
+                    ? new RepeatSave(end.repeatSave().ability(), end.repeatSave().dc(), false,
+                            end.repeatSave().byAction() ? Boolean.TRUE : null) : null;
             // A condition that lasts until the end of its user's turn, as Stunning Strike's stun does (PHB p.79), or
             // until its creature takes damage, as a turned undead's does (PHB p.59)
             ConditionEntry entry;

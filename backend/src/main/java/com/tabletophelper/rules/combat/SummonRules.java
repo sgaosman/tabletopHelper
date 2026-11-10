@@ -87,7 +87,17 @@ public final class SummonRules {
         /** Danse Macabre's zombies and skeletons, with the caster's modifier to attack and damage (XGE p.153) */
         DANSE_MACABRE,
         /** Conjure Celestial's one celestial of challenge rating 4 or lower, 5 with a 9th-level slot (PHB p.225, D189) */
-        CONJURE_CELESTIAL
+        CONJURE_CELESTIAL,
+        /**
+         * Conjure Fey's one fey, or fey spirit in a beast's form, of challenge rating 6 or lower, which turns hostile when
+         * the caster's concentration breaks (PHB p.226, D188)
+         */
+        CONJURE_FEY,
+        /**
+         * Create Undead's ghouls, or ghasts, wights or mummies from higher slots, commanded as Animate Dead's (PHB
+         * p.229, D188)
+         */
+        CREATE_UNDEAD
     }
 
     /** Where the summoned creatures take their turns. */
@@ -148,7 +158,7 @@ public final class SummonRules {
         /** Whether its creatures roll initiative per kind of identical creature rather than as one group. */
         public boolean groupsByCreature() {
             return kind == Kind.ANIMATE_DEAD || kind == Kind.TINY_SERVANT || kind == Kind.ANIMATE_OBJECTS
-                    || kind == Kind.DANSE_MACABRE;
+                    || kind == Kind.DANSE_MACABRE || kind == Kind.CREATE_UNDEAD;
         }
 
         /**
@@ -157,7 +167,7 @@ public final class SummonRules {
          */
         public boolean fewerAllowed() {
             return kind == Kind.ANIMATE_DEAD || kind == Kind.TINY_SERVANT || kind == Kind.GIANT_INSECT
-                    || kind == Kind.ANIMATE_OBJECTS || kind == Kind.DANSE_MACABRE;
+                    || kind == Kind.ANIMATE_OBJECTS || kind == Kind.DANSE_MACABRE || kind == Kind.CREATE_UNDEAD;
         }
 
         /**
@@ -173,7 +183,7 @@ public final class SummonRules {
          * control, disappearing 1 hour after it was summoned (Conjure Elemental, PHB p.225).
          */
         public boolean turnsHostileWhenConcentrationBreaks() {
-            return kind == Kind.CONJURE_ELEMENTAL;
+            return kind == Kind.CONJURE_ELEMENTAL || kind == Kind.CONJURE_FEY;
         }
 
         /**
@@ -264,6 +274,12 @@ public final class SummonRules {
 
     /** Conjure Elemental's highest challenge rating with a 5th-level slot, one higher for each level above (PHB p.225). */
     public static final int CONJURE_ELEMENTAL_BASE_CR = 5;
+
+    /** Conjure Fey's highest challenge rating with a 6th-level slot, one higher for each level above (PHB p.226). */
+    public static final int CONJURE_FEY_BASE_CR = 6;
+
+    /** Create Undead's undead (PHB p.229): ghouls, and from an 8th-level slot ghasts or wights, from a 9th mummies. */
+    public static final List<String> CREATE_UNDEAD_FORMS = List.of("Ghoul", "Ghast", "Wight", "Mummy");
 
     /** Conjure Celestial's highest challenge rating, and with a 9th-level slot (PHB p.225, D189). */
     public static final int CONJURE_CELESTIAL_CR = 4;
@@ -370,6 +386,19 @@ public final class SummonRules {
             new Spell("Danse Macabre", Kind.DANSE_MACABRE, 5, true, ONE_HOUR, true, false, false, false, true,
                     GROUP_ONLY, List.of(), Controller.CASTER, null, List.of(), "XGE", 153, null, List.of(),
                     ANIMATE_DEAD_FORMS),
+            // TCE p.112: a Fiendish Spirit, Demon, Devil or Yugoloth (D188)
+            spirit("Summon Fiend", 6, "TCE", 112),
+            // PHB p.226: a minute to cast, so the DM places it as a companion; it rolls its own initiative and obeys the
+            // caster's verbal commands; a fey spirit in a beast's form counts as fey; when concentration breaks it turns
+            // hostile and stays until 1 hour after it was summoned, as Conjure Elemental's (D188)
+            new Spell("Conjure Fey", Kind.CONJURE_FEY, 6, true, ONE_HOUR, false, false, true, false, false,
+                    List.of(InitiativeMode.INDIVIDUAL), List.of(), Controller.CASTER, "fey", List.of(), "PHB", 226,
+                    "fey", List.of(), List.of()),
+            // PHB p.229: a minute to cast, only at night; under the caster's control for 24 hours, commanded with a bonus
+            // action and defending themselves otherwise, as Animate Dead's undead (D188)
+            new Spell("Create Undead", Kind.CREATE_UNDEAD, 6, false, null, false, false, false, false, true,
+                    GROUP_ONLY, List.of(), Controller.CASTER, null, List.of(), "PHB", 229, null, List.of(),
+                    CREATE_UNDEAD_FORMS),
             // PHB p.245: "in combat, they act on your turn each round. The DM has the statistics for these creatures
             // and resolves their actions and movement", so they follow the caster and the DM controls them (rules
             // call); at 0 hit points one returns to its natural size, which takes it out of the fight as a dismissal
@@ -461,6 +490,10 @@ public final class SummonRules {
             }
             case GREATER_DEMON -> List.of(tier(1, GREATER_DEMON_BASE_CR + above, "demons"));
             case CONJURE_ELEMENTAL -> List.of(tier(1, CONJURE_ELEMENTAL_BASE_CR + above, "elementals"));
+            case CONJURE_FEY -> List.of(tier(1, CONJURE_FEY_BASE_CR + above, "fey creatures"));
+            // PHB p.229: three ghouls; four at 7th; five ghouls or two ghasts or wights at 8th; six ghouls, three ghasts
+            // or wights, or two mummies at 9th
+            case CREATE_UNDEAD -> createUndead(slotLevel);
             case INFERNAL_CALLING -> List.of(tier(1, INFERNAL_CALLING_BASE_CR + above, "devils"));
             // PHB p.225: challenge rating 5 or lower only with a 9th-level slot, a step rather than per level
             case CONJURE_CELESTIAL -> List.of(tier(1, slotLevel >= 9 ? CONJURE_CELESTIAL_NINTH_CR : CONJURE_CELESTIAL_CR,
@@ -552,6 +585,18 @@ public final class SummonRules {
             case CONJURE_ELEMENTAL -> {
                 if (!lowerType.equals("elemental") || name.toLowerCase(Locale.ROOT).startsWith("swarm of")) {
                     return Optional.of(name + " isn't an elemental Conjure Elemental can summon");
+                }
+            }
+            // PHB p.226: a fey, or a fey spirit in the form of a beast; not a swarm
+            case CONJURE_FEY -> {
+                if (!(lowerType.equals("fey") || lowerType.equals("beast"))
+                        || name.toLowerCase(Locale.ROOT).startsWith("swarm of")) {
+                    return Optional.of(name + " isn't a fey or beast Conjure Fey can summon");
+                }
+            }
+            case CREATE_UNDEAD -> {
+                if (!named(CREATE_UNDEAD_FORMS, name)) {
+                    return Optional.of("Create Undead raises ghouls, ghasts, wights or mummies, not " + name);
                 }
             }
             // PHB p.225: a celestial
@@ -705,6 +750,28 @@ public final class SummonRules {
         String cr = crText(maxCr);
         return new Option(count + "xCR" + cr, count, maxCr, count + " " + counted(count, what)
                 + " of challenge rating " + cr + " or lower");
+    }
+
+    // Create Undead's options at this slot level (PHB p.229)
+    private static List<Option> createUndead(int slotLevel) {
+        List<Option> options = new ArrayList<>();
+        int ghouls = Math.min(6, 3 + Math.max(0, slotLevel - 6));
+        options.add(undead(ghouls, "Ghoul"));
+        if (slotLevel >= 8) {
+            int greater = slotLevel >= 9 ? 3 : 2;
+            options.add(undead(greater, "Ghast"));
+            options.add(undead(greater, "Wight"));
+        }
+        if (slotLevel >= 9) {
+            options.add(undead(2, "Mummy"));
+        }
+        return List.copyOf(options);
+    }
+
+    private static Option undead(int count, String form) {
+        String plural = form.equals("Mummy") ? "mummies" : form.toLowerCase(Locale.ROOT) + "s";
+        return new Option(count + "x" + form, count, null, "Up to " + count + " " + counted(count, plural),
+                List.of(form));
     }
 
     private static Option single(int count, String what) {

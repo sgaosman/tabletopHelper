@@ -325,6 +325,9 @@ public class EncounterResponse {
         // The creatures it put under its caster's control, as Dominate Person's (D187); empty for none
         @Schema(requiredMode = REQUIRED)
         private List<UUID> controlledIds;
+        // The options each use of it chooses between, as Eyebite's asleep, panicked or sickened (D188); empty for none
+        @Schema(requiredMode = REQUIRED)
+        private List<String> useOptions;
 
         // What it deals when it ends, as Delayed Blast Fireball's bead (D189); null for nothing
         private DetonationResponse detonation;

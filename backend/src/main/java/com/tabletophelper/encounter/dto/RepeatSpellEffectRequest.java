@@ -37,4 +37,8 @@ public class RepeatSpellEffectRequest {
     @Min(1)
     @Max(10)
     private Integer uses;
+
+    // The option this use chooses, as Eyebite's asleep, panicked or sickened for each new creature (PHB p.238, D188);
+    // left out for every other use
+    private String option;
 }

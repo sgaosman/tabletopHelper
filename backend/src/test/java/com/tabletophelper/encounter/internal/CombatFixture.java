@@ -124,7 +124,7 @@ class CombatFixture {
 
     final HitPointService hitPoints = new HitPointService(access, effectApplier, encounterRepository, encounterService);
     final ConditionService conditionService =
-            new ConditionService(access, effectApplier, encounterRepository, encounterService);
+            new ConditionService(access, economy, effectApplier, encounterRepository, encounterService);
     final AttackService attacks = new AttackService(access, accessPolicy, characterWeapons, resolver, stats,
             effectApplier, economy, manualModifiers, combatLog, encounterRepository, encounterService);
     final MetamagicCasting metamagicCasting = new MetamagicCasting(spellEffects, stats);

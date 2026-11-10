@@ -317,6 +317,7 @@ export const combatHandlers = [
   http.post(`${BASE}/encounters/:id/combat/condition/remove`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/death-save`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/repeat-save`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/action-save`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/concentration`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/spell-slot/use`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/spell-slot/restore`, async () => HttpResponse.json(makeMockEncounter())),
@@ -577,7 +578,7 @@ export function makeMockSpellEffect(spell = 'Spiritual Weapon', overrides: Parti
     id: `effect-${spell.toLowerCase().replace(/[^a-z]+/g, '-')}`, spell, slotLevel: 2, concentration: false,
     startedRound: 1, durationRounds: 10, usesLeft: null, directedCost: 'BONUS_ACTION', directedResolves: true,
     maxUsesEachTurn: null, triggers: [], summonedParticipantIds: [], affectedIds: [], modifiers: [],
-    retargetable: false, delayed: [], tallies: [], controlledIds: [], risingIds: [],
+    retargetable: false, delayed: [], tallies: [], controlledIds: [], risingIds: [], useOptions: [],
   } satisfies SpellEffect;
   return { ...effect, ...overrides };
 }

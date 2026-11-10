@@ -196,8 +196,16 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
      *                            automatically
      * @param dc                  the save's DC
      * @param halfDamageOnSuccess whether a success halves the damage; otherwise it prevents all of it
+     * @param fullDamageOnSuccess whether a success still takes all of it, as Mental Prison's 5d10 (XGE p.161, D188),
+     *                            the save only keeping the conditions away
      */
-    public record Save(Ability ability, int dc, boolean halfDamageOnSuccess) implements Delivery {
+    public record Save(Ability ability, int dc, boolean halfDamageOnSuccess, boolean fullDamageOnSuccess)
+            implements Delivery {
+
+        /** A save whose success halves the damage or prevents it. */
+        public Save(Ability ability, int dc, boolean halfDamageOnSuccess) {
+            this(ability, dc, halfDamageOnSuccess, false);
+        }
     }
 
     /** No roll: the Effect reaches each target. */
@@ -306,11 +314,21 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
         }
     }
 
-    /** A saving throw repeated to end a condition: the ability and the DC. */
-    public record RepeatSave(Ability ability, int dc) {
+    /**
+     * A saving throw repeated to end a condition: the ability and the DC.
+     *
+     * @param byAction its creature makes it by using its action, a success ending the spell, as against Otto's
+     *                 Irresistible Dance (PHB p.264, D188), rather than at the end of each of its turns
+     */
+    public record RepeatSave(Ability ability, int dc, boolean byAction) {
 
         public RepeatSave {
             Objects.requireNonNull(ability, "ability");
+        }
+
+        /** A save repeated at the end of each of the creature's turns. */
+        public RepeatSave(Ability ability, int dc) {
+            this(ability, dc, false);
         }
     }
 }

@@ -103,7 +103,21 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
         /** The creature's speeds are at most this many feet (Power Word Pain, XGE p.163, D189). */
         SPEED_MAX,
         /** The creature regains this many hit points at the start of each of its turns (Regenerate, PHB p.271, D189). */
-        HEAL_EACH_TURN
+        HEAL_EACH_TURN,
+        /** Immunity to damage types (Investiture of Flame's fire, XGE p.159, D188). */
+        DAMAGE_IMMUNITY,
+        /**
+         * Evasion (D188): on a Dexterity save for half damage the creature takes none on a success and half on a
+         * failure, as Fizban's Platinum Shield gives it (FTD p.20); the rogue's and monk's own come from their levels.
+         */
+        EVASION,
+        /** Truesight, as True Seeing gives (PHB p.284, D188), read with the creature's other senses. */
+        TRUESIGHT,
+        /**
+         * Spells of {@link #flat} level or lower cast from outside have no effect on the creature, as inside a Globe of
+         * Invulnerability (PHB p.245, D188); a caster under the same Spell Effect is inside with it.
+         */
+        SPELL_IMMUNITY
     }
 
     /** Whose rolls a modifier changes. */
@@ -219,6 +233,10 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
             case SPEED_MAX -> "speed at most " + flat + " ft.";
             case HEAL_EACH_TURN -> "regains " + flat + " hit point" + (flat == 1 ? "" : "s")
                     + " at the start of each of its turns";
+            case DAMAGE_IMMUNITY -> "immune to " + String.join(", ", damageTypes) + " damage";
+            case EVASION -> "Evasion";
+            case TRUESIGHT -> "truesight";
+            case SPELL_IMMUNITY -> "spells of level " + flat + " or lower cast from outside have no effect";
         } + (until != null ? " (" + untilWords() + ")" : "");
     }
 

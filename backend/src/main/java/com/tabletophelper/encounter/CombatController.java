@@ -224,6 +224,17 @@ public class CombatController {
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    // A save a creature makes with its action to end a condition, as Otto's Irresistible Dance's (PHB p.264, D188)
+    @PostMapping("/action-save")
+    public ResponseEntity<EncounterResponse> rollActionSave(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody RepeatSaveRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = conditionService.rollActionSave(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
     @PostMapping("/death-save")
     public ResponseEntity<EncounterResponse> rollDeathSave(
             @PathVariable UUID encounterId,

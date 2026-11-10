@@ -220,7 +220,7 @@ class SummonRulesTest {
             assertTrue(SummonRules.spell("conjure animals").isPresent());
             assertTrue(SummonRules.spell("Fireball").isEmpty());
             // Conjure Celestial joined at 7th level (D189)
-            assertEquals(27, SummonRules.spells().size());
+            assertEquals(30, SummonRules.spells().size());
         }
     }
 
@@ -464,6 +464,44 @@ class SummonRulesTest {
             assertTrue(spell.concentration());
             assertTrue(spell.castInCombat());
             assertEquals(List.of(1), counts(name, 9));
+        }
+
+        @ParameterizedTest(name = "Conjure Fey at level {0}: CR {1} or lower")
+        @CsvSource({"6,6", "7,7", "9,9"})
+        @DisplayName("Conjure Fey: one fey or beast-form fey spirit of CR 6 or lower, one higher per slot above 6th, "
+                + "turning hostile when concentration breaks (PHB p.226, D188)")
+        void conjureFey(int slot, double maxCr) {
+            Spell spell = spell("Conjure Fey");
+            List<Option> options = SummonRules.options(spell, slot, false);
+            assertEquals(1, options.size());
+            assertEquals(maxCr, options.getFirst().maxCr());
+            assertTrue(spell.turnsHostileWhenConcentrationBreaks());
+            assertFalse(spell.castInCombat());
+            assertEquals("fey", spell.creatureType());
+            assertTrue(SummonRules.refusal(spell, options.getFirst(), "Dryad", "1", "fey", null, false).isEmpty());
+            assertTrue(SummonRules.refusal(spell, options.getFirst(), "Brown Bear", "1", "beast", null, false)
+                    .isEmpty());
+            assertTrue(SummonRules.refusal(spell, options.getFirst(), "Ogre", "2", "giant", null, false).isPresent());
+            assertTrue(SummonRules.refusal(spell, options.getFirst(), "Swarm of Rats", "1/4", "beast", null, false)
+                    .isPresent());
+        }
+
+        @Test
+        @DisplayName("Create Undead: three ghouls at 6th, four at 7th, five ghouls or two ghasts or wights at 8th, six "
+                + "ghouls, three ghasts or wights or two mummies at 9th, commanded as Animate Dead's (PHB p.229, D188)")
+        void createUndead() {
+            Spell spell = spell("Create Undead");
+            assertEquals(List.of(3), counts("Create Undead", 6));
+            assertEquals(List.of(4), counts("Create Undead", 7));
+            assertEquals(List.of(5, 2, 2), counts("Create Undead", 8));
+            assertEquals(List.of(6, 3, 3, 2), counts("Create Undead", 9));
+            assertEquals(List.of("Mummy"), SummonRules.options(spell, 9, false).getLast().forms());
+            assertTrue(spell.needsCommand());
+            assertTrue(spell.fewerAllowed());
+            assertFalse(spell.concentration());
+            Option ghouls = SummonRules.options(spell, 6, false).getFirst();
+            assertTrue(SummonRules.refusal(spell, ghouls, "Ghoul", "1", "undead", null, false).isEmpty());
+            assertTrue(SummonRules.refusal(spell, ghouls, "Ghast", "2", "undead", null, false).isPresent());
         }
 
         @ParameterizedTest(name = "Conjure Elemental at level {0}: CR {1} or lower")

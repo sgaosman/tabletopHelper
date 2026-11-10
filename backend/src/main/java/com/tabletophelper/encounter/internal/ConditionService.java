@@ -1,6 +1,9 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.Encounter;
+import com.tabletophelper.rules.combat.ActionCost;
+import com.tabletophelper.rules.combat.Charge;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.EncounterRepository;
 import com.tabletophelper.encounter.EncounterService;
@@ -29,6 +32,7 @@ import java.util.UUID;
 public class ConditionService {
 
     private final CombatAccess access;
+    private final ActionEconomyKeeper economy;
     private final EffectApplier effectApplier;
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
@@ -86,6 +90,44 @@ public class ConditionService {
             throw new ConflictException("No Repeat Save against " + condition.name() + " is waiting for a roll");
         }
         effectApplier.repeatSave(encounter, participant, condition.id());
+        return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    /**
+     * A creature uses its action on the save against a condition that ends only that way, as Otto's Irresistible
+     * Dance's Wisdom save (PHB p.264, D188): on its turn, charged as an action, by the DM or the creature's player. The
+     * server rolls it, logged as REPEAT_SAVE; a success ends the condition and the spell with it, so the spell's Ongoing
+     * Modifiers end too. An unknown condition is a 400; one without such a save is a 409.
+     */
+    @Transactional
+    public EncounterResponse rollActionSave(UUID encounterId, RepeatSaveRequest request, UUID userId) {
+        Encounter encounter = access.beginOnTurnFor(encounterId, request.participantId(), userId,
+                CombatAccess.OFF_TURN_ACTION);
+        EncounterParticipant participant = CombatAccess.participant(encounter, request.participantId());
+        ConditionEntry condition = (participant.getActiveConditions() != null
+                ? participant.getActiveConditions() : List.<ConditionEntry>of()).stream()
+                .filter(c -> request.conditionId().equals(c.id()))
+                .findFirst()
+                .orElseThrow(() -> new ValidationException("Condition not found"));
+        if (condition.repeatSave() == null || !condition.repeatSave().madeByAction()) {
+            throw new ConflictException(condition.name() + " isn't ended by a save made with an action");
+        }
+        economy.charge(encounter, participant, Charge.of(ActionCost.ACTION,
+                        EncounterTurns.isCurrentTurn(encounter, participant.getId())), userId,
+                new ActionEconomyKeeper.Command(CombatActionType.REPEAT_SAVE,
+                        participant.getDisplayName() + "'s save against " + condition.name()));
+        effectApplier.repeatSave(encounter, participant, condition.id());
+        boolean ended = participant.getActiveConditions() == null || participant.getActiveConditions().stream()
+                .noneMatch(c -> c.id().equals(condition.id()));
+        if (ended && condition.sourceParticipantId() != null && condition.concentrationInstanceId() != null) {
+            encounter.getParticipants().stream()
+                    .filter(p -> p.getId().equals(condition.sourceParticipantId()))
+                    .filter(p -> p.getConcentration() != null
+                            && p.getConcentration().id().equals(condition.concentrationInstanceId()))
+                    .findFirst()
+                    .ifPresent(caster -> effectApplier.endConcentration(encounter, caster, condition.sourceSpellName()
+                            + " ends: " + participant.getDisplayName() + " succeeds on the save"));
+        }
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 }

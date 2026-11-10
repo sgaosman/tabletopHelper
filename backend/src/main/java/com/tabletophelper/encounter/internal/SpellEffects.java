@@ -122,6 +122,7 @@ public class SpellEffects {
         if (delivery instanceof Effect.Attack attack) {
             delivery = attack.withWeapon(false);
         }
+        delivery = withFullDamage(template, delivery);
 
         int modifier = stats.spellcastingModifier(caster, castingAbility, attackBonus);
         // A spell on its caster heals or gives conditions; any damage in its template is for others to take
@@ -144,23 +145,15 @@ public class SpellEffects {
                         : part)
                 .toList());
 
-        Map<String, Effect.ConditionEnd> ends = conditionEnds(template.conditionsInflicted(), template, saveDc);
+        // The option chosen may give conditions of its own, as Eyebite's (PHB p.238, D188)
+        List<SpellTemplate.ConditionInflicted> given = given(template, option);
+        Map<String, Effect.ConditionEnd> ends = conditionEnds(given, template, saveDc);
         if (!java.util.Objects.equals(durationRounds, template.durationRounds())) {
             ends = scaled(ends, template.durationRounds(), durationRounds);
         }
-        Effect effect = new Effect(spellName, delivery, damage.get(), healing.get().dice(), conditions(template, option),
+        Effect effect = new Effect(spellName, delivery, damage.get(), healing.get().dice(), names(given),
                 concentration, durationRounds, ends);
         return new SpellPlan(spellName, spellLevel, effect, null, concentration, durationRounds, verbal);
-    }
-
-    // The conditions a cast gives: those its option names, as Forcecage's box gives enclosed (PHB p.243, D189), else
-    // the template's own
-    private static List<String> conditions(SpellTemplate template, String option) {
-        Map<String, List<String>> byOption = template.conditionsByOption();
-        if (option != null && byOption.containsKey(option.toLowerCase(Locale.ROOT))) {
-            return byOption.get(option.toLowerCase(Locale.ROOT));
-        }
-        return conditions(template);
     }
 
     /**
@@ -215,6 +208,61 @@ public class SpellEffects {
                 .orElse(null);
     }
 
+    // The conditions the cast gives: the option's own when conditionsByOption lists it, as Forcecage's box (PHB p.243,
+    // D189) or Eyebite's asleep (PHB p.238, D188), else the template's list
+    private static List<SpellTemplate.ConditionInflicted> given(SpellTemplate template, String option) {
+        return template.conditionsFor(option);
+    }
+
+    // A save whose success still takes all the damage, as Mental Prison's (XGE p.161, D188)
+    private static Effect.Delivery withFullDamage(SpellTemplate template, Effect.Delivery delivery) {
+        return template.fullDamageOnSave() && delivery instanceof Effect.Save save
+                ? new Effect.Save(save.ability(), save.dc(), false, true) : delivery;
+    }
+
+    /**
+     * What the 6th-level spells' templates add to a cast (D188).
+     *
+     * @param damageFloor           the fewest hit points its damage leaves, as Harm's 1 (PHB p.249); 0 for none
+     * @param disintegrates         a creature its damage leaves at 0 hit points is dust (Disintegrate, PHB p.233)
+     * @param reducesHpMax          a failed save lowers the hit point maximum by the damage taken (Harm)
+     * @param hpMaxRounds           how long that lasts
+     * @param immuneIfImmuneTo      the condition whose immunity makes a creature immune to it (Mass Suggestion)
+     * @param succeedsIfImmuneTo    the condition whose immunity makes a creature succeed on its save (Mental Prison)
+     * @param saveDisadvantageTypes the creature types that save with disadvantage (Sunbeam's undead and oozes)
+     * @param blocksCasting         its caster can't cast spells while it lasts (Tenser's Transformation)
+     * @param movable               its caster may move its Spell Effect at any time (Fizban's Platinum Shield)
+     */
+    public record CastRules(int damageFloor, boolean disintegrates, boolean reducesHpMax, int hpMaxRounds,
+                            String immuneIfImmuneTo, String succeedsIfImmuneTo,
+                            List<String> saveDisadvantageTypes, boolean blocksCasting, boolean movable) {
+
+        public static final CastRules NONE = new CastRules(0, false, false, 0, null, null, List.of(),
+                false, false);
+
+        /** Whether its damage needs more than the usual rules once rolled. */
+        public boolean limitsDamage() {
+            return damageFloor > 0 || disintegrates;
+        }
+    }
+
+    /**
+     * Whether each use of the spell's effect chooses its option again, as Eyebite's effect for each new creature (PHB
+     * p.238, D188): its template gives conditions by option.
+     */
+    public boolean optionEachUse(String spellName) {
+        return template(spellName).map(template -> !template.conditionsByOption().isEmpty()
+                && template.repeatEffect() != null && !template.repeatEffect().replaces()).orElse(false);
+    }
+
+    /** What the spell's template adds to a cast (D188); nothing for a spell without one. */
+    public CastRules castRules(String spellName) {
+        return template(spellName).map(template -> new CastRules(template.damageFloor(), template.disintegrates(),
+                template.reducesHpMax(), template.hpMaxReductionRounds(),
+                template.immuneIfImmuneTo(), template.succeedsIfImmuneTo(), template.saveDisadvantageTypes(),
+                template.blocksCasting(), template.movable())).orElse(CastRules.NONE);
+    }
+
     // The conditions that lasted as long as the spell's own duration, lasting as long as the slot's (D185)
     private static Map<String, Effect.ConditionEnd> scaled(Map<String, Effect.ConditionEnd> ends, Integer base,
                                                           Integer rounds) {
@@ -232,6 +280,16 @@ public class SpellEffects {
      */
     public SpellPlan forRepeat(String spellName, int slotLevel, EncounterParticipant caster, String castingAbility,
                                int attackBonus, int saveDc, Boolean advantage) {
+        return forRepeat(spellName, slotLevel, caster, castingAbility, attackBonus, saveDc, advantage, null);
+    }
+
+    /**
+     * As {@link #forRepeat(String, int, EncounterParticipant, String, int, int, Boolean)}, with the option chosen for
+     * this use, whose conditions it gives when the template gives them by option, as Eyebite's effect chosen for each
+     * new creature (PHB p.238, D188).
+     */
+    public SpellPlan forRepeat(String spellName, int slotLevel, EncounterParticipant caster, String castingAbility,
+                               int attackBonus, int saveDc, Boolean advantage, String option) {
         Optional<SpellTemplate> found = template(spellName);
         if (found.isEmpty()) {
             return manual(spellName, 0, NO_TEMPLATE, false, null, false);
@@ -240,7 +298,9 @@ public class SpellEffects {
         if (template.repeatEffect() == null) {
             return manual(spellName, template.level(), "Spell has no repeatable effect", false, null, false);
         }
-        return planFor(template, spellName, template.repeatEffect(), true, List.of(), slotLevel, caster,
+        List<SpellTemplate.ConditionInflicted> own = template.repeatEffect().replaces() ? List.of()
+                : given(template, option);
+        return planFor(template, spellName, template.repeatEffect(), true, own, slotLevel, caster,
                 castingAbility, attackBonus, saveDc, advantage);
     }
 
@@ -475,11 +535,14 @@ public class SpellEffects {
                 delivery = attack.withWeapon(false);
             }
         }
-        boolean spellsOwn = ownConditions && !repeat.replaces();
-        // A repeat that replaces the spell's effect gives the conditions it lists itself, as Holy Weapon's burst blinds
-        // (XGE p.157, D187)
-        List<SpellTemplate.ConditionInflicted> given = spellsOwn ? template.conditionsInflicted()
-                : ownConditions ? template.repeatConditions() : triggerConditions;
+        // A repeat of the spell's own effect gives the conditions forRepeat passes, its own or its option's (D188); one
+        // that replaces the spell's effect gives the conditions it lists itself, as Holy Weapon's burst blinds (XGE
+        // p.157, D187)
+        List<SpellTemplate.ConditionInflicted> given = ownConditions && repeat.replaces()
+                ? template.repeatConditions() : triggerConditions;
+        if (!repeat.replaces()) {
+            delivery = withFullDamage(template, delivery);
+        }
         Effect effect = new Effect(spellName, delivery, damage.get(), healing.get().dice(),
                 names(given), false, null, conditionEnds(given, template, saveDc));
         return new SpellPlan(spellName, spellLevel, effect, null, false, null, false);
@@ -913,10 +976,6 @@ public class SpellEffects {
                 .map(groups -> new Healing(groups.getFirst()));
     }
 
-    // Each condition the spell inflicts, listed by name or as an object naming it
-    private static List<String> conditions(SpellTemplate template) {
-        return names(template.conditionsInflicted());
-    }
 
     private static List<String> names(List<SpellTemplate.ConditionInflicted> conditions) {
         return conditions.stream()
@@ -946,6 +1005,13 @@ public class SpellEffects {
                 repeatSave = Ability.parse(condition.saveToEndAbility())
                         .or(() -> Ability.parse(template.saveAbility()))
                         .map(ability -> new Effect.RepeatSave(ability, saveDc))
+                        .orElse(null);
+            }
+            // A save its creature makes with its action, as Otto's Irresistible Dance's (PHB p.264, D188)
+            SpellTemplate.ActionSave actionSave = template.actionSave();
+            if (actionSave != null && name.equalsIgnoreCase(actionSave.condition())) {
+                repeatSave = Ability.parse(actionSave.ability())
+                        .map(ability -> new Effect.RepeatSave(ability, saveDc, true))
                         .orElse(null);
             }
             Effect.DamageSave onDamage = condition.saveToEndOnDamage()

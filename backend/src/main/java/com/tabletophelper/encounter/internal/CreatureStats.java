@@ -113,13 +113,52 @@ public class CreatureStats {
      * a summoned creature's included; none for a player character, whose sheet records neither.
      */
     public static AttackRules.Senses senses(EncounterParticipant participant) {
+        AttackRules.Senses own;
         Optional<WildShapeForm> form = WildShapeForm.of(participant);
         if (form.isPresent()) {
-            return AttackRules.Senses.of(form.get().senses());
+            own = AttackRules.Senses.of(form.get().senses());
+        } else {
+            own = participant.getMonster() != null ? AttackRules.Senses.of(participant.getMonster().getSenses())
+                    : AttackRules.Senses.NONE;
         }
-        return participant.getMonster() != null ? AttackRules.Senses.of(participant.getMonster().getSenses())
-                : AttackRules.Senses.NONE;
+        // Truesight a spell gives, as True Seeing's (PHB p.284, D188)
+        boolean granted = ActiveModifiers.modifiersOn(participant).stream()
+                .anyMatch(m -> m.kind() == OngoingModifier.Kind.TRUESIGHT);
+        return granted && !own.truesight() ? new AttackRules.Senses(own.blindsight(), true) : own;
     }
+
+    // The conditions that include being incapacitated, which take Evasion away (PHB p.79, p.96)
+    private static final Set<String> INCAPACITATED = Set.of("incapacitated", "paralyzed", "petrified", "stunned",
+            "unconscious");
+
+    /**
+     * Whether the participant has Evasion now (D188): a rogue or monk of 7th level or higher (PHB p.96, p.79), a sheet
+     * with the feature by name, a monster whose stat block has the trait, or an Ongoing Modifier that gives it, as Fizban's
+     * Platinum Shield (FTD p.20); never while it is incapacitated.
+     */
+    public static boolean evasion(EncounterParticipant participant) {
+        if (conditionNames(participant).stream().anyMatch(name -> INCAPACITATED.contains(name.toLowerCase(
+                java.util.Locale.ROOT)))) {
+            return false;
+        }
+        if (ActiveModifiers.modifiersOn(participant).stream().anyMatch(m -> m.kind() == OngoingModifier.Kind.EVASION)) {
+            return true;
+        }
+        PlayerCharacter character = participant.getCharacter();
+        if (character != null) {
+            return FeatureEffects.classLevel(character, "Rogue") >= EVASION_LEVEL
+                    || FeatureEffects.classLevel(character, "Monk") >= EVASION_LEVEL
+                    || FeatureEffects.hasFeature(character, "Evasion");
+        }
+        String traits = participant.getMonster() != null ? participant.getMonster().getTraits() : null;
+        return traits != null && EVASION_TRAIT.matcher(traits).find();
+    }
+
+    /** The rogue's and the monk's level that brings Evasion (PHB p.96, p.79). */
+    public static final int EVASION_LEVEL = 7;
+
+    // A stat block's Evasion trait, by its name
+    private static final java.util.regex.Pattern EVASION_TRAIT = java.util.regex.Pattern.compile("\\bEvasion\\b");
 
     /**
      * The participant's side of an attack roll, as attacker or target: its conditions and senses
@@ -159,7 +198,7 @@ public class CreatureStats {
                 saveModifier(participant, saveAbility), conditionNames(participant),
                 armourPenalty(participant), saveModes,
                 effect.delivery() instanceof Effect.Save ? inspirationForSaves(participant) : 0, false,
-                senses(participant), rollModifiers(participant, effect, attacker, own));
+                senses(participant), rollModifiers(participant, effect, attacker, own), evasion(participant));
     }
 
     /** Each participant as the Resolver needs it for an Effect the attacker uses, in the same order (D184). */
@@ -474,6 +513,10 @@ public class CreatureStats {
         List<OngoingModifier> modifiers = ActiveModifiers.modifiersOn(participant);
         if (OngoingModifiers.resists(type, modifiers, magical)) {
             defences.add(Defence.RESISTANCE);
+        }
+        // Immunity an Ongoing Modifier gives, as Investiture of Flame's to fire (XGE p.159, D188)
+        if (modifiers.stream().anyMatch(m -> m.kind() == OngoingModifier.Kind.DAMAGE_IMMUNITY && m.resists(type))) {
+            defences.add(Defence.IMMUNITY);
         }
         // A raging creature resists bludgeoning, piercing and slashing damage (PHB p.48); resistances don't stack
         if (ClassFeatures.raging(conditionNames(participant)) && ClassFeatures.rageResists(type)) {

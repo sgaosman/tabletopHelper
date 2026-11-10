@@ -137,7 +137,7 @@ function PlayerSessionView() {
   const canReact = myCharacter?.lifeState === 'ALIVE' && myCharacter.turnEconomy != null
     && !myCharacter.turnEconomy.reactionUsed;
   // Repeat Saves the campaign leaves to this player, at the end of their character's turn (D162)
-  const savesToRoll = (myCharacter?.activeConditions ?? []).filter(c => c.repeatSave?.awaitingRoll);
+  const savesToRoll = (myCharacter?.activeConditions ?? []).filter(c => c.repeatSave?.awaitingRoll || c.repeatSave?.byAction);
   // Actions show only while the encounter is Active: the server refuses them while it is Paused or
   // Completed (D166)
   const isActive = encounter.status === 'ACTIVE';

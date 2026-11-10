@@ -835,6 +835,115 @@
           ]
         }
       ]
+    },
+    {
+      "spell": "Summon Fiend",
+      "monster": "Fiendish Spirit",
+      "source": "TCE",
+      "page": 112,
+      "baseLevel": 6,
+      "acBase": 12,
+      "attack": null,
+      "actions": [],
+      "bonusActions": [],
+      "variants": [
+        {
+          "name": "Demon",
+          "hpBase": 50,
+          "hpPerLevel": 15,
+          "attack": "Bite",
+          "actions": [
+            {
+              "name": "Bite",
+              "actionType": "ACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "MELEE_WEAPON",
+              "attackBonus": "SPELL_ATTACK",
+              "targetCount": 1,
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "1d12 + 3 + LEVEL",
+                  "damageType": "necrotic"
+                }
+              ]
+            }
+          ],
+          "traits": [
+            {
+              "name": "Magic Resistance",
+              "description": "The fiend has advantage on saving throws against spells and other magical effects. The DM gives the advantage by hand."
+            },
+            {
+              "name": "Death Throes",
+              "description": "When the fiend drops to 0 hit points or the spell ends, the fiend explodes, and each creature within 10 feet of it must make a Dexterity saving throw against DC SPELL_DC, taking 2d10 + the spell's level fire damage on a failed save, or half as much on a successful one. The DM applies it."
+            }
+          ]
+        },
+        {
+          "name": "Devil",
+          "hpBase": 40,
+          "hpPerLevel": 15,
+          "attack": "Hurl Flame",
+          "actions": [
+            {
+              "name": "Hurl Flame",
+              "actionType": "ACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "RANGED_SPELL",
+              "attackBonus": "SPELL_ATTACK",
+              "targetCount": 1,
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "2d6 + 3 + LEVEL",
+                  "damageType": "fire"
+                }
+              ]
+            }
+          ],
+          "traits": [
+            {
+              "name": "Magic Resistance",
+              "description": "The fiend has advantage on saving throws against spells and other magical effects. The DM gives the advantage by hand."
+            },
+            {
+              "name": "Devil's Sight",
+              "description": "Magical darkness doesn't impede the fiend's darkvision."
+            }
+          ]
+        },
+        {
+          "name": "Yugoloth",
+          "hpBase": 60,
+          "hpPerLevel": 15,
+          "attack": "Claws",
+          "actions": [
+            {
+              "name": "Claws",
+              "actionType": "ACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "MELEE_WEAPON",
+              "attackBonus": "SPELL_ATTACK",
+              "targetCount": 1,
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "1d8 + 3 + LEVEL",
+                  "damageType": "slashing"
+                }
+              ],
+              "dmNote": "Immediately after the attack hits or misses, the fiend can teleport up to 30 feet to an unoccupied space it can see"
+            }
+          ],
+          "traits": [
+            {
+              "name": "Magic Resistance",
+              "description": "The fiend has advantage on saving throws against spells and other magical effects. The DM gives the advantage by hand."
+            }
+          ]
+        }
+      ]
     }
   ]
 }

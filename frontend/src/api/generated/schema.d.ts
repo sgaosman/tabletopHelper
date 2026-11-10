@@ -612,6 +612,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/action-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["rollActionSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/active-spell": {
         parameters: {
             query?: never;
@@ -3857,6 +3873,7 @@ export interface components {
             /** @enum {string} */
             ability: "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
             awaitingRoll: boolean;
+            byAction?: boolean | null;
             /** Format: int32 */
             dc: number;
         };
@@ -3870,6 +3887,7 @@ export interface components {
             advantage?: boolean | null;
             /** Format: uuid */
             effectId?: string | null;
+            option?: string | null;
             /** Format: int32 */
             overrideSpellAttackBonus?: number | null;
             /** Format: int32 */
@@ -4008,6 +4026,7 @@ export interface components {
             tallies: components["schemas"]["Tally"][];
             tallyRule?: string | null;
             triggers: ("ENTER" | "START_OF_TURN" | "END_OF_TURN")[];
+            useOptions: string[];
             /** Format: int32 */
             usesLeft?: number | null;
         };
@@ -4187,7 +4206,7 @@ export interface components {
             /** @enum {string|null} */
             initiativeMode?: "FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL" | null;
             /** @enum {string|null} */
-            kind?: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | "CONJURE" | "GIANT_INSECT" | "GREATER_DEMON" | "CONJURE_ELEMENTAL" | "INFERNAL_CALLING" | "ANIMATE_OBJECTS" | "DANSE_MACABRE" | "CONJURE_CELESTIAL" | null;
+            kind?: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | "CONJURE" | "GIANT_INSECT" | "GREATER_DEMON" | "CONJURE_ELEMENTAL" | "INFERNAL_CALLING" | "ANIMATE_OBJECTS" | "DANSE_MACABRE" | "CONJURE_CELESTIAL" | "CONJURE_FEY" | "CREATE_UNDEAD" | null;
             needsCommand?: boolean | null;
             /** Format: int32 */
             slotLevel?: number | null;
@@ -4212,7 +4231,7 @@ export interface components {
             houseRuleModes: ("FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL")[];
             initiativeModes: ("FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL")[];
             /** @enum {string} */
-            kind: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | "CONJURE" | "GIANT_INSECT" | "GREATER_DEMON" | "CONJURE_ELEMENTAL" | "INFERNAL_CALLING" | "ANIMATE_OBJECTS" | "DANSE_MACABRE" | "CONJURE_CELESTIAL";
+            kind: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | "CONJURE" | "GIANT_INSECT" | "GREATER_DEMON" | "CONJURE_ELEMENTAL" | "INFERNAL_CALLING" | "ANIMATE_OBJECTS" | "DANSE_MACABRE" | "CONJURE_CELESTIAL" | "CONJURE_FEY" | "CREATE_UNDEAD";
             /** Format: int32 */
             multiplier: number;
             needsCommand: boolean;
@@ -5466,6 +5485,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    rollActionSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RepeatSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
             };
         };
     };

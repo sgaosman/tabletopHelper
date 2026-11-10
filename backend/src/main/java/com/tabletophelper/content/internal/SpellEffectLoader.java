@@ -26,7 +26,8 @@ import java.util.Map;
  * unknown kind, scope, mode or end is a part that doesn't fit too. Since version 3 the 4th-level spells' keys (D185),
  * such as delayedDamage, retaliation and durationBySlot, are checked the same way, and since version 4 the 5th-level
  * spells' keys (D187), such as lifeDrain, countedSaves, contest and hitThreshold, and since version 5 the 7th-level
- * spells' keys (D189), such as hpThresholdEffects, rayTable, detonation and raisesOnKill.
+ * spells' keys (D189), such as hpThresholdEffects, rayTable, detonation and raisesOnKill, and since version 6 the
+ * 6th-level spells' (D188), such as damageFloor, actionSave and conditionsByOption given whole.
  */
 @Component
 @RequiredArgsConstructor
@@ -51,8 +52,8 @@ public class SpellEffectLoader implements ContentLoader {
     @Override
     public int version() {
         // 3: the 4th-level spells' templates and keys (D185); 4: the 5th-level spells' (D187); 5: the 7th-level
-        // spells' (D189)
-        return 5;
+        // spells' (D189); 6: the 6th-level spells' (D188)
+        return 6;
     }
 
     @Override

@@ -365,7 +365,7 @@ class SpellEffectsTest {
         }
 
         @Test
-        @DisplayName("The bundled data's 46 lasting spells each leave a Spell Effect its caster directs at the cost "
+        @DisplayName("The bundled data's 57 lasting spells each leave a Spell Effect its caster directs at the cost "
                 + "the spell's text gives, or whose area acts by itself at the moments it gives, or both (M15)")
         void bundledLastingSpells() throws IOException {
             Map<String, ActionCost> costs = new LinkedHashMap<>();
@@ -433,7 +433,16 @@ class SpellEffectsTest {
             for (String spell : List.of("Crown of Stars", "Mordenkainen's Sword", "Draconic Transformation")) {
                 expected.put(spell, ActionCost.BONUS_ACTION);
             }
-            assertEquals(46, triggers.size());
+            // 6th level (D188): Sunbeam's new line, Eyebite's new target and the Investitures' attacks take an action
+            // (PHB p.279, p.238; XGE p.159-160), Soul Cage's Steal Life a bonus action (XGE p.165), and Mental
+            // Prison's burst happens when the creature escapes (XGE p.161)
+            for (String spell : List.of("Sunbeam", "Eyebite", "Investiture of Flame", "Investiture of Ice",
+                    "Investiture of Stone", "Investiture of Wind")) {
+                expected.put(spell, ActionCost.ACTION);
+            }
+            expected.put("Soul Cage", ActionCost.BONUS_ACTION);
+            expected.put("Mental Prison", ActionCost.NONE);
+            assertEquals(57, triggers.size());
             assertEquals(expected, Map.copyOf(costs));
             // Only Moonbeam's, Dust Devil's and Dawn's uses move them without resolving anything (PHB p.261, XGE p.154,
             // p.153)

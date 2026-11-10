@@ -90,7 +90,8 @@ public record SummonLink(
      * no longer belongs to the spell, so the spell's end leaves it, and it disappears 1 hour after it was summoned.
      */
     public boolean hostile() {
-        return Boolean.TRUE.equals(uncontrolled) && kind == SummonRules.Kind.CONJURE_ELEMENTAL;
+        return Boolean.TRUE.equals(uncontrolled)
+                && (kind == SummonRules.Kind.CONJURE_ELEMENTAL || kind == SummonRules.Kind.CONJURE_FEY);
     }
 
     /** Whether it still has to save at the end of its turns to stay under its caster's control (XGE p.166). */

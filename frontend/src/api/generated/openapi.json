@@ -1489,6 +1489,47 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/action-save": {
+      "post": {
+        "operationId": "rollActionSave",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepeatSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/active-spell": {
       "post": {
         "operationId": "startActiveSpell",
@@ -11540,6 +11581,10 @@
           "awaitingRoll": {
             "type": "boolean"
           },
+          "byAction": {
+            "type": "boolean",
+            "nullable": true
+          },
           "dc": {
             "type": "integer",
             "format": "int32"
@@ -11576,6 +11621,10 @@
           "effectId": {
             "type": "string",
             "format": "uuid",
+            "nullable": true
+          },
+          "option": {
+            "type": "string",
             "nullable": true
           },
           "overrideSpellAttackBonus": {
@@ -11960,7 +12009,8 @@
           "startedRound",
           "summonedParticipantIds",
           "tallies",
-          "triggers"
+          "triggers",
+          "useOptions"
         ],
         "type": "object",
         "properties": {
@@ -12096,6 +12146,12 @@
                 "START_OF_TURN",
                 "END_OF_TURN"
               ]
+            }
+          },
+          "useOptions": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           },
           "usesLeft": {
@@ -12771,7 +12827,9 @@
               "INFERNAL_CALLING",
               "ANIMATE_OBJECTS",
               "DANSE_MACABRE",
-              "CONJURE_CELESTIAL"
+              "CONJURE_CELESTIAL",
+              "CONJURE_FEY",
+              "CREATE_UNDEAD"
             ]
           },
           "needsCommand": {
@@ -12912,7 +12970,9 @@
               "INFERNAL_CALLING",
               "ANIMATE_OBJECTS",
               "DANSE_MACABRE",
-              "CONJURE_CELESTIAL"
+              "CONJURE_CELESTIAL",
+              "CONJURE_FEY",
+              "CREATE_UNDEAD"
             ]
           },
           "multiplier": {

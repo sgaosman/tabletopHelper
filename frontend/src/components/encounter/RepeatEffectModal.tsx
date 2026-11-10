@@ -51,6 +51,9 @@ export default function RepeatEffectModal({
   const slotLevel = effect.slotLevel ?? 0;
   const { lookUpTargeting, chooseFreely } = flow;
   const [uses, setUses] = useState(1);
+  // Eyebite chooses its effect again for each new creature (PHB p.238, D188)
+  const useOptions = trigger ? [] : (effect.useOptions ?? []);
+  const [option, setOption] = useState(useOptions[0] ?? '');
   const mostUses = trigger || effect.usesLeft == null ? 1
     : Math.max(1, Math.min(effect.maxUsesEachTurn ?? 1, effect.usesLeft));
   const cost = trigger ? null : (effect.directedCost ?? 'ACTION');
@@ -76,6 +79,7 @@ export default function RepeatEffectModal({
       effectId: effect.id,
       ...(trigger ? { trigger } : {}),
       ...(uses > 1 ? { uses } : {}),
+      ...(useOptions.length > 0 && option ? { option } : {}),
       ...flow.overrides(),
     }, caster.id));
   }
@@ -111,6 +115,15 @@ export default function RepeatEffectModal({
             <label htmlFor="effect-uses" className={FIELD_LABEL}>How many to spend ({effect.usesLeft} left)</label>
             <select id="effect-uses" className={FIELD_INPUT} value={uses} onChange={e => setUses(Number(e.target.value))}>
               {Array.from({ length: mostUses }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+        )}
+
+        {useOptions.length > 0 && !flow.result && (
+          <div>
+            <label htmlFor="effect-option" className={FIELD_LABEL}>Effect on this creature</label>
+            <select id="effect-option" className={FIELD_INPUT} value={option} onChange={e => setOption(e.target.value)}>
+              {useOptions.map(o => <option key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</option>)}
             </select>
           </div>
         )}

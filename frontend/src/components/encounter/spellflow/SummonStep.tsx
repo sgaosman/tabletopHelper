@@ -208,6 +208,12 @@ export default function SummonStep({
         {kind === 'CONJURE_ELEMENTAL' && (
           <li className={NOTE}>If your concentration is broken it doesn't disappear: it turns hostile, you can't dismiss it, and it disappears 1 hour after you summoned it (PHB p.225).</li>
         )}
+        {kind === 'CONJURE_FEY' && (
+          <li className={NOTE}>A fey, or a fey spirit in a beast's form. If your concentration is broken it doesn't disappear: it turns hostile, you can't dismiss it, and it disappears 1 hour after you summoned it (PHB p.226).</li>
+        )}
+        {kind === 'CREATE_UNDEAD' && (
+          <li className={NOTE}>Only at night, one onyx per corpse. A bonus action commands any of them within 120 feet; uncommanded they only defend themselves. Control lasts 24 hours; casting again reasserts it (PHB p.229).</li>
+        )}
         {kind === 'CONJURE_CELESTIAL' && (
           <li className={NOTE}>It rolls its own initiative and obeys verbal commands that fit its alignment; with none, it only defends itself (PHB p.225).</li>
         )}
