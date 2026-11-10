@@ -40,6 +40,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -315,14 +316,27 @@ public class SpellcastingService {
         // Every directed cost, nothing included, is taken on the caster's turn
         Encounter encounter = access.beginOnTurnFor(encounterId, actorParticipantId, userId,
                 CombatAccess.OFF_TURN_SPELL_EFFECT);
-        EncounterParticipant caster = CombatAccess.participant(encounter, actorParticipantId);
+        EncounterParticipant actor = CombatAccess.participant(encounter, actorParticipantId);
+        // The creature a spell touched may use its caster's effect itself, as Dragon's Breath's exhalation (XGE p.154,
+        // D199): the effect stays the caster's, with the caster's numbers, and the use is the creature's action
+        Touched touched = touched(encounter, actor, request.getEffectId());
+        EncounterParticipant caster = touched != null ? touched.holder() : actor;
         manualModifiers.require(encounter, userId, ManualModifiers.forSpell(caster,
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC()));
 
-        SpellEffectEntry effect = effectToUse(caster, request.getEffectId(),
+        SpellEffectEntry effect = touched != null ? touched.effect() : effectToUse(caster, request.getEffectId(),
                 candidate -> spellEffects.effectUse(candidate.spell()).directedCost() != null,
                 "no Spell Effect it can use");
         String spellName = effect.spell();
+        EncounterParticipant user = actor;
+        boolean usedByTarget = spellEffects.usedByTarget(spellName);
+        if (usedByTarget && touched == null && !effect.affected().contains(actor.getId())) {
+            // The DM may use it from the caster's effect for the creature touched; a player uses it as that creature
+            if (!CombatAccess.isDm(encounter, userId) || effect.affected().isEmpty()) {
+                throw new ConflictException("Only the creature " + spellName + " touched uses it, with its own action");
+            }
+            user = CombatAccess.participant(encounter, effect.affected().getFirst());
+        }
         SpellEffects.EffectUse how = spellEffects.effectUse(spellName);
         if (how.directedCost() == null) {
             throw new ConflictException(spellName + " needs nothing from its caster; the DM applies what it does to "
@@ -339,16 +353,21 @@ public class SpellcastingService {
         if (option == null && request.getOption() != null && !request.getOption().isBlank()) {
             throw new ValidationException("Using " + spellName + " again takes no option");
         }
+        // The option chosen when cast, as Dragon's Breath's damage type (XGE p.154, D199)
+        if (option == null && usedByTarget) {
+            option = effect.option();
+        }
         List<EncounterParticipant> targets = CombatAccess.targets(encounter, request.getTargetIds(), userId);
         SpellNumbers own = numbers(caster, casterSpells.origin(caster, spellName));
         List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(own.attackBonus(), own.saveDc(),
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC());
 
         ActionCost cost = how.directedCost();
-        String costNote = cost == ActionCost.BONUS_ACTION ? " (bonus action)" : "";
-        economy.charge(encounter, caster, Charge.of(cost, EncounterTurns.isCurrentTurn(encounter, caster.getId())),
+        String costNote = user != caster ? " (" + user.getDisplayName() + "'s " + (cost == ActionCost.BONUS_ACTION
+                ? "bonus action" : "action") + ")" : cost == ActionCost.BONUS_ACTION ? " (bonus action)" : "";
+        economy.charge(encounter, user, Charge.of(cost, EncounterTurns.isCurrentTurn(encounter, user.getId())),
                 userId, new ActionEconomyKeeper.Command(CombatActionType.SPELL_EFFECT_REPEAT,
-                        caster.getDisplayName() + "'s " + spellName + costNote));
+                        user.getDisplayName() + "'s " + spellName + costNote));
 
         manualModifiers.log(encounter, CombatActionType.SPELL_EFFECT_REPEAT, caster,
                 caster.getDisplayName() + "'s " + spellName, userId, modifiers);
@@ -515,6 +534,35 @@ public class SpellcastingService {
     }
 
     // The effect the request names, or the caster's only one that fits; a 409 for none, or several to choose from
+    /** A Spell Effect another creature holds, and that creature (D199). */
+    private record Touched(EncounterParticipant holder, SpellEffectEntry effect) {
+    }
+
+    /*
+     * The Spell Effect of another creature's that the actor may use as the creature it touched, as Dragon's Breath's
+     * (XGE p.154, D199): the one named, or the only one; null when the actor has none, so its own effects are looked at.
+     */
+    private Touched touched(Encounter encounter, EncounterParticipant actor, UUID effectId) {
+        List<Touched> found = new ArrayList<>();
+        for (EncounterParticipant holder : encounter.getParticipants()) {
+            if (holder == actor) {
+                continue;
+            }
+            for (SpellEffectEntry effect : EffectApplier.effects(holder)) {
+                if ((effectId == null || effect.id().equals(effectId)) && effect.affected().contains(actor.getId())
+                        && spellEffects.usedByTarget(effect.spell())) {
+                    found.add(new Touched(holder, effect));
+                }
+            }
+        }
+        if (found.size() > 1) {
+            throw new ConflictException(actor.getDisplayName() + " may use more than one Spell Effect ("
+                    + String.join(", ", found.stream().map(each -> each.effect().spell()).toList())
+                    + "); choose which to use");
+        }
+        return found.isEmpty() ? null : found.getFirst();
+    }
+
     private static SpellEffectEntry effectToUse(EncounterParticipant caster, UUID effectId,
                                                 Predicate<SpellEffectEntry> fits, String none) {
         List<SpellEffectEntry> effects = EffectApplier.effects(caster);

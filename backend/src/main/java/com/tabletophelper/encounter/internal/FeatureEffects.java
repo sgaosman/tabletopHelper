@@ -71,6 +71,11 @@ public class FeatureEffects {
     public static final String KI = "ki";
     public static final String BARDIC_INSPIRATION = "bardic-inspiration";
     public static final String ARCANE_RECOVERY = "arcane-recovery";
+    /**
+     * A spell's things to use, as Goodberry's berries (PHB p.246, D199): an action eats one, restoring the hit points the
+     * pool's metadata names ({@code heals}) to the eater, or to the one creature named, fed it (rules call).
+     */
+    public static final String SPELL_HEALING = "spell-healing";
 
     public static final String END = "end";
     public static final String HEAL = "heal";
@@ -176,6 +181,9 @@ public class FeatureEffects {
         if (request.amounts() != null) {
             throw new ValidationException(pool.displayName() + " takes no amounts");
         }
+        if (SPELL_HEALING.equals(effect)) {
+            return spellHealing(encounter, user, pool, request, option, uses, userId, poolCost);
+        }
         if (targeted && !LAY_ON_HANDS.equals(effect) && !BARDIC_INSPIRATION.equals(effect)) {
             throw new ValidationException(pool.displayName() + " is used only on " + user.getDisplayName());
         }
@@ -225,6 +233,11 @@ public class FeatureEffects {
             case LAY_ON_HANDS -> {
                 if (!CURE.equals(plan.option())) {
                     effectApplier.heal(encounter, user, plan.target(), plan.spend(), "Lay on Hands");
+                }
+            }
+            case SPELL_HEALING -> {
+                if (!plan.amounts().isEmpty() && plan.amounts().getFirst() > 0) {
+                    effectApplier.heal(encounter, user, plan.target(), plan.amounts().getFirst(), plan.option());
                 }
             }
             case ChannelDivinityEffects.EFFECT -> channelDivinity.apply(encounter, user, plan);
@@ -316,6 +329,24 @@ public class FeatureEffects {
         int sides = ClassFeatures.bardicInspirationDie(Math.min(20, level));
         return new Plan(BARDIC_INSPIRATION, null, poolCost, 1, target, " on " + target.getDisplayName() + ": a d"
                 + sides + " to add to one ability check, attack roll or saving throw within 10 minutes");
+    }
+
+    // One of a spell's things eaten, as a goodberry (PHB p.246, D199): its hit points to the eater, or to the one creature
+    // it is fed to; the option carries the pool's name for the healing's log entry
+    private Plan spellHealing(Encounter encounter, EncounterParticipant user, ResourcePoolEntry pool,
+                              UsePoolRequest request, String option, int uses, UUID userId, ActionCost poolCost) {
+        requireNoOption(pool, option);
+        requireOneUse(pool, uses);
+        if (request.targetIds() != null && request.targetIds().size() > 1) {
+            throw new ValidationException("One of " + pool.displayName() + " is eaten by one creature");
+        }
+        EncounterParticipant target = request.targetIds() != null && !request.targetIds().isEmpty()
+                ? CombatAccess.target(encounter, request.targetIds().getFirst(), userId) : user;
+        CombatAccess.requireNotDead(List.of(target));
+        int heals = pool.metadata() instanceof Map<?, ?> map && map.get("heals") instanceof Number number
+                ? number.intValue() : 0;
+        String on = target == user ? " (eats one)" : " (feeds one to " + target.getDisplayName() + ")";
+        return new Plan(SPELL_HEALING, pool.displayName(), poolCost, 1, target, on, List.of(target), List.of(heals));
     }
 
     private Plan layOnHands(Encounter encounter, EncounterParticipant paladin, ResourcePoolEntry pool,

@@ -57,7 +57,7 @@ class MetamagicEligibilityGoldenTest {
     }
 
     @Test
-    @DisplayName("At each spell's own level: Careful and Heightened 122, Empowered 109 (Hex, Hunter's Mark, Absorb Elements and Elemental Weapon deal their dice through Ongoing Modifiers, D184), Extended 228, Quickened 270, Subtle 341, Twinned 138 (the 4th-level templates, D185); with the 5th level (D187) Careful and Heightened 143, Empowered 125, Extended 271, Quickened 311, Subtle 403, Twinned 156; with the 7th level (D189) Careful and Heightened 151, Empowered 130, Extended 287, Quickened 327, Subtle 431, Twinned 163; with the 6th level (D188) Careful and Heightened 167, Empowered 140, Extended 317, Quickened 359, Subtle 479, Twinned 172; with the 8th and 9th levels (D190) Careful and Heightened 187, Empowered 153, Extended 345, Quickened 395, Subtle 525, Twinned 186; then Careful and Heightened 186 and Empowered 152, Sanctuary having no save and Spirit Shroud dealing its dice through Ongoing Modifiers (D196), then Empowered 147 and Extended 346 with Zephyr Strike, Flame Arrows, Ashardalon's Stride, Shadow Blade, Web and Silvery Barbs (D197), then Empowered 146 with Branding Smite dealing its dice through Ongoing Modifiers, then Careful and Heightened 182 and Empowered 141 with the lasting area spells whose cast forces no save or rolls no damage (D199)")
+    @DisplayName("At each spell's own level: Careful and Heightened 122, Empowered 109 (Hex, Hunter's Mark, Absorb Elements and Elemental Weapon deal their dice through Ongoing Modifiers, D184), Extended 228, Quickened 270, Subtle 341, Twinned 138 (the 4th-level templates, D185); with the 5th level (D187) Careful and Heightened 143, Empowered 125, Extended 271, Quickened 311, Subtle 403, Twinned 156; with the 7th level (D189) Careful and Heightened 151, Empowered 130, Extended 287, Quickened 327, Subtle 431, Twinned 163; with the 6th level (D188) Careful and Heightened 167, Empowered 140, Extended 317, Quickened 359, Subtle 479, Twinned 172; with the 8th and 9th levels (D190) Careful and Heightened 187, Empowered 153, Extended 345, Quickened 395, Subtle 525, Twinned 186; then Careful and Heightened 186 and Empowered 152, Sanctuary having no save and Spirit Shroud dealing its dice through Ongoing Modifiers (D196), then Empowered 147 and Extended 346 with Zephyr Strike, Flame Arrows, Ashardalon's Stride, Shadow Blade, Web and Silvery Barbs (D197), then Empowered 146 with Branding Smite dealing its dice through Ongoing Modifiers, then, in D199, Careful and Heightened 181 and Empowered 137 with the lasting area spells whose cast forces no save or rolls no damage, Magic Circle's save for teleporting left to the DM, and Bestow Curse, Crusader's Mantle, Dragon's Breath and Armor of Agathys dealing their dice through modifiers, a later use or a retaliation")
     void countsAtOwnLevel() {
         Map<Option, Integer> counts = new EnumMap<>(Option.class);
         FACTS.forEach((spell, facts) -> {
@@ -72,10 +72,12 @@ class MetamagicEligibilityGoldenTest {
         // Ongoing Modifiers take Careful and Heightened to 186 and Empowered to 152 (D196); Zephyr Strike's, Flame
         // Arrows' and Ashardalon's Stride's dice moving into Ongoing Modifiers, Shadow Blade's into its weapon and
         // Web's burning into its reminder take Empowered to 147, and Silvery Barbs' minute of advantage takes
-        // Extended to 346 (D197). The lasting area spells (D199) whose cast rolls nothing, as Stinking Cloud's, Gust of
-        // Wind's and Cordon of Arrows', or only blinds, as Hunger of Hadar's, take Careful and Heightened to 182; those,
-        // Spike Growth's, Tasha's Caustic Brew's and Phantasmal Force's casts dealing no damage take Empowered to 141
-        assertEquals(Map.of(Option.CAREFUL, 182, Option.HEIGHTENED, 182, Option.EMPOWERED, 141, Option.EXTENDED, 346,
+        // Extended to 346 (D197); Branding Smite's dice take Empowered to 146 (D197 update). In D199 the lasting area
+        // spells whose cast rolls nothing, as Stinking Cloud's, Gust of Wind's and Cordon of Arrows', or only blinds, as
+        // Hunger of Hadar's, and Magic Circle without a save take Careful and Heightened to 181; those, Spike Growth's,
+        // Tasha's Caustic Brew's and Phantasmal Force's casts dealing no damage, and Bestow Curse's, Crusader's
+        // Mantle's, Dragon's Breath's and Armor of Agathys' dice leaving the cast take Empowered to 137
+        assertEquals(Map.of(Option.CAREFUL, 181, Option.HEIGHTENED, 181, Option.EMPOWERED, 137, Option.EXTENDED, 346,
                 Option.QUICKENED, 395, Option.SUBTLE, 525, Option.TWINNED, 186), counts);
     }
 

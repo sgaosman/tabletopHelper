@@ -154,6 +154,11 @@ public class AttackService {
         EncounterParticipant actor = actorParticipantId != null
                 ? CombatAccess.participant(encounter, actorParticipantId) : null;
         EncounterParticipant target = CombatAccess.target(encounter, request.getTargetId(), userId);
+        // A creature in Gaseous Form can't attack (PHB p.242, D199)
+        String barred = actor != null ? ActiveModifiers.barredFromAttacking(actor) : null;
+        if (barred != null) {
+            throw new ConflictException(actor.getDisplayName() + " can't attack while " + barred + " lasts");
+        }
         Prepared attack = request.getWeapon() != null ? weaponAttack(encounter, actor, target, request, cost)
                 : enteredAttack(actor, request, cost);
         attack = withRescue(actor, request, attack);
@@ -342,14 +347,18 @@ public class AttackService {
      * +1, with the weapon it imbued (PHB p.86), War God's Blessing's +10, which the next attack spends (PHB p.63), and
      * Sharpen the Blade's bonus with the kensei weapon it sharpened, which adds to the damage too (XGE p.35).
      */
-    record RollBonuses(int sacredWeapon, boolean blessed, int sharpened) {
+    record RollBonuses(int sacredWeapon, boolean blessed, int sharpened, int magic) {
 
         RollBonuses(int sacredWeapon, boolean blessed) {
-            this(sacredWeapon, blessed, 0);
+            this(sacredWeapon, blessed, 0, 0);
+        }
+
+        RollBonuses(int sacredWeapon, boolean blessed, int sharpened) {
+            this(sacredWeapon, blessed, sharpened, 0);
         }
 
         int total() {
-            return sacredWeapon + (blessed ? ChannelDivinity.ATTACK_BONUS : 0) + sharpened;
+            return sacredWeapon + (blessed ? ChannelDivinity.ATTACK_BONUS : 0) + sharpened + magic;
         }
 
         List<String> notes() {
@@ -357,6 +366,7 @@ public class AttackService {
             if (sacredWeapon > 0) notes.add("Sacred Weapon +" + sacredWeapon);
             if (blessed) notes.add("War God's Blessing +" + ChannelDivinity.ATTACK_BONUS);
             if (sharpened > 0) notes.add("Sharpen the Blade +" + sharpened);
+            if (magic > 0) notes.add("Alter Self +" + magic);
             return notes;
         }
     }
@@ -364,8 +374,9 @@ public class AttackService {
     private RollBonuses rollBonuses(EncounterParticipant attacker, List<String> conditions, String weaponName) {
         int sacredWeapon = sacredWeaponImbues(attacker, weaponName)
                 ? ChannelDivinity.sacredWeaponBonus(stats.abilityScore(attacker, Ability.CHA)) : 0;
+        // Alter Self's natural weapon is magic, +1 to attack and damage (PHB p.211, D199)
         return new RollBonuses(sacredWeapon, ClassFeatures.has(conditions, ChannelDivinity.WAR_GODS_BLESSING),
-                sharpened(attacker, weaponName));
+                sharpened(attacker, weaponName), AlterSelf.bonus(attacker, weaponName));
     }
 
     /**
@@ -452,6 +463,8 @@ public class AttackService {
     private List<CharacterWeapons.Held> weapons(EncounterParticipant participant, PlayerCharacter character) {
         List<CharacterWeapons.Held> weapons = new ArrayList<>();
         ShadowBlade.held(participant).ifPresent(weapons::add);
+        // Alter Self's natural weapon (PHB p.211, D199)
+        AlterSelf.held(participant).ifPresent(weapons::add);
         weapons.addAll(characterWeapons.of(character));
         return weapons;
     }
@@ -464,7 +477,7 @@ public class AttackService {
         WeaponRules.Weapon weapon = held.weapon();
         AttackFeatures.Grip grip = AttackFeatures.defaultGrip(weapon, false);
         AttackFeatures.Numbers numbers = characterWeapons.numbers(held, attacker, false, false, grip);
-        int sharpened = rollBonuses.sharpened();
+        int sharpened = rollBonuses.sharpened() + rollBonuses.magic();
         AttackOption.PowerAttackOption powerAttack = null;
         if (held.powerAttack() != null) {
             AttackFeatures.Numbers traded = characterWeapons.numbers(held, attacker, true, false, grip);
@@ -600,6 +613,7 @@ public class AttackService {
         });
         PlayerCharacter character = actor.getCharacter();
         CharacterWeapons.Held held = ShadowBlade.held(actor).filter(blade -> ShadowBlade.named(request.getWeapon()))
+                .or(() -> AlterSelf.held(actor).filter(natural -> AlterSelf.named(request.getWeapon())))
                 .or(() -> characterWeapons.find(character, request.getWeapon()))
                 .orElseThrow(() -> new ValidationException(actor.getDisplayName() + " has no "
                         + request.getWeapon().trim() + " to attack with"));
@@ -637,7 +651,8 @@ public class AttackService {
                 ? rageDamage(FeatureEffects.classLevel(character, "Barbarian")) : 0;
         // Sharpen the Blade's bonus adds to the damage roll too (XGE p.35), a flat bonus a critical hit doesn't double
         int sharpened = sharpened(actor, weapon.name());
-        Dice weaponDamage = plus(numbers.damage(), rageDamage + sharpened);
+        int magic = AlterSelf.bonus(actor, weapon.name());
+        Dice weaponDamage = plus(numbers.damage(), rageDamage + sharpened + magic);
         Dice extraDamage = extraDamage(request);
         String extraType = extraDamage == null ? null
                 : request.getExtraDamageType() != null && !request.getExtraDamageType().isBlank()
@@ -666,6 +681,7 @@ public class AttackService {
         if (sacredWeapon > 0) notes.add("Sacred Weapon +" + sacredWeapon);
         if (blessed) notes.add("War God's Blessing +" + ChannelDivinity.ATTACK_BONUS);
         if (sharpened > 0) notes.add("Sharpen the Blade +" + sharpened);
+        if (magic > 0) notes.add("Alter Self +" + magic);
         boolean vowed = vowedAgainst(actor, target);
         if (vowed) notes.add("Vow of Enmity");
         notes.addAll(numbers.notes());

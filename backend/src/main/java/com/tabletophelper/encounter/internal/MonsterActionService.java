@@ -108,6 +108,11 @@ public class MonsterActionService {
         EncounterParticipant warlock = pact
                 ? pactWarlock(encounter, monster, request, action, actionName) : null;
         requireSummonMayAct(encounter, monster, action, actionName, userId, pact);
+        // A creature in Gaseous Form can't attack (PHB p.242, D199)
+        String barred = ActiveModifiers.barredFromAttacking(monster);
+        if (barred != null && (action.multiattack() || "ATTACK_ROLL".equalsIgnoreCase(action.deliveryMethod()))) {
+            throw new ConflictException(monster.getDisplayName() + " can't attack while " + barred + " lasts");
+        }
         MonsterEffects.Overrides overrides = new MonsterEffects.Overrides(request.overrideAttackBonus(),
                 request.overrideSaveDC(), request.advantage());
 

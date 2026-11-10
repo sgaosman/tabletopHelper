@@ -111,16 +111,30 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
      * @param dc            its DC, the caster's spell save DC when cast
      * @param conditions    what a failed save gives
      * @param attackerTypes the creature types that make the save; empty for any
+     * @param whileTempHp   true when it strikes back only while its caster has temporary hit points, and ends once they
+     *                      are gone, as Armor of Agathys' cold (PHB p.215, D199); null otherwise, and left out of the JSON
      */
     public record Retaliation(String dice, String type,
                               @JsonInclude(JsonInclude.Include.NON_NULL) String ability,
                               @JsonInclude(JsonInclude.Include.NON_NULL) Integer dc,
                               @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> conditions,
-                              @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> attackerTypes) {
+                              @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> attackerTypes,
+                              @JsonInclude(JsonInclude.Include.NON_NULL) Boolean whileTempHp) {
 
         public Retaliation {
             conditions = conditions != null ? List.copyOf(conditions) : List.of();
             attackerTypes = attackerTypes != null ? List.copyOf(attackerTypes) : List.of();
+        }
+
+        /** A retaliation that lasts as long as its effect (D185, D195). */
+        public Retaliation(String dice, String type, String ability, Integer dc, List<String> conditions,
+                           List<String> attackerTypes) {
+            this(dice, type, ability, dc, conditions, attackerTypes, null);
+        }
+
+        /** Whether it lasts only while its caster has temporary hit points (D199). */
+        public boolean needsTempHp() {
+            return Boolean.TRUE.equals(whileTempHp);
         }
 
         /** Damage back, as Fire Shield's (D185). */

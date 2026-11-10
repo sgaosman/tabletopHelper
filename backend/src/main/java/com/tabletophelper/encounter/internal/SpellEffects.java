@@ -99,7 +99,8 @@ public class SpellEffects {
         }
         SpellTemplate template = found.get();
         int spellLevel = template.level();
-        boolean concentration = Boolean.TRUE.equals(template.concentration());
+        // Concentration that a higher slot drops, as Bestow Curse's from 5th level (PHB p.218, D199)
+        boolean concentration = template.concentrationAt(slotLevel);
         // A duration that grows with the slot, as Dominate Beast's (PHB p.234, D185)
         Integer durationRounds = template.durationRounds(slotLevel);
         boolean verbal = template.verbal();
@@ -415,8 +416,24 @@ public class SpellEffects {
         }
         List<SpellTemplate.ConditionInflicted> own = template.repeatEffect().replaces() ? List.of()
                 : given(template, option);
-        return planFor(template, spellName, template.repeatEffect(), true, own, slotLevel, caster,
-                castingAbility, attackBonus, saveDc, advantage);
+        return withOptionType(planFor(template, spellName, template.repeatEffect(), true, own, slotLevel, caster,
+                castingAbility, attackBonus, saveDc, advantage), option);
+    }
+
+    // A damage part of type OPTION deals the type chosen when cast, as Dragon's Breath's exhalation (XGE p.154, D199)
+    private static SpellPlan withOptionType(SpellPlan plan, String option) {
+        if (!plan.automated() || option == null
+                || plan.effect().damage().stream().noneMatch(part -> "option".equalsIgnoreCase(part.type()))) {
+            return plan;
+        }
+        Effect effect = plan.effect();
+        List<Effect.DamagePart> damage = effect.damage().stream()
+                .map(part -> "option".equalsIgnoreCase(part.type())
+                        ? new Effect.DamagePart(part.dice(), option.toLowerCase(Locale.ROOT)) : part)
+                .toList();
+        return new SpellPlan(plan.spellName(), plan.spellLevel(), new Effect(effect.name(), effect.delivery(), damage,
+                effect.healing(), effect.conditions(), effect.concentration(), effect.durationRounds(),
+                effect.conditionEnds()), null, plan.concentration(), plan.durationRounds(), plan.verbal());
     }
 
     /**
@@ -483,14 +500,22 @@ public class SpellEffects {
      */
     public record Later(String delayedDice, String delayedType, String delayedOn, Integer damageBudget,
                         String retaliationDice, String retaliationType, String turnReminder,
-                        SpellTemplate.Retaliation retaliationSave) {
+                        SpellTemplate.Retaliation retaliationSave, boolean retaliationWhileTempHp) {
 
-        public static final Later NONE = new Later(null, null, null, null, null, null, null, null);
+        public static final Later NONE = new Later(null, null, null, null, null, null, null, null, false);
 
         public Later(String delayedDice, String delayedType, String delayedOn, Integer damageBudget,
                      String retaliationDice, String retaliationType, String turnReminder) {
             this(delayedDice, delayedType, delayedOn, damageBudget, retaliationDice, retaliationType, turnReminder,
-                    null);
+                    null, false);
+        }
+
+        /** As the canonical constructor, with a retaliation that lasts as long as the effect. */
+        public Later(String delayedDice, String delayedType, String delayedOn, Integer damageBudget,
+                     String retaliationDice, String retaliationType, String turnReminder,
+                     SpellTemplate.Retaliation retaliationSave) {
+            this(delayedDice, delayedType, delayedOn, damageBudget, retaliationDice, retaliationType, turnReminder,
+                    retaliationSave, false);
         }
 
         public boolean any() {
@@ -502,6 +527,11 @@ public class SpellEffects {
         public SpellEffectEntry.Retaliation retaliation(int saveDc) {
             if (retaliationDice == null && retaliationSave == null) {
                 return null;
+            }
+            if (retaliationWhileTempHp && retaliationSave == null) {
+                // Armor of Agathys' cold, only while its caster has the spell's temporary hit points (PHB p.215, D199)
+                return new SpellEffectEntry.Retaliation(retaliationDice, retaliationType, null, null, List.of(),
+                        List.of(), true);
             }
             return retaliationSave == null ? new SpellEffectEntry.Retaliation(retaliationDice, retaliationType)
                     : new SpellEffectEntry.Retaliation(retaliationDice, retaliationType,
@@ -532,10 +562,18 @@ public class SpellEffects {
             }
         }
         SpellTemplate.Retaliation retaliation = template.retaliation();
-        return new Later(delayedDice, delayedType, delayedOn, template.damageBudget(),
-                retaliation != null ? retaliation.damageDice() : null,
+        String retaliationDice = retaliation != null ? retaliation.damageDice() : null;
+        int perSlot = template.retaliationPerSlotLevel();
+        if (retaliationDice != null && perSlot != 0 && template.level() > 0 && slotLevel > template.level()) {
+            // A flat amount more for each slot level above the spell's, as Armor of Agathys' 5 (PHB p.215, D199)
+            Dice base = Dice.parse(retaliationDice.replace(" ", ""));
+            retaliationDice = new Dice(base.count(), base.sides(),
+                    base.modifier() + perSlot * (slotLevel - template.level())).toString().replace(" ", "");
+        }
+        return new Later(delayedDice, delayedType, delayedOn, template.damageBudget(), retaliationDice,
                 retaliation != null ? retaliation.typeFor(option) : null, template.turnReminder(),
-                retaliation != null && retaliation.saveAbility() != null ? retaliation : null);
+                retaliation != null && retaliation.saveAbility() != null ? retaliation : null,
+                template.retaliationWhileTempHp());
     }
 
     /**
@@ -554,6 +592,83 @@ public class SpellEffects {
     /** The temporary hit points a cast with the option gives each creature it affects (D185); null for none. */
     public Integer tempHitPoints(String spellName, String option) {
         return template(spellName).map(template -> template.tempHitPoints(option)).orElse(null);
+    }
+
+    /**
+     * As {@link #tempHitPoints(String, String)}, cast with a slot of slotLevel, which may add more, as Armor of Agathys'
+     * 5 for each slot level above 1st (PHB p.215, D199).
+     */
+    public Integer tempHitPoints(String spellName, String option, int slotLevel) {
+        return template(spellName).map(template -> template.tempHitPoints(option, slotLevel)).orElse(null);
+    }
+
+    // ── The condition, summoning and low-level spells' keys (D199) ──
+
+    /** The hit-point pool a cast spends, as Sleep's (PHB p.276, D199); null for none. */
+    public SpellTemplate.HpPool hpPool(String spellName) {
+        return template(spellName).map(SpellTemplate::hpPool).orElse(null);
+    }
+
+    /**
+     * The pool's dice cast with a slot of slotLevel: its own, with its upcast dice for each slot level above the
+     * spell's, as Sleep's 5d8 + 2d8 for each (PHB p.276, D199); the upcast dice are assumed to have the same sides.
+     * Null for a spell without a pool.
+     */
+    public Dice hpPoolDice(String spellName, int slotLevel) {
+        Optional<SpellTemplate> found = template(spellName);
+        SpellTemplate.HpPool pool = found.map(SpellTemplate::hpPool).orElse(null);
+        if (pool == null) {
+            return null;
+        }
+        Dice base = Dice.parse(pool.dice().replace(" ", ""));
+        int above = Math.max(0, slotLevel - found.get().level());
+        if (pool.upcastDice() == null || above == 0) {
+            return base;
+        }
+        Dice each = Dice.parse(pool.upcastDice().replace(" ", ""));
+        return new Dice(base.count() + above * each.count(), base.sides(), base.modifier());
+    }
+
+    /** Whether a cast leaves a Spell Effect the app resolves nothing of, so it shows and expires (D199). */
+    public boolean keepsEffect(String spellName) {
+        return template(spellName).map(SpellTemplate::keepsEffect).orElse(false);
+    }
+
+    /** Whether the creature the spell touched, not its caster, uses its effect again, as Dragon's Breath's (D199). */
+    public boolean usedByTarget(String spellName) {
+        return template(spellName).map(SpellTemplate::usedByTarget).orElse(false);
+    }
+
+    /** The hit points the spell returns a dead creature to life with, as Revivify's 1 (D199); null for none. */
+    public Integer revivesDead(String spellName) {
+        return template(spellName).map(SpellTemplate::revivesDead).orElse(null);
+    }
+
+    /** What a cast gives its caster to use later from a resource pool, as Goodberry's berries (D199); null for none. */
+    public SpellTemplate.SpellPool spellPool(String spellName) {
+        return template(spellName).map(SpellTemplate::spellPool).orElse(null);
+    }
+
+    /** How many rounds the spell lasts cast with a slot of slotLevel, null until dispelled (D185, D199). */
+    public Integer durationRounds(String spellName, int slotLevel) {
+        return template(spellName).map(template -> template.durationRounds(slotLevel)).orElse(null);
+    }
+
+    /** Whether the spell's duration grows with the slot, so a slot may make it last until dispelled (D199). */
+    public boolean durationScales(String spellName) {
+        return template(spellName).map(SpellTemplate::durationScales).orElse(false);
+    }
+
+    /**
+     * Whether the spell needs concentration cast with a slot of slotLevel (D199): as {@link #concentration(String)},
+     * unless a higher slot drops it, as Bestow Curse's from 5th level (PHB p.218).
+     */
+    public boolean concentration(String spellName, int slotLevel) {
+        Optional<SpellTemplate> found = template(spellName);
+        if (found.isPresent() && found.get().concentration() != null) {
+            return found.get().concentrationAt(slotLevel);
+        }
+        return concentration(spellName);
     }
 
     /**
@@ -873,10 +988,14 @@ public class SpellEffects {
             List<String> types = definition.damageTypes().stream()
                     .map(type -> "OPTION".equalsIgnoreCase(type) && option != null ? option : type)
                     .toList();
+            // An attacker type of OPTION is the type chosen, as Magic Circle's (PHB p.256, D199)
+            List<String> attackers = definition.attackerTypes().stream()
+                    .map(type -> "OPTION".equalsIgnoreCase(type) && option != null ? option : type)
+                    .toList();
             modifiers.add(new OngoingModifier(UUID.randomUUID(), definition.kind(), definition.scope(), dice, flat,
                     definition.mode(), definition.ability(), types, definition.weaponOnly(), definition.meleeOnly(),
                     definition.oneShot(), definition.until(), false, definition.requires(),
-                    definition.attackerTypes(), definition.condition(), definition.skill()));
+                    attackers, definition.condition(), definition.skill()));
         }
         return new ModifierPlan(modifiers, option, template.modifierRepeatSave(), template.reminder(),
                 template.endReminder(), template.durationRounds(slotLevel), notes);
@@ -1279,6 +1398,12 @@ public class SpellEffects {
                             .map(ability -> new Effect.DamageSave(ability, saveDc, condition.damageSaveAdvantage()))
                             .orElse(null)
                     : null;
+            // Until the end of the caster's next turn, as Color Spray's blindness (PHB p.222, D199): a round on, at the
+            // end of the caster's turn, a spell being cast on the caster's own turn (rules call)
+            if (condition.untilCasterTurnEnd()) {
+                ends.put(name, new Effect.ConditionEnd(1, repeatSave, null, true));
+                continue;
+            }
             if (condition.durationRounds() != null || repeatSave != null || condition.endsOnAttackOrCast()
                     || condition.endsOnDamage() || onDamage != null) {
                 Effect.ConditionEnd end = new Effect.ConditionEnd(condition.durationRounds(), repeatSave, null, false,

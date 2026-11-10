@@ -122,7 +122,9 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
          * The creature deals only half damage with weapon attacks that use Strength, as under Ray of Enfeeblement (PHB
          * p.271, D197).
          */
-        HALF_STRENGTH_DAMAGE
+        HALF_STRENGTH_DAMAGE,
+        /** The creature can't attack or cast spells, as in Gaseous Form (PHB p.242, D199). */
+        CANT_ATTACK_OR_CAST
     }
 
     /** Whose rolls a modifier changes. */
@@ -245,6 +247,7 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
             case TRUESIGHT -> "truesight";
             case SPELL_IMMUNITY -> "spells of level " + flat + " or lower cast from outside have no effect";
             case HALF_STRENGTH_DAMAGE -> "half damage with weapon attacks that use Strength";
+            case CANT_ATTACK_OR_CAST -> "can't attack or cast spells";
         } + (until != null ? " (" + untilWords() + ")" : "");
     }
 

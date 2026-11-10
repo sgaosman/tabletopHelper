@@ -19,6 +19,7 @@ import com.tabletophelper.rules.combat.Resolver;
 import com.tabletophelper.rules.combat.RollMode;
 import com.tabletophelper.rules.combat.SpellTrigger;
 import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -136,7 +137,11 @@ public class SpellCaster {
                     saveDc, costNote, metamagic, option);
         }
 
-        if (!plan.automated()) {
+        // A summoning resolves through its summon step whatever its template says (D182, D199)
+        if (!plan.automated() || summoning != null) {
+            if (summoning != null && plan.verbal() && silenced(caster) && !metamagic.has(Metamagic.Option.SUBTLE)) {
+                throw new ConflictException("Cannot cast spells with verbal components while silenced");
+            }
             ConcentrationInstance instance = plan.concentration()
                     ? effectApplier.startConcentration(encounter, caster, spellName, slotLevel, plan.durationRounds())
                     : null;
@@ -144,6 +149,13 @@ public class SpellCaster {
             String summary = lead + " — " + (summoning != null ? summoning.castNote() : plan.manualReason())
                     + forTheDm(metamagic, targets);
             effectApplier.summary(encounter, use(caster, spellName, costNote, instance), summary);
+            // What the DM still applies, as a familiar's touch spells (PHB p.240) or a Glyph of Warding's trigger (PHB
+            // p.245) (D199)
+            String reminder = spellEffects.castReminder(spellName);
+            if (reminder != null) {
+                effectApplier.summary(encounter, use(caster, spellName, costNote, instance), spellName + ": " + reminder);
+                summary += " " + reminder;
+            }
             // A summoning with an option may give its caster Ongoing Modifiers for it, as Summon Draconic Spirit's
             // Shared Resistances, a resistance the spirit has, until the spell ends (FTD p.21)
             ModifierCast onCaster = summoning != null && option != null
@@ -153,7 +165,7 @@ public class SpellCaster {
                     : ModifierCast.NONE;
             leaveEffect(encounter, caster, spellName, slotLevel, instance, false, metamagic, onCaster,
                     spellEffects.later(spellName, slotLevel, option), List.of(), 0,
-                    stats.spellcastingModifier(caster, castingAbility, attackBonus));
+                    stats.spellcastingModifier(caster, castingAbility, attackBonus), option);
             return new CastResult(spellName, plan.spellLevel(), plan.concentration(), manualReason, summary,
                     List.of());
         }
@@ -165,6 +177,11 @@ public class SpellCaster {
         Effect effect = lifeDomainHealing(caster, plan.effect(), plan.spellLevel(), slotLevel);
         lead += lifeDomainNote(caster, plan.effect(), plan.spellLevel(), slotLevel);
         List<EncounterParticipant> reached = effect.delivery() instanceof Effect.Self ? List.of(caster) : targets;
+        // A spell that returns the dead to life reaches only dead creatures, as Revivify (PHB p.272, D199)
+        Integer revives = spellEffects.revivesDead(spellName);
+        if (revives != null) {
+            return revive(encounter, caster, spellName, plan.spellLevel(), reached, lead, costNote, revives);
+        }
         CombatAccess.requireNotDead(reached);
         CombatAccess.requireReachable(caster, reached);
         requireTargetTypes(spellName, reached);
@@ -217,10 +234,13 @@ public class SpellCaster {
                 .filter(target -> !globed.contains(target) && !immune.contains(target) && !unaffected.contains(target)
                         && !spared.contains(target) && ofType(target, types.maximumDamageTo()))
                 .toList();
-        List<EncounterParticipant> normal = reached.stream()
+        List<EncounterParticipant> eligible = reached.stream()
                 .filter(target -> !globed.contains(target) && !immune.contains(target) && !unaffected.contains(target)
                         && !spared.contains(target) && !maximised.contains(target))
                 .toList();
+        // A pool of hit points that reaches the creatures lowest first, as Sleep's (PHB p.276, D199)
+        List<EncounterParticipant> normal = spellEffects.hpPool(spellName) == null ? eligible
+                : withinPool(encounter, use, spellName, slotLevel, eligible);
         if (!spared.isEmpty()) {
             effectApplier.summary(encounter, use, spellName + " has no effect on " + spared.stream()
                     .map(target -> target.getDisplayName() + " (" + (sparedWhy(target, seventh) != null
@@ -286,7 +306,7 @@ public class SpellCaster {
         SpellEffects.ModifierPlan modifiers = spellEffects.modifiers(spellName, slotLevel, option,
                 spellcastingModifier, underModifiers.isEmpty() ? null : underModifiers.getFirst());
         // Temporary hit points the cast gives, as Guardian of Nature's Great Tree's (XGE p.157, D185)
-        Integer tempHp = spellEffects.tempHitPoints(spellName, option);
+        Integer tempHp = spellEffects.tempHitPoints(spellName, option, slotLevel);
         if (tempHp != null) {
             affected.forEach(creature -> effectApplier.gainTempHp(encounter, caster, creature, tempHp, spellName));
         }
@@ -304,12 +324,13 @@ public class SpellCaster {
         boolean spentOne = !reached.isEmpty() && !(effect.delivery() instanceof Effect.Self);
         String modifierNote = leaveEffect(encounter, caster, spellName, slotLevel, instance, spentOne,
                 metamagic, new ModifierCast(modifiers, underModifiers, saveDc), later, delayedOn, dealt,
-                spellcastingModifier);
+                spellcastingModifier, option);
         String fifthNote = afterCast(encounter, caster, spellName, option, use, instance, reached, applied,
                 affected, saveDc, castingAbility, attackBonus);
         String seventhNote = afterSeventh(encounter, caster, spellName, slotLevel, option, use, seventh, normal,
                 applied, saveDc);
-        String highNote = afterHighLevelCast(encounter, caster, spellName, slotLevel, high, use, affected);
+        String highNote = afterHighLevelCast(encounter, caster, spellName, slotLevel, high, use, affected)
+                + givePool(encounter, caster, spellName, use);
         // What the DM still rolls for a spell with no Ongoing Modifiers to carry its reminder, as Heat Metal's drop
         // save (PHB p.250, D197)
         String reminder = spellEffects.castReminder(spellName);
@@ -346,7 +367,7 @@ public class SpellCaster {
         String note = leaveEffect(encounter, caster, spellName, slotLevel, instance, false, metamagic,
                 new ModifierCast(spellEffects.modifiers(spellName, slotLevel, option, spellcastingModifier, null),
                         List.of(), saveDc),
-                spellEffects.later(spellName, slotLevel, option), List.of(), 0, spellcastingModifier);
+                spellEffects.later(spellName, slotLevel, option), List.of(), 0, spellcastingModifier, option);
         String uses = EffectApplier.effects(caster).stream()
                 .filter(effect -> effect.spell().equalsIgnoreCase(spellName) && effect.usesLeft() != null)
                 .reduce((first, second) -> second)
@@ -378,6 +399,99 @@ public class SpellCaster {
                 .toList();
         notes.forEach(note -> effectApplier.summary(encounter, use, note));
         return notes.isEmpty() ? "" : " " + String.join(" ", notes);
+    }
+
+    /**
+     * The creatures a pool of hit points reaches (D199), as Sleep's 5d8 (PHB p.276) and Color Spray's 6d10 (PHB p.222):
+     * the pool rolled, with its upcast dice, then each of the creatures in turn from the lowest current hit points whose
+     * hit points are no more than what is left, which they take from it. Those beyond it are named in the log.
+     */
+    private List<EncounterParticipant> withinPool(Encounter encounter, EffectApplier.Use use, String spellName,
+                                                  int slotLevel, List<EncounterParticipant> creatures) {
+        Dice dice = spellEffects.hpPoolDice(spellName, slotLevel);
+        List<Integer> rolls = new ArrayList<>();
+        for (int i = 0; i < dice.count(); i++) {
+            rolls.add(resolver.roll(dice.sides()));
+        }
+        int pool = dice.total(rolls.stream().mapToInt(Integer::intValue).sum());
+        List<EncounterParticipant> reached = poolReach(pool, creatures);
+        int left = pool - reached.stream().mapToInt(EncounterParticipant::getHpCurrent).sum();
+        List<EncounterParticipant> beyond = creatures.stream().filter(creature -> !reached.contains(creature)).toList();
+        String text = spellName + ": " + dice + " (" + rolls.stream().map(String::valueOf)
+                .collect(Collectors.joining(", ")) + ") = " + pool + " hit points, lowest first"
+                + (reached.isEmpty() ? "; it reaches no one"
+                        : "; it reaches " + reached.stream().map(creature -> creature.getDisplayName() + " ("
+                                + creature.getHpCurrent() + " HP)").collect(Collectors.joining(", "))
+                        + ", " + left + " left")
+                + (beyond.isEmpty() ? "" : "; " + beyond.stream().map(creature -> creature.getDisplayName() + " ("
+                        + creature.getHpCurrent() + " HP)").collect(Collectors.joining(", ")) + " "
+                        + (beyond.size() == 1 ? "is" : "are") + " beyond it") + ".";
+        effectApplier.summary(encounter, use, text);
+        return reached;
+    }
+
+    /**
+     * The creatures a pool of hit points reaches (PHB p.276): in ascending order of current hit points, each whose hit
+     * points are equal to or less than what is left of the pool, which subtracts them; a creature at 0 hit points is
+     * passed over (D199). Ties keep the order given.
+     */
+    static List<EncounterParticipant> poolReach(int pool, List<EncounterParticipant> creatures) {
+        List<EncounterParticipant> order = creatures.stream()
+                .filter(creature -> creature.getHpCurrent() != null && creature.getHpCurrent() > 0)
+                .sorted(java.util.Comparator.comparingInt(EncounterParticipant::getHpCurrent))
+                .toList();
+        List<EncounterParticipant> reached = new ArrayList<>();
+        int left = pool;
+        for (EncounterParticipant creature : order) {
+            if (creature.getHpCurrent() > left) {
+                break;
+            }
+            reached.add(creature);
+            left -= creature.getHpCurrent();
+        }
+        return reached;
+    }
+
+    /*
+     * A spell that returns the dead to life, as Revivify (PHB p.272, D199): each target must be dead, and returns with
+     * the hit points the template names. How long ago it died, and the diamond the spell consumes, are the DM's.
+     */
+    private CastResult revive(Encounter encounter, EncounterParticipant caster, String spellName, int spellLevel,
+                              List<EncounterParticipant> targets, String lead, String costNote, int hp) {
+        if (targets.isEmpty()) {
+            throw new ValidationException("Choose the dead creature " + spellName + " returns to life");
+        }
+        for (EncounterParticipant target : targets) {
+            if (target.getLifeState() != LifeState.DEAD) {
+                throw new ConflictException(target.getDisplayName() + " isn't dead; " + spellName
+                        + " returns only a creature that has died");
+            }
+        }
+        EffectApplier.Use use = use(caster, spellName, costNote, null);
+        effectApplier.summary(encounter, use, lead + ".");
+        for (EncounterParticipant target : targets) {
+            effectApplier.revive(encounter, caster, target, hp, spellName);
+        }
+        String reminder = spellEffects.castReminder(spellName);
+        if (reminder != null) {
+            effectApplier.summary(encounter, use, spellName + ": " + reminder);
+        }
+        return new CastResult(spellName, spellLevel, false, null, lead + ": " + names(targets) + " returns to life with "
+                + hp + " HP." + (reminder != null ? " " + reminder : ""), List.of());
+    }
+
+    // What a cast gives its caster to use later from a pool, as Goodberry's ten berries (PHB p.246, D199); the log's note
+    private String givePool(Encounter encounter, EncounterParticipant caster, String spellName, EffectApplier.Use use) {
+        SpellTemplate.SpellPool pool = spellEffects.spellPool(spellName);
+        if (pool == null || caster.getLifeState() == LifeState.DEAD) {
+            return "";
+        }
+        int held = effectApplier.addSpellPool(caster, spellName, pool);
+        String text = caster.getDisplayName() + " holds " + held + " " + pool.name().toLowerCase(java.util.Locale.ROOT)
+                + (pool.heals() > 0 ? ", each restoring " + pool.heals() + " hit point" + (pool.heals() == 1 ? "" : "s")
+                        + " to the creature that eats it with its action" : "") + ".";
+        effectApplier.summary(encounter, use, text);
+        return " " + text;
     }
 
     // Whether the creature's score in the floor's ability is at or below it (D190)
@@ -1096,6 +1210,11 @@ public class SpellCaster {
      * @throws ConflictException while such an effect lasts
      */
     public void requireCanCast(EncounterParticipant caster) {
+        // A creature in Gaseous Form can't cast spells (PHB p.242, D199)
+        String barred = ActiveModifiers.barredFromAttacking(caster);
+        if (barred != null) {
+            throw new ConflictException(caster.getDisplayName() + " can't cast spells while " + barred + " lasts");
+        }
         for (SpellEffectEntry effect : EffectApplier.effects(caster)) {
             if (spellEffects.castRules(effect.spell()).blocksCasting()) {
                 throw new ConflictException(caster.getDisplayName() + " can't cast spells while " + effect.spell()
@@ -1298,8 +1417,9 @@ public class SpellCaster {
      */
     public String startActive(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
                               List<EncounterParticipant> targets, String option) {
-        boolean concentration = spellEffects.concentration(spellName);
-        Integer rounds = spellEffects.durationOf(spellName);
+        boolean concentration = spellEffects.concentration(spellName, slotLevel);
+        Integer rounds = spellEffects.durationScales(spellName) ? spellEffects.durationRounds(spellName, slotLevel)
+                : spellEffects.durationOf(spellName);
         ConcentrationInstance instance = concentration
                 ? effectApplier.startConcentration(encounter, caster, spellName, slotLevel > 0 ? slotLevel : null,
                         rounds)
@@ -1317,7 +1437,7 @@ public class SpellCaster {
         String note = leaveEffect(encounter, caster, spellName, slotLevel, instance, false, MetamagicCasting.Plan.NONE,
                 new ModifierCast(modifiers, affected,
                         caster.getSpellSaveDc() != null ? caster.getSpellSaveDc() : 10),
-                spellEffects.later(spellName, slotLevel, option), List.of(), 0, spellcastingModifier);
+                spellEffects.later(spellName, slotLevel, option), List.of(), 0, spellcastingModifier, option);
         return summary + note;
     }
 
@@ -1388,7 +1508,7 @@ public class SpellCaster {
     private String leaveEffect(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
                                ConcentrationInstance instance, boolean spentOne, MetamagicCasting.Plan metamagic,
                                ModifierCast modifiers, SpellEffects.Later later, List<EncounterParticipant> delayedOn,
-                               int dealt, int spellcastingModifier) {
+                               int dealt, int spellcastingModifier, String option) {
         // Uses that grow with the caster's modifier, as Healing Spirit's heals (XGE p.157, D199)
         Optional<SpellEffects.Lasting> lasting = spellEffects.lasting(spellName, slotLevel, spellcastingModifier);
         SpellEffects.ModifierPlan plan = modifiers.plan();
@@ -1400,7 +1520,9 @@ public class SpellCaster {
                 || later.retaliationSave() != null
                 || later.turnReminder() != null || spellEffects.fifthLevel(spellName).keepsEffect()
                 || spellEffects.seventhLevel(spellName).keepsEffect()
-                || spellEffects.highLevel(spellName).keepsEffect();
+                || spellEffects.highLevel(spellName).keepsEffect()
+                // A spell whose lasting effect is the DM's to apply still shows and expires (D199)
+                || spellEffects.keepsEffect(spellName);
         if (lasting.isEmpty() && !withModifiers && !forLater && delayedOn.isEmpty()) {
             return notes;
         }
@@ -1425,6 +1547,8 @@ public class SpellCaster {
         boolean endsByTurns = !plan.modifiers().isEmpty() && plan.modifiers().stream().allMatch(m -> m.until() != null);
         Integer rounds = lasting.isPresent() ? lasting.get().durationRounds()
                 : endsByTurns ? null : plan.durationRounds() != null ? plan.durationRounds()
+                // A duration by slot may last until dispelled, as Bestow Curse's from a 9th-level slot (D199)
+                : spellEffects.durationScales(spellName) ? spellEffects.durationRounds(spellName, slotLevel)
                 : spellEffects.durationOf(spellName);
         if (rounds != null && metamagic.has(Metamagic.Option.EXTENDED)) {
             rounds = Metamagic.extendedRounds(rounds);
@@ -1440,6 +1564,13 @@ public class SpellCaster {
         delayedOn.forEach(target -> effectApplier.delay(caster, effect.id(), target, later.delayedDice(),
                 later.delayedType()));
         if (!withModifiers) {
+            // The option chosen, and the creatures reached by a spell its target uses or one kept for the DM, as
+            // Dragon's Breath's touched creature (XGE p.154), Alter Self's natural weapons (PHB p.211) or Bestow
+            // Curse's wasted actions (PHB p.218) (D199)
+            boolean holdsCreatures = spellEffects.usedByTarget(spellName) || spellEffects.keepsEffect(spellName);
+            if (holdsCreatures) {
+                effectApplier.holdFor(caster, effect.id(), modifiers.affected(), option);
+            }
             effectApplier.spendBudget(encounter, caster, effect.id(), dealt);
             return notes;
         }

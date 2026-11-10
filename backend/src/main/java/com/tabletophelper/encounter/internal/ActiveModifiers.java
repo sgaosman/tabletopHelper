@@ -84,6 +84,18 @@ public final class ActiveModifiers {
         return mostPotent(mine);
     }
 
+    /**
+     * The spell that keeps the participant from attacking and casting spells, as Gaseous Form (PHB p.242, D199): one
+     * whose Ongoing Modifiers on it include {@link OngoingModifier.Kind#CANT_ATTACK_OR_CAST}; null for none.
+     */
+    public static String barredFromAttacking(EncounterParticipant participant) {
+        return on(participant).stream()
+                .filter(found -> found.modifier().kind() == OngoingModifier.Kind.CANT_ATTACK_OR_CAST)
+                .map(found -> found.effect().spell())
+                .findFirst()
+                .orElse(null);
+    }
+
     /** As {@link #on}, the modifiers alone. */
     public static List<OngoingModifier> modifiersOn(EncounterParticipant participant) {
         return on(participant).stream().map(Found::modifier).toList();
