@@ -7,6 +7,7 @@ import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.reference.SpellTemplate;
+import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.Effect;
@@ -152,18 +153,34 @@ public class SpellCaster {
         effectApplier.summary(encounter, use, lead + ".");
         // The creature types a spell ignores or treats harder, as Blight's undead and plants (PHB p.219, D185)
         SpellEffects.TypeRules types = spellEffects.typeRules(spellName);
+        SpellEffects.SeventhLevel seventh = spellEffects.seventhLevel(spellName);
         List<EncounterParticipant> unaffected = reached.stream()
                 .filter(target -> ofType(target, types.noEffectOn()))
                 .toList();
+        // Too many hit points, as for Power Word Pain (XGE p.163), or a condition that keeps the spell from reaching it,
+        // as deafness does Divine Word (PHB p.234) (D189)
+        List<EncounterParticipant> spared = reached.stream()
+                .filter(target -> !unaffected.contains(target) && spared(target, seventh))
+                .toList();
         List<EncounterParticipant> maximised = reached.stream()
-                .filter(target -> !unaffected.contains(target) && ofType(target, types.maximumDamageTo()))
+                .filter(target -> !unaffected.contains(target) && !spared.contains(target)
+                        && ofType(target, types.maximumDamageTo()))
                 .toList();
         List<EncounterParticipant> normal = reached.stream()
-                .filter(target -> !unaffected.contains(target) && !maximised.contains(target))
+                .filter(target -> !unaffected.contains(target) && !spared.contains(target)
+                        && !maximised.contains(target))
                 .toList();
+        if (!spared.isEmpty()) {
+            effectApplier.summary(encounter, use, spellName + " has no effect on " + spared.stream()
+                    .map(target -> target.getDisplayName() + " (" + sparedWhy(target, seventh) + ")")
+                    .collect(Collectors.joining(", ")) + ".");
+        }
         List<EffectApplier.Applied> applied = new ArrayList<>();
-        // With no targets at all the spell still resolves, rolling its dice as before (D177)
-        if (!normal.isEmpty() || maximised.isEmpty()) {
+        if (!seventh.rays().isEmpty()) {
+            // A table each creature rolls on, as Prismatic Spray's d8 (PHB p.267, D189)
+            applied.addAll(rays(encounter, caster, use, spellName, effect, seventh.rays(), normal, saveDc));
+        } else if (!normal.isEmpty() || maximised.isEmpty()) {
+            // With no targets at all the spell still resolves, rolling its dice as before (D177)
             List<Resolver.Target> resolvedAgainst = stats.targets(normal, effect, caster).stream()
                     .map(target -> withMetamagic(target, metamagic))
                     .toList();
@@ -208,12 +225,264 @@ public class SpellCaster {
                 .filter(target -> target.getLifeState() != LifeState.DEAD)
                 .toList();
         int dealt = applied.stream().mapToInt(EffectApplier.Applied::damageTaken).sum();
-        String modifierNote = leaveEffect(encounter, caster, spellName, slotLevel, instance, !reached.isEmpty(),
+        // A spell on its caster that leaves uses, as Crown of Stars' motes (XGE p.152, D189), spends none by being cast
+        boolean spentOne = !reached.isEmpty() && !(effect.delivery() instanceof Effect.Self);
+        String modifierNote = leaveEffect(encounter, caster, spellName, slotLevel, instance, spentOne,
                 metamagic, new ModifierCast(modifiers, affected, saveDc), later, delayedOn, dealt);
         String fifthNote = afterCast(encounter, caster, spellName, option, use, instance, reached, applied,
                 affected, saveDc, castingAbility, attackBonus);
+        String seventhNote = afterSeventh(encounter, caster, spellName, slotLevel, option, use, seventh, normal,
+                applied, saveDc);
         return new CastResult(spellName, plan.spellLevel(), plan.concentration(), null,
-                summary(lead, applied) + typeNote + modifierNote + fifthNote, outcomes(effect, applied));
+                summary(lead, applied) + typeNote + modifierNote + fifthNote + seventhNote, outcomes(effect, applied));
+    }
+
+    // Whether the 7th-level keys spare the creature (D189): more hit points than the spell allows, or a condition that
+    // keeps the spell from it
+    private static boolean spared(EncounterParticipant target, SpellEffects.SeventhLevel seventh) {
+        return sparedWhy(target, seventh) != null;
+    }
+
+    private static String sparedWhy(EncounterParticipant target, SpellEffects.SeventhLevel seventh) {
+        if (seventh.maxTargetHp() != null && target.getHpCurrent() != null
+                && target.getHpCurrent() > seventh.maxTargetHp()) {
+            return target.getHpCurrent() + " HP, above " + seventh.maxTargetHp();
+        }
+        List<String> has = CreatureStats.conditionNames(target);
+        return seventh.noEffectOnConditions().stream()
+                .filter(wanted -> has.stream().anyMatch(wanted::equalsIgnoreCase))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /*
+     * Prismatic Spray's rays (PHB p.267, D189): each creature rolls the table's die, a row that strikes twice rolling two
+     * more with that row rerolled, and makes the spell's one save against all its rows together: the damage of each,
+     * of its own type, halved on a success, and the conditions of each on a failure. A creature that fails against a row
+     * with counted saves starts counting them, as the indigo ray's Constitution saves; a row's reminder is logged for one
+     * that fails, as the violet ray's Wisdom save at the start of the caster's next turn.
+     */
+    private List<EffectApplier.Applied> rays(Encounter encounter, EncounterParticipant caster, EffectApplier.Use use,
+                                             String spellName, Effect cast, List<SpellTemplate.Ray> table,
+                                             List<EncounterParticipant> creatures, int saveDc) {
+        if (!(cast.delivery() instanceof Effect.Save save)) {
+            return List.of();
+        }
+        int sides = table.stream().mapToInt(SpellTemplate.Ray::roll).max().orElse(8);
+        List<EffectApplier.Applied> applied = new ArrayList<>();
+        Map<SpellTemplate.CountedSaves, List<EncounterParticipant>> counting = new LinkedHashMap<>();
+        List<String> reminders = new ArrayList<>();
+        for (EncounterParticipant creature : creatures) {
+            List<SpellTemplate.Ray> struck = new ArrayList<>();
+            List<Integer> rolls = new ArrayList<>();
+            SpellTemplate.Ray first = ray(table, rolls, sides);
+            if (first.rollsTwice()) {
+                struck.add(reroll(table, rolls, sides));
+                struck.add(reroll(table, rolls, sides));
+            } else {
+                struck.add(first);
+            }
+            List<Effect.DamagePart> damage = new ArrayList<>();
+            List<String> conditions = new ArrayList<>();
+            Map<String, Effect.ConditionEnd> ends = new LinkedHashMap<>();
+            for (SpellTemplate.Ray ray : struck) {
+                if (ray.damageDice() != null) {
+                    damage.add(new Effect.DamagePart(Dice.parse(ray.damageDice().trim()), ray.damageType()));
+                }
+                for (SpellTemplate.ConditionInflicted condition : ray.conditions()) {
+                    if (condition.name() != null && !conditions.contains(condition.name())) {
+                        conditions.add(condition.name());
+                        if (condition.durationRounds() != null) {
+                            ends.put(condition.name(), new Effect.ConditionEnd(condition.durationRounds(), null, null,
+                                    false));
+                        }
+                    }
+                }
+            }
+            effectApplier.summary(encounter, use, creature.getDisplayName() + " is struck by the "
+                    + struck.stream().map(ray -> ray.color() != null ? ray.color() : "#" + ray.roll())
+                            .collect(Collectors.joining(" and ")) + " ray" + (struck.size() > 1 ? "s" : "")
+                    + " (d" + sides + ": " + rolls.stream().map(String::valueOf).collect(Collectors.joining(", "))
+                    + ").");
+            Effect each = new Effect(spellName, save, damage, null, conditions, false, null, ends);
+            List<EffectApplier.Applied> result = effectApplier.apply(encounter, use, each,
+                    resolver.resolve(each, CreatureStats.side(caster), stats.targets(List.of(creature), each, caster)));
+            applied.addAll(result);
+            boolean failed = result.stream().anyMatch(r -> r.outcome().outcome() == Outcome.SAVE_FAIL)
+                    && creature.getLifeState() != LifeState.DEAD;
+            if (failed) {
+                for (SpellTemplate.Ray ray : struck) {
+                    if (ray.countedSaves() != null) {
+                        counting.computeIfAbsent(ray.countedSaves(), key -> new ArrayList<>()).add(creature);
+                    }
+                    if (ray.reminder() != null) {
+                        reminders.add(creature.getDisplayName() + ": " + ray.reminder().replace("{dc}",
+                                String.valueOf(saveDc)).replace("{caster}", caster.getDisplayName()));
+                    }
+                }
+            }
+        }
+        if (!counting.isEmpty()) {
+            // The counts live on a Spell Effect of the spell's, which ends once every count is done (D187)
+            for (Map.Entry<SpellTemplate.CountedSaves, List<EncounterParticipant>> entry : counting.entrySet()) {
+                SpellTemplate.CountedSaves counted = entry.getKey();
+                SpellEffectEntry held = effectApplier.startEffect(encounter, caster, spellName, null, null, null, null,
+                        false);
+                effectApplier.startCountedSave(caster, held.id(), new SpellEffectEntry.CountedSave(counted.ability(),
+                        saveDc, counted.successes(), counted.failures(), counted.onFailures(),
+                        counted.endsConditions(), List.of(), counted.failureCondition()), entry.getValue());
+                effectApplier.summary(encounter, use, names(entry.getValue()) + " makes a " + counted.ability()
+                        + " save at the end of each of " + (entry.getValue().size() == 1 ? "its" : "their")
+                        + " turns: " + counted.successes() + " successes end it, " + counted.failures()
+                        + " failures leave it " + (counted.failureCondition() != null ? counted.failureCondition()
+                        : "as the spell says") + ".");
+            }
+        }
+        reminders.forEach(reminder -> effectApplier.summary(encounter, use, reminder));
+        return applied;
+    }
+
+    // The row the die lands on
+    private SpellTemplate.Ray ray(List<SpellTemplate.Ray> table, List<Integer> rolls, int sides) {
+        int roll = resolver.roll(sides);
+        rolls.add(roll);
+        return table.stream().filter(row -> row.roll() == roll).findFirst().orElse(table.getFirst());
+    }
+
+    // A row rolled again, a row that strikes twice being rerolled (PHB p.267)
+    private SpellTemplate.Ray reroll(List<SpellTemplate.Ray> table, List<Integer> rolls, int sides) {
+        SpellTemplate.Ray row = ray(table, rolls, sides);
+        int guard = 0;
+        while (row.rollsTwice() && guard++ < 20) {
+            row = ray(table, rolls, sides);
+        }
+        return row;
+    }
+
+    /*
+     * What the 7th-level spells' keys add once a cast has resolved (D189): the hit-point bands, as Divine Word's (PHB
+     * p.234), killing outright or giving conditions with their own durations; the creature types it sends away; the
+     * save a creature it hit makes next, as Plane Shift's (PHB p.266); the creatures it killed that rise, as Finger of
+     * Death's zombies (PHB p.241); and the detonation its Spell Effect holds, as Delayed Blast Fireball's (PHB p.230).
+     */
+    private String afterSeventh(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
+                                String option, EffectApplier.Use use, SpellEffects.SeventhLevel seventh,
+                                List<EncounterParticipant> reached, List<EffectApplier.Applied> applied, int saveDc) {
+        if (seventh.equals(SpellEffects.SeventhLevel.NONE)) {
+            return "";
+        }
+        List<String> notes = new ArrayList<>();
+        List<EncounterParticipant> reachedNow = applied.stream()
+                .filter(result -> switch (result.outcome().outcome()) {
+                    case HIT, CRITICAL, SAVE_FAIL, AUTOMATIC -> true;
+                    default -> false;
+                })
+                .map(EffectApplier.Applied::target)
+                .distinct()
+                .toList();
+        for (EncounterParticipant creature : reachedNow) {
+            if (creature.getLifeState() == LifeState.DEAD || seventh.bands().isEmpty()
+                    || creature.getHpCurrent() == null) {
+                continue;
+            }
+            int hp = creature.getHpCurrent();
+            Optional<SpellTemplate.HpBand> band = seventh.bands().stream().filter(b -> hp <= b.maxHp()).findFirst();
+            if (band.isEmpty()) {
+                notes.add(creature.getDisplayName() + " has " + hp + " HP, too many for " + spellName + " to harm.");
+                continue;
+            }
+            if (band.get().killsOutright()) {
+                notes.add(effectApplier.killOutright(encounter, caster, creature, spellName));
+                continue;
+            }
+            for (SpellTemplate.ConditionInflicted condition : band.get().conditions()) {
+                if (condition.name() != null) {
+                    effectApplier.addLastingCondition(encounter, caster, creature, condition.name(),
+                            condition.durationRounds(), spellName);
+                }
+            }
+            notes.add(creature.getDisplayName() + " (" + hp + " HP) is " + band.get().conditions().stream()
+                    .map(SpellTemplate.ConditionInflicted::name).filter(java.util.Objects::nonNull)
+                    .collect(Collectors.joining(", ")) + ".");
+        }
+        if (seventh.banishes() != null) {
+            for (EncounterParticipant creature : reachedNow) {
+                if (creature.getLifeState() != LifeState.DEAD && ofType(creature, seventh.banishes().types())
+                        && !CombatAccess.banished(creature)) {
+                    effectApplier.addLastingCondition(encounter, caster, creature, EffectApplier.BANISHED,
+                            seventh.banishes().durationRounds(), spellName);
+                    notes.add(creature.getDisplayName() + " (" + CreatureStats.typeForSpells(creature)
+                            + ") is sent back to its home plane.");
+                }
+            }
+        }
+        SpellTemplate.FollowUpSave followUp = seventh.followUp();
+        if (followUp != null && (followUp.option() == null || followUp.option().equalsIgnoreCase(option))) {
+            boolean afterSave = "FAILED_SAVE".equalsIgnoreCase(followUp.on());
+            List<EncounterParticipant> hit = applied.stream()
+                    .filter(result -> afterSave ? result.outcome().outcome() == Outcome.SAVE_FAIL
+                            : result.outcome().outcome() == Outcome.HIT
+                            || result.outcome().outcome() == Outcome.CRITICAL)
+                    .map(EffectApplier.Applied::target)
+                    .filter(target -> target.getLifeState() != LifeState.DEAD)
+                    .toList();
+            if (!hit.isEmpty()) {
+                Ability ability = Ability.parse(followUp.ability()).orElse(Ability.CHA);
+                List<String> conditions = followUp.conditions().stream().map(SpellTemplate.ConditionInflicted::name)
+                        .filter(java.util.Objects::nonNull).toList();
+                Map<String, Effect.ConditionEnd> ends = new LinkedHashMap<>();
+                followUp.conditions().stream().filter(c -> c.name() != null && c.durationRounds() != null)
+                        .forEach(c -> ends.put(c.name(), new Effect.ConditionEnd(c.durationRounds(), null, null,
+                                false)));
+                Effect then = new Effect(spellName, new Effect.Save(ability, saveDc, false), List.of(), null,
+                        conditions, false, null, ends);
+                effectApplier.summary(encounter, use, names(hit) + " makes a DC " + saveDc + " " + ability.name()
+                        + " save against " + spellName + ".");
+                effectApplier.apply(encounter, use, then, resolver.resolve(then,
+                        CreatureStats.side(caster), stats.targets(hit, then, caster)));
+            }
+        }
+        SpellTemplate.RaisesOnKill raises = seventh.raises();
+        if (raises != null) {
+            List<EncounterParticipant> killed = applied.stream()
+                    .map(EffectApplier.Applied::target)
+                    .distinct()
+                    .filter(target -> target.getLifeState() == LifeState.DEAD
+                            && (raises.creatureTypes().isEmpty() || ofType(target, raises.creatureTypes())))
+                    .toList();
+            if (!killed.isEmpty()) {
+                effectApplier.startRising(encounter, caster, spellName, slotLevel > 0 ? slotLevel : null, killed);
+                String text = names(killed) + " will rise as " + (killed.size() == 1 ? "a " : "") + raises.form()
+                        .toLowerCase(java.util.Locale.ROOT) + (killed.size() == 1 ? "" : "s") + " under "
+                        + caster.getDisplayName() + "'s command at the start of " + caster.getDisplayName()
+                        + "'s next turn.";
+                effectApplier.summary(encounter, use, text);
+                notes.add(text);
+            }
+        }
+        if (seventh.detonation() != null) {
+            Optional<SpellEffectEntry> left = EffectApplier.effects(caster).stream()
+                    .filter(effect -> effect.spell().equalsIgnoreCase(spellName))
+                    .reduce((first, second) -> second);
+            String dice = spellEffects.detonationDice(spellName, slotLevel);
+            if (left.isPresent() && dice != null) {
+                SpellTemplate.Detonation detonation = seventh.detonation();
+                List<EncounterParticipant> caught = reached.stream()
+                        .filter(target -> target.getLifeState() != LifeState.DEAD).toList();
+                effectApplier.startDetonation(caster, left.get().id(), new SpellEffectEntry.Detonation(dice,
+                        detonation.damageType(), detonation.saveAbility(), saveDc, detonation.halfOnSave(),
+                        detonation.growsEachTurn()), caught);
+                String text = "The bead holds " + dice + " " + detonation.damageType() + (detonation.growsEachTurn()
+                        != null ? ", " + detonation.growsEachTurn() + " more at the end of each of "
+                        + caster.getDisplayName() + "'s turns," : "") + " and explodes over "
+                        + (caught.isEmpty() ? "no one yet" : names(caught)) + " when the spell ends.";
+                effectApplier.summary(encounter, use, text);
+                notes.add(text);
+            }
+        }
+        String joined = notes.stream().filter(note -> note != null && !note.isBlank())
+                .collect(Collectors.joining(" "));
+        return joined.isEmpty() ? "" : " " + joined;
     }
 
     /*
@@ -541,7 +810,8 @@ public class SpellCaster {
         boolean withModifiers = plan.any() && (!modifiers.affected().isEmpty() || lasting.isPresent());
         String notes = plan.notes().isEmpty() ? "" : " " + String.join(". ", plan.notes()) + ".";
         boolean forLater = later.damageBudget() != null || later.retaliationDice() != null
-                || later.turnReminder() != null || spellEffects.fifthLevel(spellName).keepsEffect();
+                || later.turnReminder() != null || spellEffects.fifthLevel(spellName).keepsEffect()
+                || spellEffects.seventhLevel(spellName).keepsEffect();
         if (lasting.isEmpty() && !withModifiers && !forLater && delayedOn.isEmpty()) {
             return notes;
         }

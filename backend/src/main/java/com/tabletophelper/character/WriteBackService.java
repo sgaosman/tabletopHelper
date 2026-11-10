@@ -90,6 +90,16 @@ public class WriteBackService {
      */
     @Transactional
     public CharacterResponse revive(UUID characterId, UUID userId) {
+        return revive(characterId, userId, false);
+    }
+
+    /**
+     * As {@link #revive(UUID, UUID)}; with fullHitPoints the character returns with its hit point maximum, as
+     * Resurrection's "all its hit points" (PHB p.272, D189). Resurrection's -4 penalty to attack rolls, saving throws
+     * and ability checks, dropping by 1 each long rest, is the table's to apply.
+     */
+    @Transactional
+    public CharacterResponse revive(UUID characterId, UUID userId, boolean fullHitPoints) {
         PlayerCharacter character = characterCommands.beginAsDm(characterId, userId, "revive");
         if (!character.isDead()) {
             throw new ConflictException(character.getName() + " isn't dead");
@@ -100,9 +110,11 @@ public class WriteBackService {
                     + "before reviving them");
         }
         character.setDead(false);
-        character.setHpCurrent(REVIVED_HIT_POINTS);
+        int hitPoints = fullHitPoints && character.getHpMax() != null && character.getHpMax() > 0
+                ? character.getHpMax() : REVIVED_HIT_POINTS;
+        character.setHpCurrent(hitPoints);
         character.setHpTemp(0);
-        log.info("DM {} revived character {} at {} hit point", userId, characterId, REVIVED_HIT_POINTS);
+        log.info("DM {} revived character {} at {} hit points", userId, characterId, hitPoints);
         return characterCommands.finish(character);
     }
 

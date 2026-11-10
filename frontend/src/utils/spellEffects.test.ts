@@ -34,6 +34,27 @@ describe('laterNotes (D185)', () => {
   });
 });
 
+describe('laterNotes (D189)', () => {
+  it('names the bead\'s damage so far and the dead that rise', () => {
+    const effect = makeMockSpellEffect('Delayed Blast Fireball', {
+      detonation: { dice: '14d6', type: 'fire', ability: 'DEX', dc: 15, halfOnSave: true, grows: '1d6' },
+      risingIds: ['bandit'],
+    });
+    expect(laterNotes(effect, id => (id === 'bandit' ? 'Bandit' : undefined))).toEqual([
+      'explodes when it ends: 14d6 fire, DC 15 DEX save for half; +1d6 at the end of each of the caster\'s turns',
+      'Bandit rises at the start of the caster\'s next turn',
+    ]);
+  });
+});
+
+describe('reachable (D189)', () => {
+  it('leaves a plane-shifted creature out of reach (PHB p.266)', () => {
+    const cleric = makeMockParticipant('cleric', 'Cleric', 'PLAYER');
+    const gone = { ...makeMockParticipant('mage', 'Mage', 'MONSTER'), activeConditions: [makeMockCondition('plane shifted')] };
+    expect(reachable(cleric, gone)).toBe(false);
+  });
+});
+
 describe('laterNotes (D187)', () => {
   it('names the creatures it controls and each creature\'s count of saves', () => {
     const effect = makeMockSpellEffect('Contagion', {

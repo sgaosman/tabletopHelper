@@ -28,8 +28,11 @@ export function effectUseLabel(effect: SpellEffect): string | null {
 /** The condition of a creature Banishment has removed from the fight until the spell ends (PHB p.217, D185). */
 export const BANISHED = 'banished';
 
-/** The condition of a creature inside Otiluke's Resilient Sphere, which nothing passes (PHB p.264, D185). */
+/** The condition of a creature inside Otiluke's Resilient Sphere or a Forcecage box, which nothing passes (D185, D189). */
 export const ENCLOSED = 'enclosed';
+
+/** The condition of a creature Plane Shift has taken to another plane, out of the fight (PHB p.266, D189). */
+export const PLANE_SHIFTED = 'plane shifted';
 
 /** Whether the creature has the condition, by name in any case. */
 export function hasCondition(participant: { activeConditions?: { name: string }[] | null }, name: string): boolean {
@@ -45,7 +48,7 @@ export function reachable(
   caster: { id: string; activeConditions?: { name: string }[] | null },
   target: { id: string; activeConditions?: { name: string }[] | null },
 ): boolean {
-  if (hasCondition(target, BANISHED)) return false;
+  if (hasCondition(target, BANISHED) || hasCondition(target, PLANE_SHIFTED)) return false;
   if (caster.id === target.id) return true;
   return !hasCondition(target, ENCLOSED) && !hasCondition(caster, ENCLOSED);
 }
@@ -54,7 +57,8 @@ export function reachable(
  * What a Spell Effect keeps for later, in words for its card (D185): the damage it can still deal, as Guardian of
  * Faith's, what it deals back to a melee attacker, as Fire Shield's, and damage due at the end of a creature's next
  * turn, as Vitriolic Sphere's, naming the creature when it is known; and (D187) the creatures it controls and each
- * creature's count of saves.
+ * creature's count of saves; and (D189) the bead it holds, as Delayed Blast Fireball's, and the creatures that rise at
+ * the start of its caster's next turn, as Finger of Death's.
  */
 export function laterNotes(effect: SpellEffect, nameOf: (id: string) => string | undefined): string[] {
   const notes: string[] = [];
@@ -75,6 +79,17 @@ export function laterNotes(effect: SpellEffect, nameOf: (id: string) => string |
     notes.push(tally.done
       ? `${name}: ${ability} saves done (${tally.successes} successes, ${tally.failures} failures)`
       : `${name}: ${ability} saves ${tally.successes}/${successes} successes, ${tally.failures}/${failures} failures`);
+  }
+  // The 7th-level spells (D189): the damage it deals when it ends, and the dead that rise
+  const detonation = effect.detonation;
+  if (detonation) {
+    notes.push(`explodes when it ends: ${detonation.dice}${detonation.type ? ` ${detonation.type}` : ''}, `
+      + `DC ${detonation.dc} ${detonation.ability} save${detonation.halfOnSave ? ' for half' : ''}`
+      + (detonation.grows ? `; +${detonation.grows} at the end of each of the caster's turns` : ''));
+  }
+  const rising = (effect.risingIds ?? []).map(id => nameOf(id) ?? 'a creature');
+  if (rising.length > 0) {
+    notes.push(`${rising.join(', ')} rise${rising.length === 1 ? 's' : ''} at the start of the caster's next turn`);
   }
   return notes;
 }

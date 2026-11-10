@@ -831,6 +831,11 @@ public class EncounterService {
                     .tallyRule(effect.countedSave() != null ? effect.countedSave().ability() + " "
                             + effect.countedSave().successes() + "/" + effect.countedSave().failures() : null)
                     .controlledIds(effect.controlled().stream().map(SpellEffectEntry.Controlled::creature).toList())
+                    .detonation(effect.detonation() == null ? null : EncounterResponse.DetonationResponse.builder()
+                            .dice(effect.detonation().dice()).type(effect.detonation().type())
+                            .ability(effect.detonation().ability()).dc(effect.detonation().dc())
+                            .halfOnSave(effect.detonation().halfOnSave()).grows(effect.detonation().grows()).build())
+                    .risingIds(effect.rising())
                     .summonedParticipantIds(effect.summon() == null ? List.of()
                             : EffectApplier.summonedBy(encounter, effect.id()).stream()
                                     .sorted(Comparator.comparing(p -> p.getSortOrder() != null ? p.getSortOrder()
@@ -887,7 +892,7 @@ public class EncounterService {
             case ATTACK_MODE, SAVE_MODE -> modifier.mode() == RollMode.DISADVANTAGE;
             case ATTACKED_MODE -> modifier.mode() == RollMode.ADVANTAGE;
             case AC, SPEED -> modifier.flat() < 0;
-            case REVEALED, SPEED_HALVED, NO_HEALING -> true;
+            case REVEALED, SPEED_HALVED, NO_HEALING, SPEED_MAX -> true;
             default -> false;
         };
     }

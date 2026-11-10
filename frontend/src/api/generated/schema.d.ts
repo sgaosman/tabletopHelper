@@ -2924,6 +2924,15 @@ export interface components {
             target: string;
             type: string;
         };
+        DetonationResponse: {
+            ability: string;
+            /** Format: int32 */
+            dc: number;
+            dice: string;
+            grows?: string | null;
+            halfOnSave: boolean;
+            type?: string | null;
+        };
         DismissSummonsRequest: {
             participantIds: string[];
         };
@@ -3974,6 +3983,7 @@ export interface components {
             /** Format: int32 */
             damageLeft?: number | null;
             delayed: components["schemas"]["DelayedDamage"][];
+            detonation?: components["schemas"]["DetonationResponse"] | null;
             /** @enum {string|null} */
             directedCost?: "ACTION" | "BONUS_ACTION" | "NONE" | null;
             directedResolves: boolean;
@@ -3987,6 +3997,7 @@ export interface components {
             option?: string | null;
             retaliation?: string | null;
             retargetable: boolean;
+            risingIds: string[];
             /** Format: int32 */
             slotLevel?: number | null;
             spell: string;
@@ -4176,7 +4187,7 @@ export interface components {
             /** @enum {string|null} */
             initiativeMode?: "FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL" | null;
             /** @enum {string|null} */
-            kind?: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | "CONJURE" | "GIANT_INSECT" | "GREATER_DEMON" | "CONJURE_ELEMENTAL" | "INFERNAL_CALLING" | "ANIMATE_OBJECTS" | "DANSE_MACABRE" | null;
+            kind?: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | "CONJURE" | "GIANT_INSECT" | "GREATER_DEMON" | "CONJURE_ELEMENTAL" | "INFERNAL_CALLING" | "ANIMATE_OBJECTS" | "DANSE_MACABRE" | "CONJURE_CELESTIAL" | null;
             needsCommand?: boolean | null;
             /** Format: int32 */
             slotLevel?: number | null;
@@ -4201,7 +4212,7 @@ export interface components {
             houseRuleModes: ("FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL")[];
             initiativeModes: ("FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL")[];
             /** @enum {string} */
-            kind: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | "CONJURE" | "GIANT_INSECT" | "GREATER_DEMON" | "CONJURE_ELEMENTAL" | "INFERNAL_CALLING" | "ANIMATE_OBJECTS" | "DANSE_MACABRE";
+            kind: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | "CONJURE" | "GIANT_INSECT" | "GREATER_DEMON" | "CONJURE_ELEMENTAL" | "INFERNAL_CALLING" | "ANIMATE_OBJECTS" | "DANSE_MACABRE" | "CONJURE_CELESTIAL";
             /** Format: int32 */
             multiplier: number;
             needsCommand: boolean;
@@ -5176,7 +5187,9 @@ export interface operations {
     };
     revive: {
         parameters: {
-            query?: never;
+            query?: {
+                fullHitPoints?: boolean;
+            };
             header?: never;
             path: {
                 characterId: string;

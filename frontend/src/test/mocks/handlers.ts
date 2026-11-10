@@ -577,7 +577,7 @@ export function makeMockSpellEffect(spell = 'Spiritual Weapon', overrides: Parti
     id: `effect-${spell.toLowerCase().replace(/[^a-z]+/g, '-')}`, spell, slotLevel: 2, concentration: false,
     startedRound: 1, durationRounds: 10, usesLeft: null, directedCost: 'BONUS_ACTION', directedResolves: true,
     maxUsesEachTurn: null, triggers: [], summonedParticipantIds: [], affectedIds: [], modifiers: [],
-    retargetable: false, delayed: [], tallies: [], controlledIds: [],
+    retargetable: false, delayed: [], tallies: [], controlledIds: [], risingIds: [],
   } satisfies SpellEffect;
   return { ...effect, ...overrides };
 }

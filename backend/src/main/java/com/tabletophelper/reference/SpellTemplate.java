@@ -129,6 +129,15 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             template.contest();
             template.hitThreshold();
             template.repeatConditions();
+            // And the 7th-level spells' keys (D189)
+            template.maxTargetHp();
+            template.hpThresholdEffects();
+            template.banishes();
+            template.rayTable();
+            template.detonation();
+            template.raisesOnKill();
+            template.conditionsByOption();
+            template.followUpSave();
             return template;
         } catch (IllegalArgumentException | JacksonException e) {
             return empty(json, e.getMessage() != null ? e.getMessage() : e.toString());
@@ -493,14 +502,26 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      * @param failures  how many failures make the spell's lasting effect take hold
      * @param onFailures what the log reminds the DM of when the failures are reached, such as Contagion's disease
      * @param endsConditions the spell's conditions that end on either outcome, as Contagion's poisoned
+     * @param failureCondition the condition the failures give for good, as Prismatic Spray's indigo ray's petrified
+     *                       (PHB p.267, D189); null for none
      */
     public record CountedSaves(String ability, int successes, int failures, String onFailures,
-                               List<String> endsConditions) {
+                               List<String> endsConditions, String failureCondition) {
+
+        /** Counted saves whose failures give no condition (D187). */
+        public CountedSaves(String ability, int successes, int failures, String onFailures,
+                            List<String> endsConditions) {
+            this(ability, successes, failures, onFailures, endsConditions, null);
+        }
     }
 
     /** The template's counted saves, or null for none. */
     public CountedSaves countedSaves() {
-        JsonNode node = json != null ? json.get("countedSaves") : null;
+        return countedSaves(json != null ? json.get("countedSaves") : null);
+    }
+
+    // Counted saves as an object gives them, or null for none
+    private static CountedSaves countedSaves(JsonNode node) {
         if (node == null || !node.isObject()) {
             return null;
         }
@@ -511,8 +532,10 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         node.path("endsConditions").forEach(each -> {
             if (each.isString()) ends.add(each.asString("").toLowerCase(java.util.Locale.ROOT));
         });
+        String failureCondition = text(node, "failureCondition");
         return new CountedSaves(text(node, "ability"), node.path("successes").asInt(3), node.path("failures").asInt(3),
-                text(node, "onFailures"), List.copyOf(ends));
+                text(node, "onFailures"), List.copyOf(ends),
+                failureCondition != null ? failureCondition.toLowerCase(java.util.Locale.ROOT) : null);
     }
 
     /**
@@ -559,6 +582,245 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             throw new IllegalArgumentException("hitThreshold needs hp and a condition");
         }
         return new HitThreshold(node.path("hp").asInt(0), text(node, "condition").toLowerCase(java.util.Locale.ROOT));
+    }
+
+    // ── Keys the 7th-level spells added (D189), read from the stored JSON ──
+
+    /**
+     * The conditions that leave a creature unaffected, as a deafened creature can't hear Divine Word (PHB p.234): the
+     * template's {@code noEffectOnConditions}; empty for none.
+     */
+    public List<String> noEffectOnConditions() {
+        return texts("noEffectOnConditions");
+    }
+
+    /**
+     * The most current hit points a creature may have for the spell to affect it, as Power Word Pain's 100 (XGE p.163):
+     * the template's {@code maxTargetHp}; a creature with more is unaffected, with no roll. Null for no limit.
+     */
+    public Integer maxTargetHp() {
+        JsonNode node = json != null ? json.get("maxTargetHp") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isInt() || node.asInt(0) < 0) {
+            throw new IllegalArgumentException("maxTargetHp is not a whole number of hit points");
+        }
+        return node.asInt(0);
+    }
+
+    /**
+     * One band of an effect that depends on a creature's current hit points, as Divine Word's (PHB p.234).
+     *
+     * @param maxHp         the band's top, inclusive
+     * @param conditions    the conditions a creature in the band gets, each with its own duration
+     * @param killsOutright whether a creature in the band dies outright, with no damage dealt
+     */
+    public record HpBand(int maxHp, List<ConditionInflicted> conditions, boolean killsOutright) {
+    }
+
+    /**
+     * The bands a creature the cast reaches (a failed save, or no roll) falls into by its current hit points, as Divine
+     * Word's 50, 40, 30 and 20 (PHB p.234): the template's {@code hpThresholdEffects}, lowest top first. A creature
+     * takes the lowest band it fits, and one above every band is unaffected. Empty for none (D189).
+     */
+    public List<HpBand> hpThresholdEffects() {
+        JsonNode node = json != null ? json.get("hpThresholdEffects") : null;
+        if (node == null || node.isNull()) {
+            return List.of();
+        }
+        if (!node.isArray()) {
+            throw new IllegalArgumentException("hpThresholdEffects is not a list");
+        }
+        List<HpBand> bands = new java.util.ArrayList<>();
+        for (JsonNode band : node) {
+            if (!band.path("maxHp").isInt()) {
+                throw new IllegalArgumentException("Each of hpThresholdEffects needs maxHp");
+            }
+            List<ConditionInflicted> conditions = band.path("conditionsInflicted").isArray()
+                    ? READER.convertValue(band.get("conditionsInflicted"), CONDITIONS) : List.of();
+            bands.add(new HpBand(band.path("maxHp").asInt(0), listOf(conditions),
+                    band.path("killsOutright").asBoolean(false)));
+        }
+        bands.sort(java.util.Comparator.comparingInt(HpBand::maxHp));
+        return List.copyOf(bands);
+    }
+
+    /**
+     * Creatures of these types that the cast reaches are sent away, as Divine Word's celestials, elementals, fey and
+     * fiends, which can't return for 24 hours (PHB p.234).
+     *
+     * @param types          the creature types
+     * @param durationRounds how long they stay away; null until the DM brings them back
+     */
+    public record Banishes(List<String> types, Integer durationRounds) {
+    }
+
+    /** The template's {@code banishes}, or null for none (D189). */
+    public Banishes banishes() {
+        JsonNode node = json != null ? json.get("banishes") : null;
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        List<String> types = new java.util.ArrayList<>();
+        node.path("types").forEach(each -> {
+            if (each.isString()) types.add(each.asString("").toLowerCase(java.util.Locale.ROOT));
+        });
+        if (types.isEmpty()) {
+            throw new IllegalArgumentException("banishes needs a list of creature types");
+        }
+        return new Banishes(List.copyOf(types), node.path("durationRounds").isInt()
+                ? node.path("durationRounds").asInt(0) : null);
+    }
+
+    /**
+     * One row of a table each creature the cast reaches rolls on, as Prismatic Spray's d8 (PHB p.267).
+     *
+     * @param roll          the die face
+     * @param color         its name, for the log, such as "red"
+     * @param damageDice    the damage a failed save deals (half on a success, when the spell halves), or null
+     * @param damageType    its type
+     * @param conditions    the conditions a failed save gives
+     * @param countedSaves  the saves a creature with them counts at the end of its turns, or null
+     * @param reminder      what the log reminds the DM of for a creature that failed, or null
+     * @param rollsTwice    whether the creature is struck by two rows instead, rolled again with this one rerolled
+     */
+    public record Ray(int roll, String color, String damageDice, String damageType,
+                      List<ConditionInflicted> conditions, CountedSaves countedSaves, String reminder,
+                      boolean rollsTwice) {
+    }
+
+    /** The template's {@code rayTable}, in roll order; empty for none (D189). */
+    public List<Ray> rayTable() {
+        JsonNode node = json != null ? json.get("rayTable") : null;
+        if (node == null || node.isNull()) {
+            return List.of();
+        }
+        if (!node.isArray()) {
+            throw new IllegalArgumentException("rayTable is not a list");
+        }
+        List<Ray> rays = new java.util.ArrayList<>();
+        for (JsonNode ray : node) {
+            if (!ray.path("roll").isInt()) {
+                throw new IllegalArgumentException("Each row of rayTable needs its roll");
+            }
+            List<ConditionInflicted> conditions = ray.path("conditionsInflicted").isArray()
+                    ? READER.convertValue(ray.get("conditionsInflicted"), CONDITIONS) : List.of();
+            String dice = text(ray, "damageDice");
+            if (dice != null) {
+                com.tabletophelper.rules.Dice.parse(dice.trim());
+            }
+            rays.add(new Ray(ray.path("roll").asInt(0), text(ray, "color"), dice, text(ray, "damageType"),
+                    listOf(conditions), countedSaves(ray.get("countedSaves")), text(ray, "reminder"),
+                    ray.path("rollsTwice").asBoolean(false)));
+        }
+        rays.sort(java.util.Comparator.comparingInt(Ray::roll));
+        return List.copyOf(rays);
+    }
+
+    /**
+     * Damage the Spell Effect deals when it ends, however it ends, to the creatures it marked when cast, as Delayed Blast
+     * Fireball's bead (PHB p.230).
+     *
+     * @param damageDice    the damage at the spell's own level, such as "12d6"
+     * @param growsEachTurn the dice it gains at the end of each of its caster's turns before it ends, such as "1d6"
+     * @param upcastScaling what each slot level above the spell's own adds to the starting damage
+     */
+    public record Detonation(String damageDice, String damageType, String saveAbility, boolean halfOnSave,
+                             String growsEachTurn, Upcast upcastScaling) {
+    }
+
+    /** The template's {@code detonation}, or null for none (D189). */
+    public Detonation detonation() {
+        JsonNode node = json != null ? json.get("detonation") : null;
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        if (text(node, "damageDice") == null || text(node, "saveAbility") == null) {
+            throw new IllegalArgumentException("A detonation needs damageDice and saveAbility");
+        }
+        com.tabletophelper.rules.Dice.parse(text(node, "damageDice").trim());
+        if (text(node, "growsEachTurn") != null) {
+            com.tabletophelper.rules.Dice.parse(text(node, "growsEachTurn").trim());
+        }
+        return new Detonation(text(node, "damageDice"), text(node, "damageType"), text(node, "saveAbility"),
+                node.path("halfOnSave").asBoolean(false), text(node, "growsEachTurn"),
+                read(node, "upcastScaling", Upcast.class));
+    }
+
+    /**
+     * A creature the cast kills rises at the start of its caster's next turn as a creature under the caster's command,
+     * as Finger of Death's humanoid rising as a zombie (PHB p.241).
+     *
+     * @param creatureTypes the types that rise
+     * @param form          the stat block it rises as, such as "Zombie"
+     */
+    public record RaisesOnKill(List<String> creatureTypes, String form) {
+    }
+
+    /** The template's {@code raisesOnKill}, or null for none (D189). */
+    public RaisesOnKill raisesOnKill() {
+        JsonNode node = json != null ? json.get("raisesOnKill") : null;
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        if (text(node, "form") == null) {
+            throw new IllegalArgumentException("raisesOnKill needs a form");
+        }
+        List<String> types = new java.util.ArrayList<>();
+        node.path("creatureTypes").forEach(each -> {
+            if (each.isString()) types.add(each.asString("").toLowerCase(java.util.Locale.ROOT));
+        });
+        return new RaisesOnKill(List.copyOf(types), text(node, "form"));
+    }
+
+    /**
+     * The conditions each cast option gives in place of the template's list, as Forcecage's cage and box (PHB p.243):
+     * the template's {@code conditionsByOption}, the names keyed by option in lower case; empty for none (D189).
+     */
+    public Map<String, List<String>> conditionsByOption() {
+        JsonNode node = json != null ? json.get("conditionsByOption") : null;
+        if (node == null || node.isNull()) {
+            return Map.of();
+        }
+        if (!node.isObject()) {
+            throw new IllegalArgumentException("conditionsByOption is not an object");
+        }
+        Map<String, List<String>> byOption = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonNode> entry : node.properties()) {
+            List<String> names = new java.util.ArrayList<>();
+            entry.getValue().forEach(each -> {
+                if (each.isString()) names.add(each.asString("").toLowerCase(java.util.Locale.ROOT));
+            });
+            byOption.put(entry.getKey().toLowerCase(java.util.Locale.ROOT), List.copyOf(names));
+        }
+        return Map.copyOf(byOption);
+    }
+
+    /**
+     * A second roll after a hit, as Plane Shift's Charisma save after its melee spell attack (PHB p.266): the creature
+     * hit makes the save against the caster's spell save DC, and on a failure gets the conditions.
+     *
+     * @param option the cast option it belongs to, or null for every cast
+     * @param on     what brings it: HIT, as Plane Shift's, or FAILED_SAVE, as Whirlwind's Strength save after a failed
+     *               Dexterity save (XGE p.171)
+     */
+    public record FollowUpSave(String ability, List<ConditionInflicted> conditions, String option, String on) {
+    }
+
+    /** The template's {@code followUpSave}, or null for none (D189). */
+    public FollowUpSave followUpSave() {
+        JsonNode node = json != null ? json.get("followUpSave") : null;
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        if (text(node, "ability") == null) {
+            throw new IllegalArgumentException("followUpSave needs an ability");
+        }
+        List<ConditionInflicted> conditions = node.path("conditionsInflicted").isArray()
+                ? READER.convertValue(node.get("conditionsInflicted"), CONDITIONS) : List.of();
+        return new FollowUpSave(text(node, "ability"), listOf(conditions), text(node, "option"),
+                text(node, "on") != null ? text(node, "on") : "HIT");
     }
 
     /** Its components; combat reads only whether it has a verbal one. */

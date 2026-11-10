@@ -325,6 +325,40 @@ public class EncounterResponse {
         // The creatures it put under its caster's control, as Dominate Person's (D187); empty for none
         @Schema(requiredMode = REQUIRED)
         private List<UUID> controlledIds;
+
+        // What it deals when it ends, as Delayed Blast Fireball's bead (D189); null for nothing
+        private DetonationResponse detonation;
+
+        // The creatures it killed that rise at the start of its caster's next turn, as Finger of Death's (D189); empty
+        // for none
+        @Schema(requiredMode = REQUIRED)
+        private List<UUID> risingIds;
+    }
+
+    /**
+     * A Spell Effect's detonation (D189): the dice it has grown to, its type, and the save the creatures it marked make,
+     * such as Delayed Blast Fireball's "14d6" fire, DEX DC 15 for half.
+     */
+    @Data
+    @Builder(toBuilder = true)
+    public static class DetonationResponse {
+
+        @Schema(requiredMode = REQUIRED)
+        private String dice;
+
+        private String type;
+
+        @Schema(requiredMode = REQUIRED)
+        private String ability;
+
+        @Schema(requiredMode = REQUIRED)
+        private int dc;
+
+        @Schema(requiredMode = REQUIRED)
+        private boolean halfOnSave;
+
+        // The dice it gains at the end of each of its caster's turns, such as "1d6"; null for none
+        private String grows;
     }
 
     /** A spell whose Ongoing Modifiers are on a participant (D184), shown as a chip such as "Bless". */

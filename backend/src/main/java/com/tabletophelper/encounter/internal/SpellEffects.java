@@ -148,9 +148,71 @@ public class SpellEffects {
         if (!java.util.Objects.equals(durationRounds, template.durationRounds())) {
             ends = scaled(ends, template.durationRounds(), durationRounds);
         }
-        Effect effect = new Effect(spellName, delivery, damage.get(), healing.get().dice(), conditions(template),
+        Effect effect = new Effect(spellName, delivery, damage.get(), healing.get().dice(), conditions(template, option),
                 concentration, durationRounds, ends);
         return new SpellPlan(spellName, spellLevel, effect, null, concentration, durationRounds, verbal);
+    }
+
+    // The conditions a cast gives: those its option names, as Forcecage's box gives enclosed (PHB p.243, D189), else
+    // the template's own
+    private static List<String> conditions(SpellTemplate template, String option) {
+        Map<String, List<String>> byOption = template.conditionsByOption();
+        if (option != null && byOption.containsKey(option.toLowerCase(Locale.ROOT))) {
+            return byOption.get(option.toLowerCase(Locale.ROOT));
+        }
+        return conditions(template);
+    }
+
+    /**
+     * What the 7th-level spells' keys make a cast do (D189).
+     *
+     * @param maxTargetHp the most current hit points a creature may have to be affected, or null
+     * @param bands       the hit-point bands a creature reached falls into, lowest first
+     * @param banishes    the creature types the cast sends away, or null
+     * @param rays        the table each creature reached rolls on, or empty
+     * @param detonation  the damage its Spell Effect deals when it ends, or null
+     * @param raises      what a creature it kills rises as, or null
+     * @param followUp    the save a creature it hits makes next, or null
+     * @param noEffectOnConditions the conditions that leave a creature unaffected
+     */
+    public record SeventhLevel(Integer maxTargetHp, List<SpellTemplate.HpBand> bands, SpellTemplate.Banishes banishes,
+                               List<SpellTemplate.Ray> rays, SpellTemplate.Detonation detonation,
+                               SpellTemplate.RaisesOnKill raises, SpellTemplate.FollowUpSave followUp,
+                               List<String> noEffectOnConditions) {
+
+        public static final SeventhLevel NONE = new SeventhLevel(null, List.of(), null, List.of(), null, null, null,
+                List.of());
+
+        /** Whether a cast must leave a Spell Effect to hold what these keys keep. */
+        public boolean keepsEffect() {
+            return detonation != null;
+        }
+    }
+
+    /** What the 7th-level spells' keys make the spell do (D189); nothing for a spell without a template. */
+    public SeventhLevel seventhLevel(String spellName) {
+        return template(spellName).map(template -> new SeventhLevel(template.maxTargetHp(),
+                template.hpThresholdEffects(), template.banishes(), template.rayTable(), template.detonation(),
+                template.raisesOnKill(), template.followUpSave(), template.noEffectOnConditions()))
+                .orElse(SeventhLevel.NONE);
+    }
+
+    /**
+     * The dice a detonation starts with when cast with a slot of slotLevel (D189): its own, with the upcast dice for each
+     * slot level above the spell's, as Delayed Blast Fireball's 1d6 each (PHB p.230). Null when they can't be read.
+     */
+    public String detonationDice(String spellName, int slotLevel) {
+        Optional<SpellTemplate> found = template(spellName);
+        if (found.isEmpty() || found.get().detonation() == null) {
+            return null;
+        }
+        SpellTemplate.Detonation detonation = found.get().detonation();
+        int levelsAbove = found.get().level() > 0 ? slotLevel - found.get().level() : 0;
+        return TemplateDice.read(detonation.damageDice())
+                .flatMap(groups -> upcast(groups, detonation.upcastScaling(), levelsAbove))
+                .filter(groups -> groups.size() == 1)
+                .map(groups -> groups.getFirst().toString())
+                .orElse(null);
     }
 
     // The conditions that lasted as long as the spell's own duration, lasting as long as the slot's (D185)

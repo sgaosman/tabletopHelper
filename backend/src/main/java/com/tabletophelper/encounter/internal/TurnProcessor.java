@@ -52,6 +52,23 @@ public class TurnProcessor {
     private final EffectApplier effectApplier;
     private final CombatLogWriter combatLog;
 
+    // What raises the creatures a spell killed (D189); set by Spring, and absent in unit tests that build this by hand,
+    // which then raise none
+    private Summoner summoner;
+
+    // The spells data, for the form a spell's creatures rise as (D189); set by Spring like the summoner
+    private com.tabletophelper.reference.SpellRepository spellRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setSummoner(Summoner summoner) {
+        this.summoner = summoner;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setSpellRepository(com.tabletophelper.reference.SpellRepository spellRepository) {
+        this.spellRepository = spellRepository;
+    }
+
     /** The first turn, as the encounter starts in round 1. */
     public void begin(Encounter encounter) {
         List<Turn> order = EncounterTurns.order(encounter);
@@ -224,8 +241,39 @@ public class TurnProcessor {
         effectApplier.modifiersAtTurnStart(encounter, creature);
         // Delayed damage armed, Aura of Life's hit point, and the creature's Spell Effects' reminders (D185)
         effectApplier.effectsAtTurnStart(encounter, creature);
+        // The creatures its spells killed rise now, as Finger of Death's zombies (PHB p.241, D189)
+        raise(encounter, creature);
         effectApplier.refreshTurn(encounter, creature);
         effectApplier.deathSaveDue(creature);
+    }
+
+    /*
+     * The start of a caster's turn for the creatures its spell killed that rise (D189): each one still dead rises as the
+     * spell's form under the caster's command, as a humanoid Finger of Death killed rises as a zombie (PHB p.241), and
+     * the Spell Effect that held them ends.
+     */
+    private void raise(Encounter encounter, EncounterParticipant caster) {
+        for (SpellEffectEntry effect : EffectApplier.effects(caster)) {
+            if (effect.rising().isEmpty()) {
+                continue;
+            }
+            String form = spellRepository == null ? null : spellRepository.findByNameIgnoreCase(effect.spell())
+                    .map(com.tabletophelper.reference.Spell::getEffectTemplate)
+                    .flatMap(template -> template.readable(effect.spell() + "'s effect template"))
+                    .map(com.tabletophelper.reference.SpellTemplate::raisesOnKill)
+                    .map(com.tabletophelper.reference.SpellTemplate.RaisesOnKill::form)
+                    .orElse(null);
+            if (summoner != null && form != null && caster.getLifeState() != LifeState.DEAD) {
+                for (UUID id : effect.rising()) {
+                    encounter.getParticipants().stream()
+                            .filter(p -> p.getId().equals(id) && p.getLifeState() == LifeState.DEAD)
+                            .findFirst()
+                            .ifPresent(corpse -> summoner.raise(encounter, caster, effect.spell(), effect.slotLevel(),
+                                    form, corpse));
+                }
+            }
+            effectApplier.endEffect(encounter, caster, effect.id(), "its dead have risen");
+        }
     }
 
     // ── The round that starts ────────────────────────────────────

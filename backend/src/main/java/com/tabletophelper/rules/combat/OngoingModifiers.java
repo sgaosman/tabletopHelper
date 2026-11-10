@@ -78,9 +78,16 @@ public final class OngoingModifiers {
                 }
             }
         }
+        // A cap, as Power Word Pain's 10 feet (XGE p.163, D189), after the rest; Freedom of Movement ignores it
+        Integer cap = protectedSpeed ? null : modifiers.stream()
+                .filter(m -> m.kind() == OngoingModifier.Kind.SPEED_MAX)
+                .map(OngoingModifier::flat)
+                .min(Integer::compare)
+                .orElse(null);
         Map<String, Integer> changed = new LinkedHashMap<>();
         for (Map.Entry<String, Integer> speed : speeds.entrySet()) {
-            changed.put(speed.getKey(), speed(speed.getValue(), added, doubled, halved));
+            int feet = speed(speed.getValue(), added, doubled, halved);
+            changed.put(speed.getKey(), cap != null ? Math.min(feet, Math.max(0, cap)) : feet);
         }
         return changed;
     }

@@ -365,7 +365,7 @@ class SpellEffectsTest {
         }
 
         @Test
-        @DisplayName("The bundled data's 42 lasting spells each leave a Spell Effect its caster directs at the cost "
+        @DisplayName("The bundled data's 46 lasting spells each leave a Spell Effect its caster directs at the cost "
                 + "the spell's text gives, or whose area acts by itself at the moments it gives, or both (M15)")
         void bundledLastingSpells() throws IOException {
             Map<String, ActionCost> costs = new LinkedHashMap<>();
@@ -427,7 +427,13 @@ class SpellEffectsTest {
                 expected.put(spell, ActionCost.BONUS_ACTION);
             }
             expected.put("Geas", ActionCost.NONE);
-            assertEquals(42, triggers.size());
+            // 7th level (D189): Whirlwind's move takes an action (XGE p.171); Crown of Stars' motes, Mordenkainen's
+            // Sword and Draconic Transformation's breath are bonus actions (XGE p.152, PHB p.262, FTD p.19)
+            expected.put("Whirlwind", ActionCost.ACTION);
+            for (String spell : List.of("Crown of Stars", "Mordenkainen's Sword", "Draconic Transformation")) {
+                expected.put(spell, ActionCost.BONUS_ACTION);
+            }
+            assertEquals(46, triggers.size());
             assertEquals(expected, Map.copyOf(costs));
             // Only Moonbeam's, Dust Devil's and Dawn's uses move them without resolving anything (PHB p.261, XGE p.154,
             // p.153)

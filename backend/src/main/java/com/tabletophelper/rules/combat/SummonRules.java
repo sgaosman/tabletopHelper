@@ -85,7 +85,9 @@ public final class SummonRules {
         /** Animate Objects' objects, counted by size against the spell's ten (PHB p.213) */
         ANIMATE_OBJECTS,
         /** Danse Macabre's zombies and skeletons, with the caster's modifier to attack and damage (XGE p.153) */
-        DANSE_MACABRE
+        DANSE_MACABRE,
+        /** Conjure Celestial's one celestial of challenge rating 4 or lower, 5 with a 9th-level slot (PHB p.225, D189) */
+        CONJURE_CELESTIAL
     }
 
     /** Where the summoned creatures take their turns. */
@@ -263,6 +265,10 @@ public final class SummonRules {
     /** Conjure Elemental's highest challenge rating with a 5th-level slot, one higher for each level above (PHB p.225). */
     public static final int CONJURE_ELEMENTAL_BASE_CR = 5;
 
+    /** Conjure Celestial's highest challenge rating, and with a 9th-level slot (PHB p.225, D189). */
+    public static final int CONJURE_CELESTIAL_CR = 4;
+    public static final int CONJURE_CELESTIAL_NINTH_CR = 5;
+
     /** Infernal Calling's highest challenge rating with a 5th-level slot, one higher for each level above (XGE p.158). */
     public static final int INFERNAL_CALLING_BASE_CR = 6;
 
@@ -343,6 +349,12 @@ public final class SummonRules {
             new Spell("Conjure Elemental", Kind.CONJURE_ELEMENTAL, 5, true, ONE_HOUR, false, false, true, false, false,
                     List.of(InitiativeMode.INDIVIDUAL), List.of(), Controller.CASTER, null, List.of(), "PHB", 225,
                     "elemental", List.of(), List.of()),
+            // PHB p.225: a minute to cast, so the DM places it as a companion (D182); "Roll initiative for the
+            // celestial, which has its own turns. It obeys any verbal commands that you issue to it"; it disappears at 0
+            // hit points or when the spell ends, and doesn't turn hostile (D189)
+            new Spell("Conjure Celestial", Kind.CONJURE_CELESTIAL, 7, true, ONE_HOUR, false, false, true, false,
+                    false, List.of(InitiativeMode.INDIVIDUAL), List.of(), Controller.CASTER, null, List.of(), "PHB", 225,
+                    "celestial", List.of(), List.of()),
             // XGE p.158: a minute to cast; the devil is unfriendly, rolls its own initiative and is under the DM's
             // control, obeying the caster's commands only when it likes them or loses a contested check
             new Spell("Infernal Calling", Kind.INFERNAL_CALLING, 5, true, ONE_HOUR, false, false, true, false, false,
@@ -450,6 +462,9 @@ public final class SummonRules {
             case GREATER_DEMON -> List.of(tier(1, GREATER_DEMON_BASE_CR + above, "demons"));
             case CONJURE_ELEMENTAL -> List.of(tier(1, CONJURE_ELEMENTAL_BASE_CR + above, "elementals"));
             case INFERNAL_CALLING -> List.of(tier(1, INFERNAL_CALLING_BASE_CR + above, "devils"));
+            // PHB p.225: challenge rating 5 or lower only with a 9th-level slot, a step rather than per level
+            case CONJURE_CELESTIAL -> List.of(tier(1, slotLevel >= 9 ? CONJURE_CELESTIAL_NINTH_CR : CONJURE_CELESTIAL_CR,
+                    "celestials"));
             // PHB p.213: ten objects, two more for each slot level above 5th
             case ANIMATE_OBJECTS -> {
                 int objects = 10 + 2 * above;
@@ -537,6 +552,12 @@ public final class SummonRules {
             case CONJURE_ELEMENTAL -> {
                 if (!lowerType.equals("elemental") || name.toLowerCase(Locale.ROOT).startsWith("swarm of")) {
                     return Optional.of(name + " isn't an elemental Conjure Elemental can summon");
+                }
+            }
+            // PHB p.225: a celestial
+            case CONJURE_CELESTIAL -> {
+                if (!lowerType.equals("celestial")) {
+                    return Optional.of(name + " isn't a celestial Conjure Celestial can summon");
                 }
             }
             // XGE p.158: a devil, a fiend of the devil kind

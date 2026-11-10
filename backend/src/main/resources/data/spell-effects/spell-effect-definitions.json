@@ -23188,5 +23188,1738 @@
       "usesUpcastScaling": false
     },
     "reminder": "Rocks: a creature the rock hits also makes a STR save or falls prone (DM). Grass is difficult terrain for your enemies."
+  },
+  {
+    "spellName": "Finger of Death",
+    "spellLevel": 7,
+    "school": "Necromancy",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": null,
+      "materialConsumed": false,
+      "materialCostGp": null
+    },
+    "concentration": false,
+    "durationRounds": null,
+    "durationText": "Instantaneous",
+    "deliveryMethod": "SAVING_THROW",
+    "spellAttackType": null,
+    "saveAbility": "CON",
+    "halfOnSave": true,
+    "autoHit": false,
+    "targetType": "SINGLE_TARGET",
+    "targetCount": 1,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "damageDice": "7d8+30",
+        "damageType": "necrotic"
+      },
+      {
+        "effectType": "OTHER",
+        "description": "A humanoid killed by it rises at the start of your next turn as a zombie permanently under your command"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "SAVE_DAMAGE",
+    "classes": [
+      "Sorcerer",
+      "Warlock",
+      "Wizard"
+    ],
+    "notes": "CON save, 7d8 + 30 necrotic, half on a success. A humanoid it kills rises as a zombie (MM) under the caster's command at the start of the caster's next turn (D189). (PHB p.241)",
+    "raisesOnKill": {
+      "creatureTypes": [
+        "humanoid"
+      ],
+      "form": "Zombie"
+    }
+  },
+  {
+    "spellName": "Fire Storm",
+    "spellLevel": 7,
+    "school": "Evocation",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": null,
+      "materialConsumed": false,
+      "materialCostGp": null
+    },
+    "concentration": false,
+    "durationRounds": null,
+    "durationText": "Instantaneous",
+    "deliveryMethod": "SAVING_THROW",
+    "spellAttackType": null,
+    "saveAbility": "DEX",
+    "halfOnSave": true,
+    "autoHit": false,
+    "targetType": "AOE_CUBE",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": "cube",
+    "aoeSize": 10,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "damageDice": "7d10",
+        "damageType": "fire"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "SAVE_DAMAGE",
+    "classes": [
+      "Cleric",
+      "Druid",
+      "Sorcerer"
+    ],
+    "notes": "Up to ten 10-foot cubes, each touching another; aoeSize is one cube. The caster may leave plant life unharmed: leave plant creatures out of the targets. (PHB p.242)"
+  },
+  {
+    "spellName": "Crown of Stars",
+    "spellLevel": 7,
+    "school": "Evocation",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": null,
+      "materialConsumed": false,
+      "materialCostGp": null
+    },
+    "concentration": false,
+    "durationRounds": 600,
+    "durationText": "1 hour",
+    "deliveryMethod": "SELF",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "SELF",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": true,
+    "canTargetSelf": true,
+    "canTargetAllies": false,
+    "canTargetEnemies": false,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "Seven motes of light orbit your head; a bonus action sends one at a creature within 120 feet"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": "Two more motes for each slot level above 7th",
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "COMPLEX",
+    "classes": [
+      "Sorcerer",
+      "Warlock",
+      "Wizard"
+    ],
+    "notes": "Casting spends no mote; each bonus action sends one: ranged spell attack, 4d12 radiant, spent hit or miss; the spell ends with the last mote. Light is the table's. (XGE p.152)",
+    "persistsWithoutConcentration": true,
+    "repeatActionType": "BONUS_ACTION",
+    "repeatEffect": {
+      "deliveryMethod": "SPELL_ATTACK",
+      "spellAttackType": "RANGED",
+      "damageDice": "4d12",
+      "damageType": "radiant",
+      "usesUpcastScaling": false
+    },
+    "effectUses": {
+      "count": 7,
+      "perSlotLevel": 2,
+      "maxPerUse": 1
+    }
+  },
+  {
+    "spellName": "Mordenkainen's Sword",
+    "spellLevel": 7,
+    "school": "Evocation",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "a miniature platinum sword with a grip and pommel of copper and zinc, worth 250 gp",
+      "materialConsumed": false,
+      "materialCostGp": 250
+    },
+    "concentration": true,
+    "durationRounds": 10,
+    "durationText": "Concentration, up to 1 minute",
+    "deliveryMethod": "SPELL_ATTACK",
+    "spellAttackType": "MELEE",
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "SINGLE_TARGET",
+    "targetCount": 1,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": false,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "damageDice": "3d10",
+        "damageType": "force"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "ATTACK_DAMAGE",
+    "classes": [
+      "Bard",
+      "Wizard"
+    ],
+    "notes": "A melee spell attack when it appears, 3d10 force; a bonus action on each later turn moves it 20 feet and attacks again. (PHB p.262)",
+    "repeatActionType": "BONUS_ACTION",
+    "repeatEffect": true
+  },
+  {
+    "spellName": "Prismatic Spray",
+    "spellLevel": 7,
+    "school": "Evocation",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": null,
+      "materialConsumed": false,
+      "materialCostGp": null
+    },
+    "concentration": false,
+    "durationRounds": null,
+    "durationText": "Instantaneous",
+    "deliveryMethod": "SAVING_THROW",
+    "spellAttackType": null,
+    "saveAbility": "DEX",
+    "halfOnSave": true,
+    "autoHit": false,
+    "targetType": "AOE_CONE",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": "cone",
+    "aoeSize": 60,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "Each creature rolls a d8 for its ray: 1 red fire, 2 orange acid, 3 yellow lightning, 4 green poison, 5 blue cold (10d6, half on a success); 6 indigo restrained, then CON saves (three successes end it, three failures petrify); 7 violet blinded, then a WIS save at the start of your next turn or sent to another plane; 8 two rays"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "COMPLEX",
+    "classes": [
+      "Sorcerer",
+      "Wizard",
+      "Bard"
+    ],
+    "notes": "Each creature makes one DEX save against all its rays (rules call). Rays 1-7 and the d8 are automated (D189); the violet ray's follow-up WIS save is the DM's. (PHB p.267)",
+    "rayTable": [
+      {
+        "roll": 1,
+        "color": "red",
+        "damageDice": "10d6",
+        "damageType": "fire"
+      },
+      {
+        "roll": 2,
+        "color": "orange",
+        "damageDice": "10d6",
+        "damageType": "acid"
+      },
+      {
+        "roll": 3,
+        "color": "yellow",
+        "damageDice": "10d6",
+        "damageType": "lightning"
+      },
+      {
+        "roll": 4,
+        "color": "green",
+        "damageDice": "10d6",
+        "damageType": "poison"
+      },
+      {
+        "roll": 5,
+        "color": "blue",
+        "damageDice": "10d6",
+        "damageType": "cold"
+      },
+      {
+        "roll": 6,
+        "color": "indigo",
+        "conditionsInflicted": [
+          {
+            "condition": "restrained",
+            "durationText": "Until three CON saves succeed or fail"
+          }
+        ],
+        "countedSaves": {
+          "ability": "CON",
+          "successes": 3,
+          "failures": 3,
+          "endsConditions": [
+            "restrained"
+          ],
+          "failureCondition": "petrified",
+          "onFailures": "It turns to stone permanently and is petrified."
+        }
+      },
+      {
+        "roll": 7,
+        "color": "violet",
+        "conditionsInflicted": [
+          {
+            "condition": "blinded",
+            "durationText": "Until its WIS save at the start of the caster's next turn"
+          }
+        ],
+        "reminder": "blinded by the violet ray. At the start of {caster}'s next turn it makes a DC {dc} WIS save: a success ends the blindness; a failure sends it to another plane of the DM's choosing (the DM adds banished) and ends the blindness."
+      },
+      {
+        "roll": 8,
+        "color": "special",
+        "rollsTwice": true
+      }
+    ]
+  },
+  {
+    "spellName": "Delayed Blast Fireball",
+    "spellLevel": 7,
+    "school": "Evocation",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "a tiny ball of bat guano and sulfur",
+      "materialConsumed": false,
+      "materialCostGp": null
+    },
+    "concentration": true,
+    "durationRounds": 10,
+    "durationText": "Concentration, up to 1 minute",
+    "deliveryMethod": "AUTO_HIT",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": true,
+    "targetType": "AOE_SPHERE",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": "sphere",
+    "aoeSize": 20,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "A bead waits at a point within 150 feet and explodes when the spell ends: 12d6 fire, DEX save for half, 1d6 more for each of your turns that ends before then"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": "The base damage increases by 1d6 for each slot level above 7th",
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "COMPLEX",
+    "classes": [
+      "Sorcerer",
+      "Wizard"
+    ],
+    "notes": "Pick the creatures in the 20-foot radius as targets: nothing is rolled at the cast. The bead grows 1d6 at the end of each of the caster's turns and explodes over those creatures when the spell ends, by concentration lost, the caster ending it or its minute running out (D189). A creature touching the bead is the DM's. (PHB p.230)",
+    "detonation": {
+      "damageDice": "12d6",
+      "damageType": "fire",
+      "saveAbility": "DEX",
+      "halfOnSave": true,
+      "growsEachTurn": "1d6",
+      "upcastScaling": {
+        "additionalDicePerLevel": "1d6",
+        "additionalFlatPerLevel": 0
+      }
+    }
+  },
+  {
+    "spellName": "Divine Word",
+    "spellLevel": 7,
+    "school": "Evocation",
+    "castingTime": "BONUS_ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": false,
+      "material": null,
+      "materialConsumed": false,
+      "materialCostGp": null
+    },
+    "concentration": false,
+    "durationRounds": null,
+    "durationText": "Instantaneous",
+    "deliveryMethod": "SAVING_THROW",
+    "spellAttackType": null,
+    "saveAbility": "CHA",
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "MULTI_TARGET",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "Failed save, by current hit points: 50 or fewer deafened 1 minute; 40 or fewer deafened and blinded 10 minutes; 30 or fewer blinded, deafened and stunned 1 hour; 20 or fewer killed instantly. A failing celestial, elemental, fey or fiend is sent to its home plane for 24 hours"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "SAVE_CONDITION",
+    "classes": [
+      "Cleric"
+    ],
+    "notes": "Only creatures that can hear: a deafened creature is unaffected. Bands by current hit points (D189); death at 20 or fewer is outright, and Death Ward stops it. (PHB p.234)",
+    "noEffectOnConditions": [
+      "deafened"
+    ],
+    "hpThresholdEffects": [
+      {
+        "maxHp": 20,
+        "killsOutright": true
+      },
+      {
+        "maxHp": 30,
+        "conditionsInflicted": [
+          {
+            "condition": "blinded",
+            "durationRounds": 600
+          },
+          {
+            "condition": "deafened",
+            "durationRounds": 600
+          },
+          {
+            "condition": "stunned",
+            "durationRounds": 600
+          }
+        ]
+      },
+      {
+        "maxHp": 40,
+        "conditionsInflicted": [
+          {
+            "condition": "blinded",
+            "durationRounds": 100
+          },
+          {
+            "condition": "deafened",
+            "durationRounds": 100
+          }
+        ]
+      },
+      {
+        "maxHp": 50,
+        "conditionsInflicted": [
+          {
+            "condition": "deafened",
+            "durationRounds": 10
+          }
+        ]
+      }
+    ],
+    "banishes": {
+      "types": [
+        "celestial",
+        "elemental",
+        "fey",
+        "fiend"
+      ],
+      "durationRounds": 14400
+    }
+  },
+  {
+    "spellName": "Power Word Pain",
+    "spellLevel": 7,
+    "school": "Enchantment",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": false,
+      "material": null,
+      "materialConsumed": false,
+      "materialCostGp": null
+    },
+    "concentration": false,
+    "durationRounds": null,
+    "durationText": "Instantaneous",
+    "deliveryMethod": "AUTO_HIT",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": true,
+    "targetType": "SINGLE_TARGET",
+    "targetCount": 1,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": false,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "DEBUFF",
+        "description": "Speed at most 10 feet; disadvantage on attack rolls, ability checks and saving throws other than Constitution; a CON save before casting a spell or it is wasted",
+        "modifiers": [
+          {
+            "kind": "SPEED_MAX",
+            "flat": 10
+          },
+          {
+            "kind": "ATTACK_MODE",
+            "mode": "DISADVANTAGE"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "DISADVANTAGE",
+            "ability": "STR"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "DISADVANTAGE",
+            "ability": "DEX"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "DISADVANTAGE",
+            "ability": "INT"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "DISADVANTAGE",
+            "ability": "WIS"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "DISADVANTAGE",
+            "ability": "CHA"
+          }
+        ]
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "SAVE_CONDITION",
+    "classes": [
+      "Sorcerer",
+      "Warlock",
+      "Wizard"
+    ],
+    "notes": "No effect on a creature with more than 100 hit points (D189) or one immune to being charmed (the DM's). A CON save at the end of each of its turns ends it. (XGE p.163)",
+    "maxTargetHp": 100,
+    "modifierRepeatSave": "CON",
+    "reminder": "Disadvantage on its ability checks too; before it casts a spell it makes a CON save, and on a failure the spell is wasted."
+  },
+  {
+    "spellName": "Reverse Gravity",
+    "spellLevel": 7,
+    "school": "Transmutation",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "a lodestone and iron filings",
+      "materialConsumed": false,
+      "materialCostGp": null
+    },
+    "concentration": true,
+    "durationRounds": 10,
+    "durationText": "Concentration, up to 1 minute",
+    "deliveryMethod": "SAVING_THROW",
+    "spellAttackType": null,
+    "saveAbility": "DEX",
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "AOE_CYLINDER",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": "cylinder",
+    "aoeSize": 50,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "condition": "aloft",
+        "saveToAvoid": true,
+        "durationRounds": 10
+      },
+      {
+        "effectType": "OTHER",
+        "description": "Unanchored creatures fall up to the top of the area (falling damage if they hit a ceiling) and hover; a DEX save lets one grab a fixed object within reach. They fall back when the spell ends"
+      }
+    ],
+    "conditionsInflicted": [
+      {
+        "condition": "aloft",
+        "durationRounds": 10,
+        "durationText": "Until the spell ends, then it falls",
+        "saveToAvoid": "DEX"
+      }
+    ],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "SAVE_CONDITION",
+    "classes": [
+      "Druid",
+      "Sorcerer",
+      "Wizard"
+    ],
+    "notes": "A creature that fails is marked aloft until the spell ends; falling damage up and back down is the DM's (1d6 per 10 feet). (PHB p.272)"
+  },
+  {
+    "spellName": "Whirlwind",
+    "spellLevel": 7,
+    "school": "Evocation",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": false,
+      "material": "a piece of straw",
+      "materialConsumed": false,
+      "materialCostGp": null
+    },
+    "concentration": true,
+    "durationRounds": 10,
+    "durationText": "Concentration, up to 1 minute",
+    "deliveryMethod": "SAVING_THROW",
+    "spellAttackType": null,
+    "saveAbility": "DEX",
+    "halfOnSave": true,
+    "autoHit": false,
+    "targetType": "AOE_CYLINDER",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": "cylinder",
+    "aoeSize": 10,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "damageDice": "10d6",
+        "damageType": "bludgeoning"
+      },
+      {
+        "effectType": "OTHER",
+        "description": "A Large or smaller creature that fails must also succeed on a STR save or be restrained in the whirlwind until the spell ends; an action and a STR or DEX check against your DC frees it"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "COMPLEX",
+    "classes": [
+      "Druid",
+      "Sorcerer",
+      "Wizard"
+    ],
+    "notes": "Damage on the cast, on entering it, and when the caster's action moves it into creatures. A creature that fails then makes a STR save or is restrained until the spell ends (D189); only Large or smaller (the DM leaves bigger ones out), and the escape check is the DM's. (XGE p.171)",
+    "effectTriggers": [
+      {
+        "when": [
+          "ENTER"
+        ]
+      }
+    ],
+    "repeatActionType": "ACTION",
+    "repeatEffect": true,
+    "followUpSave": {
+      "ability": "STR",
+      "on": "FAILED_SAVE",
+      "conditionsInflicted": [
+        {
+          "condition": "restrained"
+        }
+      ]
+    }
+  },
+  {
+    "spellName": "Forcecage",
+    "spellLevel": 7,
+    "school": "Evocation",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "ruby dust worth 1,500 gp",
+      "materialConsumed": false,
+      "materialCostGp": 1500
+    },
+    "concentration": false,
+    "durationRounds": 600,
+    "durationText": "1 hour",
+    "deliveryMethod": "AUTO_HIT",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": true,
+    "targetType": "SPECIAL",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": "cube",
+    "aoeSize": 20,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "condition": "caged",
+        "saveToAvoid": false,
+        "durationRounds": 600
+      },
+      {
+        "effectType": "OTHER",
+        "description": "A cage (20-foot cube of bars) or a solid box (10-foot cube); creatures completely inside are trapped, with no save"
+      }
+    ],
+    "conditionsInflicted": [
+      {
+        "condition": "caged",
+        "durationRounds": 600,
+        "durationText": "1 hour; can't leave by nonmagical means; attacks and spells pass the bars"
+      },
+      {
+        "condition": "enclosed",
+        "durationRounds": 600,
+        "durationText": "1 hour; nothing passes the walls"
+      }
+    ],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "COMPLEX",
+    "classes": [
+      "Bard",
+      "Warlock",
+      "Wizard"
+    ],
+    "notes": "No concentration. Cage: trapped, attacks and spells pass the bars. Box: enclosed, nothing passes in or out (D185, D189). Teleporting or plane shifting out needs a CHA save first (the DM's); dispel magic can't end it. (PHB p.243)",
+    "persistsWithoutConcentration": true,
+    "castOptions": [
+      "cage",
+      "box"
+    ],
+    "conditionsByOption": {
+      "cage": [
+        "caged"
+      ],
+      "box": [
+        "enclosed"
+      ]
+    }
+  },
+  {
+    "spellName": "Plane Shift",
+    "spellLevel": 7,
+    "school": "Conjuration",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "a forked, metal rod worth at least 250 gp, attuned to a particular plane of existence",
+      "materialConsumed": false,
+      "materialCostGp": 250
+    },
+    "concentration": false,
+    "durationRounds": null,
+    "durationText": "Instantaneous",
+    "deliveryMethod": "SPELL_ATTACK",
+    "spellAttackType": "MELEE",
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "SINGLE_TARGET",
+    "targetCount": 9,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": true,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "Travel: you and up to eight willing creatures linking hands go to another plane. Banish: a melee spell attack, then a CHA save or the creature is sent to a plane you name"
+      }
+    ],
+    "conditionsInflicted": [
+      {
+        "condition": "plane shifted",
+        "durationText": "Gone to another plane; the DM removes it from the encounter"
+      }
+    ],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "COMPLEX",
+    "classes": [
+      "Cleric",
+      "Druid",
+      "Sorcerer",
+      "Warlock",
+      "Wizard"
+    ],
+    "notes": "Banish: one target; on a hit it makes a CHA save, and on a failure it is banished until the DM removes it from the encounter (D189). Travel: the travellers, the caster among them, are plane shifted, gone from the fight (a monster's escape). (PHB p.266)",
+    "castOptions": [
+      "banish",
+      "travel"
+    ],
+    "noSaveOptions": [
+      "travel"
+    ],
+    "conditionsByOption": {
+      "banish": [],
+      "travel": [
+        "plane shifted"
+      ]
+    },
+    "followUpSave": {
+      "ability": "CHA",
+      "option": "banish",
+      "conditionsInflicted": [
+        {
+          "condition": "banished",
+          "durationText": "Sent to a random place on another plane; the DM removes it from the encounter"
+        }
+      ]
+    }
+  },
+  {
+    "spellName": "Etherealness",
+    "spellLevel": 7,
+    "school": "Transmutation",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": null,
+      "materialConsumed": false,
+      "materialCostGp": null
+    },
+    "concentration": false,
+    "durationRounds": 4800,
+    "durationText": "Up to 8 hours",
+    "deliveryMethod": "AUTO_HIT",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": true,
+    "targetType": "SINGLE_TARGET",
+    "targetCount": 1,
+    "targetCountUpcastScaling": {
+      "additionalTargetsPerLevel": 3
+    },
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": true,
+    "canTargetAllies": true,
+    "canTargetEnemies": false,
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "condition": "ethereal",
+        "saveToAvoid": false,
+        "durationRounds": 4800
+      },
+      {
+        "effectType": "OTHER",
+        "description": "On the Border Ethereal: it can affect and be affected only by creatures on the Ethereal Plane"
+      }
+    ],
+    "conditionsInflicted": [
+      {
+        "condition": "ethereal",
+        "durationRounds": 4800,
+        "durationText": "Up to 8 hours or until dismissed with an action"
+      }
+    ],
+    "healing": null,
+    "upcastDescription": "Up to three willing creatures (you included) for each slot level above 7th",
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "UTILITY",
+    "classes": [
+      "Bard",
+      "Cleric",
+      "Sorcerer",
+      "Warlock",
+      "Wizard"
+    ],
+    "notes": "Marks the caster ethereal; only the caster at 7th (the DM checks targets). Who can reach it, and the shunting damage on return, are the DM's. (PHB p.238)",
+    "persistsWithoutConcentration": true
+  },
+  {
+    "spellName": "Tether Essence",
+    "spellLevel": 7,
+    "school": "Necromancy",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "a spool of platinum cord worth at least 250 gp, which the spell consumes",
+      "materialConsumed": true,
+      "materialCostGp": 250
+    },
+    "concentration": true,
+    "durationRounds": 600,
+    "durationText": "Concentration, up to 1 hour",
+    "deliveryMethod": "SAVING_THROW",
+    "spellAttackType": null,
+    "saveAbility": "CON",
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "MULTI_TARGET",
+    "targetCount": 2,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "condition": "tethered",
+        "saveToAvoid": true,
+        "durationRounds": 600
+      },
+      {
+        "effectType": "OTHER",
+        "description": "Only if both fail: damage and healing to one are dealt to the other; the spell ends if either drops to 0 hit points"
+      }
+    ],
+    "conditionsInflicted": [
+      {
+        "condition": "tethered",
+        "durationRounds": 600,
+        "durationText": "Only if both fail",
+        "saveToAvoid": "CON"
+      }
+    ],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "COMPLEX",
+    "classes": [],
+    "notes": "The saves and markers are automated; if only one fails, the DM removes its marker. Disadvantage within 30 feet of each other, mirrored damage and healing, and the end at 0 HP are the DM's. (EGW p.189)"
+  },
+  {
+    "spellName": "Draconic Transformation",
+    "spellLevel": 7,
+    "school": "Transmutation",
+    "castingTime": "BONUS_ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "a statuette of a dragon, worth at least 500 gp",
+      "materialConsumed": false,
+      "materialCostGp": 500
+    },
+    "concentration": true,
+    "durationRounds": 10,
+    "durationText": "Concentration, up to 1 minute",
+    "deliveryMethod": "SAVING_THROW",
+    "spellAttackType": null,
+    "saveAbility": "DEX",
+    "halfOnSave": true,
+    "autoHit": false,
+    "targetType": "AOE_CONE",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": "cone",
+    "aoeSize": 60,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "damageDice": "6d8",
+        "damageType": "force"
+      },
+      {
+        "effectType": "OTHER",
+        "description": "You gain blindsight 30 feet and a flying speed of 60 feet"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "COMPLEX",
+    "classes": [
+      "Druid",
+      "Sorcerer",
+      "Wizard"
+    ],
+    "notes": "The breath on the cast and as a bonus action on later turns is automated; the caster's blindsight and flying speed are the table's. (FTD p.19)",
+    "repeatActionType": "BONUS_ACTION",
+    "repeatEffect": true,
+    "reminder": "You have blindsight 30 feet and a flying speed of 60 feet while it lasts."
+  },
+  {
+    "spellName": "Regenerate",
+    "spellLevel": 7,
+    "school": "Transmutation",
+    "castingTime": "1_MINUTE",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "a prayer wheel and holy water",
+      "materialConsumed": false,
+      "materialCostGp": null
+    },
+    "concentration": false,
+    "durationRounds": 600,
+    "durationText": "1 hour",
+    "deliveryMethod": "AUTO_HIT",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": true,
+    "targetType": "SINGLE_TARGET",
+    "targetCount": 1,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": true,
+    "canTargetAllies": true,
+    "canTargetEnemies": false,
+    "effects": [
+      {
+        "effectType": "HEAL",
+        "healingDice": "4d8+15"
+      },
+      {
+        "effectType": "BUFF",
+        "description": "Regains 1 hit point at the start of each of its turns",
+        "modifiers": [
+          {
+            "kind": "HEAL_EACH_TURN",
+            "flat": 1
+          }
+        ]
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": {
+      "healingDice": "4d8+15",
+      "healingBonus": null,
+      "upcastScaling": null
+    },
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "HEAL",
+    "classes": [
+      "Bard",
+      "Cleric",
+      "Druid"
+    ],
+    "notes": "A 1-minute cast, so in combat the DM records it as already active; the creature then regains 1 HP at the start of each of its turns (D189). Severed limbs regrow after 2 minutes. (PHB p.271)",
+    "persistsWithoutConcentration": true
+  },
+  {
+    "spellName": "Conjure Celestial",
+    "spellLevel": 7,
+    "school": "Conjuration",
+    "castingTime": "1_MINUTE",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": null,
+      "materialConsumed": false,
+      "materialCostGp": null
+    },
+    "concentration": true,
+    "durationRounds": 600,
+    "durationText": "Concentration, up to 1 hour",
+    "deliveryMethod": "NONE",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "SPECIAL",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "SUMMON",
+        "description": "One celestial of challenge rating 4 or lower (5 or lower with a 9th-level slot); it rolls its own initiative and obeys your verbal commands"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": "A celestial of challenge rating 5 or lower with a 9th-level slot",
+    "specialMechanics": null,
+    "requiresManualResolution": true,
+    "manualResolutionReason": "Summoning: a 1-minute cast, so the DM places the celestial as a companion",
+    "patternCategory": "SUMMON",
+    "classes": [
+      "Cleric"
+    ],
+    "notes": "SummonRules CONJURE_CELESTIAL (D189). (PHB p.225)"
+  },
+  {
+    "spellName": "Simulacrum",
+    "spellLevel": 7,
+    "school": "Illusion",
+    "castingTime": "12_HOURS",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "snow or ice in quantities sufficient to make a life-size copy of the duplicated creature; some hair, fingernail clippings, or other piece of that creature's body placed inside the snow or ice; and powdered ruby worth 1,500 gp, sprinkled over the duplicate and consumed by the spell",
+      "materialConsumed": true,
+      "materialCostGp": 1500
+    },
+    "concentration": false,
+    "durationRounds": null,
+    "durationText": "Until dispelled",
+    "deliveryMethod": "NONE",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "SPECIAL",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "SUMMON",
+        "description": "An illusory construct duplicate of a beast or humanoid with half its hit point maximum and no equipment; it obeys you and acts on your turn"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": true,
+    "manualResolutionReason": "Summoning: a copy of an existing creature, made over 12 hours before the fight; the DM adds it with half its hit point maximum",
+    "patternCategory": "SUMMON",
+    "classes": [
+      "Wizard"
+    ],
+    "notes": "Recasting destroys the earlier duplicate; it can't regain spell slots. (PHB p.276)"
+  },
+  {
+    "spellName": "Create Magen",
+    "spellLevel": 7,
+    "school": "Transmutation",
+    "castingTime": "1_HOUR",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "a vial of quicksilver worth 500 gp and a life-sized human doll, both of which the spell consumes, and an intricate crystal rod worth at least 1,500 gp that is not consumed",
+      "materialConsumed": true,
+      "materialCostGp": 500
+    },
+    "concentration": false,
+    "durationRounds": null,
+    "durationText": "Instantaneous",
+    "deliveryMethod": "NONE",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "SPECIAL",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "SUMMON",
+        "description": "A demos, galvan or hypnos magen that obeys your commands"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": true,
+    "manualResolutionReason": "Summoning: a permanent magen made in an hour before the fight; the DM adds it, and the caster's hit point maximum drops by its challenge rating",
+    "patternCategory": "SUMMON",
+    "classes": [
+      "Wizard"
+    ],
+    "notes": "(IDRotF p.318)"
+  },
+  {
+    "spellName": "Resurrection",
+    "spellLevel": 7,
+    "school": "Necromancy",
+    "castingTime": "1_HOUR",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "a diamond worth at least 1,000 gp, which the spell consumes",
+      "materialConsumed": true,
+      "materialCostGp": 1000
+    },
+    "concentration": false,
+    "durationRounds": null,
+    "durationText": "Instantaneous",
+    "deliveryMethod": "NONE",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "SINGLE_TARGET",
+    "targetCount": 1,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": false,
+    "effects": [
+      {
+        "effectType": "HEAL",
+        "description": "Returns a creature dead no longer than a century to life with all its hit points"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": true,
+    "manualResolutionReason": "Out-of-combat revival (a 1-hour cast): the DM revives the character with all its hit points (Revive at full hit points); it takes -4 to attack rolls, saves and checks, 1 less each long rest",
+    "patternCategory": "HEAL",
+    "classes": [
+      "Bard",
+      "Cleric"
+    ],
+    "notes": "Revive with fullHitPoints (D189). Raising one dead a year or more leaves the caster unable to cast spells and with disadvantage until a long rest. (PHB p.272)"
+  },
+  {
+    "spellName": "Teleport",
+    "spellLevel": 7,
+    "school": "Conjuration",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": false,
+      "material": null,
+      "materialConsumed": false,
+      "materialCostGp": null
+    },
+    "concentration": false,
+    "durationRounds": null,
+    "durationText": "Instantaneous",
+    "deliveryMethod": "NONE",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "SPECIAL",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "Long-range travel leaves the encounter: the DM removes the travellers, and rolls the familiarity table and any mishap damage (3d10 force)"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": true,
+    "manualResolutionReason": "Long-range travel leaves the encounter: the DM removes the travellers, and rolls the familiarity table and any mishap damage (3d10 force)",
+    "patternCategory": "UTILITY",
+    "classes": [
+      "Bard",
+      "Sorcerer",
+      "Wizard"
+    ],
+    "notes": "You and up to eight willing creatures, or one object. (PHB p.281)"
+  },
+  {
+    "spellName": "Symbol",
+    "spellLevel": 7,
+    "school": "Abjuration",
+    "castingTime": "1_MINUTE",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "mercury, phosphorus, and powdered diamond and opal with a total value of at least 1,000 gp, which the spell consumes",
+      "materialConsumed": true,
+      "materialCostGp": 1000
+    },
+    "concentration": false,
+    "durationRounds": null,
+    "durationText": "Until dispelled or triggered",
+    "deliveryMethod": "NONE",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "SPECIAL",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": "sphere",
+    "aoeSize": 60,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "Death (CON, 10d10 necrotic, half), Discord, Fear, Hopelessness, Insanity, Pain, Sleep or Stunning"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": true,
+    "manualResolutionReason": "A glyph set before the fight with a trigger and one of eight effects; once triggered the DM applies its effect to creatures in a 60-foot sphere for 10 minutes",
+    "patternCategory": "COMPLEX",
+    "classes": [
+      "Bard",
+      "Cleric",
+      "Wizard",
+      "Druid"
+    ],
+    "notes": "(PHB p.280)"
+  },
+  {
+    "spellName": "Project Image",
+    "spellLevel": 7,
+    "school": "Illusion",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "a small replica of you made from materials worth at least 5 gp",
+      "materialConsumed": false,
+      "materialCostGp": 5
+    },
+    "concentration": true,
+    "durationRounds": 14400,
+    "durationText": "Concentration, up to 1 day",
+    "deliveryMethod": "NONE",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "SPECIAL",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "An intangible illusory double; nothing to roll. It ends if it takes damage"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": true,
+    "manualResolutionReason": "An intangible illusory double; nothing to roll. It ends if it takes damage",
+    "patternCategory": "UTILITY",
+    "classes": [
+      "Bard",
+      "Wizard"
+    ],
+    "notes": "Using its senses leaves the caster blinded and deafened to its own surroundings (the DM's). (PHB p.270)"
+  },
+  {
+    "spellName": "Mirage Arcane",
+    "spellLevel": 7,
+    "school": "Illusion",
+    "castingTime": "10_MINUTES",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": null,
+      "materialConsumed": false,
+      "materialCostGp": null
+    },
+    "concentration": false,
+    "durationRounds": 144000,
+    "durationText": "10 days",
+    "deliveryMethod": "NONE",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "SPECIAL",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "An exploration-scale illusion of terrain; nothing to roll"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": true,
+    "manualResolutionReason": "An exploration-scale illusion of terrain; nothing to roll",
+    "patternCategory": "UTILITY",
+    "classes": [
+      "Bard",
+      "Druid",
+      "Wizard"
+    ],
+    "notes": "(PHB p.260)"
+  },
+  {
+    "spellName": "Mordenkainen's Magnificent Mansion",
+    "spellLevel": 7,
+    "school": "Conjuration",
+    "castingTime": "1_MINUTE",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "a miniature portal carved from ivory, a small piece of polished marble, and a tiny silver spoon, each item worth at least 5 gp",
+      "materialConsumed": false,
+      "materialCostGp": 15
+    },
+    "concentration": false,
+    "durationRounds": 14400,
+    "durationText": "24 hours",
+    "deliveryMethod": "NONE",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "SPECIAL",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "A shelter outside the fight; nothing to roll"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": true,
+    "manualResolutionReason": "A shelter outside the fight; nothing to roll",
+    "patternCategory": "UTILITY",
+    "classes": [
+      "Bard",
+      "Wizard"
+    ],
+    "notes": "(PHB p.261)"
+  },
+  {
+    "spellName": "Sequester",
+    "spellLevel": 7,
+    "school": "Transmutation",
+    "castingTime": "ACTION",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "a powder composed of diamond, emerald, ruby, and sapphire dust worth at least 5,000 gp, which the spell consumes",
+      "materialConsumed": true,
+      "materialCostGp": 5000
+    },
+    "concentration": false,
+    "durationRounds": null,
+    "durationText": "Until dispelled",
+    "deliveryMethod": "NONE",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "SINGLE_TARGET",
+    "targetCount": 1,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "Long-term hiding of a willing creature or object outside the fight"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": true,
+    "manualResolutionReason": "Long-term hiding of a willing creature or object outside the fight",
+    "patternCategory": "UTILITY",
+    "classes": [
+      "Wizard"
+    ],
+    "notes": "(PHB p.274)"
+  },
+  {
+    "spellName": "Dream of the Blue Veil",
+    "spellLevel": 7,
+    "school": "Conjuration",
+    "castingTime": "10_MINUTES",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "a magic item or a willing creature from the destination world",
+      "materialConsumed": false,
+      "materialCostGp": null
+    },
+    "concentration": false,
+    "durationRounds": 3600,
+    "durationText": "6 hours",
+    "deliveryMethod": "NONE",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "SPECIAL",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "World travel during a 6-hour trance outside the fight"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": true,
+    "manualResolutionReason": "World travel during a 6-hour trance outside the fight",
+    "patternCategory": "UTILITY",
+    "classes": [
+      "Bard",
+      "Sorcerer",
+      "Warlock",
+      "Wizard"
+    ],
+    "notes": "(TCE p.106)"
+  },
+  {
+    "spellName": "Temple of the Gods",
+    "spellLevel": 7,
+    "school": "Conjuration",
+    "castingTime": "1_HOUR",
+    "isRitual": false,
+    "components": {
+      "verbal": true,
+      "somatic": true,
+      "material": "a holy symbol worth at least 5 gp",
+      "materialConsumed": false,
+      "materialCostGp": 5
+    },
+    "concentration": false,
+    "durationRounds": 14400,
+    "durationText": "24 hours",
+    "deliveryMethod": "NONE",
+    "spellAttackType": null,
+    "saveAbility": null,
+    "halfOnSave": false,
+    "autoHit": false,
+    "targetType": "SPECIAL",
+    "targetCount": null,
+    "targetCountUpcastScaling": null,
+    "aoeShape": null,
+    "aoeSize": null,
+    "selfOnly": false,
+    "canTargetSelf": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "A temple raised in an hour before the fight; its -1d4 to chosen creature types and extra healing are the DM's"
+      }
+    ],
+    "conditionsInflicted": [],
+    "healing": null,
+    "upcastDescription": null,
+    "specialMechanics": null,
+    "requiresManualResolution": true,
+    "manualResolutionReason": "A temple raised in an hour before the fight; its -1d4 to chosen creature types and extra healing are the DM's",
+    "patternCategory": "UTILITY",
+    "classes": [
+      "Cleric"
+    ],
+    "notes": "(XGE p.167)"
   }
 ]

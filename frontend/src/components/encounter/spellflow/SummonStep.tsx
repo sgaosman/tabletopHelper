@@ -208,6 +208,9 @@ export default function SummonStep({
         {kind === 'CONJURE_ELEMENTAL' && (
           <li className={NOTE}>If your concentration is broken it doesn't disappear: it turns hostile, you can't dismiss it, and it disappears 1 hour after you summoned it (PHB p.225).</li>
         )}
+        {kind === 'CONJURE_CELESTIAL' && (
+          <li className={NOTE}>It rolls its own initiative and obeys verbal commands that fit its alignment; with none, it only defends itself (PHB p.225).</li>
+        )}
         {kind === 'INFERNAL_CALLING' && (
           <li className={NOTE}>A command it dislikes needs your Charisma check against its Wisdom (Insight); on a failure it ignores your commands for the rest of the spell (XGE p.158).</li>
         )}

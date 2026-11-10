@@ -25,7 +25,8 @@ import java.util.Map;
  * that doesn't fit. Since version 2 a BUFF or DEBUFF effect may list its Ongoing Modifiers (D184), and one of an
  * unknown kind, scope, mode or end is a part that doesn't fit too. Since version 3 the 4th-level spells' keys (D185),
  * such as delayedDamage, retaliation and durationBySlot, are checked the same way, and since version 4 the 5th-level
- * spells' keys (D187), such as lifeDrain, countedSaves, contest and hitThreshold.
+ * spells' keys (D187), such as lifeDrain, countedSaves, contest and hitThreshold, and since version 5 the 7th-level
+ * spells' keys (D189), such as hpThresholdEffects, rayTable, detonation and raisesOnKill.
  */
 @Component
 @RequiredArgsConstructor
@@ -49,8 +50,9 @@ public class SpellEffectLoader implements ContentLoader {
 
     @Override
     public int version() {
-        // 3: the 4th-level spells' templates and keys (D185); 4: the 5th-level spells' (D187)
-        return 4;
+        // 3: the 4th-level spells' templates and keys (D185); 4: the 5th-level spells' (D187); 5: the 7th-level
+        // spells' (D189)
+        return 5;
     }
 
     @Override

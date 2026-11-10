@@ -237,13 +237,17 @@ public class CharacterController {
         return ResponseEntity.ok(adjustmentService.remove(characterId, adjustmentId, userId));
     }
 
-    /** Revives a character who died in an encounter, at 1 hit point, which only the DM of its campaign may (D166). */
+    /**
+     * Revives a character who died in an encounter, which only the DM of its campaign may (D166): at 1 hit point, or at
+     * its hit point maximum with fullHitPoints, as Resurrection and True Resurrection restore (PHB p.272, p.284, D189).
+     */
     @PostMapping("/{characterId}/revive")
     public ResponseEntity<CharacterResponse> revive(
             @PathVariable UUID characterId,
+            @RequestParam(required = false) Boolean fullHitPoints,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        return ResponseEntity.ok(writeBackService.revive(characterId, userId));
+        return ResponseEntity.ok(writeBackService.revive(characterId, userId, Boolean.TRUE.equals(fullHitPoints)));
     }
 
     // ── Levels ───────────────────────────────────────────────────

@@ -315,6 +315,38 @@ public class Summoner {
                 numberOr(caster.getSpellSaveDc(), 10), " (chosen by the DM)", null);
     }
 
+    /**
+     * A creature the spell killed rising under its caster's command (D189), as a humanoid Finger of Death kills rising
+     * as a zombie at the start of the caster's next turn, "permanently under your command" (PHB p.241). It is made as
+     * Animate Dead's zombie is (PHB p.212), on a Spell Effect of the raising spell's own with no duration, so it stays
+     * until it drops or is dismissed; unlike Animate Dead's, it needs no command to act. Named after the corpse, which
+     * stays in the encounter as it was. Nothing when the form's stat block isn't loaded, which the log says.
+     */
+    public void raise(Encounter encounter, EncounterParticipant caster, String spellName, Integer slotLevel,
+                      String form, EncounterParticipant corpse) {
+        Optional<Monster> monster = monsterRepository.findByNameIgnoreCaseAndSource(form, "MM")
+                .or(() -> monsterRepository.fuzzySearchByName(form, 5).stream()
+                        .filter(found -> found.getName().equalsIgnoreCase(form)).findFirst());
+        if (monster.isEmpty()) {
+            combatLog.write(encounter, CombatActionType.SUMMON, corpse.getDisplayName() + " should rise as a " + form
+                    + " under " + caster.getDisplayName() + "'s command (" + spellName + "), but its stat block isn't "
+                    + "loaded; the DM adds it", caster, null);
+            return;
+        }
+        SummonRules.Spell raising = new SummonRules.Spell(spellName, SummonRules.Kind.ANIMATE_DEAD,
+                slotLevel != null ? slotLevel : 0, false, null, false, false, false, false, false,
+                List.of(InitiativeMode.FOLLOWS_CASTER), List.of(), SummonRules.Controller.CASTER, null, List.of(),
+                "PHB", 241, null, List.of(), List.of(form));
+        SummonRules.Option one = new SummonRules.Option("1", 1, null, "One " + form.toLowerCase(java.util.Locale.ROOT));
+        Plan plan = new Plan(raising, slotLevel != null ? slotLevel : 0, one, List.of(new Picked(monster.get(), 1)),
+                null, null, null, InitiativeMode.FOLLOWS_CASTER, null);
+        SpellEffectEntry effect = effectApplier.startSummonEffect(encounter, caster, spellName, slotLevel, null, null,
+                new SummonSpec("1", 1, null, SummonSpec.Status.PLACED));
+        place(encounter, caster, effect, plan, null, numberOr(caster.getSpellAttackBonus(), 0),
+                numberOr(caster.getSpellSaveDc(), 10), " (" + corpse.getDisplayName() + " rises, PHB p.241)",
+                monster.get().getName() + " (" + corpse.getDisplayName() + ")");
+    }
+
     /** Whether the caster has a familiar in the fight already (PHB p.240, LLK p.57). */
     public static boolean hasFamiliar(Encounter encounter, EncounterParticipant caster) {
         return encounter.getParticipants().stream()

@@ -1076,6 +1076,14 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "in": "query",
+            "name": "fullHitPoints",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -8029,6 +8037,38 @@
           }
         }
       },
+      "DetonationResponse": {
+        "required": [
+          "ability",
+          "dc",
+          "dice",
+          "halfOnSave"
+        ],
+        "type": "object",
+        "properties": {
+          "ability": {
+            "type": "string"
+          },
+          "dc": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dice": {
+            "type": "string"
+          },
+          "grows": {
+            "type": "string",
+            "nullable": true
+          },
+          "halfOnSave": {
+            "type": "boolean"
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "DismissSummonsRequest": {
         "required": [
           "participantIds"
@@ -11915,6 +11955,7 @@
           "id",
           "modifiers",
           "retargetable",
+          "risingIds",
           "spell",
           "startedRound",
           "summonedParticipantIds",
@@ -11950,6 +11991,14 @@
             "items": {
               "$ref": "#/components/schemas/DelayedDamage"
             }
+          },
+          "detonation": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DetonationResponse"
+              }
+            ]
           },
           "directedCost": {
             "type": "string",
@@ -11993,6 +12042,13 @@
           },
           "retargetable": {
             "type": "boolean"
+          },
+          "risingIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           },
           "slotLevel": {
             "type": "integer",
@@ -12714,7 +12770,8 @@
               "CONJURE_ELEMENTAL",
               "INFERNAL_CALLING",
               "ANIMATE_OBJECTS",
-              "DANSE_MACABRE"
+              "DANSE_MACABRE",
+              "CONJURE_CELESTIAL"
             ]
           },
           "needsCommand": {
@@ -12854,7 +12911,8 @@
               "CONJURE_ELEMENTAL",
               "INFERNAL_CALLING",
               "ANIMATE_OBJECTS",
-              "DANSE_MACABRE"
+              "DANSE_MACABRE",
+              "CONJURE_CELESTIAL"
             ]
           },
           "multiplier": {

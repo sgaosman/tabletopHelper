@@ -105,6 +105,12 @@ public class EffectApplier {
     /** The condition of a creature inside Otiluke's Resilient Sphere (PHB p.264, D185). */
     public static final String ENCLOSED = "enclosed";
 
+    /**
+     * The condition of a creature Plane Shift has taken to another plane (PHB p.266, D189): gone from the fight, as a
+     * banished one is, until the DM removes it or brings it back.
+     */
+    public static final String PLANE_SHIFTED = "plane shifted";
+
     private final Resolver resolver;
     private final CreatureStats stats;
     private final CombatLogWriter combatLog;
@@ -964,6 +970,10 @@ public class EffectApplier {
         caster.setActiveEffects(effects);
         combatLog.write(encounter, CombatActionType.SPELL_EFFECT_END, caster.getDisplayName() + "'s "
                 + ended.get().spell() + " ends (" + why + ")", null, caster);
+        // A bead that explodes as the spell ends, however it ends (PHB p.230, D189)
+        if (ended.get().detonation() != null) {
+            detonate(encounter, caster, ended.get());
+        }
         afterModifiersEnd(encounter, ended.get(), ended.get().affected());
         if (concentrationBroken) {
             turnHostile(encounter, effectId);
@@ -1260,13 +1270,19 @@ public class EffectApplier {
                         }
                     }
                 }
+                // The failures' lasting condition, as the indigo ray's petrified, for good (PHB p.267, D189)
+                if (takesHold && saves.failureCondition() != null) {
+                    addLastingCondition(encounter, caster, creature, saves.failureCondition(), null, effect.spell());
+                }
                 SpellEffectEntry.Tally changed = new SpellEffectEntry.Tally(id, successes, failures,
                         cured || takesHold);
                 SpellEffectEntry current = find(caster, effect.id());
                 List<SpellEffectEntry.Tally> tallies = current.countedSave().tallies().stream()
                         .map(t -> t.creature().equals(id) ? changed : t).toList();
                 replaceEffect(caster, current.withCountedSave(current.countedSave().withTallies(tallies)));
-                if (tallies.stream().allMatch(t -> t.done() && t.successes() >= saves.successes())) {
+                // A spell whose failures leave a condition of their own is done once every count is
+                if (tallies.stream().allMatch(t -> t.done() && t.successes() >= saves.successes())
+                        || saves.failureCondition() != null && tallies.stream().allMatch(SpellEffectEntry.Tally::done)) {
                     endWholeEffect(encounter, caster, current, "every creature has shaken it off");
                 }
             }
@@ -1298,6 +1314,17 @@ public class EffectApplier {
                             && found.modifier().flat() > 0)
                     .findFirst()
                     .filter(found -> living)
+                    .ifPresent(found -> heal(encounter, found.caster(), creature, found.modifier().flat(),
+                            found.effect().spell()));
+        }
+        // Regenerate's hit point at the start of each of the creature's turns (PHB p.271, D189); the same spell's
+        // effects don't add up (PHB p.205), so the largest counts
+        if (creature.getLifeState() != LifeState.DEAD && creature.getHpCurrent() != null
+                && creature.getHpCurrent() < CreatureStats.hpMax(creature)) {
+            ActiveModifiers.on(creature).stream()
+                    .filter(found -> found.modifier().kind() == OngoingModifier.Kind.HEAL_EACH_TURN
+                            && found.modifier().flat() > 0)
+                    .max(java.util.Comparator.comparingInt(found -> found.modifier().flat()))
                     .ifPresent(found -> heal(encounter, found.caster(), creature, found.modifier().flat(),
                             found.effect().spell()));
         }
@@ -1364,6 +1391,7 @@ public class EffectApplier {
      */
     public void effectsAtTurnEnd(Encounter encounter, EncounterParticipant creature) {
         countedSavesAtTurnEnd(encounter, creature);
+        growDetonations(encounter, creature);
         UUID id = creature.getId();
         for (EncounterParticipant caster : List.copyOf(encounter.getParticipants())) {
             for (SpellEffectEntry effect : effects(caster)) {
@@ -1393,6 +1421,128 @@ public class EffectApplier {
                 }
             }
         }
+    }
+
+    // ── What the 7th-level spells leave on a Spell Effect (D189) ─────
+
+    /**
+     * Puts a detonation on the Spell Effect, over the creatures it will reach, as Delayed Blast Fireball's bead over the
+     * creatures in its 20-foot radius (PHB p.230, D189).
+     */
+    public void startDetonation(EncounterParticipant caster, UUID effectId, SpellEffectEntry.Detonation detonation,
+                                List<EncounterParticipant> creatures) {
+        Optional<SpellEffectEntry> found = effects(caster).stream().filter(e -> e.id().equals(effectId)).findFirst();
+        found.ifPresent(effect -> replaceEffect(caster, effect.withDetonation(detonation)
+                .withAffected(creatures.stream().map(EncounterParticipant::getId).toList())));
+    }
+
+    /** Leaves a Spell Effect holding creatures that rise at the start of its caster's next turn (D189). */
+    public SpellEffectEntry startRising(Encounter encounter, EncounterParticipant caster, String spell,
+                                        Integer slotLevel, List<EncounterParticipant> creatures) {
+        SpellEffectEntry effect = startEffect(encounter, caster, spell, slotLevel, null, null, null, false)
+                .withRising(creatures.stream().map(EncounterParticipant::getId).toList());
+        replaceEffect(caster, effect);
+        return effect;
+    }
+
+    /*
+     * The end of a caster's turn for a detonation that grows (D189): Delayed Blast Fireball's bead gains 1d6 each time
+     * its caster ends a turn before it explodes (PHB p.230), the turn it was cast in included.
+     */
+    private void growDetonations(Encounter encounter, EncounterParticipant caster) {
+        for (SpellEffectEntry effect : effects(caster)) {
+            SpellEffectEntry.Detonation detonation = effect.detonation();
+            if (detonation == null || detonation.grows() == null) {
+                continue;
+            }
+            com.tabletophelper.rules.Dice now = com.tabletophelper.rules.Dice.parse(detonation.dice());
+            com.tabletophelper.rules.Dice more = com.tabletophelper.rules.Dice.parse(detonation.grows());
+            com.tabletophelper.rules.Dice grown = new com.tabletophelper.rules.Dice(now.count() + more.count(),
+                    now.sides(), now.modifier() + more.modifier());
+            replaceEffect(caster, effect.withDetonation(new SpellEffectEntry.Detonation(grown.toString(),
+                    detonation.type(), detonation.ability(), detonation.dc(), detonation.halfOnSave(),
+                    detonation.grows())));
+            combatLog.write(encounter, CombatActionType.SPELL_EFFECT_REPEAT, caster.getDisplayName() + "'s "
+                    + effect.spell() + " grows to " + grown + " " + detonation.type(), caster, null);
+        }
+    }
+
+    /*
+     * A Spell Effect that explodes as it ends (D189), however it ends, as Delayed Blast Fireball's bead when its
+     * concentration ends, its caster ends it, or its minute runs out (PHB p.230): each creature it marked that is still in
+     * the fight makes the save against the damage it has grown to.
+     */
+    private void detonate(Encounter encounter, EncounterParticipant caster, SpellEffectEntry effect) {
+        SpellEffectEntry.Detonation detonation = effect.detonation();
+        List<EncounterParticipant> caught = effect.affected().stream()
+                .map(id -> participant(encounter, id))
+                .flatMap(Optional::stream)
+                .filter(c -> c.getLifeState() != LifeState.DEAD && !EncounterTurns.dismissed(c)
+                        && !CombatAccess.banished(c))
+                .toList();
+        Ability ability = Ability.parse(detonation.ability()).orElse(Ability.DEX);
+        Effect blast = new Effect(effect.spell(), new Effect.Save(ability, detonation.dc(), detonation.halfOnSave()),
+                List.of(new Effect.DamagePart(com.tabletophelper.rules.Dice.parse(detonation.dice()),
+                        detonation.type())), null, List.of(), false, null);
+        Use use = new Use(caster, caster.getDisplayName() + "'s " + effect.spell(), CombatActionType.SPELL_EFFECT_REPEAT,
+                "explodes over", "", effect.spell(), null);
+        combatLog.write(encounter, CombatActionType.SPELL_EFFECT_REPEAT, caster.getDisplayName() + "'s " + effect.spell()
+                + " explodes: " + detonation.dice() + " " + detonation.type() + ", DC " + detonation.dc() + " "
+                + ability.name() + " save" + (detonation.halfOnSave() ? " for half" : "")
+                + (caught.isEmpty() ? " (no creature is caught)" : ""), caster, null);
+        if (caught.isEmpty()) {
+            return;
+        }
+        apply(encounter, use, blast, resolver.resolve(blast, caught.stream().map(c -> stats.target(c, blast))
+                .toList()));
+    }
+
+    /**
+     * Kills a creature outright, with no damage dealt, as Divine Word does a creature at 20 hit points or fewer (PHB
+     * p.234, D189): it is dead, a player character skipping death saves (D166). Death Ward negates an effect that would
+     * kill it instantly without dealing damage, and ends (PHB p.230). What the log adds.
+     */
+    public String killOutright(Encounter encounter, EncounterParticipant caster, EncounterParticipant target,
+                               String spell) {
+        if (target.getLifeState() == LifeState.DEAD) {
+            return "";
+        }
+        Optional<ActiveModifiers.Found> ward = ActiveModifiers.on(target).stream()
+                .filter(found -> found.modifier().kind() == OngoingModifier.Kind.DEATH_WARD)
+                .findFirst();
+        if (ward.isPresent()) {
+            String wardSpell = ward.get().effect().spell();
+            release(encounter, ward.get().caster(), ward.get().effect().id(), target,
+                    "it saved " + target.getDisplayName());
+            String note = wardSpell + " saves " + target.getDisplayName() + " from being killed by " + spell
+                    + ", and " + wardSpell + " ends.";
+            combatLog.write(encounter, CombatActionType.SPELL_EFFECT_END, note, caster, target);
+            return note;
+        }
+        Vitals before = vitals(target);
+        setVitals(target, new Vitals(0, before.maxHp(), 0, LifeState.DEAD, before.deathSaveSuccesses(),
+                before.deathSaveFailures(), before.playerCharacter()));
+        String note = target.getDisplayName() + " is killed outright by " + caster.getDisplayName() + "'s " + spell + ".";
+        combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.DAMAGE, note), caster, target)
+                .damageDealt(0));
+        endConcentration(encounter, target, "dies");
+        vanishAtZero(encounter, target);
+        return note;
+    }
+
+    /**
+     * Gives the creature a condition no spell holds, lasting its rounds or until the DM ends it, as Divine Word's tiers
+     * and its banishment (PHB p.234, D189).
+     */
+    public void addLastingCondition(Encounter encounter, EncounterParticipant caster, EncounterParticipant target,
+                                    String condition, Integer rounds, String spell) {
+        List<ConditionEntry> conditions = conditions(target);
+        conditions.add(ConditionEntry.fromEffect(condition.toLowerCase(Locale.ROOT), rounds, encounter.getRoundNumber(),
+                spell, caster.getId(), null));
+        target.setActiveConditions(conditions);
+        combatLog.write(encounter, CombatActionType.CONDITION_ADD, target.getDisplayName() + " is " + condition
+                + " by " + caster.getDisplayName() + "'s " + spell
+                + (rounds != null ? " for " + rounds + " rounds" : " until the DM ends it"), caster, target);
     }
 
     // One of the caster's Spell Effects, which must be there

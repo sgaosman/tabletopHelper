@@ -55,6 +55,11 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  *                                D187); null for none
  * @param controlled              the creatures it put under its caster's control, as Dominate Person's (PHB p.235,
  *                                D187), which go back when it ends; empty, and left out of the JSON, for none
+ * @param detonation              the damage it deals when it ends, however it ends, to the creatures in {@code affected},
+ *                                as Delayed Blast Fireball's bead (PHB p.230, D189); null for none
+ * @param rising                  the creatures it killed that rise at the start of its caster's next turn, as Finger
+ *                                of Death's humanoids rising as zombies (PHB p.241, D189); empty, and left out of the
+ *                                JSON, for none
  */
 public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID concentrationInstanceId,
                                int startedRound, Integer durationRounds, Integer usesLeft,
@@ -71,7 +76,9 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
                                @JsonInclude(JsonInclude.Include.NON_EMPTY) List<ExhaustionGiven> exhaustion,
                                @JsonInclude(JsonInclude.Include.NON_NULL) String turnReminder,
                                @JsonInclude(JsonInclude.Include.NON_NULL) CountedSave countedSave,
-                               @JsonInclude(JsonInclude.Include.NON_EMPTY) List<Controlled> controlled) {
+                               @JsonInclude(JsonInclude.Include.NON_EMPTY) List<Controlled> controlled,
+                               @JsonInclude(JsonInclude.Include.NON_NULL) Detonation detonation,
+                               @JsonInclude(JsonInclude.Include.NON_EMPTY) List<UUID> rising) {
 
     /** A saving throw by ability and DC. */
     public record EffectSave(String ability, int dc) {
@@ -107,6 +114,36 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
         delayed = delayed != null ? List.copyOf(delayed) : List.of();
         exhaustion = exhaustion != null ? List.copyOf(exhaustion) : List.of();
         controlled = controlled != null ? List.copyOf(controlled) : List.of();
+        rising = rising != null ? List.copyOf(rising) : List.of();
+    }
+
+    /**
+     * The damage a Spell Effect deals as it ends (D189), as Delayed Blast Fireball's (PHB p.230).
+     *
+     * @param dice       the damage so far, such as "13d6", growing at the end of each of its caster's turns
+     * @param type       the damage type
+     * @param ability    the save's ability
+     * @param dc         its DC, the caster's spell save DC when cast
+     * @param halfOnSave whether a success halves it
+     * @param grows      the dice it gains at the end of each of its caster's turns, or null
+     */
+    public record Detonation(@Schema(requiredMode = REQUIRED) String dice, String type,
+                             @Schema(requiredMode = REQUIRED) String ability, @Schema(requiredMode = REQUIRED) int dc,
+                             @Schema(requiredMode = REQUIRED) boolean halfOnSave, String grows) {
+    }
+
+    /** The same effect with this detonation (D189). */
+    public SpellEffectEntry withDetonation(Detonation changed) {
+        return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds,
+                usesLeft, summon, affected, modifiers, option, repeatSave, endReminder, modifiersOnly, delayed,
+                damageLeft, retaliation, exhaustion, turnReminder, countedSave, controlled, changed, rising);
+    }
+
+    /** The same effect with these creatures to rise (D189). */
+    public SpellEffectEntry withRising(List<UUID> creatures) {
+        return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds,
+                usesLeft, summon, affected, modifiers, option, repeatSave, endReminder, modifiersOnly, delayed,
+                damageLeft, retaliation, exhaustion, turnReminder, countedSave, controlled, detonation, creatures);
     }
 
     /**
@@ -120,18 +157,28 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
      * @param onFailures     what the log reminds the DM of then, or null
      * @param endsConditions the spell's conditions that end on either outcome
      * @param tallies        each creature's count so far
+     * @param failureCondition the condition the failures give for good, as Prismatic Spray's indigo ray's petrified
+     *                       (PHB p.267, D189); null for none
      */
     public record CountedSave(String ability, int dc, int successes, int failures, String onFailures,
-                              List<String> endsConditions, List<Tally> tallies) {
+                              List<String> endsConditions, List<Tally> tallies,
+                              @JsonInclude(JsonInclude.Include.NON_NULL) String failureCondition) {
 
         public CountedSave {
             endsConditions = endsConditions != null ? List.copyOf(endsConditions) : List.of();
             tallies = tallies != null ? List.copyOf(tallies) : List.of();
         }
 
+        /** Counted saves whose failures give no condition (D187). */
+        public CountedSave(String ability, int dc, int successes, int failures, String onFailures,
+                           List<String> endsConditions, List<Tally> tallies) {
+            this(ability, dc, successes, failures, onFailures, endsConditions, tallies, null);
+        }
+
         /** The same saves with these tallies. */
         public CountedSave withTallies(List<Tally> changed) {
-            return new CountedSave(ability, dc, successes, failures, onFailures, endsConditions, changed);
+            return new CountedSave(ability, dc, successes, failures, onFailures, endsConditions, changed,
+                    failureCondition);
         }
     }
 
@@ -160,14 +207,14 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
     public SpellEffectEntry withCountedSave(CountedSave saves) {
         return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds,
                 usesLeft, summon, affected, modifiers, option, repeatSave, endReminder, modifiersOnly, delayed,
-                damageLeft, retaliation, exhaustion, turnReminder, saves, controlled);
+                damageLeft, retaliation, exhaustion, turnReminder, saves, controlled, detonation, rising);
     }
 
     /** The same effect controlling these creatures (D187). */
     public SpellEffectEntry withControlled(List<Controlled> creatures) {
         return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds,
                 usesLeft, summon, affected, modifiers, option, repeatSave, endReminder, modifiersOnly, delayed,
-                damageLeft, retaliation, exhaustion, turnReminder, countedSave, creatures);
+                damageLeft, retaliation, exhaustion, turnReminder, countedSave, creatures, detonation, rising);
     }
 
     /** An effect without the 4th-level spells' additions (D185). */
@@ -176,7 +223,8 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
                             List<UUID> affected, List<OngoingModifier> modifiers, String option, EffectSave repeatSave,
                             String endReminder, Boolean modifiersOnly) {
         this(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds, usesLeft, summon, affected,
-                modifiers, option, repeatSave, endReminder, modifiersOnly, null, null, null, null, null, null, null);
+                modifiers, option, repeatSave, endReminder, modifiersOnly, null, null, null, null, null, null, null, null,
+                null);
     }
 
     /** An effect with no Ongoing Modifiers (D184). */
@@ -213,14 +261,14 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
     public SpellEffectEntry withUsesLeft(Integer uses) {
         return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds, uses,
                 summon, affected, modifiers, option, repeatSave, endReminder, modifiersOnly, delayed, damageLeft,
-                retaliation, exhaustion, turnReminder, countedSave, controlled);
+                retaliation, exhaustion, turnReminder, countedSave, controlled, detonation, rising);
     }
 
     /** The same effect with this summoning. */
     public SpellEffectEntry withSummon(SummonSpec spec) {
         return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds,
                 usesLeft, spec, affected, modifiers, option, repeatSave, endReminder, modifiersOnly, delayed, damageLeft,
-                retaliation, exhaustion, turnReminder, countedSave, controlled);
+                retaliation, exhaustion, turnReminder, countedSave, controlled, detonation, rising);
     }
 
     /**
@@ -232,56 +280,56 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
                                           EffectSave save, String reminder, boolean only) {
         return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds,
                 usesLeft, summon, creatures, changes, chosen, save, reminder, only ? Boolean.TRUE : null, delayed, damageLeft,
-                retaliation, exhaustion, turnReminder, countedSave, controlled);
+                retaliation, exhaustion, turnReminder, countedSave, controlled, detonation, rising);
     }
 
     /** The same effect on these creatures. */
     public SpellEffectEntry withAffected(List<UUID> creatures) {
         return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds,
                 usesLeft, summon, creatures, modifiers, option, repeatSave, endReminder, modifiersOnly, delayed, damageLeft,
-                retaliation, exhaustion, turnReminder, countedSave, controlled);
+                retaliation, exhaustion, turnReminder, countedSave, controlled, detonation, rising);
     }
 
     /** The same effect with these modifiers left. */
     public SpellEffectEntry withModifiersLeft(List<OngoingModifier> left) {
         return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds,
                 usesLeft, summon, affected, left, option, repeatSave, endReminder, modifiersOnly, delayed, damageLeft,
-                retaliation, exhaustion, turnReminder, countedSave, controlled);
+                retaliation, exhaustion, turnReminder, countedSave, controlled, detonation, rising);
     }
 
     /** The same effect with this damage still to come (D185). */
     public SpellEffectEntry withDelayed(List<DelayedDamage> left) {
         return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds,
                 usesLeft, summon, affected, modifiers, option, repeatSave, endReminder, modifiersOnly, left, damageLeft,
-                retaliation, exhaustion, turnReminder, countedSave, controlled);
+                retaliation, exhaustion, turnReminder, countedSave, controlled, detonation, rising);
     }
 
     /** The same effect with this much damage left to deal (D185). */
     public SpellEffectEntry withDamageLeft(Integer left) {
         return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds,
                 usesLeft, summon, affected, modifiers, option, repeatSave, endReminder, modifiersOnly, delayed, left,
-                retaliation, exhaustion, turnReminder, countedSave, controlled);
+                retaliation, exhaustion, turnReminder, countedSave, controlled, detonation, rising);
     }
 
     /** The same effect dealing this back to a creature that hits its caster in melee (D185). */
     public SpellEffectEntry withRetaliation(Retaliation dealt) {
         return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds,
                 usesLeft, summon, affected, modifiers, option, repeatSave, endReminder, modifiersOnly, delayed,
-                damageLeft, dealt, exhaustion, turnReminder, countedSave, controlled);
+                damageLeft, dealt, exhaustion, turnReminder, countedSave, controlled, detonation, rising);
     }
 
     /** The same effect having given these exhaustion levels (D185). */
     public SpellEffectEntry withExhaustion(List<ExhaustionGiven> given) {
         return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds,
                 usesLeft, summon, affected, modifiers, option, repeatSave, endReminder, modifiersOnly, delayed,
-                damageLeft, retaliation, given, turnReminder, countedSave, controlled);
+                damageLeft, retaliation, given, turnReminder, countedSave, controlled, detonation, rising);
     }
 
     /** The same effect with this reminder at the start of its caster's turns (D185). */
     public SpellEffectEntry withTurnReminder(String reminder) {
         return new SpellEffectEntry(id, spell, slotLevel, concentrationInstanceId, startedRound, durationRounds,
                 usesLeft, summon, affected, modifiers, option, repeatSave, endReminder, modifiersOnly, delayed,
-                damageLeft, retaliation, exhaustion, reminder, countedSave, controlled);
+                damageLeft, retaliation, exhaustion, reminder, countedSave, controlled, detonation, rising);
     }
 
     /**
@@ -291,7 +339,7 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
     public boolean onlyForDelayed() {
         return concentrationInstanceId == null && summon == null && modifiers.isEmpty() && usesLeft == null
                 && damageLeft == null && retaliation == null && turnReminder == null && exhaustion.isEmpty()
-                && countedSave == null && controlled.isEmpty();
+                && countedSave == null && controlled.isEmpty() && detonation == null && rising.isEmpty();
     }
 
     /** Whether it exists only for its Ongoing Modifiers, so it ends with the last of them. */

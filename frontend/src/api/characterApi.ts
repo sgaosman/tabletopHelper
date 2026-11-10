@@ -131,8 +131,11 @@ export const characterApi = {
     return api.delete<PlayerCharacter>(`/characters/${id}/adjustments/${adjustmentId}`);
   },
 
-  /** Revives a character who died in an encounter, at 1 hit point; only the DM of its campaign may (D166). */
-  revive(id: string) {
-    return api.post<PlayerCharacter>(`/characters/${id}/revive`);
+  /**
+   * Revives a character who died in an encounter, at 1 hit point, or with all its hit points as Resurrection gives
+   * (PHB p.272, D189); only the DM of its campaign may (D166).
+   */
+  revive(id: string, fullHitPoints = false) {
+    return api.post<PlayerCharacter>(`/characters/${id}/revive${fullHitPoints ? '?fullHitPoints=true' : ''}`);
   },
 };

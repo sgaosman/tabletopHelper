@@ -236,7 +236,7 @@ public class SummonService {
                                                      boolean pact) {
         List<Monster> pool = new ArrayList<>();
         switch (spell.kind()) {
-            case CONJURE_ANIMALS, CONJURE, CONJURE_ELEMENTAL ->
+            case CONJURE_ANIMALS, CONJURE, CONJURE_ELEMENTAL, CONJURE_CELESTIAL ->
                     pool.addAll(monsterRepository.findByTypeIgnoreCase(spell.conjures()));
             case LESSER_DEMONS, GREATER_DEMON, INFERNAL_CALLING ->
                     pool.addAll(monsterRepository.findByTypeIgnoreCase("fiend"));

@@ -219,7 +219,8 @@ class SummonRulesTest {
         void spell_lookup() {
             assertTrue(SummonRules.spell("conjure animals").isPresent());
             assertTrue(SummonRules.spell("Fireball").isEmpty());
-            assertEquals(26, SummonRules.spells().size());
+            // Conjure Celestial joined at 7th level (D189)
+            assertEquals(27, SummonRules.spells().size());
         }
     }
 

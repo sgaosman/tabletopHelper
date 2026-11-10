@@ -69,9 +69,9 @@ export default function CampaignDetailPage() {
     saveSetting({ dmChoosesConjuredCreatures });
   }
 
-  function handleRevive(characterId: string) {
+  function handleRevive(characterId: string, fullHitPoints = false) {
     if (!campaign) return;
-    revive.mutate({ characterId, campaignId: campaign.id });
+    revive.mutate({ characterId, campaignId: campaign.id, fullHitPoints });
   }
 
   function modifierString(score: number) {
@@ -258,6 +258,14 @@ export default function CampaignDetailPage() {
                             aria-label={`Revive ${c.name}`}>
                             <HeartPulse className="w-3.5 h-3.5" />
                             Revive
+                          </Button>
+                        )}
+                        {/* Resurrection and True Resurrection bring it back with all its hit points (PHB p.272, D189) */}
+                        {c.dead && !ownCharacter && (
+                          <Button size="sm" variant="secondary" onClick={() => handleRevive(c.id, true)}
+                            loading={revive.isPending && revive.variables?.characterId === c.id}
+                            aria-label={`Revive ${c.name} at full hit points`}>
+                            Full HP
                           </Button>
                         )}
                         {/* The DM's adjustments to the character (D158); the name says whose, as every card has one */}

@@ -99,7 +99,11 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
         /** A living creature at 0 hit points regains this many at the start of its turn (Aura of Life, PHB p.216). */
         HEAL_AT_ZERO,
         /** The creature loses its resistance to the damage types (Elemental Bane, XGE p.155, D185). */
-        LOSE_RESISTANCE
+        LOSE_RESISTANCE,
+        /** The creature's speeds are at most this many feet (Power Word Pain, XGE p.163, D189). */
+        SPEED_MAX,
+        /** The creature regains this many hit points at the start of each of its turns (Regenerate, PHB p.271, D189). */
+        HEAL_EACH_TURN
     }
 
     /** Whose rolls a modifier changes. */
@@ -212,6 +216,9 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
             case HEAL_AT_ZERO -> "regains " + flat + " hit point" + (flat == 1 ? "" : "s")
                     + " at the start of its turn at 0 hit points";
             case LOSE_RESISTANCE -> "loses resistance to " + String.join(", ", damageTypes) + " damage";
+            case SPEED_MAX -> "speed at most " + flat + " ft.";
+            case HEAL_EACH_TURN -> "regains " + flat + " hit point" + (flat == 1 ? "" : "s")
+                    + " at the start of each of its turns";
         } + (until != null ? " (" + untilWords() + ")" : "");
     }
 

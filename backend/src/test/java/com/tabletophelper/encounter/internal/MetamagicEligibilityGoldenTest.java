@@ -50,14 +50,14 @@ class MetamagicEligibilityGoldenTest {
     }
 
     @Test
-    @DisplayName("All 403 templates give their facts, every casting time read")
+    @DisplayName("All 431 templates give their facts, every casting time read")
     void everyTemplateReads() {
-        assertEquals(403, FACTS.size());
+        assertEquals(431, FACTS.size());
         FACTS.forEach((spell, facts) -> assertNotNull(facts.castingTime(), spell));
     }
 
     @Test
-    @DisplayName("At each spell's own level: Careful and Heightened 122, Empowered 109 (Hex, Hunter's Mark, Absorb Elements and Elemental Weapon deal their dice through Ongoing Modifiers, D184), Extended 228, Quickened 270, Subtle 341, Twinned 138 (the 4th-level templates, D185); with the 5th level (D187) Careful and Heightened 143, Empowered 125, Extended 271, Quickened 311, Subtle 403, Twinned 156")
+    @DisplayName("At each spell's own level: Careful and Heightened 122, Empowered 109 (Hex, Hunter's Mark, Absorb Elements and Elemental Weapon deal their dice through Ongoing Modifiers, D184), Extended 228, Quickened 270, Subtle 341, Twinned 138 (the 4th-level templates, D185); with the 5th level (D187) Careful and Heightened 143, Empowered 125, Extended 271, Quickened 311, Subtle 403, Twinned 156; with the 7th level (D189) Careful and Heightened 151, Empowered 130, Extended 287, Quickened 327, Subtle 431, Twinned 163")
     void countsAtOwnLevel() {
         Map<Option, Integer> counts = new EnumMap<>(Option.class);
         FACTS.forEach((spell, facts) -> {
@@ -67,13 +67,13 @@ class MetamagicEligibilityGoldenTest {
                 }
             }
         });
-        assertEquals(143, counts.get(Option.CAREFUL));
-        assertEquals(143, counts.get(Option.HEIGHTENED));
-        assertEquals(125, counts.get(Option.EMPOWERED));
-        assertEquals(271, counts.get(Option.EXTENDED));
-        assertEquals(311, counts.get(Option.QUICKENED));
-        assertEquals(403, counts.get(Option.SUBTLE));
-        assertEquals(156, counts.get(Option.TWINNED));
+        assertEquals(151, counts.get(Option.CAREFUL));
+        assertEquals(151, counts.get(Option.HEIGHTENED));
+        assertEquals(130, counts.get(Option.EMPOWERED));
+        assertEquals(287, counts.get(Option.EXTENDED));
+        assertEquals(327, counts.get(Option.QUICKENED));
+        assertEquals(431, counts.get(Option.SUBTLE));
+        assertEquals(163, counts.get(Option.TWINNED));
     }
 
     @Test
@@ -84,8 +84,8 @@ class MetamagicEligibilityGoldenTest {
                 .peek(facts -> assertTrue(Metamagic.ineligible(Option.TWINNED, facts, facts.level() + 1).isPresent()))
                 .count();
         // Banishment, Charm Monster and Elemental Bane joined at 4th level (D185); Hold Monster and Temporal Shunt at
-        // 5th (D187)
-        assertEquals(22, scaling);
+        // 5th (D187); Etherealness at 7th (D189)
+        assertEquals(23, scaling);
         assertTrue(eligible("Hold Person", Option.TWINNED, 2));
         assertFalse(eligible("Hold Person", Option.TWINNED, 3));
         assertTrue(eligible("Invisibility", Option.TWINNED, 2));

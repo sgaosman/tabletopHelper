@@ -207,19 +207,22 @@ public class CombatAccess {
                 continue;
             }
             if (enclosed(target)) {
-                throw new ConflictException(target.getDisplayName() + " is inside Otiluke's Resilient Sphere, which "
-                        + "nothing passes through");
+                throw new ConflictException(target.getDisplayName() + " is enclosed (Otiluke's Resilient Sphere or a "
+                        + "Forcecage box), which nothing passes through");
             }
             if (actorInside) {
-                throw new ConflictException(actor.getDisplayName() + " is inside Otiluke's Resilient Sphere, which "
-                        + "nothing passes through");
+                throw new ConflictException(actor.getDisplayName() + " is enclosed (Otiluke's Resilient Sphere or a "
+                        + "Forcecage box), which nothing passes through");
             }
         }
     }
 
-    /** Whether Banishment has removed the creature from the fight (PHB p.217, D185). */
+    /**
+     * Whether Banishment has removed the creature from the fight (PHB p.217, D185), or Plane Shift has taken it to
+     * another plane (PHB p.266, D189).
+     */
     public static boolean banished(EncounterParticipant participant) {
-        return has(participant, EffectApplier.BANISHED);
+        return has(participant, EffectApplier.BANISHED) || has(participant, EffectApplier.PLANE_SHIFTED);
     }
 
     /** Whether the creature is inside Otiluke's Resilient Sphere (PHB p.264, D185). */

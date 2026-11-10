@@ -302,8 +302,8 @@ export function useRemoveAdjustment() {
 
 /** Revives a character in the DM's campaign who died in an encounter, at 1 hit point (D166). */
 export function useReviveCharacter() {
-  return useDmCommand(({ characterId }: { characterId: string; campaignId: string }) =>
-    characterApi.revive(characterId));
+  return useDmCommand(({ characterId, fullHitPoints }: { characterId: string; campaignId: string;
+    fullHitPoints?: boolean }) => characterApi.revive(characterId, fullHitPoints));
 }
 
 /** Deletes one of the user's characters. It leaves the list at once; the lists it was in are fetched again. */
