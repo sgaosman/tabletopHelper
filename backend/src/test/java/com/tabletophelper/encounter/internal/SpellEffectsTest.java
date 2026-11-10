@@ -365,7 +365,7 @@ class SpellEffectsTest {
         }
 
         @Test
-        @DisplayName("The bundled data's 66 lasting spells each leave a Spell Effect its caster directs at the cost "
+        @DisplayName("The bundled data's 68 lasting spells each leave a Spell Effect its caster directs at the cost "
                 + "the spell's text gives, or whose area acts by itself at the moments it gives, or both (M15)")
         void bundledLastingSpells() throws IOException {
             Map<String, ActionCost> costs = new LinkedHashMap<>();
@@ -444,11 +444,17 @@ class SpellEffectsTest {
             expected.put("Mental Prison", ActionCost.NONE);
             // 8th and 9th level (D190): Illusory Dragon's breath and Blade of Disaster's attacks are bonus actions (XGE
             // p.157, TCE p.106); Earthquake's prone save at the end of the caster's turns needs none (PHB p.236). Dark
-            // Star, Incendiary Cloud, Maddening Darkness, Prismatic Wall, Ravenous Void and Weird act by themselves
+            // Star, Incendiary Cloud, Maddening Darkness, Ravenous Void and Weird act by themselves
             expected.put("Illusory Dragon", ActionCost.BONUS_ACTION);
             expected.put("Blade of Disaster", ActionCost.BONUS_ACTION);
             expected.put("Earthquake", ActionCost.NONE);
-            assertEquals(66, triggers.size());
+            // Prismatic Wall's use is a creature passing through its layers, which costs its caster nothing (PHB p.267,
+            // D195)
+            expected.put("Prismatic Wall", ActionCost.NONE);
+            // Storm of Vengeance's and Tsunami's uses deal their round's damage at no cost (PHB p.279, p.284, D195)
+            expected.put("Storm of Vengeance", ActionCost.NONE);
+            expected.put("Tsunami", ActionCost.NONE);
+            assertEquals(68, triggers.size());
             assertEquals(List.of(SpellTrigger.END_OF_TURN), triggers.get("Weird"));
             assertEquals(List.of(SpellTrigger.ENTER, SpellTrigger.START_OF_TURN), triggers.get("Ravenous Void"));
             assertEquals(expected, Map.copyOf(costs));

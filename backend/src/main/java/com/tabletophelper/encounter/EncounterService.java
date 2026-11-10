@@ -828,8 +828,7 @@ public class EncounterService {
                     .retargetable(retargetable(effect.spell()))
                     .delayed(effect.delayed())
                     .damageLeft(effect.damageLeft())
-                    .retaliation(effect.retaliation() != null
-                            ? effect.retaliation().dice() + " " + effect.retaliation().type() : null)
+                    .retaliation(retaliationText(effect.retaliation()))
                     .tallies(effect.countedSave() != null ? effect.countedSave().tallies() : List.of())
                     .tallyRule(effect.countedSave() != null ? effect.countedSave().ability() + " "
                             + effect.countedSave().successes() + "/" + effect.countedSave().failures() : null)
@@ -985,5 +984,21 @@ public class EncounterService {
                 .map(EncounterParticipant::getId)
                 .collect(Collectors.toSet());
         return EncounterViews.playerLog(entries, hiddenParticipants, monsters);
+    }
+
+    /*
+     * How a Spell Effect's retaliation reads (D185, D195): its damage, as "2d8 fire", or the save an attacker makes and
+     * what a failure gives, as "CON save or blinded (fiend, undead)"; null for none.
+     */
+    private static String retaliationText(SpellEffectEntry.Retaliation retaliation) {
+        if (retaliation == null) {
+            return null;
+        }
+        if (retaliation.dice() != null) {
+            return retaliation.dice() + " " + retaliation.type();
+        }
+        return retaliation.ability() + " save or " + String.join(" and ", retaliation.conditions())
+                + (retaliation.attackerTypes().isEmpty() ? "" : " (" + String.join(", ", retaliation.attackerTypes())
+                + ")");
     }
 }

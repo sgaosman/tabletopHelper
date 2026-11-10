@@ -202,7 +202,54 @@ public class EffectApplier {
         if (attack) {
             retaliate(encounter, use.actor(), (Effect.Attack) effect.delivery(), applied);
         }
+        endExtraTurnsIfOthers(encounter, use.actor(), applied);
         return applied;
+    }
+
+    // ── Time Stop's turns (D195) ─────────────────────────────────
+
+    /** The option that marks the Spell Effect holding a caster's turns in a row, as Time Stop's (PHB p.283, D195). */
+    public static final String EXTRA_TURNS = "extra turns";
+
+    /**
+     * Gives the caster turns in a row after this one, as Time Stop's 1d4 + 1 (PHB p.283, D195), held by a Spell Effect of
+     * the spell's whose uses are the turns left; a casting again replaces the earlier one.
+     */
+    public SpellEffectEntry startExtraTurns(Encounter encounter, EncounterParticipant caster, String spell,
+                                            Integer slotLevel, int turns) {
+        extraTurns(caster).ifPresent(earlier -> endEffect(encounter, caster, earlier.id(), "cast again"));
+        SpellEffectEntry effect = new SpellEffectEntry(UUID.randomUUID(), spell, slotLevel, null,
+                encounter.getRoundNumber(), null, turns, null, List.of(), List.of(), EXTRA_TURNS, null, null, null);
+        List<SpellEffectEntry> effects = new ArrayList<>(effects(caster));
+        effects.add(effect);
+        caster.setActiveEffects(effects);
+        return effect;
+    }
+
+    /** The Spell Effect holding the creature's turns in a row, if it has one (D195). */
+    public static Optional<SpellEffectEntry> extraTurns(EncounterParticipant creature) {
+        return effects(creature).stream().filter(effect -> EXTRA_TURNS.equals(effect.option())).findFirst();
+    }
+
+    /** One of the creature's turns in a row taken: the uses left drop by one (D195). */
+    public void spendExtraTurn(EncounterParticipant creature, SpellEffectEntry effect) {
+        int left = effect.usesLeft() != null ? effect.usesLeft() : 0;
+        replaceEffect(creature, effect.withUsesLeft(Math.max(0, left - 1)));
+    }
+
+    /*
+     * Time Stop ends if one of the actions its caster uses in its turns, or an effect it creates in them, affects a
+     * creature other than itself (PHB p.283, D195): anything the caster applies to another creature, a hit, a failed or
+     * successful save, healing, ends the turns still to come. An object worn or carried by another creature is the DM's.
+     */
+    private void endExtraTurnsIfOthers(Encounter encounter, EncounterParticipant actor, List<Applied> applied) {
+        if (actor == null) {
+            return;
+        }
+        Optional<SpellEffectEntry> turns = extraTurns(actor);
+        if (turns.isPresent() && applied.stream().anyMatch(result -> !result.target().getId().equals(actor.getId()))) {
+            endEffect(encounter, actor, turns.get().id(), "it affects another creature");
+        }
     }
 
     /*
@@ -221,9 +268,10 @@ public class EffectApplier {
             if ((outcome != Outcome.HIT && outcome != Outcome.CRITICAL) || hit.target() == attacker) {
                 continue;
             }
+            retaliateWithSaves(encounter, attacker, hit.target());
             for (SpellEffectEntry protection : effects(hit.target())) {
                 SpellEffectEntry.Retaliation retaliation = protection.retaliation();
-                if (retaliation == null || attacker.getLifeState() == LifeState.DEAD) {
+                if (retaliation == null || retaliation.dice() == null || attacker.getLifeState() == LifeState.DEAD) {
                     continue;
                 }
                 com.tabletophelper.rules.Dice dice = com.tabletophelper.rules.Dice.parse(retaliation.dice());
@@ -235,6 +283,53 @@ public class EffectApplier {
                         null, SpellEffects.CastRules.NONE);
             }
         }
+    }
+
+    /*
+     * A melee hit on a creature another's Spell Effect covers with a save, as Holy Aura's (PHB p.250, D195): an attacker of
+     * the types named, a fiend or undead for Holy Aura, makes the save against the caster's spell save DC when cast, and a
+     * failure gives it the conditions until the spell ends, held by the spell's Concentration Instance.
+     */
+    private void retaliateWithSaves(Encounter encounter, EncounterParticipant attacker, EncounterParticipant target) {
+        for (EncounterParticipant holder : List.copyOf(encounter.getParticipants())) {
+            for (SpellEffectEntry protection : effects(holder)) {
+                SpellEffectEntry.Retaliation retaliation = protection.retaliation();
+                if (retaliation == null || !retaliation.coversAffected() || retaliation.dc() == null
+                        || !protection.affected().contains(target.getId()) || attacker.getLifeState() == LifeState.DEAD
+                        || !ofAttackerType(attacker, retaliation.attackerTypes())) {
+                    continue;
+                }
+                Optional<Ability> ability = Ability.parse(retaliation.ability());
+                if (ability.isEmpty()) {
+                    continue;
+                }
+                List<String> missing = retaliation.conditions().stream()
+                        .filter(name -> CreatureStats.conditionNames(attacker).stream().noneMatch(name::equalsIgnoreCase))
+                        .toList();
+                if (missing.isEmpty()) {
+                    continue;
+                }
+                ConcentrationInstance instance = holder.getConcentration() != null
+                        && holder.getConcentration().id().equals(protection.concentrationInstanceId())
+                        ? holder.getConcentration() : null;
+                Effect back = new Effect(protection.spell(), new Effect.Save(ability.get(), retaliation.dc(), false),
+                        List.of(), null, missing, false, null);
+                Use use = new Use(holder, holder.getDisplayName() + "'s " + protection.spell(),
+                        CombatActionType.SPELL_EFFECT_REPEAT, "flares at", "", protection.spell(), instance);
+                applyTo(encounter, use, back, resolver.resolve(back, stats.spellTargets(List.of(attacker), back, holder))
+                        .getFirst(), null, SpellEffects.CastRules.NONE);
+            }
+        }
+    }
+
+    // Whether the attacker is one of the creature types, read as a spell reads them (D185); any type when none are named
+    private static boolean ofAttackerType(EncounterParticipant attacker, List<String> types) {
+        if (types.isEmpty()) {
+            return true;
+        }
+        String type = CreatureStats.typeForSpells(attacker);
+        return type != null && types.stream()
+                .anyMatch(wanted -> type.startsWith(wanted.toLowerCase(java.util.Locale.ROOT)));
     }
 
     /**
@@ -275,6 +370,7 @@ public class EffectApplier {
         for (Resolver.TargetOutcome outcome : outcomes) {
             applied.add(applyTo(encounter, use, effect, outcome, hitCheck, SpellEffects.CastRules.NONE));
         }
+        endExtraTurnsIfOthers(encounter, use.actor(), applied);
         return applied;
     }
 

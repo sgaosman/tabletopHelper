@@ -147,6 +147,10 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             template.castsSpellUpTo();
             template.critRange();
             template.critDamageDice();
+            // And the keys that close the high-level gaps (D195)
+            template.concentrationSave();
+            template.layers();
+            template.roundEffects();
             return template;
         } catch (IllegalArgumentException | JacksonException e) {
             return empty(json, e.getMessage() != null ? e.getMessage() : e.toString());
@@ -339,7 +343,13 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      * @param damageType     its type, or null when the cast option names it
      * @param typeByOption   the type for each cast option, as Fire Shield's warm (fire) and chill (cold)
      */
-    public record Retaliation(String damageDice, String damageType, Map<String, String> typeByOption) {
+    public record Retaliation(String damageDice, String damageType, Map<String, String> typeByOption,
+                              String saveAbility, List<String> conditions, List<String> attackerTypes) {
+
+        /** A retaliation that only deals damage, as Fire Shield's. */
+        public Retaliation(String damageDice, String damageType, Map<String, String> typeByOption) {
+            this(damageDice, damageType, typeByOption, null, List.of(), List.of());
+        }
 
         /** The type the option gives, or the fixed one. */
         public String typeFor(String option) {
@@ -357,8 +367,11 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
     /** The template's retaliation, or null when it has none. */
     public Retaliation retaliation() {
         JsonNode node = json != null ? json.get("retaliation") : null;
-        if (node == null || !node.isObject() || text(node, "damageDice") == null) {
+        if (node == null || !node.isObject() || (text(node, "damageDice") == null && text(node, "saveAbility") == null)) {
             return null;
+        }
+        if (text(node, "damageDice") != null) {
+            checkDice(text(node, "damageDice"));
         }
         Map<String, String> byOption = new LinkedHashMap<>();
         JsonNode types = node.path("damageTypeByOption");
@@ -369,7 +382,98 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
                 }
             }
         }
-        return new Retaliation(text(node, "damageDice"), text(node, "damageType"), Map.copyOf(byOption));
+        // A save the attacker makes instead, with the conditions a failure gives, for attackers of the types named only,
+        // as Holy Aura's blinding of a fiend or undead (PHB p.250, D195)
+        List<String> conditions = new java.util.ArrayList<>();
+        node.path("conditionsInflicted").forEach(entry -> {
+            if (entry.isString()) {
+                conditions.add(entry.asString(""));
+            }
+        });
+        List<String> attackerTypes = new java.util.ArrayList<>();
+        node.path("attackerTypes").forEach(entry -> {
+            if (entry.isString()) {
+                attackerTypes.add(entry.asString(""));
+            }
+        });
+        return new Retaliation(text(node, "damageDice"), text(node, "damageType"), Map.copyOf(byOption),
+                text(node, "saveAbility"), List.copyOf(conditions), List.copyOf(attackerTypes));
+    }
+
+    /**
+     * The ability of the save each creature the spell reaches makes, when it is concentrating, to keep its concentration,
+     * as Earthquake's Constitution save on the cast and each later use (PHB p.236, D195): the template's
+     * {@code concentrationSave}, or null for none.
+     */
+    public String concentrationSave() {
+        return json != null ? text(json, "concentrationSave") : null;
+    }
+
+    /**
+     * Layers a creature passing through the spell meets in order, each with its own save, as Prismatic Wall's seven
+     * (PHB p.267, D195): the rows read as {@link #rayTable()}'s, their roll giving the order.
+     *
+     * @param saveAbility the ability of each layer's save
+     * @param rows        the layers, in order
+     */
+    public record Layers(String saveAbility, List<Ray> rows) {
+    }
+
+    /**
+     * What a use of the spell's effect deals in one round of the spell, the cast's round being 1, as Storm of Vengeance's
+     * acid rain in round 2 and its six lightning bolts in round 3 (PHB p.279), or Tsunami's wall, a d10 weaker each
+     * round (PHB p.284) (D195).
+     *
+     * @param damageDice  the damage
+     * @param damageType  its type
+     * @param saveAbility the save against it, or null for none
+     * @param halfOnSave  whether a success halves it; otherwise a success prevents it
+     * @param maxTargets  how many creatures one use can reach, or null for no limit
+     */
+    public record RoundEffect(String damageDice, String damageType, String saveAbility, boolean halfOnSave,
+                              Integer maxTargets) {
+    }
+
+    /** The template's {@code roundEffects}, by round; empty for none (D195). */
+    public Map<Integer, RoundEffect> roundEffects() {
+        JsonNode node = json != null ? json.get("roundEffects") : null;
+        if (node == null || node.isNull()) {
+            return Map.of();
+        }
+        if (!node.isObject()) {
+            throw new IllegalArgumentException("roundEffects is not an object");
+        }
+        Map<Integer, RoundEffect> effects = new java.util.TreeMap<>();
+        for (Map.Entry<String, JsonNode> entry : node.properties()) {
+            int round;
+            try {
+                round = Integer.parseInt(entry.getKey().trim());
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("roundEffects needs round numbers as keys, not " + entry.getKey());
+            }
+            JsonNode value = entry.getValue();
+            String dice = text(value, "damageDice");
+            if (dice == null) {
+                throw new IllegalArgumentException("Each of roundEffects needs its damageDice");
+            }
+            checkDice(dice);
+            Integer max = value.path("maxTargets").isInt() ? value.path("maxTargets").asInt() : null;
+            effects.put(round, new RoundEffect(dice, text(value, "damageType"), text(value, "saveAbility"),
+                    value.path("halfOnSave").asBoolean(false), max));
+        }
+        return Collections.unmodifiableMap(effects);
+    }
+
+    /** The template's {@code layers}, or null for none (D195). */
+    public Layers layers() {
+        JsonNode node = json != null ? json.get("layers") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isObject() || text(node, "saveAbility") == null || !node.path("rows").isArray()) {
+            throw new IllegalArgumentException("layers needs a saveAbility and rows");
+        }
+        return new Layers(text(node, "saveAbility"), rays(node.get("rows"), "layers"));
     }
 
     /**
@@ -705,13 +809,18 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         if (node == null || node.isNull()) {
             return List.of();
         }
+        return rays(node, "rayTable");
+    }
+
+    // Rows of a ray table or of layers, sorted by roll
+    private static List<Ray> rays(JsonNode node, String key) {
         if (!node.isArray()) {
-            throw new IllegalArgumentException("rayTable is not a list");
+            throw new IllegalArgumentException(key + " is not a list");
         }
         List<Ray> rays = new java.util.ArrayList<>();
         for (JsonNode ray : node) {
             if (!ray.path("roll").isInt()) {
-                throw new IllegalArgumentException("Each row of rayTable needs its roll");
+                throw new IllegalArgumentException("Each row of " + key + " needs its roll");
             }
             List<ConditionInflicted> conditions = ray.path("conditionsInflicted").isArray()
                     ? READER.convertValue(ray.get("conditionsInflicted"), CONDITIONS) : List.of();
@@ -1039,8 +1148,16 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         return Collections.unmodifiableMap(reminders);
     }
 
-    /** Dice the cast rolls and logs for the table, as Time Stop's 1d4 + 1 turns (PHB p.283). */
-    public record CastRoll(String dice, String note) {
+    /**
+     * Dice the cast rolls and logs for the table, as Time Stop's 1d4 + 1 turns (PHB p.283).
+     *
+     * @param extraTurns whether the total is a number of turns its caster takes in a row after this one (D195)
+     */
+    public record CastRoll(String dice, String note, boolean extraTurns) {
+
+        public CastRoll(String dice, String note) {
+            this(dice, note, false);
+        }
     }
 
     /** The template's {@code castRoll}, or null for none. */
@@ -1053,7 +1170,7 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             throw new IllegalArgumentException("castRoll needs dice");
         }
         checkDice(text(node, "dice"));
-        return new CastRoll(text(node, "dice"), text(node, "note"));
+        return new CastRoll(text(node, "dice"), text(node, "note"), node.path("extraTurns").asBoolean(false));
     }
 
     /**

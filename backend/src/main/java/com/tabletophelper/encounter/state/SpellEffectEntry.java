@@ -100,8 +100,38 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
         }
     }
 
-    /** The damage a protective effect deals back to a creature that hits its caster in melee (D185). */
-    public record Retaliation(String dice, String type) {
+    /**
+     * What a protective effect does back to a creature that hits in melee (D185): damage to one that hits its caster, as
+     * Fire Shield's, or a save one of the named types makes when it hits a creature the effect covers, a failure giving
+     * the conditions until the spell ends, as Holy Aura's blinding of a fiend or undead (PHB p.250, D195).
+     *
+     * @param dice          the damage dice, or null for none
+     * @param type          the damage type
+     * @param ability       the attacker's save, or null for none
+     * @param dc            its DC, the caster's spell save DC when cast
+     * @param conditions    what a failed save gives
+     * @param attackerTypes the creature types that make the save; empty for any
+     */
+    public record Retaliation(String dice, String type,
+                              @JsonInclude(JsonInclude.Include.NON_NULL) String ability,
+                              @JsonInclude(JsonInclude.Include.NON_NULL) Integer dc,
+                              @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> conditions,
+                              @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> attackerTypes) {
+
+        public Retaliation {
+            conditions = conditions != null ? List.copyOf(conditions) : List.of();
+            attackerTypes = attackerTypes != null ? List.copyOf(attackerTypes) : List.of();
+        }
+
+        /** Damage back, as Fire Shield's (D185). */
+        public Retaliation(String dice, String type) {
+            this(dice, type, null, null, List.of(), List.of());
+        }
+
+        /** Whether it covers the creatures the effect affects rather than its caster alone (D195). */
+        public boolean coversAffected() {
+            return ability != null;
+        }
     }
 
     /** Exhaustion levels the effect gave a creature, which go when it ends (D185). */

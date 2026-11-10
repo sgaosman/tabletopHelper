@@ -221,6 +221,7 @@ public class SpellCaster {
                 + typeNote(spellName, unaffected, maximised)
                 + carapaceNote(spellName, normal);
         afterSixthLevelRules(encounter, caster, spellName, slotLevel, rules, applied);
+        concentrationSaves(encounter, caster, use, spellName, saveDc, normal);
         if (!typeNote.isEmpty()) {
             effectApplier.summary(encounter, use, typeNote.trim());
         }
@@ -258,7 +259,7 @@ public class SpellCaster {
                 affected, saveDc, castingAbility, attackBonus);
         String seventhNote = afterSeventh(encounter, caster, spellName, slotLevel, option, use, seventh, normal,
                 applied, saveDc);
-        String highNote = afterHighLevelCast(encounter, caster, spellName, high, use, affected);
+        String highNote = afterHighLevelCast(encounter, caster, spellName, slotLevel, high, use, affected);
         return new CastResult(spellName, plan.spellLevel(), plan.concentration(), null,
                 summary(lead, applied) + typeNote + modifierNote + fifthNote + seventhNote + highNote,
                 outcomes(effect, applied));
@@ -280,7 +281,7 @@ public class SpellCaster {
      * divided among the creatures it reached, as Mass Heal's 700 (PHB p.258). What the log adds, or nothing.
      */
     private String afterHighLevelCast(Encounter encounter, EncounterParticipant caster, String spellName,
-                                      SpellEffects.HighLevel high, EffectApplier.Use use,
+                                      int slotLevel, SpellEffects.HighLevel high, EffectApplier.Use use,
                                       List<EncounterParticipant> affected) {
         List<String> notes = new ArrayList<>();
         if (high.castRoll() != null) {
@@ -296,6 +297,12 @@ public class SpellCaster {
                     + (high.castRoll().note() != null ? " " + high.castRoll().note() : "") + ".";
             effectApplier.summary(encounter, use, text);
             notes.add(text);
+            // Turns in a row after this one, as Time Stop's (PHB p.283, D195): rules call, the casting turn isn't one
+            // of them, and the turn order gives them as the caster ends each turn
+            if (high.castRoll().extraTurns() && caster.getLifeState() == LifeState.ALIVE) {
+                effectApplier.startExtraTurns(encounter, caster, spellName, slotLevel > 0 ? slotLevel : null, total);
+                notes.add(caster.getDisplayName() + " takes " + total + " turns in a row after this one.");
+            }
         }
         List<EncounterParticipant> living = affected.stream()
                 .filter(creature -> creature.getLifeState() != LifeState.DEAD)
@@ -421,6 +428,78 @@ public class SpellCaster {
                 }
             }
         }
+        countAndRemind(encounter, caster, use, spellName, counting, reminders, saveDc);
+        return applied;
+    }
+
+    /*
+     * Prismatic Wall's layers (PHB p.267, D195): a creature passing through meets each layer in order, red to violet, and
+     * makes the layer's save against each, taking its damage, halved on a success, or its conditions on a failure, as
+     * Prismatic Spray's rays of the same colour; a failure against the indigo layer starts its Constitution saves and one
+     * against the violet layer logs its Wisdom save. A creature that drops stops there.
+     */
+    private List<EffectApplier.Applied> layers(Encounter encounter, EncounterParticipant caster, EffectApplier.Use use,
+                                               String spellName, SpellTemplate.Layers layers,
+                                               List<EncounterParticipant> creatures, int saveDc) {
+        Ability ability = Ability.parse(layers.saveAbility()).orElse(Ability.DEX);
+        List<EffectApplier.Applied> applied = new ArrayList<>();
+        Map<SpellTemplate.CountedSaves, List<EncounterParticipant>> counting = new LinkedHashMap<>();
+        List<String> reminders = new ArrayList<>();
+        for (EncounterParticipant creature : creatures) {
+            if (creature.getLifeState() != LifeState.ALIVE) {
+                continue;
+            }
+            effectApplier.summary(encounter, use, creature.getDisplayName() + " passes through " + spellName + ": a DC "
+                    + saveDc + " " + ability + " save against each layer in turn.");
+            for (SpellTemplate.Ray layer : layers.rows()) {
+                if (creature.getLifeState() != LifeState.ALIVE) {
+                    break;
+                }
+                if (layer.rollsTwice()) {
+                    continue;
+                }
+                List<Effect.DamagePart> damage = layer.damageDice() != null
+                        ? List.of(new Effect.DamagePart(Dice.parse(layer.damageDice().trim()), layer.damageType()))
+                        : List.of();
+                List<String> conditions = new ArrayList<>();
+                Map<String, Effect.ConditionEnd> ends = new LinkedHashMap<>();
+                for (SpellTemplate.ConditionInflicted condition : layer.conditions()) {
+                    if (condition.name() != null && !conditions.contains(condition.name())) {
+                        conditions.add(condition.name());
+                        if (condition.durationRounds() != null) {
+                            ends.put(condition.name(), new Effect.ConditionEnd(condition.durationRounds(), null, null,
+                                    false));
+                        }
+                    }
+                }
+                String name = spellName + (layer.color() != null ? " (" + layer.color() + " layer)" : "");
+                Effect each = new Effect(name, new Effect.Save(ability, saveDc, !damage.isEmpty()), damage, null,
+                        conditions, false, null, ends);
+                List<EffectApplier.Applied> result = effectApplier.apply(encounter, use, each, resolver.resolve(each,
+                        CreatureStats.side(caster), stats.spellTargets(List.of(creature), each, caster)));
+                applied.addAll(result);
+                boolean failed = result.stream().anyMatch(r -> r.outcome().outcome() == Outcome.SAVE_FAIL)
+                        && creature.getLifeState() != LifeState.DEAD;
+                if (failed && layer.countedSaves() != null) {
+                    counting.computeIfAbsent(layer.countedSaves(), key -> new ArrayList<>()).add(creature);
+                }
+                if (failed && layer.reminder() != null) {
+                    reminders.add(creature.getDisplayName() + ": " + layer.reminder().replace("{dc}",
+                            String.valueOf(saveDc)).replace("{caster}", caster.getDisplayName()));
+                }
+            }
+        }
+        countAndRemind(encounter, caster, use, spellName, counting, reminders, saveDc);
+        return applied;
+    }
+
+    /*
+     * The saves a ray or layer starts, kept on a Spell Effect of the spell's that ends once every count is done (D187,
+     * D189), and the reminders for creatures that failed.
+     */
+    private void countAndRemind(Encounter encounter, EncounterParticipant caster, EffectApplier.Use use,
+                                String spellName, Map<SpellTemplate.CountedSaves, List<EncounterParticipant>> counting,
+                                List<String> reminders, int saveDc) {
         if (!counting.isEmpty()) {
             // The counts live on a Spell Effect of the spell's, which ends once every count is done (D187)
             for (Map.Entry<SpellTemplate.CountedSaves, List<EncounterParticipant>> entry : counting.entrySet()) {
@@ -438,7 +517,61 @@ public class SpellCaster {
             }
         }
         reminders.forEach(reminder -> effectApplier.summary(encounter, use, reminder));
-        return applied;
+    }
+
+    /*
+     * The damage a use deals in this round of the spell (D195), as Storm of Vengeance's 1d6 acid in round 2 or its 10d6
+     * lightning bolts in round 3, at up to six creatures, a DEX save halving them (PHB p.279); a 409 for a round that
+     * brings nothing, as the cast's own, and a 400 for more creatures than the round reaches.
+     */
+    private static Effect roundEffect(String spellName, int round, SpellTemplate.RoundEffect entry, int saveDc,
+                                      int targets) {
+        if (entry == null) {
+            throw new ConflictException(spellName + " deals nothing to use in round " + round + " of the spell");
+        }
+        if (entry.maxTargets() != null && targets > entry.maxTargets()) {
+            throw new com.tabletophelper.shared.ValidationException(spellName + " reaches at most "
+                    + entry.maxTargets() + " creatures in round " + round);
+        }
+        Optional<Ability> ability = entry.saveAbility() != null ? Ability.parse(entry.saveAbility()) : Optional.empty();
+        Effect.Delivery delivery = ability.isPresent()
+                ? new Effect.Save(ability.get(), saveDc, entry.halfOnSave()) : new Effect.Automatic();
+        return new Effect(spellName, delivery, List.of(new Effect.DamagePart(Dice.parse(entry.damageDice().trim()),
+                entry.damageType())), null, List.of(), false, null);
+    }
+
+    /*
+     * Earthquake's shaking (PHB p.236, D195): each creature the spell reaches that is concentrating makes the template's
+     * save against the spell's DC, on the cast and each later use, its concentration breaking on a failure. It is a
+     * saving throw against the spell, so Magic Resistance counts; it isn't a concentration check for damage, so War
+     * Caster's advantage doesn't. Rules call: the caster's own concentration is checked only when the caster is a target.
+     */
+    private void concentrationSaves(Encounter encounter, EncounterParticipant caster, EffectApplier.Use use,
+                                    String spellName, int saveDc, List<EncounterParticipant> creatures) {
+        String abilityName = spellEffects.concentrationSave(spellName);
+        Optional<Ability> ability = abilityName != null ? Ability.parse(abilityName) : Optional.empty();
+        if (ability.isEmpty()) {
+            return;
+        }
+        Effect save = new Effect(spellName, new Effect.Save(ability.get(), saveDc, false), List.of(), null, List.of(),
+                false, null);
+        for (EncounterParticipant creature : creatures) {
+            ConcentrationInstance held = creature.getConcentration();
+            if (held == null || creature.getLifeState() == LifeState.DEAD) {
+                continue;
+            }
+            Resolver.TargetOutcome outcome = resolver.resolve(save, CreatureStats.side(caster),
+                    stats.spellTargets(List.of(creature), save, caster)).getFirst();
+            boolean failed = outcome.outcome() == Outcome.SAVE_FAIL;
+            effectApplier.summary(encounter, use, creature.getDisplayName() + " makes a DC " + saveDc + " "
+                    + ability.get() + " save to keep concentrating on " + held.spell() + ": "
+                    + (outcome.total() != null ? outcome.total() + ", " : "")
+                    + (failed ? "a failure, and its concentration breaks." : "a success."));
+            if (failed) {
+                effectApplier.endConcentration(encounter, creature, "fails " + spellName + "'s " + ability.get()
+                        + " save");
+            }
+        }
     }
 
     // The row the die lands on
@@ -1064,6 +1197,7 @@ public class SpellCaster {
         boolean withModifiers = plan.any() && (!modifiers.affected().isEmpty() || lasting.isPresent());
         String notes = plan.notes().isEmpty() ? "" : " " + String.join(". ", plan.notes()) + ".";
         boolean forLater = later.damageBudget() != null || later.retaliationDice() != null
+                || later.retaliationSave() != null
                 || later.turnReminder() != null || spellEffects.fifthLevel(spellName).keepsEffect()
                 || spellEffects.seventhLevel(spellName).keepsEffect()
                 || spellEffects.highLevel(spellName).keepsEffect();
@@ -1099,9 +1233,7 @@ public class SpellCaster {
         // What the effect keeps for later: Guardian of Faith's damage budget, Fire Shield's retaliation, the Faithful
         // Hound's reminder, and damage still to come (D185)
         if (forLater) {
-            effectApplier.startLater(caster, effect.id(), later.damageBudget(),
-                    later.retaliationDice() != null
-                            ? new SpellEffectEntry.Retaliation(later.retaliationDice(), later.retaliationType()) : null,
+            effectApplier.startLater(caster, effect.id(), later.damageBudget(), later.retaliation(modifiers.saveDc()),
                     later.turnReminder());
         }
         delayedOn.forEach(target -> effectApplier.delay(caster, effect.id(), target, later.delayedDice(),
@@ -1178,6 +1310,14 @@ public class SpellCaster {
         CombatAccess.requireReachable(caster, targets);
         Effect effect = lifeDomainHealing(caster, plan.effect(), plan.spellLevel(), spellEffect.castLevel());
         lead += lifeDomainNote(caster, plan.effect(), plan.spellLevel(), spellEffect.castLevel());
+        // A spell whose rounds each bring their own damage, as Storm of Vengeance's (PHB p.279, D195)
+        Map<Integer, SpellTemplate.RoundEffect> byRound = spellEffects.roundEffects(spellName);
+        if (!byRound.isEmpty()) {
+            int round = (encounter.getRoundNumber() != null ? encounter.getRoundNumber() : 1)
+                    - spellEffect.startedRound() + 1;
+            effect = roundEffect(spellName, round, byRound.get(round), saveDc, targets.size());
+            lead += " (round " + round + ")";
+        }
         effectApplier.summary(encounter, use, lead + ".");
         SpellEffects.FifthLevel fifth = spellEffects.fifthLevel(spellName);
         // A use that ends the spell leaves its conditions on their own durations, as Holy Weapon's burst's blindness
@@ -1186,7 +1326,13 @@ public class SpellCaster {
         List<EncounterParticipant> outside = outsideGlobes(encounter, use, caster, spellName, plan.spellLevel(),
                 targets);
         List<EffectApplier.Applied> applied = new ArrayList<>();
+        SpellTemplate.Layers layers = spellEffects.layers(spellName);
         for (int i = 0; i < times; i++) {
+            if (layers != null) {
+                // Passing through the layers in order, as Prismatic Wall's (PHB p.267, D195)
+                applied.addAll(layers(encounter, caster, applying, spellName, layers, outside, saveDc));
+                continue;
+            }
             List<EncounterParticipant> standing = outside.stream()
                     .filter(target -> target.getLifeState() != LifeState.DEAD)
                     .toList();
@@ -1197,6 +1343,7 @@ public class SpellCaster {
                     resolver.resolve(effect, CreatureStats.side(caster), resolvedAgainst), rules));
         }
         afterSixthLevelRules(encounter, caster, spellName, spellEffect.castLevel(), rules, applied);
+        concentrationSaves(encounter, caster, use, spellName, saveDc, outside);
         drain(encounter, caster, spellName, fifth, applied);
         String extra = fifth.contest() != null
                 ? " " + contest(encounter, caster, spellName, fifth.contest(), use, targets, castingAbility, attackBonus)

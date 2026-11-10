@@ -32,6 +32,11 @@ describe('laterNotes (D185)', () => {
     ]);
     expect(laterNotes(makeMockSpellEffect(), () => undefined)).toEqual([]);
   });
+
+  it('names a retaliation save, as Holy Aura\'s (D195)', () => {
+    const effect = makeMockSpellEffect('Holy Aura', { retaliation: 'CON save or blinded (fiend, undead)' });
+    expect(laterNotes(effect, () => undefined)).toEqual(['melee attackers: CON save or blinded (fiend, undead)']);
+  });
 });
 
 describe('laterNotes (D189)', () => {

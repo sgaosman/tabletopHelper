@@ -63,7 +63,12 @@ export function reachable(
 export function laterNotes(effect: SpellEffect, nameOf: (id: string) => string | undefined): string[] {
   const notes: string[] = [];
   if (effect.damageLeft != null) notes.push(`${effect.damageLeft} damage left`);
-  if (effect.retaliation) notes.push(`strikes back: ${effect.retaliation}`);
+  // A retaliation is damage back, as Fire Shield's "2d8 fire", or a save a melee attacker makes, as Holy Aura's "CON save
+  // or blinded (fiend, undead)" (D195)
+  if (effect.retaliation) {
+    notes.push(effect.retaliation.includes(' save or ')
+      ? `melee attackers: ${effect.retaliation}` : `strikes back: ${effect.retaliation}`);
+  }
   for (const delayed of effect.delayed ?? []) {
     const name = nameOf(delayed.target);
     notes.push(`${delayed.dice} ${delayed.type} to ${name ?? 'a creature'} at the end of its next turn`);

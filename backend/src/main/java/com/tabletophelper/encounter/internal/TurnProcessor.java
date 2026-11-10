@@ -85,8 +85,40 @@ public class TurnProcessor {
                 .orElseThrow(() -> new ConflictException("Nobody in the turn order can take a turn"));
         if (current >= 0) {
             endTurn(encounter, order.get(current));
+            if (anotherTurn(encounter, order.get(current))) {
+                return;
+            }
         }
         passTo(encounter, order.get(next.index()), next.newRound());
+    }
+
+    /*
+     * Time Stop's turns in a row (PHB p.283, D195): a creature with turns left takes the next at once, in the same round,
+     * so no time passes for anyone else and nothing of theirs that counts rounds or turns moves on; its own turn's start
+     * and end still run. With none left, or once it can't act, the Spell Effect ends and the turn passes as usual.
+     */
+    private boolean anotherTurn(Encounter encounter, Turn turn) {
+        if (turn.isLair()) {
+            return false;
+        }
+        Optional<EncounterParticipant> found = EncounterTurns.participantOf(encounter, turn);
+        Optional<SpellEffectEntry> turns = found.flatMap(EffectApplier::extraTurns);
+        if (turns.isEmpty()) {
+            return false;
+        }
+        EncounterParticipant creature = found.get();
+        int left = turns.get().usesLeft() != null ? turns.get().usesLeft() : 0;
+        if (left <= 0 || creature.getLifeState() != LifeState.ALIVE || !takesTurns(creature)) {
+            effectApplier.endEffect(encounter, creature, turns.get().id(),
+                    left <= 0 ? "its turns are over" : "its caster can't take them");
+            return false;
+        }
+        effectApplier.spendExtraTurn(creature, turns.get());
+        combatLog.write(encounter, CombatActionType.TURN_ADVANCE, creature.getDisplayName() + " takes another turn ("
+                + turns.get().spell() + ", " + (left - 1) + " more after this; Round " + encounter.getRoundNumber()
+                + ")", null, creature);
+        startTurn(encounter, turn);
+        return true;
     }
 
     /** Moves the marker back a turn, past any dead monster's, and nothing else (D163). */

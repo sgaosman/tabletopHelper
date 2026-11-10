@@ -304,8 +304,9 @@ public class ChannelDivinityEffects {
         List<Resolver.Target> rolled = targets.stream()
                 .map(target -> {
                     Resolver.Target base = stats.target(target, effect);
-                    return target.getMonster() != null
-                            && ChannelDivinity.resistsTurning(target.getMonster().getTraits())
+                    // The form's traits when it is in one, so a polymorphed vampire spawn has no Turn Resistance (D195)
+                    String traits = CreatureStats.traitText(target);
+                    return traits != null && ChannelDivinity.resistsTurning(traits)
                             ? base.withSaveSource(RollMode.ADVANTAGE) : base;
                 })
                 .toList();

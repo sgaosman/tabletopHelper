@@ -2,6 +2,7 @@ package com.tabletophelper.encounter.internal;
 
 import com.tabletophelper.character.EquippedArmour;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.reference.SpellTemplate;
@@ -368,12 +369,31 @@ public class SpellEffects {
      * @param retaliationDice the retaliation's dice, or null for none
      */
     public record Later(String delayedDice, String delayedType, String delayedOn, Integer damageBudget,
-                        String retaliationDice, String retaliationType, String turnReminder) {
+                        String retaliationDice, String retaliationType, String turnReminder,
+                        SpellTemplate.Retaliation retaliationSave) {
 
-        public static final Later NONE = new Later(null, null, null, null, null, null, null);
+        public static final Later NONE = new Later(null, null, null, null, null, null, null, null);
+
+        public Later(String delayedDice, String delayedType, String delayedOn, Integer damageBudget,
+                     String retaliationDice, String retaliationType, String turnReminder) {
+            this(delayedDice, delayedType, delayedOn, damageBudget, retaliationDice, retaliationType, turnReminder,
+                    null);
+        }
 
         public boolean any() {
-            return delayedDice != null || damageBudget != null || retaliationDice != null || turnReminder != null;
+            return delayedDice != null || damageBudget != null || retaliationDice != null || turnReminder != null
+                    || retaliationSave != null;
+        }
+
+        /** The retaliation to keep, with the save's DC (D185, D195); null for none. */
+        public SpellEffectEntry.Retaliation retaliation(int saveDc) {
+            if (retaliationDice == null && retaliationSave == null) {
+                return null;
+            }
+            return retaliationSave == null ? new SpellEffectEntry.Retaliation(retaliationDice, retaliationType)
+                    : new SpellEffectEntry.Retaliation(retaliationDice, retaliationType,
+                    retaliationSave.saveAbility(), saveDc, retaliationSave.conditions(),
+                    retaliationSave.attackerTypes());
         }
     }
 
@@ -401,7 +421,8 @@ public class SpellEffects {
         SpellTemplate.Retaliation retaliation = template.retaliation();
         return new Later(delayedDice, delayedType, delayedOn, template.damageBudget(),
                 retaliation != null ? retaliation.damageDice() : null,
-                retaliation != null ? retaliation.typeFor(option) : null, template.turnReminder());
+                retaliation != null ? retaliation.typeFor(option) : null, template.turnReminder(),
+                retaliation != null && retaliation.saveAbility() != null ? retaliation : null);
     }
 
     /**
@@ -485,6 +506,24 @@ public class SpellEffects {
         public boolean keepsEffect() {
             return !roundReminders.isEmpty();
         }
+    }
+
+    /**
+     * The ability of the save a concentrating creature the spell reaches makes to keep concentrating, as Earthquake's
+     * Constitution save (PHB p.236, D195), or null for none.
+     */
+    public String concentrationSave(String spellName) {
+        return template(spellName).map(SpellTemplate::concentrationSave).orElse(null);
+    }
+
+    /** What a use deals in each round of the spell, as Storm of Vengeance's (PHB p.279, D195); empty for none. */
+    public Map<Integer, SpellTemplate.RoundEffect> roundEffects(String spellName) {
+        return template(spellName).map(SpellTemplate::roundEffects).orElse(Map.of());
+    }
+
+    /** The layers a creature passing through the spell meets in order, as Prismatic Wall's (PHB p.267, D195), or null. */
+    public SpellTemplate.Layers layers(String spellName) {
+        return template(spellName).map(SpellTemplate::layers).orElse(null);
     }
 
     /** What the 8th- and 9th-level spells' keys make the spell do (D190); nothing for a spell without a template. */

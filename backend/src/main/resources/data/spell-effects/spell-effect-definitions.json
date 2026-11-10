@@ -21472,11 +21472,12 @@
       "Artificer",
       "Ranger"
     ],
-    "notes": "Exhaustion, charmed and petrified are applied; a curse, an ability score reduction or a hit point maximum reduction is the DM's. (PHB p.246)",
+    "notes": "Exhaustion, charmed, petrified and feebleminded (Feeblemind, PHB p.239) are applied; a curse, an ability score reduction or a hit point maximum reduction is the DM's. (PHB p.246)",
     "castOptions": [
       "exhaustion",
       "charmed",
       "petrified",
+      "feebleminded",
       "curse",
       "ability score reduction",
       "hit point maximum reduction"
@@ -21484,7 +21485,8 @@
     "removesConditions": [
       "exhaustion",
       "charmed",
-      "petrified"
+      "petrified",
+      "feebleminded"
     ]
   },
   {
@@ -26145,14 +26147,15 @@
       "Cleric",
       "Druid"
     ],
-    "notes": "Regains 70 hit points and ends blinded and deafened (automated); no effect on constructs or undead (automated by creature type). Ending diseases is the DM's. (PHB p.250)",
+    "notes": "Regains 70 hit points and ends blinded and deafened (automated), and feeblemind, as Feeblemind's text allows (PHB p.239); no effect on constructs or undead (automated by creature type). Ending diseases is the DM's. (PHB p.250)",
     "noEffectOn": [
       "construct",
       "undead"
     ],
     "removesConditions": [
       "blinded",
-      "deafened"
+      "deafened",
+      "feebleminded"
     ]
   },
   {
@@ -28331,7 +28334,8 @@
     "notes": "Prone on a failed DEX save when cast and at the end of each turn you concentrate. (PHB p.236)",
     "repeatActionType": "NONE",
     "repeatEffect": true,
-    "reminder": "Each creature on the ground in the area that is concentrating makes a CON save or loses its concentration (DM: the engine has no forced concentration save yet). The ground is difficult terrain; structures take 50 bludgeoning damage.",
+    "concentrationSave": "CON",
+    "reminder": "Each concentrating creature it reaches makes a CON save or loses its concentration, on the cast and each use (automated). The ground is difficult terrain; structures take 50 bludgeoning damage.",
     "turnReminder": "At the end of each of your turns, use the effect: each creature on the ground in the area makes a DEX save or is knocked prone. Structures in the area take 50 bludgeoning damage at the start of your turn.",
     "roundReminders": {
       "2": "Fissures open: 1d6 fissures 1d10 x 10 feet deep; a creature on a spot where one opens makes a DEX save or falls in (DM)."
@@ -28399,9 +28403,9 @@
       "Warlock",
       "Wizard"
     ],
-    "notes": "4d6 psychic whatever the save; on a failure it is feebleminded and can't cast spells. (PHB p.239)",
+    "notes": "4d6 psychic whatever the save; on a failure it is feebleminded: it can't cast spells, and its Intelligence and Charisma are 1 for every save, check and modifier the app rolls (D195). (PHB p.239)",
     "fullDamageOnSave": true,
-    "reminder": "A feebleminded creature can't cast spells (enforced), activate magic items, understand language or communicate; its INT and CHA become 1 (DM). It repeats the INT save every 30 days; greater restoration, heal or wish end it."
+    "reminder": "A feebleminded creature can't cast spells and its INT and CHA are 1 (both enforced); it can't activate magic items, understand language or communicate (DM). It repeats the INT save every 30 days; greater restoration, heal or wish end it (cast options)."
   },
   {
     "spellName": "Glibness",
@@ -28505,7 +28509,17 @@
       "Cleric"
     ],
     "notes": "Creatures of your choice within 30 feet when you cast it. (PHB p.251)",
-    "reminder": "When a fiend or undead hits an affected creature with a melee attack, it makes a CON save against your spell save DC or is blinded until the spell ends (DM). Affected creatures shed dim light in a 5-foot radius."
+    "retaliation": {
+      "saveAbility": "CON",
+      "conditionsInflicted": [
+        "blinded"
+      ],
+      "attackerTypes": [
+        "fiend",
+        "undead"
+      ]
+    },
+    "reminder": "A fiend or undead that hits an affected creature with a melee attack makes a CON save against your spell save DC or is blinded until the spell ends (automated). Affected creatures shed dim light in a 5-foot radius."
   },
   {
     "spellName": "Illusory Dragon",
@@ -29139,13 +29153,49 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "A 1-minute cast, and a moving wall whose damage shrinks each round (gap 80); the first 6d10 bludgeoning (STR save, half) and the later 5d10 are the DM's",
-    "patternCategory": "UTILITY",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "COMPLEX",
     "classes": [
       "Druid"
     ],
-    "notes": "(PHB p.284)"
+    "notes": "Cast it when its minute of casting ends: 6d10 bludgeoning, STR save for half. At the start of each of your later turns the wall moves 50 feet; use the effect at no cost on each Huge or smaller creature it reaches: a STR save or 5d10, a d10 less each round (D195). (PHB p.284)",
+    "repeatEffect": true,
+    "repeatActionType": "NONE",
+    "roundEffects": {
+      "2": {
+        "damageDice": "5d10",
+        "damageType": "bludgeoning",
+        "saveAbility": "STR",
+        "halfOnSave": false
+      },
+      "3": {
+        "damageDice": "4d10",
+        "damageType": "bludgeoning",
+        "saveAbility": "STR",
+        "halfOnSave": false
+      },
+      "4": {
+        "damageDice": "3d10",
+        "damageType": "bludgeoning",
+        "saveAbility": "STR",
+        "halfOnSave": false
+      },
+      "5": {
+        "damageDice": "2d10",
+        "damageType": "bludgeoning",
+        "saveAbility": "STR",
+        "halfOnSave": false
+      },
+      "6": {
+        "damageDice": "1d10",
+        "damageType": "bludgeoning",
+        "saveAbility": "STR",
+        "halfOnSave": false
+      }
+    },
+    "turnReminder": "The wall moves 50 feet away from you, with the creatures in it: use the effect on each Huge or smaller creature inside it or whose space it enters (STR save or this round's damage; a creature takes it only once a round). Its height drops by 50 feet at the end of the turn.",
+    "reminder": "A creature caught in the wall can swim out with a successful Strength (Athletics) check against your spell save DC, and one that fails can't move (DM)."
   },
   {
     "spellName": "Astral Projection",
@@ -29824,8 +29874,10 @@
       "Wizard",
       "Bard"
     ],
-    "notes": "You and creatures you designate pass safely. (PHB p.267)",
+    "notes": "You and creatures you designate pass safely. Use the effect on a creature passing through: a DEX save against each layer in order, red to violet (D195). (PHB p.267)",
     "persistsWithoutConcentration": true,
+    "repeatEffect": true,
+    "repeatActionType": "NONE",
     "effectTriggers": [
       {
         "when": [
@@ -29841,7 +29893,73 @@
         ]
       }
     ],
-    "reminder": "Nothing happens when it appears: cast it with no targets, and apply the trigger to a creature that can see it and moves within 20 feet or starts its turn there. Passing through it, a DEX save per layer in order (red 10d6 fire, orange acid, yellow lightning, green poison, blue cold, indigo restrained then three CON saves, violet blinded then a WIS save or banished), is the DM's until D189's outcome tables."
+    "layers": {
+      "saveAbility": "DEX",
+      "rows": [
+        {
+          "roll": 1,
+          "color": "red",
+          "damageDice": "10d6",
+          "damageType": "fire"
+        },
+        {
+          "roll": 2,
+          "color": "orange",
+          "damageDice": "10d6",
+          "damageType": "acid"
+        },
+        {
+          "roll": 3,
+          "color": "yellow",
+          "damageDice": "10d6",
+          "damageType": "lightning"
+        },
+        {
+          "roll": 4,
+          "color": "green",
+          "damageDice": "10d6",
+          "damageType": "poison"
+        },
+        {
+          "roll": 5,
+          "color": "blue",
+          "damageDice": "10d6",
+          "damageType": "cold"
+        },
+        {
+          "roll": 6,
+          "color": "indigo",
+          "conditionsInflicted": [
+            {
+              "condition": "restrained",
+              "durationText": "Until three CON saves succeed or fail"
+            }
+          ],
+          "countedSaves": {
+            "ability": "CON",
+            "successes": 3,
+            "failures": 3,
+            "endsConditions": [
+              "restrained"
+            ],
+            "failureCondition": "petrified",
+            "onFailures": "It turns to stone permanently and is petrified."
+          }
+        },
+        {
+          "roll": 7,
+          "color": "violet",
+          "conditionsInflicted": [
+            {
+              "condition": "blinded",
+              "durationText": "Until its WIS save at the start of the caster's next turn"
+            }
+          ],
+          "reminder": "blinded by the violet layer. At the start of {caster}'s next turn it makes a DC {dc} WIS save: a success ends the blindness; a failure sends it to another plane of the DM's choosing (the DM adds banished) and ends the blindness."
+        }
+      ]
+    },
+    "reminder": "Nothing happens when it appears: cast it with no targets. Apply the trigger to a creature that can see it and moves within 20 feet or starts its turn there (CON save or blinded for 1 minute). Use the effect, at no cost, on a creature that passes through: red 10d6 fire, orange acid, yellow lightning, green poison, blue cold (half on a success), indigo restrained then three CON saves, violet blinded then a WIS save or banished. Destroying layers one at a time is the DM's."
   },
   {
     "spellName": "Psychic Scream",
@@ -30099,17 +30217,60 @@
     "classes": [
       "Druid"
     ],
-    "notes": "Round 1: CON save or 2d6 thunder and deafened. Each later round brings its own effect on your turn. (PHB p.279)",
+    "notes": "Round 1: CON save or 2d6 thunder and deafened. In each later round, use the effect at no cost on the creatures under the cloud for that round's damage (D195). (PHB p.279)",
+    "repeatEffect": true,
+    "repeatActionType": "NONE",
     "roundReminders": {
-      "2": "Acid rain: each creature and object under the cloud takes 1d6 acid damage (DM).",
-      "3": "Lightning: six bolts at creatures or objects of your choice under the cloud; DEX save, 10d6 lightning, half on a success (DM).",
-      "4": "Hail: each creature under the cloud takes 2d6 bludgeoning damage (DM).",
-      "5": "Freezing rain: each creature under the cloud takes 1d6 cold damage; the area is difficult terrain and heavily obscured, ranged weapon attacks are impossible, and concentration saves count wind and rain as a severe distraction (DM).",
-      "6": "Freezing rain: 1d6 cold damage to each creature under the cloud (DM).",
-      "7": "Freezing rain: 1d6 cold damage to each creature under the cloud (DM).",
-      "8": "Freezing rain: 1d6 cold damage to each creature under the cloud (DM).",
-      "9": "Freezing rain: 1d6 cold damage to each creature under the cloud (DM).",
-      "10": "Freezing rain: 1d6 cold damage to each creature under the cloud (DM)."
+      "2": "Acid rain: use the effect on each creature under the cloud (1d6 acid, no save); objects are the DM's.",
+      "3": "Lightning: use the effect on up to six creatures of your choice under the cloud (10d6 lightning, DEX save for half); bolts at objects are the DM's.",
+      "4": "Hail: use the effect on each creature under the cloud (2d6 bludgeoning, no save).",
+      "5": "Freezing rain: use the effect on each creature under the cloud (1d6 cold, no save). The area is difficult terrain and heavily obscured, ranged weapon attacks are impossible, and concentration saves count wind and rain as a severe distraction (DM).",
+      "6": "Freezing rain: use the effect on each creature under the cloud (1d6 cold, no save).",
+      "7": "Freezing rain: use the effect on each creature under the cloud (1d6 cold, no save).",
+      "8": "Freezing rain: use the effect on each creature under the cloud (1d6 cold, no save).",
+      "9": "Freezing rain: use the effect on each creature under the cloud (1d6 cold, no save).",
+      "10": "Freezing rain: use the effect on each creature under the cloud (1d6 cold, no save)."
+    },
+    "roundEffects": {
+      "2": {
+        "damageDice": "1d6",
+        "damageType": "acid"
+      },
+      "3": {
+        "damageDice": "10d6",
+        "damageType": "lightning",
+        "saveAbility": "DEX",
+        "halfOnSave": true,
+        "maxTargets": 6
+      },
+      "4": {
+        "damageDice": "2d6",
+        "damageType": "bludgeoning"
+      },
+      "5": {
+        "damageDice": "1d6",
+        "damageType": "cold"
+      },
+      "6": {
+        "damageDice": "1d6",
+        "damageType": "cold"
+      },
+      "7": {
+        "damageDice": "1d6",
+        "damageType": "cold"
+      },
+      "8": {
+        "damageDice": "1d6",
+        "damageType": "cold"
+      },
+      "9": {
+        "damageDice": "1d6",
+        "damageType": "cold"
+      },
+      "10": {
+        "damageDice": "1d6",
+        "damageType": "cold"
+      }
     },
     "reminder": "The deafness lasts 5 minutes; the app ends it with your concentration, so the DM adds it back if concentration breaks early."
   },
@@ -30219,12 +30380,13 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "The roll is logged; the extra turns are the DM's (gap 73). (PHB p.283)",
+    "notes": "You take the rolled number of turns in a row after the casting turn; the turn order gives them as you end each turn, in the same round, so nothing of anyone else's moves on. Anything you apply to another creature ends the remaining turns (D195). (PHB p.283)",
     "castRoll": {
       "dice": "1d4+1",
-      "note": "turns in a row"
+      "note": "turns in a row",
+      "extraTurns": true
     },
-    "reminder": "No time passes for anyone else: the DM gives you that many turns now. It ends early if anything you do in them affects another creature or an object another creature wears or carries, or if you move more than 1,000 feet from where you cast it."
+    "reminder": "No time passes for anyone else. It ends early if anything you do affects another creature (automated) or an object another creature wears or carries, or if you move more than 1,000 feet from where you cast it (DM: end the Time Stop effect by hand)."
   },
   {
     "spellName": "True Polymorph",

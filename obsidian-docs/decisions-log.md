@@ -3673,3 +3673,32 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D163, D165, D174, D193
 
 **Tests:** new `StatBlockActionsTest` (13: every generated attack's bonus and damage matched against the stat-block text, every multiattack resolves, samples for the Pit Fiend, Death Knight and Storm Giant) and `StatBlockActionsIT` (2: the Pit Fiend's multiattack and poisoning bite, the Storm Giant's recharge Lightning Strike); `MonsterActionDataTest` counts updated; 3,122 backend unit, 426 integration and 1,158 frontend.
+
+
+## D195: Closing the High-Level Spell Gaps
+
+**Date:** 2026-11-10
+**Status:** Accepted — implemented (no migration; spell templates v8)
+
+**Context:** the trade-offs of [[#D190]], [[#D191]] and [[#D192]] left Time Stop, Feeblemind's scores, Earthquake's concentration save, Prismatic Wall, Holy Aura's blinding, and Storm of Vengeance's and Tsunami's rounds to the DM.
+
+**Decision:**
+- **Time Stop** (PHB p.283, `castRoll.extraTurns`): the caster takes its 1d4 + 1 turns in a row, held on a Spell Effect whose uses count the turns left; each Next Turn starts another of its turns in the same round, so nobody else's turns, conditions or round-counted durations move on. Anything the caster does to another creature (damage, a save, healing, a condition) ends the rest, logged.
+- **Feeblemind** (p.239): INT and CHA read as 1 for every save, check and modifier the engine rolls, a stat block's listed save keeping its proficiency (+7 becomes −2). Greater Restoration gains a "feebleminded" option ([[#D187]]), and Heal ends it too, as Feeblemind's own text says; Wish can by copying either.
+- **Earthquake** (p.236, `concentrationSave`): each concentrating creature it reaches makes a CON save against the spell's DC on the cast and each later use, losing concentration on a failure.
+- **Prismatic Wall** (p.267, `layers`): passing through, the effect's no-cost use, runs every layer in order with one DEX save each: red to blue 10d6 (half on a success), indigo restrained then the three CON saves ([[#D187]]), violet blinded with the WIS reminder; a creature that drops stops there.
+- **Holy Aura** (p.250): retaliation ([[#D185]]) can now be a save: a fiend or undead hitting an affected creature from within 5 ft makes a CON save or is blinded until the spell ends.
+- **Storm of Vengeance** (p.279) and **Tsunami** (p.284), `roundEffects`: using the effect deals that round's damage (Storm: round 2 1d6 acid, round 3 10d6 lightning at up to 6 creatures with a DEX save for half, round 4 2d6 bludgeoning, rounds 5–10 1d6 cold; Tsunami: 6d10 at the cast with a STR save for half, then 5d10 down to 1d10 in rounds 2–6, the save negating). A round with nothing to deal answers 409, too many targets 400.
+- **Forms ([[#D192]]):** Turn Resistance and the Evasion trait read the form's traits.
+- **Hollyphant** (BGDIA p.237): its Aura of Invulnerability keeps spells of 5th level or lower away from the hollyphant itself.
+- **Rules calls (choices):** Time Stop's casting turn isn't one of its turns, its own round-counted durations pause too, and it ends if the caster dies or is banished; Earthquake's concentration save takes Magic Resistance but not War Caster, and checks the caster only if it's a target; indigo's restrained gives disadvantage on the violet layer's save; Storm's acid, hail and cold have no save; Tsunami's later saves negate.
+
+**Rationale:** each was a named gap from the earlier decisions; the new keys stay generic.
+
+**Trade-offs:** the canopic golem's and Asmodeus's immunities need the spell level where saves and damage resolve, so they stay the DM's; Time Stop ending on an object another creature carries or on moving more than 1,000 ft is the DM's; Earthquake's concentration save doesn't offer Legendary Resistance; destroying Prismatic Wall's layers is the DM's; the Time Stop card reads "Time Stop (extra turns) N left". Not checked in a browser.
+
+**Key files:** `reference/SpellTemplate.java`, `encounter/internal/SpellCaster.java`, `EffectApplier.java`, `TurnProcessor.java`, `CreatureStats.java`, `SpellEffects.java`, `ChannelDivinityEffects.java`, `encounter/state/SpellEffectEntry.java`, `data/spell-effects/spell-effect-definitions.json`, `utils/spellEffects.ts`
+
+**Related:** D176, D185, D187, D188, D189, D190, D191, D192, [[Extra Turns]]
+
+**Tests:** new `HighLevelGapsTest` (12), `HighLevelGapsIT` (5); 3,134 backend unit, 431 integration and 1,159 frontend.

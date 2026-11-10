@@ -144,9 +144,17 @@ public class CreatureStats {
         if (ActiveModifiers.modifiersOn(participant).stream().anyMatch(m -> m.kind() == OngoingModifier.Kind.EVASION)) {
             return true;
         }
-        // A form that replaces every statistic leaves the creature's own Evasion behind (PHB p.266, D192)
-        if (WildShapeForm.of(participant).filter(form -> !form.keepsOwn()).isPresent()) {
-            return false;
+        // A form's stat block with the trait gives it (D195); a form that replaces every statistic leaves the creature's
+        // own Evasion behind (PHB p.266, D192)
+        Optional<WildShapeForm> form = WildShapeForm.of(participant);
+        if (form.isPresent()) {
+            String formTraits = form.get().traits();
+            if (formTraits != null && EVASION_TRAIT.matcher(formTraits).find()) {
+                return true;
+            }
+            if (!form.get().keepsOwn()) {
+                return false;
+            }
         }
         PlayerCharacter character = participant.getCharacter();
         if (character != null) {
@@ -154,8 +162,21 @@ public class CreatureStats {
                     || FeatureEffects.classLevel(character, "Monk") >= EVASION_LEVEL
                     || FeatureEffects.hasFeature(character, "Evasion");
         }
-        String traits = participant.getMonster() != null ? participant.getMonster().getTraits() : null;
+        String traits = traitText(participant);
         return traits != null && EVASION_TRAIT.matcher(traits).find();
+    }
+
+    /**
+     * The stat-block trait text the rules read for the participant (D195): its form's when it is in one, as a
+     * polymorphed vampire has its beast's traits and not its own Turn Resistance (PHB p.266, D192), else its monster's;
+     * null for none.
+     */
+    public static String traitText(EncounterParticipant participant) {
+        Optional<WildShapeForm> form = WildShapeForm.of(participant);
+        if (form.isPresent()) {
+            return form.get().traits();
+        }
+        return participant.getMonster() != null ? participant.getMonster().getTraits() : null;
     }
 
     /** The rogue's and the monk's level that brings Evasion (PHB p.96, p.79). */
@@ -176,9 +197,12 @@ public class CreatureStats {
             "Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma", Pattern.CASE_INSENSITIVE);
     // A trait that keeps spells of a level or lower from the creature (D191): the rakshasa's "can't be affected or
     // detected by spells of 6th level or lower unless it wishes to be" (MM p.257), Tiamat's "immune to spells of 6th
-    // level or lower" (RoT p.92)
+    // level or lower" (RoT p.92), and the hollyphant's Aura of Invulnerability, "any spell of 5th level or lower cast
+    // from outside the barrier can't affect creatures or objects within it" (BGDIA p.237, D195), read for the hollyphant
+    // itself, the other creatures in its 10-foot aura being the DM's with no map
     private static final Pattern LIMITED_MAGIC_IMMUNITY = Pattern.compile(
-            "(?:can't be affected(?: or detected)? by|immune to) spells of (\\d)(?:st|nd|rd|th) level or lower",
+            "(?:(?:can't be affected(?: or detected)? by|immune to) spells of (\\d)(?:st|nd|rd|th) level or lower"
+                    + "|any spell of (\\d)(?:st|nd|rd|th) level or lower cast from outside the barrier can't affect)",
             Pattern.CASE_INSENSITIVE);
 
     /** A trait by its name and its words, from a stat block or a race (D191). */
@@ -274,7 +298,8 @@ public class CreatureStats {
         }
         for (Trait trait : traits(target)) {
             Matcher found = LIMITED_MAGIC_IMMUNITY.matcher(trait.description());
-            if (found.find() && spellLevel <= Integer.parseInt(found.group(1))) {
+            if (found.find() && spellLevel <= Integer.parseInt(found.group(1) != null ? found.group(1)
+                    : found.group(2))) {
                 return trait.name();
             }
         }
@@ -447,6 +472,34 @@ public class CreatureStats {
      * (PHB p.67).
      */
     public int abilityScore(EncounterParticipant participant, Ability ability) {
+        // A feebleminded creature's Intelligence and Charisma become 1 (PHB p.239, D195)
+        if (feebleminded(participant) && (ability == Ability.INT || ability == Ability.CHA)) {
+            return FEEBLEMINDED_SCORE;
+        }
+        return ownAbilityScore(participant, ability);
+    }
+
+    /** The Intelligence and Charisma of a feebleminded creature (PHB p.239, D195). */
+    static final int FEEBLEMINDED_SCORE = 1;
+
+    /** Whether the creature is feebleminded (PHB p.239, D195). */
+    public static boolean feebleminded(EncounterParticipant participant) {
+        return conditionNames(participant).stream().anyMatch(EffectApplier.FEEBLEMINDED::equalsIgnoreCase);
+    }
+
+    /*
+     * A bonus a stat block or form lists for a save or skill of the ability, with a feebleminded creature's modifier of
+     * 1 in place of its own Intelligence or Charisma modifier (PHB p.239, D195): the proficiency in it stays.
+     */
+    private Integer feeble(EncounterParticipant participant, Ability ability, Integer listed) {
+        if (listed == null || !feebleminded(participant) || (ability != Ability.INT && ability != Ability.CHA)) {
+            return listed;
+        }
+        return listed - Ability.modifier(ownAbilityScore(participant, ability)) + Ability.modifier(FEEBLEMINDED_SCORE);
+    }
+
+    // The ability score before feeblemind
+    private int ownAbilityScore(EncounterParticipant participant, Ability ability) {
         Optional<WildShapeForm> form = WildShapeForm.of(participant);
         if (form.isPresent()) {
             switch (ability) {
@@ -562,7 +615,7 @@ public class CreatureStats {
         // A form that replaces every statistic, as Polymorph's, saves with the form's bonuses alone (PHB p.266, D192)
         Optional<WildShapeForm> form = WildShapeForm.of(participant);
         if (form.isPresent() && !form.get().keepsOwn()) {
-            Integer listed = form.get().saves().get(ability.name().toLowerCase(Locale.ROOT));
+            Integer listed = feeble(participant, ability, form.get().saves().get(ability.name().toLowerCase(Locale.ROOT)));
             return listed != null ? listed : Ability.modifier(abilityScore(participant, ability));
         }
         if (participant.getCharacter() != null) {
@@ -579,7 +632,7 @@ public class CreatureStats {
             Monster monster = participant.getMonster();
             JsonNode saves = StoredJson.read(objectMapper, monster.getSavingThrows(),
                     monster.getName() + "'s saving throws");
-            Integer listed = bonus(saves.path(ability.name().toLowerCase()));
+            Integer listed = feeble(participant, ability, bonus(saves.path(ability.name().toLowerCase())));
             int own = listed != null ? listed : Ability.modifier(abilityScore(participant, ability));
             // A monster in a form that keeps its own proficiencies, as Shapechange's, takes the higher bonus (PHB p.274)
             return form.map(f -> BeastShapes.bonus(own, f.saves().get(ability.name().toLowerCase(Locale.ROOT))))
@@ -601,7 +654,7 @@ public class CreatureStats {
         // A form that replaces every statistic uses the form's skill bonuses alone (PHB p.266, D192)
         Optional<WildShapeForm> form = WildShapeForm.of(participant);
         if (form.isPresent() && !form.get().keepsOwn()) {
-            Integer listed = form.get().skills().get(skill.toLowerCase(Locale.ROOT));
+            Integer listed = feeble(participant, ability, form.get().skills().get(skill.toLowerCase(Locale.ROOT)));
             return listed != null ? listed : modifier;
         }
         if (participant.getCharacter() != null) {
@@ -621,7 +674,7 @@ public class CreatureStats {
         if (participant.getMonster() != null) {
             Monster monster = participant.getMonster();
             JsonNode skills = StoredJson.read(objectMapper, monster.getSkills(), monster.getName() + "'s skills");
-            Integer listed = bonus(skills.path(skill.toLowerCase()));
+            Integer listed = feeble(participant, ability, bonus(skills.path(skill.toLowerCase())));
             return listed != null ? listed : modifier;
         }
         return 0;

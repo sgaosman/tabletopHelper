@@ -28,7 +28,8 @@ import java.util.Map;
  * spells' keys (D187), such as lifeDrain, countedSaves, contest and hitThreshold, and since version 5 the 7th-level
  * spells' keys (D189), such as hpThresholdEffects, rayTable, detonation and raisesOnKill, and since version 6 the
  * 6th-level spells' (D188), such as damageFloor, actionSave and conditionsByOption given whole, and since version 7
- * the 8th- and 9th-level spells' (D190), such as escapeCheck, healingPool, castsSpell and critRange.
+ * the 8th- and 9th-level spells' (D190), such as escapeCheck, healingPool, castsSpell and critRange, and since version
+ * 8 the keys that close the high-level gaps (D195), such as layers, concentrationSave and a retaliation's save.
  */
 @Component
 @RequiredArgsConstructor
@@ -53,8 +54,9 @@ public class SpellEffectLoader implements ContentLoader {
     @Override
     public int version() {
         // 3: the 4th-level spells' templates and keys (D185); 4: the 5th-level spells' (D187); 5: the 7th-level
-        // spells' (D189); 6: the 6th-level spells' (D188); 7: the 8th- and 9th-level spells' (D190)
-        return 7;
+        // spells' (D189); 6: the 6th-level spells' (D188); 7: the 8th- and 9th-level spells' (D190); 8: the keys that
+        // close the high-level gaps, such as layers and concentrationSave (D195)
+        return 8;
     }
 
     @Override
