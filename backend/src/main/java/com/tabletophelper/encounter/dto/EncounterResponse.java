@@ -297,6 +297,11 @@ public class EncounterResponse {
         @Schema(requiredMode = REQUIRED)
         private List<SpellTrigger> triggers;
 
+        // The triggers among them that act once for each of several moves at once, as Spike Growth's 2d4 for each 5
+        // feet a creature moves through it (PHB p.277), which a trigger's uses count (D199, D200); empty for none
+        @Schema(requiredMode = REQUIRED)
+        private List<SpellTrigger> repeatableTriggers;
+
         // The creatures a summoning spell brings and whether they wait for the DM (D182); null for any other spell
         private SummonSpec summon;
 
@@ -351,6 +356,11 @@ public class EncounterResponse {
         // for none
         @Schema(requiredMode = REQUIRED)
         private List<UUID> risingIds;
+
+        // The creatures that use it with their own action, as the creature Dragon's Breath touched exhales (XGE p.154,
+        // D199, D200): its affected creatures for a spell its target uses; empty when only its caster uses it
+        @Schema(requiredMode = REQUIRED)
+        private List<UUID> usableByIds;
     }
 
     /**

@@ -166,6 +166,8 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             }
             // And the low-level spells' keys (D199)
             template.primaryTargets();
+            // And the cast screen's distance for the picked creatures (D200)
+            template.pickedWithin();
             template.darts();
             template.backfireOnOne();
             template.typeDice();
@@ -1185,6 +1187,24 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         }
         if (!node.isInt() || node.asInt(0) < 0) {
             throw new IllegalArgumentException("primaryTargets is not a whole number");
+        }
+        return node.asInt(0);
+    }
+
+    /**
+     * How near the creatures picked after the spell's own targets must be, in feet, so the cast screen can say so,
+     * there being no map: of the spell's target, as Ice Knife's 5 feet (XGE p.157), Green-Flame Blade's 5 feet (TCE
+     * p.107) or Chaos Bolt's 30 feet (XGE p.151), or of the creature the caster's next attack is against for a spell
+     * on the caster, as Hail of Thorns' 5 feet (PHB p.249) or Lightning Arrow's 10 feet (PHB p.255). The template's
+     * {@code pickedWithin}; null when it doesn't say (D200).
+     */
+    public Integer pickedWithin() {
+        JsonNode node = json != null ? json.get("pickedWithin") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isInt() || node.asInt(0) < 1) {
+            throw new IllegalArgumentException("pickedWithin is not a whole number of feet");
         }
         return node.asInt(0);
     }

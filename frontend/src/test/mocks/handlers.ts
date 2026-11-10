@@ -582,6 +582,7 @@ export function makeMockSpellEffect(spell = 'Spiritual Weapon', overrides: Parti
     startedRound: 1, durationRounds: 10, usesLeft: null, directedCost: 'BONUS_ACTION', directedResolves: true,
     maxUsesEachTurn: null, triggers: [], summonedParticipantIds: [], affectedIds: [], modifiers: [],
     retargetable: false, delayed: [], tallies: [], controlledIds: [], risingIds: [], useOptions: [],
+    repeatableTriggers: [], usableByIds: [],
   } satisfies SpellEffect;
   return { ...effect, ...overrides };
 }

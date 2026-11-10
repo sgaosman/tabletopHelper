@@ -93,6 +93,11 @@ class RiderAndMissileSpellsIT extends IntegrationTest {
         enteredAttack(ogre, true);
         assertThat(hp(ogre)).isEqualTo(53);
         String frightened = conditionId(ogre, "frightened");
+        // The response says the action is spent on a plain WIS check, so the button can say so (D200)
+        JsonNode save = condition(ogre, "frightened").get("repeatSave");
+        assertThat(save.get("byAction").asBoolean()).isTrue();
+        assertThat(save.get("check").asBoolean()).isTrue();
+        assertThat(save.has("skill")).isFalse();
 
         nextTurn();
         // frightened, so disadvantage: 15 and 14 keep 14, + 0 beats DC 13
@@ -241,6 +246,45 @@ class RiderAndMissileSpellsIT extends IntegrationTest {
         assertThat(hp(goblin)).isEqualTo(20);
     }
 
+    @Test
+    @DisplayName("The spell options say what each listed target is (D200): Ice Knife's main target and the creatures "
+            + "picked within 5 feet, Hail of Thorns' and Lightning Arrow's picked only, Magic Missile's darts by level")
+    void targetRoles() {
+        start();
+        JsonNode options = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId
+                + "/combat/spell-options?participantId=" + ariaId, null, dm.accessToken()));
+        Map<String, JsonNode> roles = new HashMap<>();
+        options.forEach(option -> roles.put(option.get("name").asString(), option.get("targetRoles")));
+
+        assertThat(roles.get("Ice Knife").get("primaryTargets").asInt()).isEqualTo(1);
+        assertThat(roles.get("Ice Knife").get("pickedWithinFeet").asInt()).isEqualTo(5);
+        assertThat(roles.get("Ice Knife").path("darts").isNull()).isTrue();
+        assertThat(roles.get("Green-Flame Blade").get("primaryTargets").asInt()).isEqualTo(1);
+        assertThat(roles.get("Chaos Bolt").get("pickedWithinFeet").asInt()).isEqualTo(30);
+        assertThat(roles.get("Hail of Thorns").get("primaryTargets").asInt()).isZero();
+        assertThat(roles.get("Hail of Thorns").get("pickedWithinFeet").asInt()).isEqualTo(5);
+        assertThat(roles.get("Lightning Arrow").get("pickedWithinFeet").asInt()).isEqualTo(10);
+        JsonNode darts = roles.get("Magic Missile").get("darts");
+        assertThat(roles.get("Magic Missile").path("primaryTargets").isNull()).isTrue();
+        assertThat(darts.get("1").asInt()).isEqualTo(3);
+        assertThat(darts.get("2").asInt()).isEqualTo(4);
+        assertThat(darts.get("9").asInt()).isEqualTo(11);
+        assertThat(darts.has("0")).isFalse();
+        // Every target of the others is the spell's own
+        assertThat(roles.get("Life Transference")).isNull();
+        assertThat(roles.get("Searing Smite")).isNull();
+    }
+
+    @Test
+    @DisplayName("Magic Missile shared out by repeating a target: two darts at the ogre and one at the goblin (D200)")
+    void magicMissileShared() {
+        start();
+        dice.script(1, 2, 3);
+        cast("Magic Missile", 1, List.of(ogre, ogre, goblin));
+        assertThat(hp(ogre)).isEqualTo(60 - 2 - 3);
+        assertThat(hp(goblin)).isEqualTo(20 - 4);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
 
     private String monster(String name, int hp) {
@@ -324,6 +368,15 @@ class RiderAndMissileSpellsIT extends IntegrationTest {
             conditions.forEach(condition -> names.add(condition.get("name").asString()));
         }
         return names;
+    }
+
+    private JsonNode condition(String participantId, String name) {
+        for (JsonNode condition : participant(dmState(), participantId).get("activeConditions")) {
+            if (condition.get("name").asString().equals(name)) {
+                return condition;
+            }
+        }
+        throw new AssertionError(name + " is not on " + participantId);
     }
 
     private String conditionId(String participantId, String name) {

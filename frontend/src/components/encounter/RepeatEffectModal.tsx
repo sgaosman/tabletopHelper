@@ -11,6 +11,10 @@ import { chargeBlock, costPhrase } from '../../utils/turnEconomy';
 import { FIELD_INPUT, FIELD_LABEL } from './formStyles';
 
 interface Props {
+  /**
+   * Who uses the effect: its caster, or the creature a spell touched that uses its caster's effect with its own action,
+   * as Dragon's Breath's (D199, D200), whose player sends its use as that creature.
+   */
   caster: EncounterParticipant;
   /** The caster's Spell Effect to use (M15). */
   effect: SpellEffect;
@@ -41,7 +45,10 @@ const MOMENTS: Record<SpellTrigger, string> = {
  * result updates (M15). It goes through the steps every spell pop-up shares; no slot is chosen, since it spends none.
  * The caster's own use says what it costs from their turn, as the server reports it, and why the turn can't pay where
  * the page can tell, the server staying the authority (D174); an effect with uses, such as Melf's Minute Meteors,
- * asks how many to spend. A trigger is the DM's: what the area does to the creatures it reaches, at no cost.
+ * asks how many to spend. A trigger is the DM's: what the area does to the creatures it reaches, at no cost; one that
+ * counts several moves at once, as Spike Growth's 2d4 for each 5 feet moved (PHB p.277), asks how many 5-foot moves
+ * (D200). An effect the creature a spell touched uses, as Dragon's Breath's exhalation (XGE p.154), reaches any creature
+ * the user chooses, its area having no map, and is paid for from that creature's turn (D199, D200).
  */
 export default function RepeatEffectModal({
   caster, effect, participants, trigger, initialTargets = [], onClose, allowManualModifiers = false, asDm = false,
@@ -51,6 +58,16 @@ export default function RepeatEffectModal({
   const slotLevel = effect.slotLevel ?? 0;
   const { lookUpTargeting, chooseFreely } = flow;
   const [uses, setUses] = useState(1);
+  // The 5-foot moves a repeatable trigger counts, 1 to 10, as the server takes them (D199, D200)
+  const repeatable = !!trigger && (effect.repeatableTriggers ?? []).includes(trigger);
+  const [moves, setMoves] = useState('1');
+  const movesCount = Math.min(10, Math.max(1, Math.floor(Number(moves)) || 1));
+  // An effect the creature it touched uses, with its own action: the caster's use is that creature's, so its turn pays
+  // and its area reaches whoever the user picks (D199, D200)
+  const usableBy = effect.usableByIds ?? [];
+  const usedByTarget = usableBy.length > 0;
+  const payer = usedByTarget && !usableBy.includes(caster.id)
+    ? participants.find(p => p.id === usableBy[0]) ?? caster : caster;
   // Eyebite chooses its effect again for each new creature (PHB p.238, D188)
   const useOptions = trigger ? [] : (effect.useOptions ?? []);
   const [option, setOption] = useState(useOptions[0] ?? '');
@@ -59,18 +76,18 @@ export default function RepeatEffectModal({
   const cost = trigger ? null : (effect.directedCost ?? 'ACTION');
   const blocked = cost === null ? null
     : cost === 'NONE'
-      ? (!asDm && !caster.isCurrentTurn ? 'Only on your turn' : null)
-      : chargeBlock(caster, { cost });
+      ? (!asDm && !payer.isCurrentTurn ? 'Only on your turn' : null)
+      : chargeBlock(payer, { cost });
   const economyWarning = blocked && asDm ? `Over the action economy: ${blocked}` : blocked;
   const initialKey = initialTargets.join(',');
 
   useEffect(() => {
-    if (trigger) {
+    if (trigger || usedByTarget) {
       chooseFreely(initialKey ? initialKey.split(',') : []);
     } else {
       void lookUpTargeting(effect.spell, slotLevel);
     }
-  }, [trigger, chooseFreely, lookUpTargeting, effect.spell, slotLevel, initialKey]);
+  }, [trigger, usedByTarget, chooseFreely, lookUpTargeting, effect.spell, slotLevel, initialKey]);
 
   function applyEffect() {
     flow.submit(() => actions.repeatSpellEffect({
@@ -79,6 +96,7 @@ export default function RepeatEffectModal({
       effectId: effect.id,
       ...(trigger ? { trigger } : {}),
       ...(uses > 1 ? { uses } : {}),
+      ...(repeatable ? { uses: movesCount } : {}),
       ...(useOptions.length > 0 && option ? { option } : {}),
       ...flow.overrides(),
     }, caster.id));
@@ -107,7 +125,20 @@ export default function RepeatEffectModal({
         </div>
 
         {cost && (
-          <p className="font-body text-[15px] font-semibold text-muted">Repeating it costs {costPhrase(cost)}</p>
+          <p className="font-body text-[15px] font-semibold text-muted">
+            {payer !== caster ? `${payer.displayName}'s use of it costs` : 'Repeating it costs'} {costPhrase(cost)}
+          </p>
+        )}
+
+        {repeatable && !flow.result && (
+          <div>
+            <label htmlFor="effect-moves" className={FIELD_LABEL}>5-ft moves (feet moved ÷ 5)</label>
+            <input id="effect-moves" type="number" min={1} max={10} step={1} className={FIELD_INPUT} value={moves}
+              onChange={e => setMoves(e.target.value)} />
+            <p className="font-body text-[13px] font-semibold text-faint mt-0.5">
+              {`${movesCount * 5} feet: it applies ${movesCount} ${movesCount === 1 ? 'time' : 'times'} in one roll`}
+            </p>
+          </div>
         )}
 
         {mostUses > 1 && !flow.result && (

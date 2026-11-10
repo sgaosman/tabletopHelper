@@ -116,6 +116,10 @@ class AreaSpellsIT extends IntegrationTest {
     @DisplayName("Spike Growth's thorns, applied for 10 feet of movement, deal 4d4 piercing in one roll (PHB p.277)")
     void spikeGrowth() {
         expect(HttpStatus.OK, castRequest("Spike Growth", 2, List.of(), null));
+        // Its ENTER trigger counts 5-foot moves, so the DM's trigger control asks how many (D200)
+        JsonNode effect = participant(dmState(), ariaId).get("activeEffects").get(0);
+        assertThat(effect.get("repeatableTriggers")).extracting(JsonNode::asString).containsExactly("ENTER");
+        assertThat(effect.get("usableByIds")).isEmpty();
         dice.script(2, 2, 2, 2);
         expect(HttpStatus.OK, trigger(Map.of("targetIds", List.of(ogreId), "trigger", "ENTER", "uses", 2)));
         assertThat(hp(ogreId)).isEqualTo(52);
@@ -197,6 +201,14 @@ class AreaSpellsIT extends IntegrationTest {
             }
         }
         assertThat(phantasm).isNotNull();
+        // The response names the INT (Investigation) check its action is spent on (D200)
+        for (JsonNode condition : participant(dmState(), ogreId).get("activeConditions")) {
+            if (condition.get("name").asString().equals("phantasm")) {
+                assertThat(condition.get("repeatSave").get("check").asBoolean()).isTrue();
+                assertThat(condition.get("repeatSave").get("skill").asString()).isEqualTo("Investigation");
+                assertThat(condition.get("repeatSave").get("ability").asString()).isEqualTo("INT");
+            }
+        }
         nextTurn();
 
         // 18 - 2 = 16 beats DC 14

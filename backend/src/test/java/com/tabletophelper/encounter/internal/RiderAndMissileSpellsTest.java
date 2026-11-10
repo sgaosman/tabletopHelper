@@ -1,14 +1,18 @@
 package com.tabletophelper.encounter.internal;
 
 import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.dto.AttackRollRequest;
 import com.tabletophelper.encounter.dto.CastSpellRequest;
 import com.tabletophelper.encounter.dto.RepeatSaveRequest;
 import com.tabletophelper.encounter.dto.RepeatSpellEffectRequest;
+import com.tabletophelper.encounter.dto.SpellOption;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.RepeatSave;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.reference.SpellTemplate;
+import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.OngoingModifier;
 import com.tabletophelper.rules.combat.OngoingModifiers;
@@ -23,7 +27,9 @@ import tools.jackson.databind.JsonNode;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.tabletophelper.encounter.internal.CombatFixture.versatileWeapon;
@@ -556,6 +562,62 @@ class RiderAndMissileSpellsTest {
             cast("Antagonize", 3, List.of(goblin));
             assertThat(goblin.getHpCurrent()).isEqualTo(16);
             assertThat(logged("reaction")).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("What each listed target is, for the cast screen (D200)")
+    class TargetRoles {
+
+        @Test
+        @DisplayName("The spell options give Ice Knife's main target and 5-foot picks, Hail of Thorns' picks only, "
+                + "Magic Missile's darts at each level, and nothing for a spell whose targets are all its own")
+        void spellOptions() {
+            for (String spell : List.of("Ice Knife", "Hail of Thorns", "Magic Missile", "Thunder Step")) {
+                f.knows(aria, spell);
+            }
+            aria.setSpellSlotsCurrent(Map.of("1", new SpellSlot(4, 0), "3", new SpellSlot(2, 0)));
+
+            Map<String, SpellOption.TargetRoles> roles = new HashMap<>();
+            f.spellcasting.spellOptions(f.encounterId(), aria.getId(), f.dmUserId)
+                    .forEach(option -> roles.put(option.name(), option.targetRoles()));
+
+            assertThat(roles.get("Ice Knife")).isEqualTo(new SpellOption.TargetRoles(1, 5, null));
+            assertThat(roles.get("Hail of Thorns")).isEqualTo(new SpellOption.TargetRoles(0, 5, null));
+            assertThat(roles.get("Magic Missile").primaryTargets()).isNull();
+            assertThat(roles.get("Magic Missile").darts()).containsEntry("1", 3).containsEntry("3", 5)
+                    .containsEntry("9", 11).hasSize(9);
+            assertThat(roles).containsEntry("Thunder Step", null);
+        }
+
+        @Test
+        @DisplayName("pickedWithin reads a whole number of feet and refuses anything else")
+        void pickedWithin() {
+            assertThat(SpellTemplate.parse("{\"primaryTargets\": 1, \"pickedWithin\": 30}").pickedWithin())
+                    .isEqualTo(30);
+            assertThat(SpellTemplate.parse("{\"primaryTargets\": 1}").pickedWithin()).isNull();
+            assertThat(SpellTemplate.parse("{\"pickedWithin\": 0}").unreadable()).isNotNull();
+            assertThat(SpellTemplate.parse("{\"pickedWithin\": \"near\"}").unreadable()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("A Repeat Save marked as a check keeps its numbers, and one stored before the marks reads without "
+                + "them")
+        void repeatSaveCheck() throws Exception {
+            RepeatSave save = new RepeatSave(Ability.INT, 14, false, true);
+            RepeatSave check = save.asCheck("Investigation");
+            assertThat(check.ability()).isEqualTo(Ability.INT);
+            assertThat(check.dc()).isEqualTo(14);
+            assertThat(check.madeByAction()).isTrue();
+            assertThat(check.check()).isTrue();
+            assertThat(check.skill()).isEqualTo("Investigation");
+            assertThat(check.withAwaitingRoll(true).skill()).isEqualTo("Investigation");
+
+            String stored = JacksonDefaults.mapper().writeValueAsString(save);
+            assertThat(stored).doesNotContain("check").doesNotContain("skill");
+            RepeatSave read = JacksonDefaults.mapper().readValue(stored, RepeatSave.class);
+            assertThat(read).isEqualTo(save);
+            assertThat(read.check()).isNull();
         }
     }
 }

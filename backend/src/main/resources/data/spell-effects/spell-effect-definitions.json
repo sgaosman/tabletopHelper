@@ -1212,6 +1212,7 @@
     },
     "weaponAttack": true,
     "primaryTargets": 1,
+    "pickedWithin": 5,
     "followUpSave": {
       "on": "HIT",
       "damageDice": "0 + MOD",
@@ -3870,6 +3871,7 @@
       ]
     },
     "primaryTargets": 1,
+    "pickedWithin": 30,
     "reminder": "The caster may choose either d8 for the damage type (the app uses the first), and the bolt can strike each creature only once."
   },
   {
@@ -5686,6 +5688,7 @@
     ],
     "notes": "Bonus action. Concentration. Triggers on ranged weapon hit. Target and nearby creatures take piercing damage (DEX half). Max 6d10 at 6th level.",
     "primaryTargets": 0,
+    "pickedWithin": 5,
     "followUpSave": {
       "ability": "DEX",
       "on": "HIT",
@@ -6069,6 +6072,7 @@
     ],
     "notes": "Spell attack for 1d10 piercing. Whether hit or miss, explosion: DEX save for 2d6 cold (no half on save) to target and 5-ft radius. Only cold scales.",
     "primaryTargets": 1,
+    "pickedWithin": 5,
     "followUpSave": {
       "ability": "DEX",
       "on": "ATTACK",
@@ -15724,6 +15728,7 @@
     ],
     "notes": "Primary target takes full damage on hit or half on miss (not a save). Secondary AOE targets make DEX save for half. Both damage amounts increase with upcast.",
     "primaryTargets": 0,
+    "pickedWithin": 10,
     "followUpSave": {
       "ability": "DEX",
       "on": "ATTACK",

@@ -163,6 +163,52 @@ describe('SpellCastModal', () => {
     expect(cachedEncounter()).toEqual(encounterState);
   });
 
+  it("shares Magic Missile's darts at the chosen level, sending a target once for each dart (D200)", async () => {
+    spellOptions([{ name: 'Magic Missile', level: 1, castingTime: 'ACTION', sources: [{ source: 'SLOT', levels: [1, 3] }],
+      targetRoles: { darts: { 1: 3, 2: 4, 3: 5 } } }]);
+    targeting({ maxTargets: 5 });
+    const requests = castRequests();
+    const { user } = await renderModal();
+
+    await user.click(await screen.findByRole('button', { name: /Magic Missile/ }));
+    await user.click(screen.getByRole('button', { name: /^Level 3/ }));
+    expect(await screen.findByText(/Assign darts \(0\/5\)/)).toBeInTheDocument();
+    for (let i = 0; i < 3; i++) await user.click(screen.getByRole('button', { name: 'One more dart at Test Goblin' }));
+    await user.click(screen.getByRole('button', { name: 'One more dart at Orc' }));
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'One more dart at Orc' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByText('Targeting: Test Goblin (3 darts), Orc (2 darts)')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cast Spell' }));
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0].body).toMatchObject({ spellName: 'Magic Missile', slotLevel: 3,
+      targetIds: ['part-goblin', 'part-goblin', 'part-goblin', 'part-orc', 'part-orc'] });
+  });
+
+  it("sends Ice Knife's main target first, the creature made main moving ahead of the picks (D200)", async () => {
+    spellOptions([{ name: 'Ice Knife', level: 1, castingTime: 'ACTION', sources: [{ source: 'SLOT', levels: [1] }],
+      targetRoles: { primaryTargets: 1, pickedWithinFeet: 5 } }]);
+    targeting();
+    const requests = castRequests();
+    const { user } = await renderModal();
+
+    await user.click(await screen.findByRole('button', { name: /Ice Knife/ }));
+    await user.click(screen.getByRole('button', { name: /^Level 1/ }));
+    await user.click(await screen.findByRole('button', { name: /^Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: /^Orc/ }));
+    expect(within(screen.getByRole('button', { name: /^Test Goblin/ })).getByText('Main target')).toBeInTheDocument();
+    expect(within(screen.getByRole('button', { name: /^Orc/ })).getByText('Picked (within 5 ft)')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Make Orc the main target' }));
+    expect(within(screen.getByRole('button', { name: /^Orc/ })).getByText('Main target')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByText('Targeting: Orc (main); picked within 5 ft: Test Goblin')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cast Spell' }));
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0].body).toMatchObject({ spellName: 'Ice Knife', targetIds: ['part-orc', 'part-goblin'] });
+  });
+
   it('casts a summoning spell from its creature step straight to confirm, with no targets (D182)', async () => {
     spellOptions([{ name: 'Summon Beast', level: 2, castingTime: 'ACTION', sources: [{ source: 'SLOT', levels: [3] }] }]);
     const lookups = targeting();

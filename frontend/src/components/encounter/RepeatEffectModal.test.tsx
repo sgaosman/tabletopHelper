@@ -362,4 +362,84 @@ describe('RepeatEffectModal applying a trigger (M15)', () => {
     expect(lookups).toEqual([]);
     expect(body).toEqual({ targetIds: ['part-orc'], advantage: null, effectId: 'effect-moonbeam', trigger: 'START_OF_TURN' });
   });
+
+  it("asks Spike Growth's 5-foot moves for its repeatable trigger and sends them as uses (D200)", async () => {
+    let body: unknown;
+    server.use(
+      http.post('/api/encounters/:id/combat/repeat-spell-effect', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(makeMockCastSpellResponse({ spellName: 'Spike Growth', resultSummary: 'Thorns.' }));
+      }),
+    );
+    const spikes = makeMockSpellEffect('Spike Growth', {
+      concentration: true, directedCost: null, triggers: ['ENTER'], repeatableTriggers: ['ENTER'],
+    });
+    const { user } = await renderModal({ effect: spikes, trigger: 'ENTER', initialTargets: ['part-orc'], asDm: true });
+
+    const moves = screen.getByLabelText('5-ft moves (feet moved ÷ 5)');
+    expect(moves).toHaveValue(1);
+    expect(moves).toHaveAttribute('min', '1');
+    expect(moves).toHaveAttribute('max', '10');
+    await user.clear(moves);
+    await user.type(moves, '4');
+    expect(screen.getByText('20 feet: it applies 4 times in one roll')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Apply Effect' }));
+
+    expect(await screen.findByText('Thorns.')).toBeInTheDocument();
+    expect(body).toEqual({ targetIds: ['part-orc'], advantage: null, effectId: 'effect-spike-growth', trigger: 'ENTER', uses: 4 });
+  });
+
+  it('asks no moves for a trigger that applies once, as Moonbeam\'s', async () => {
+    const moonbeam = makeMockSpellEffect('Moonbeam', { triggers: ['ENTER'], repeatableTriggers: [] });
+    await renderModal({ effect: moonbeam, trigger: 'ENTER', initialTargets: ['part-orc'], asDm: true });
+
+    expect(screen.queryByLabelText(/5-ft moves/)).not.toBeInTheDocument();
+  });
+});
+
+describe("RepeatEffectModal for the creature a spell touched, as Dragon's Breath's (D200)", () => {
+  beforeEach(() => {
+    setupAuthToken();
+  });
+
+  const breath = makeMockSpellEffect("Dragon's Breath", {
+    concentration: true, directedCost: 'ACTION', option: 'fire', affectedIds: ['part-legolas'], usableByIds: ['part-legolas'],
+  });
+
+  it('exhales at any creature chosen, with no targeting lookup, sent as the touched creature on its own action', async () => {
+    const lookups = targeting({ maxTargets: 1, canTargetEnemies: false });
+    let request: { body: unknown; actorId: string | null } | undefined;
+    server.use(
+      http.post('/api/encounters/:id/combat/repeat-spell-effect', async ({ request: sent }) => {
+        request = { body: await sent.json(), actorId: new URL(sent.url).searchParams.get('actorId') };
+        return HttpResponse.json(makeMockCastSpellResponse({ spellName: "Dragon's Breath", resultSummary: 'Fire.' }));
+      }),
+    );
+    const exhaling = { ...legolas, isCurrentTurn: true };
+    const { user } = await renderModal({ caster: exhaling, effect: breath });
+
+    expect(await screen.findByText('Repeating it costs an action')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: /^Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: /^Orc/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.queryByText(/Action already used/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Repeat Effect' }));
+
+    expect(await screen.findByText('Fire.')).toBeInTheDocument();
+    expect(lookups).toEqual([]);
+    expect(request).toEqual({ body: { targetIds: ['part-goblin', 'part-orc'], advantage: null,
+      effectId: "effect-dragon-s-breath" }, actorId: 'part-legolas' });
+  });
+
+  it("charges the touched creature's turn when the DM uses it from the caster's card", async () => {
+    const spent = { ...legolas, isCurrentTurn: true, turnEconomy: { ...legolas.turnEconomy!, actionsUsed: 1 } };
+    const { user } = await renderModal({ caster: cleric, effect: breath, participants: [cleric, goblin, orc, spent],
+      asDm: true });
+
+    expect(await screen.findByText("Legolas's use of it costs an action")).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: /^Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText(/Over the action economy/)).toBeInTheDocument();
+  });
 });

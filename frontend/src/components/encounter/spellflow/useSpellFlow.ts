@@ -121,7 +121,8 @@ export default function useSpellFlow<S extends string = never>(
     step, setStep,
     targetingInfo: shownTargeting, targetingLoading: !targetingLoaded, takesNoTargets: takesNoTargets(targetingInfo), lookUpTargeting,
     chooseFreely, skipTargets,
-    selectedTargets, toggleTarget, setExtraTargets,
+    // The targets as a list, in order and with repeats, for a spell whose targets have roles or darts (D200)
+    selectedTargets, toggleTarget, setTargets: setSelectedTargets, setExtraTargets,
     advantage, setAdvantage,
     overrideAttackBonus, setOverrideAttackBonus, overrideSaveDC, setOverrideSaveDC, overrides,
     submitting, result, error, setError, submit,

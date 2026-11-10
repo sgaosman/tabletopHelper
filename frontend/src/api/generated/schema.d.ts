@@ -3949,8 +3949,10 @@ export interface components {
             ability: "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
             awaitingRoll: boolean;
             byAction?: boolean | null;
+            check?: boolean | null;
             /** Format: int32 */
             dc: number;
+            skill?: string | null;
         };
         RepeatSaveRequest: {
             /** Format: uuid */
@@ -4094,6 +4096,7 @@ export interface components {
             maxUsesEachTurn?: number | null;
             modifiers: string[];
             option?: string | null;
+            repeatableTriggers: ("ENTER" | "START_OF_TURN" | "END_OF_TURN")[];
             retaliation?: string | null;
             retargetable: boolean;
             risingIds: string[];
@@ -4107,6 +4110,7 @@ export interface components {
             tallies: components["schemas"]["Tally"][];
             tallyRule?: string | null;
             triggers: ("ENTER" | "START_OF_TURN" | "END_OF_TURN")[];
+            usableByIds: string[];
             useOptions: string[];
             /** Format: int32 */
             usesLeft?: number | null;
@@ -4133,6 +4137,7 @@ export interface components {
             name: string;
             reactionTrigger?: string | null;
             sources: components["schemas"]["SourceOption"][];
+            targetRoles?: components["schemas"]["TargetRoles"] | null;
             unavailableReason?: string | null;
         };
         SpellSlot: {
@@ -4380,6 +4385,15 @@ export interface components {
             /** Format: uuid */
             targetId: string;
             targetName: string;
+        };
+        TargetRoles: {
+            darts?: {
+                [key: string]: number;
+            } | null;
+            /** Format: int32 */
+            pickedWithinFeet?: number | null;
+            /** Format: int32 */
+            primaryTargets?: number | null;
         };
         TieOrderRequest: {
             participantIds: string[];

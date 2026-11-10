@@ -86,6 +86,35 @@ describe('ConditionChips', () => {
     await waitFor(() => expect(sent).toEqual({ participantId: 'p', conditionId: 'cond-dancing' }));
   });
 
+  it("names the ability check an action is spent on, as Wrathful Smite's and Phantasmal Force's (D200)", async () => {
+    setupAuthToken();
+    let sent: unknown = null;
+    server.use(http.post('/api/encounters/:id/combat/action-save', async ({ request }) => {
+      sent = await request.json();
+      return HttpResponse.json(makeMockEncounter());
+    }));
+    const frightened = makeMockCondition('frightened', {
+      sourceSpellName: 'Wrathful Smite',
+      repeatSave: { ability: 'WIS', dc: 13, awaitingRoll: false, byAction: true, check: true },
+    });
+    const phantasm = makeMockCondition('phantasm', {
+      sourceSpellName: 'Phantasmal Force',
+      repeatSave: { ability: 'INT', dc: 14, awaitingRoll: false, byAction: true, check: true, skill: 'Investigation' },
+    });
+    const ogre = makeMockParticipant('p', 'Ogre', 'MONSTER', { activeConditions: [frightened, phantasm] });
+    render(
+      <EncounterProvider encounterId="enc-001">
+        <ConditionChips participant={ogre} roundNumber={1} showRepeatSave />
+      </EncounterProvider>,
+    );
+    expect(screen.getByText('frightened (Wrathful Smite)'))
+      .toHaveAttribute('title', '; a WIS check DC 13 made with its action ends the spell');
+    expect(await screen.findByRole('button', { name: 'Use action: INT (Investigation) check' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /save/ })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Use action: WIS check' }));
+    await waitFor(() => expect(sent).toEqual({ participantId: 'p', conditionId: 'cond-frightened' }));
+  });
+
   it("shows Rage and Reckless Attack as the creature's own features, with what they do (M17)", () => {
     const grog = makeMockParticipant('p', 'Grog', 'PLAYER', { activeConditions: [
       makeMockCondition('raging', { duration: 10, appliedRound: 2, sourceSpellName: 'Rage' }),

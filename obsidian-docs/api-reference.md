@@ -1883,3 +1883,7 @@ No endpoint or DTO changed; what requests mean did:
 - `POST /combat/repeat-spell-effect` `uses` (1–10) multiplies a repeatable trigger's damage, as Spike Growth's 2d4 per 5 feet moved. Dragon's Breath's `actorId` may be the creature it touched, which is charged its action.
 - `POST /combat/action-save` may roll an ability check instead of a save (Wrathful Smite, Ensnaring Strike, Phantasmal Force's Investigation).
 - 409 for Revivify on a living target, for attacks and casts under Gaseous Form, and for more Cordon of Arrows targets than pieces left. A player can't take a reaction under `NO_REACTIONS`.
+
+### Cast-screen controls (D200)
+
+Spell options gain `targetRoles` `{primaryTargets, pickedWithinFeet, darts}` (null for most spells): how many of the targets are the spell's own and how near the rest must be, or the darts at each cast level (Magic Missile `{"1": 3, …, "9": 11}`). `SpellEffectResponse` gains `usableByIds` (the creatures that use it with their own action, as Dragon's Breath's touched creature) and `repeatableTriggers` (triggers whose `uses` multiplies, as Spike Growth's ENTER). A condition's `repeatSave` gains `check` and `skill`, in the response only: an action that rolls an ability check, not a save.

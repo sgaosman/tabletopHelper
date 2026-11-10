@@ -25,6 +25,7 @@ import { formSubjects, isFormSpell } from '../../utils/formSpells';
 import { useAuth } from '../../hooks/useAuth';
 import { consentTargets } from '../../utils/spellConsent';
 import ConsentChoices from './spellflow/ConsentChoices';
+import { describeTargets, targetRoleMode } from '../../utils/targetRoles';
 
 interface Props {
   caster: EncounterParticipant;
@@ -67,7 +68,10 @@ interface ChoiceRow extends CastChoice {
  * bonus action, Twinned Spell allows a second target, and Careful and Heightened Spell choose their creatures among the
  * targets on the confirm step. A summoning spell (D182) chooses its creatures in the summon step after how to pay, from
  * the options the server lists at that slot level, and the cast carries the choice. A form spell (D192) chooses each
- * creature's form in the form step after the targets (the caster's own for Shapechange), and the cast carries them.
+ * creature's form in the form step after the targets (the caster's own for Shapechange), and the cast carries them. A
+ * spell whose first targets are its own and the rest creatures the caster picks, as Ice Knife or Hail of Thorns, labels
+ * them in the target step, and a spell of darts, as Magic Missile, shares its darts out there, from the roles the
+ * server lists with the spell (D200).
  */
 export default function SpellCastModal({
   caster, participants, onClose, allowManualModifiers = false, asDm = false, castingTimes,
@@ -105,6 +109,8 @@ export default function SpellCastModal({
   const { user } = useAuth();
   const [consents, setConsents] = useState<Record<string, boolean>>({});
   const choosing = consentTargets(participants.filter(p => flow.selectedTargets.includes(p.id)), user?.userId, asDm);
+  // What each target is to the spell, as its main target or a creature picked near it, or its darts (D199, D200)
+  const roles = targetRoleMode(selectedSpell?.targetRoles, choice?.level, metamagic.includes('TWINNED'));
 
   const filteredSpells = useMemo(() => {
     const q = search.toLowerCase();
@@ -322,6 +328,8 @@ export default function SpellCastModal({
             targetingLoading={flow.targetingLoading}
             onProceed={() => flow.setStep(formSpell ? 'form' : 'confirm')}
             onBack={backToSource}
+            roles={roles}
+            onChangeTargets={flow.setTargets}
           />
         ) : flow.step === 'form' ? (
           <FormStep
@@ -370,6 +378,8 @@ export default function SpellCastModal({
               chosenCost(selectedSpell!.metamagic ?? [], metamagic, choice!.level))}
             caster={caster}
             targets={participants.filter(p => flow.selectedTargets.includes(p.id))}
+            targetSummary={describeTargets(roles, flow.selectedTargets,
+              id => participants.find(p => p.id === id)?.displayName)}
             warnConcentration
             advantage={flow.advantage}
             onAdvantageChange={flow.setAdvantage}

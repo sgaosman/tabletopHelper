@@ -11816,9 +11816,17 @@
             "type": "boolean",
             "nullable": true
           },
+          "check": {
+            "type": "boolean",
+            "nullable": true
+          },
           "dc": {
             "type": "integer",
             "format": "int32"
+          },
+          "skill": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -12255,6 +12263,7 @@
           "directedResolves",
           "id",
           "modifiers",
+          "repeatableTriggers",
           "retargetable",
           "risingIds",
           "spell",
@@ -12262,6 +12271,7 @@
           "summonedParticipantIds",
           "tallies",
           "triggers",
+          "usableByIds",
           "useOptions"
         ],
         "type": "object",
@@ -12338,6 +12348,17 @@
             "type": "string",
             "nullable": true
           },
+          "repeatableTriggers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "ENTER",
+                "START_OF_TURN",
+                "END_OF_TURN"
+              ]
+            }
+          },
           "retaliation": {
             "type": "string",
             "nullable": true
@@ -12398,6 +12419,13 @@
                 "START_OF_TURN",
                 "END_OF_TURN"
               ]
+            }
+          },
+          "usableByIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
             }
           },
           "useOptions": {
@@ -12502,6 +12530,14 @@
             "items": {
               "$ref": "#/components/schemas/SourceOption"
             }
+          },
+          "targetRoles": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TargetRoles"
+              }
+            ]
           },
           "unavailableReason": {
             "type": "string",
@@ -13436,6 +13472,29 @@
           },
           "targetName": {
             "type": "string"
+          }
+        }
+      },
+      "TargetRoles": {
+        "type": "object",
+        "properties": {
+          "darts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "nullable": true
+          },
+          "pickedWithinFeet": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "primaryTargets": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         }
       },

@@ -31,6 +31,7 @@ import com.tabletophelper.encounter.internal.TurnEconomies;
 import com.tabletophelper.encounter.internal.TurnProcessor;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.RepeatSave;
 import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
@@ -45,9 +46,11 @@ import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.OngoingModifier;
 import com.tabletophelper.rules.combat.OngoingModifiers;
 import com.tabletophelper.rules.combat.RollMode;
+import com.tabletophelper.rules.combat.SpellTrigger;
 import com.tabletophelper.rules.combat.RollModifiers;
 import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.rules.combat.TurnOrder;
+import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.reference.dto.RepeatCost;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
@@ -741,7 +744,7 @@ public class EncounterService {
                         .hpCurrent(p.getHpCurrent())
                         .hpTemp(p.getHpTemp())
                         .armourClass(CreatureStats.armourClass(p))
-                        .activeConditions(p.getActiveConditions())
+                        .activeConditions(withActionChecks(p.getActiveConditions()))
                         .exhaustionLevel(Exhaustion.clamp(p.getExhaustionLevel()))
                         .concentrationSpell(p.getConcentration() != null ? p.getConcentration().spell() : null)
                         .concentrationSlotLevel(p.getConcentration() != null ? p.getConcentration().slotLevel() : null)
@@ -828,6 +831,7 @@ public class EncounterService {
                     .directedResolves(how.directedResolves())
                     .maxUsesEachTurn(how.maxUsesEachTurn())
                     .triggers(how.triggers())
+                    .repeatableTriggers(repeatableTriggers(effect.spell(), how.triggers()))
                     .summon(effect.summon())
                     .affectedIds(effect.affected())
                     .option(effect.option())
@@ -846,6 +850,7 @@ public class EncounterService {
                             .halfOnSave(effect.detonation().halfOnSave()).grows(effect.detonation().grows()).build())
                     .risingIds(effect.rising())
                     .useOptions(useOptions(effect.spell()))
+                    .usableByIds(usedByTarget(effect.spell()) ? List.copyOf(effect.affected()) : List.of())
                     .summonedParticipantIds(effect.summon() == null ? List.of()
                             : EffectApplier.summonedBy(encounter, effect.id()).stream()
                                     .sorted(Comparator.comparing(p -> p.getSortOrder() != null ? p.getSortOrder()
@@ -853,6 +858,56 @@ public class EncounterService {
                                     .map(EncounterParticipant::getId).toList())
                     .build();
         }).toList();
+    }
+
+    /*
+     * The participant's conditions, each one its creature ends with its action by an ability check rather than a save
+     * saying so on its Repeat Save, so its button can name the check (D200): Wrathful Smite's Wisdom check (PHB p.289),
+     * Ensnaring Strike's Strength check (PHB p.237) and Phantasmal Force's Intelligence (Investigation) check (PHB
+     * p.264), as the action-save rolls them (D199). Read from the spell's template, so a condition stored before keeps
+     * its check too; the stored conditions are not changed.
+     */
+    private List<ConditionEntry> withActionChecks(List<ConditionEntry> conditions) {
+        if (conditions == null) {
+            return null;
+        }
+        return conditions.stream().map(condition -> {
+            RepeatSave save = condition.repeatSave();
+            if (save == null || !save.madeByAction() || condition.sourceSpellName() == null) {
+                return condition;
+            }
+            SpellTemplate.ActionSave action;
+            try {
+                action = spellEffects.actionSave(condition.sourceSpellName());
+            } catch (ConflictException e) {
+                return condition;
+            }
+            if (action == null || !condition.name().equalsIgnoreCase(action.condition())
+                    || (!action.check() && action.skill() == null)) {
+                return condition;
+            }
+            return condition.withRepeatSave(save.asCheck(action.skill()));
+        }).toList();
+    }
+
+    // The triggers whose use may count several moves at once, as Spike Growth's ENTER (D200); none when its template
+    // can't be read
+    private List<SpellTrigger> repeatableTriggers(String spell, List<SpellTrigger> triggers) {
+        try {
+            return triggers.stream().filter(when -> spellEffects.triggerRules(spell, when).repeatable()).toList();
+        } catch (ConflictException e) {
+            return List.of();
+        }
+    }
+
+    // Whether the creature the spell touched uses its effect, as Dragon's Breath's (D200); false when its template
+    // can't be read
+    private boolean usedByTarget(String spell) {
+        try {
+            return spellEffects.usedByTarget(spell);
+        } catch (ConflictException e) {
+            return false;
+        }
     }
 
     // Whether the spell's effect can move to a new creature (Hunter's Mark, Hex); false when its template can't be read

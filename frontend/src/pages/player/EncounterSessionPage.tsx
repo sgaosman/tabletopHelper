@@ -16,6 +16,7 @@ import ParticipantRow from '../../components/encounter/ParticipantRow';
 import LifeStateBadge from '../../components/encounter/LifeStateBadge';
 import ConditionChips from '../../components/encounter/ConditionChips';
 import ActiveSpells from '../../components/encounter/ActiveSpells';
+import TouchedEffectUses from '../../components/encounter/TouchedEffectUses';
 import DeathSaves from '../../components/encounter/DeathSaves';
 import SpellSlotPips from '../../components/encounter/SpellSlotPips';
 import TurnEconomyBar from '../../components/encounter/TurnEconomyBar';
@@ -101,6 +102,9 @@ function PlayerSessionView() {
   const [attackTargetId, setAttackTargetId] = useState<string | null>(null);
   // The player's Spell Effect in use, while its pop-up is open, and why a use or an end failed (M15)
   const [effectInUseId, setEffectInUseId] = useState<string | null>(null);
+  // Another creature's Spell Effect a creature of the player's uses with its own action, as Dragon's Breath's
+  // exhalation (XGE p.154), while its pop-up is open (D200)
+  const [touchedUse, setTouchedUse] = useState<{ actorId: string; effectId: string } | null>(null);
   const [effectError, setEffectError] = useState('');
   // The beast's actions of the player's character in Wild Shape, shown on request (PHB p.67)
   const [showBeastActions, setShowBeastActions] = useState(false);
@@ -146,6 +150,9 @@ function PlayerSessionView() {
   const isActive = encounter.status === 'ACTIVE';
   const closeAction = () => { setActionMode(null); setAttackTargetId(null); };
   const effectInUse = myCharacter?.activeEffects.find(e => e.id === effectInUseId);
+  const touchedActor = touchedUse ? participantsById.get(touchedUse.actorId) : undefined;
+  const touchedEffect = touchedUse ? encounter.participants.flatMap(p => p.activeEffects)
+    .find(e => e.id === touchedUse.effectId) : undefined;
 
   // A Spell Effect command the server may refuse, such as a use over the turn's budget, says why (M15)
   async function effectCommand(command: () => Promise<unknown>) {
@@ -170,6 +177,12 @@ function PlayerSessionView() {
   // Why the player's turn can't pay for using the effect, as the server would answer (D174)
   function effectBlock(participant: EncounterParticipant, effect: SpellEffect): string | null {
     if (!effect.directedCost) return null;
+    // Only the creature the spell touched uses it, with its own action, as Dragon's Breath's (XGE p.154, D200)
+    const usableBy = effect.usableByIds ?? [];
+    if (usableBy.length > 0 && !usableBy.includes(participant.id)) {
+      const names = usableBy.map(id => participantsById.get(id)?.displayName ?? 'the creature it touched');
+      return `Only ${names.join(', ')} can use it, with its own action`;
+    }
     if (!participant.isCurrentTurn) return 'Only on your turn';
     return effect.directedCost === 'NONE' ? null : chargeBlock(participant, { cost: effect.directedCost });
   }
@@ -404,6 +417,16 @@ function PlayerSessionView() {
             allowManualModifiers={encounter.allowPlayerManualModifiers}
           />
         )}
+        {/* A creature of the player's using another creature's Spell Effect, as it exhales Dragon's Breath (D200) */}
+        {isActive && touchedActor && touchedEffect && (
+          <RepeatEffectModal
+            caster={touchedActor}
+            effect={touchedEffect}
+            participants={encounter.participants}
+            onClose={() => setTouchedUse(null)}
+            allowManualModifiers={encounter.allowPlayerManualModifiers}
+          />
+        )}
         {effectError && <p role="alert" className="text-debuff font-body text-[15px] font-semibold mb-4">{effectError}</p>}
 
         {/* The player's own Actions and Reactions menus; players never see another creature's (D157, D174) */}
@@ -490,6 +513,13 @@ function PlayerSessionView() {
                   onMove={isOwn && isActive ? (effect, targetId) => { void effectCommand(() => actions.moveSpellEffect({ participantId: p.id, effectId: effect.id, targetId })); } : undefined}
                   participants={encounter.participants}
                 />
+                {/* Another creature's Spell Effect the player's creature uses with its own action, as the creature
+                    Dragon's Breath touched exhales it, on its turn (XGE p.154, D200) */}
+                {isOwn && isActive && p.lifeState === 'ALIVE' && (
+                  <TouchedEffectUses participant={p} participants={encounter.participants}
+                    blockedBy={effect => effectBlock(p, effect)}
+                    onUse={effect => setTouchedUse({ actorId: p.id, effectId: effect.id })} />
+                )}
                 {/* Which spells a creature the player controls lets through its Limited Magic Immunity (D198) */}
                 {isOwn && p.spellConsentTrait && (
                   <div className="mt-2">

@@ -172,6 +172,10 @@ class ConditionSpellsIT extends IntegrationTest {
         String ogre = monster("Ogre", "giant", 59);
         start();
         expect(HttpStatus.OK, castRequest("Dragon's Breath", 2, List.of(ariaId), Map.of("option", "fire"), dm));
+        // The effect names the creature that exhales it, so its player gets the button (D200)
+        JsonNode effect = participant(dmState(), ariaId).get("activeEffects").get(0);
+        assertThat(effect.get("usableByIds")).extracting(JsonNode::asString).containsExactly(ariaId);
+        assertThat(effect.get("repeatableTriggers")).isEmpty();
         // 3d6 of 4s = 12 fire; the ogre's DEX save 2 - 1 fails
         dice.script(4, 4, 4, 2);
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId

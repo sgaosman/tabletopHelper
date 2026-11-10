@@ -3823,3 +3823,26 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D177, D182, D184, D185, D187, D188, D189, D190, D195, D196, D197, D198
 
 **Tests:** `RiderAndMissileSpellsTest` (26), `AreaSpellsTest` (18), `ConditionSpellsTest` (24), `LogOnlySpellsTest` (25), `MonsterFeaturesTest` (10); `RiderAndMissileSpellsIT` (11), `AreaSpellsIT` (8), `ConditionSpellsIT` (13), `LogOnlySpellsIT` (9), `MonsterFeaturesIT` (4), `WeaponRiderSpellsIT` Web trigger; Metamagic golden counts Careful and Heightened 174, Empowered 130, Twinned 180; 78 lasting spells. 3,264 backend unit and 503 integration tests; the frontend is unchanged (1,163).
+
+
+## D200: Cast-Screen Controls for D199's Spells
+
+**Date:** 2026-11-10
+**Status:** Accepted — implemented (no migration)
+
+**Context:** [[#D199]] left four things reachable only through the API: which listed creature is a spell's own target and which are picked, Magic Missile's darts, Dragon's Breath for the creature it touched, Spike Growth's 5-foot moves; and the action-save button said "save" when it rolled a check.
+
+**Decision:**
+- **Target roles:** spell options carry `targetRoles {primaryTargets, pickedWithinFeet, darts}`. A new template key `pickedWithin` gives the distance the picked creatures must be within (Hail of Thorns 5 ft, Lightning Arrow 10 ft, Ice Knife 5 ft, Green-Flame Blade 5 ft, Chaos Bolt 30 ft). The target step labels each chosen creature "Main target" or "Picked (within N ft)", with "Make main" moving a picked one to the front; Hail of Thorns and Lightning Arrow have no main target, their creatures being those near the next attack's. Magic Missile and Jim's Magic Missile show a dart counter per creature against the darts at the chosen level ("Assign darts (n/N)"), Continue waiting until all are assigned, and send one id per dart. The confirm step names the roles or the darts.
+- **Dragon's Breath:** Spell Effects carry `usableByIds`, the creatures that may use them with their own action (`usedByTarget`). The player controlling such a creature gets an "Exhale Dragon's Breath" button on it, greyed with the reason off its turn or with its action spent, which opens the repeat dialog acting as that creature. The exhalation chooses any creatures (its 15-foot cone), not the spell's one-ally targeting.
+- **Spike Growth:** Spell Effects carry `repeatableTriggers`; the Apply Effect dialog gives such a trigger a "5-ft moves" field (1–10), sent as `uses`.
+- **Action checks:** a condition's repeat save carries `check` and `skill` in the response only, from its spell's `actionSave`, so conditions stored before it read right too: "Use action: WIS check", "Use action: INT (Investigation) check", and the player's prompt rolls a check.
+- **Result list:** one row per outcome keyed by position, since Magic Missile gives a creature several rows.
+
+**Trade-offs:** Continue needs every dart assigned, though the server would share leftovers round the list. A spell other than Dragon's Breath with `usedByTarget` would read "Use <spell>". Saves made with an action keep "Action: WIS save".
+
+**Key files:** `encounter/dto/SpellOption.java`, `EncounterResponse.java`, `encounter/state/RepeatSave.java`, `EncounterService.java`, `SpellcastingService.java`, `SpellEffects.java`, `reference/SpellTemplate.java`, `components/encounter/spellflow/TargetStep.tsx`, `ConfirmStep.tsx`, `ResultView.tsx`, `SpellCastModal.tsx`, `TouchedEffectUses.tsx`, `RepeatEffectModal.tsx`, `RepeatSavePrompt.tsx`, `ConditionChips.tsx`, `utils/targetRoles.ts`
+
+**Related:** D177, D199
+
+**Tests:** `RiderAndMissileSpellsTest` (TargetRoles, 3), `RiderAndMissileSpellsIT` (+2), `AreaSpellsIT` and `ConditionSpellsIT` assertions; 26 frontend tests (`targetRoles.test.ts`, `TargetStep`, `SpellCastModal`, `RepeatEffectModal`, `ConditionChips`, the player page). 3,267 backend unit, 505 integration and 1,189 frontend tests. Checked in a browser on the rehearsal copy: a Mage's Magic Missile shared 2 and 1 darts between two goblins, each dart rolled and logged on its own.

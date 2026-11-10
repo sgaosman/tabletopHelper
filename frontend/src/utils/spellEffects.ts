@@ -25,6 +25,22 @@ export function effectUseLabel(effect: SpellEffect): string | null {
   }
 }
 
+/**
+ * The button's words for a creature's use of another creature's Spell Effect with its own action, as the creature
+ * Dragon's Breath touched exhales it (XGE p.154, D199, D200).
+ */
+export function touchedUseLabel(effect: SpellEffect): string {
+  return effect.spell === "Dragon's Breath" ? "Exhale Dragon's Breath" : `Use ${effect.spell}`;
+}
+
+/** The Spell Effects of other creatures' spells that the participant uses with its own action, and whose each is (D200). */
+export function touchedEffects<P extends { id: string; activeEffects: SpellEffect[] }>(participantId: string,
+  participants: P[]): { holder: P; effect: SpellEffect }[] {
+  return participants.flatMap(holder => holder.id === participantId ? [] : holder.activeEffects
+    .filter(effect => (effect.usableByIds ?? []).includes(participantId))
+    .map(effect => ({ holder, effect })));
+}
+
 /** The condition of a creature Banishment has removed from the fight until the spell ends (PHB p.217, D185). */
 export const BANISHED = 'banished';
 

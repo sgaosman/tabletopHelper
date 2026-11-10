@@ -20,6 +20,11 @@ interface Props {
   economyWarning?: string | null;
   caster: EncounterParticipant;
   targets: EncounterParticipant[];
+  /**
+   * The targets in words with their roles, as "Ogre (main); picked within 5 ft: Goblin" or "Ogre (2 darts), Goblin (1
+   * dart)" (D200), in place of their names; left out for a spell whose targets are all alike.
+   */
+  targetSummary?: string | null;
   /** Warns that the cast ends the caster's current concentration. */
   warnConcentration?: boolean;
   advantage: boolean | null;
@@ -58,7 +63,7 @@ const ADVANTAGE_MODES = [
 
 /** Sums up a spell before it is resolved, and takes advantage and any Manual Modifiers. */
 export default function ConfirmStep({
-  spellName, levelLabel, cost, castingTime, reactionTrigger, economyWarning, caster, targets, warnConcentration = false, advantage, onAdvantageChange,
+  spellName, levelLabel, cost, castingTime, reactionTrigger, economyWarning, caster, targets, targetSummary, warnConcentration = false, advantage, onAdvantageChange,
   allowManualModifiers, overrideAttackBonus, overrideSaveDC, onOverrideAttackBonus, onOverrideSaveDC,
   submitLabel, busyLabel, submitIcon: SubmitIcon, submitting, onSubmit, submitDisabled = false, onBack, castOptions, option, onOptionChange,
   duplicatesUpTo,
@@ -93,7 +98,7 @@ export default function ConfirmStep({
 
         <p className="font-body text-[15px] font-semibold text-muted">
           <Shield className="w-3.5 h-3.5 inline mr-1" />
-          Targeting: {targets.map(t => t.displayName).join(', ') || 'None'}
+          Targeting: {targetSummary ?? (targets.map(t => t.displayName).join(', ') || 'None')}
         </p>
 
         {warnConcentration && caster.concentrationSpell && (

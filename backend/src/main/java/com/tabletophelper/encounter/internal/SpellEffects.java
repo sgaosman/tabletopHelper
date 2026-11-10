@@ -1356,6 +1356,11 @@ public class SpellEffects {
         return template(spellName).map(SpellTemplate::primaryTargets).orElse(null);
     }
 
+    /** The template's pickedWithin in feet (D200), or null when it doesn't say. */
+    public Integer pickedWithin(String spellName) {
+        return template(spellName).map(SpellTemplate::pickedWithin).orElse(null);
+    }
+
     /** Whether a creature under Shield takes none of the spell's damage, as of Magic Missile's (PHB p.275, D199). */
     public boolean blockedByShield(String spellName) {
         return template(spellName).map(SpellTemplate::blockedByShield).orElse(false);

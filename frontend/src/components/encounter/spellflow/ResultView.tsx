@@ -33,8 +33,10 @@ export default function ResultView({ result, onClose }: Props) {
 
       {result.targets.length > 0 && result.autoResolved && (
         <div className="space-y-1.5">
-          {result.targets.map(t => (
-            <div key={t.targetId} className="bg-page-alt border border-rule px-3 py-2 flex items-center justify-between">
+          {/* One row per outcome: Magic Missile's darts give one creature several rows (D200), so the index keeps
+              each key unique */}
+          {result.targets.map((t, index) => (
+            <div key={`${t.targetId}-${index}`} className="bg-page-alt border border-rule px-3 py-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${
                   t.outcome === 'miss' || t.outcome === 'saved' ? 'bg-faint' :

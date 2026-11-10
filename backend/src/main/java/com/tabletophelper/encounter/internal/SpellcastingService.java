@@ -344,7 +344,8 @@ public class SpellcastingService {
         List<SpellOption> options = metamagicCasting.withMetamagic(participant, casterSpells.options(participant))
                 .stream()
                 .map(option -> option.withCastOptions(castOptions(option.name()))
-                        .withDuplicatesUpTo(duplicatesUpTo(option.name())))
+                        .withDuplicatesUpTo(duplicatesUpTo(option.name()))
+                        .withTargetRoles(targetRoles(option.name(), option.level())))
                 .toList();
         return ban == null ? options : options.stream().map(option -> option.unavailable(ban)).toList();
     }
@@ -578,6 +579,30 @@ public class SpellcastingService {
     private Integer duplicatesUpTo(String spellName) {
         try {
             return spellEffects.highLevel(spellName).castsSpellUpTo();
+        } catch (ConflictException e) {
+            return null;
+        }
+    }
+
+    /*
+     * What each listed target is to the spell, so the cast screen can say which is the main target and which are picked,
+     * or share out the darts (D200): the template's primaryTargets and pickedWithin, or its darts at each level from the
+     * spell's own to 9th. Null for a spell with neither, or when its template can't be read, so the rest of the list
+     * still loads.
+     */
+    private SpellOption.TargetRoles targetRoles(String spellName, int spellLevel) {
+        try {
+            com.tabletophelper.reference.SpellTemplate.Darts darts = spellEffects.darts(spellName);
+            if (darts != null) {
+                Map<String, Integer> byLevel = new LinkedHashMap<>();
+                for (int level = Math.max(1, spellLevel); level <= 9; level++) {
+                    byLevel.put(String.valueOf(level), darts.at(spellLevel, level));
+                }
+                return new SpellOption.TargetRoles(null, null, byLevel);
+            }
+            Integer primary = spellEffects.primaryTargets(spellName);
+            return primary == null ? null
+                    : new SpellOption.TargetRoles(primary, spellEffects.pickedWithin(spellName), null);
         } catch (ConflictException e) {
             return null;
         }

@@ -658,6 +658,80 @@ describe('Player EncounterSessionPage', () => {
 
       await waitFor(() => expect(body).toEqual({ participantId: 'part-gimli', effectId: 'effect-spiritual-weapon' }));
     });
+
+    // Legolas cast Dragon's Breath on Gimli, the player's character, who exhales it with his own action (XGE p.154)
+    const breath = makeMockSpellEffect("Dragon's Breath", {
+      slotLevel: 2, concentration: true, directedCost: 'ACTION', option: 'fire',
+      affectedIds: ['part-gimli'], usableByIds: ['part-gimli'],
+    });
+
+    it("gives the creature Dragon's Breath touched a button to exhale it on its turn, sent as that creature (D200)", async () => {
+      let request: { body: unknown; actorId: string | null } | undefined;
+      const table = makeMockEncounter({
+        participants: [legolas({ activeEffects: [breath] }), gimli({ isCurrentTurn: true }), goblin()],
+      });
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(table)),
+        http.post('/api/encounters/:id/combat/repeat-spell-effect', async ({ request: sent }) => {
+          request = { body: await sent.json(), actorId: new URL(sent.url).searchParams.get('actorId') };
+          return HttpResponse.json(makeMockCastSpellResponse({ encounterState: table, spellName: "Dragon's Breath",
+            resultSummary: 'Gimli breathes fire.' }));
+        }),
+      );
+      const user = userEvent.setup();
+      renderPage();
+
+      expect(await screen.findByText("Legolas's spell, fire")).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: "Exhale Dragon's Breath" }));
+      const dialog = await screen.findByRole('dialog', { name: "Dragon's Breath — Repeat Effect" });
+      await user.click(await within(dialog).findByRole('button', { name: /^Test Goblin/ }));
+      await user.click(within(dialog).getByRole('button', { name: 'Continue' }));
+      await user.click(within(dialog).getByRole('button', { name: 'Repeat Effect' }));
+
+      expect(await screen.findByText('Gimli breathes fire.')).toBeInTheDocument();
+      expect(request).toEqual({ body: { targetIds: ['part-goblin'], advantage: null, effectId: "effect-dragon-s-breath" },
+        actorId: 'part-gimli' });
+    });
+
+    it("greys the exhalation off the creature's turn with the reason, and on the caster's card names who uses it", async () => {
+      const table = makeMockEncounter({
+        participants: [legolas(), gimli({ activeEffects: [{ ...breath, affectedIds: ['part-legolas'], usableByIds: ['part-legolas'] }] }),
+          goblin()],
+      });
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(table)));
+      renderPage();
+
+      // Gimli cast it on Legolas, whose player exhales it: Gimli's own card can't use it
+      const use = await screen.findByRole('button', { name: 'Use (action)' });
+      expect(use).toBeDisabled();
+      expect(use).toHaveAttribute('title', 'Only Legolas can use it, with its own action');
+      expect(screen.queryByRole('button', { name: "Exhale Dragon's Breath" })).not.toBeInTheDocument();
+    });
+
+    it('greys the exhalation off the turn of the creature that exhales it', async () => {
+      const table = makeMockEncounter({ participants: [legolas({ activeEffects: [breath] }), gimli(), goblin()] });
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(table)));
+      renderPage();
+
+      const exhale = await screen.findByRole('button', { name: "Exhale Dragon's Breath" });
+      expect(exhale).toBeDisabled();
+      expect(screen.getByText('Only on your turn')).toBeInTheDocument();
+    });
+  });
+
+  it("prompts the WIS check Wrathful Smite's fear ends on, made with the character's action (D200)", async () => {
+    const frightened = makeMockCondition('frightened', {
+      sourceSpellName: 'Wrathful Smite',
+      repeatSave: { ability: 'WIS', dc: 13, awaitingRoll: false, byAction: true, check: true },
+    });
+    server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+      participants: [gimli({ activeConditions: [frightened] }), goblin()],
+    }))));
+    renderPage();
+
+    expect(await screen.findByText('Use your action on a WIS check (DC 13) to end frightened')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Use the action: WIS check (DC 13) to end frightened' }))
+      .toHaveTextContent('Roll check');
   });
 });
 

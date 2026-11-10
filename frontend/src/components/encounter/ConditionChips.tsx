@@ -8,6 +8,7 @@ import { useGlossary } from '../../hooks/useGlossary';
 import { usePending } from '../../hooks/usePending';
 import { useToast } from '../../hooks/useToast';
 import { exhaustionEffects, exhaustionLabel } from '../../utils/exhaustion';
+import { repeatRollName } from '../../utils/conditions';
 
 const CHIP_BASE = 'font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5';
 const CHIP = `${CHIP_BASE} text-debuff bg-debuff-bg border border-debuff`;
@@ -56,7 +57,7 @@ export default function ConditionChips({ participant, roundNumber, onRemove, sho
         const chip = marker ? FEATURE_CHIP : CHIP;
         // A Repeat Save is rolled at the end of each of the creature's turns (D162)
         const saveEnds = c.repeatSave?.byAction
-          ? `; a ${c.repeatSave.ability} save DC ${c.repeatSave.dc} made with its action ends the spell`
+          ? `; a ${repeatRollName(c.repeatSave)} DC ${c.repeatSave.dc} made with its action ends the spell`
           : c.repeatSave ? `; ${c.repeatSave.ability} save DC ${c.repeatSave.dc} at the end of each turn ends it`
           : marker ? `: ${marker.description}` : '';
         return (
