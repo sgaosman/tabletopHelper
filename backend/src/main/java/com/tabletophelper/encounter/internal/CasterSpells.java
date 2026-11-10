@@ -101,25 +101,36 @@ class CasterSpells {
                         + " (" + spent.remaining() + "/" + spent.total() + " remaining)", null, caster);
             }
             case INNATE -> {
-                String poolId = payment.innatePool().poolId();
-                List<ResourcePoolEntry> pools = caster.getResourcePoolsCurrent() != null
-                        ? new ArrayList<>(caster.getResourcePoolsCurrent()) : new ArrayList<>();
-                if (pools.stream().noneMatch(pool -> poolId.equals(pool.poolId()))) {
-                    pools.add(payment.innatePool());
-                    caster.setResourcePoolsCurrent(pools);
-                }
-                resourcePoolService.spendPool(caster, poolId, 1);
-                ResourcePoolEntry pool = caster.getResourcePoolsCurrent().stream()
-                        .filter(candidate -> poolId.equals(candidate.poolId()))
-                        .findFirst()
-                        .orElseThrow();
+                ResourcePoolEntry pool = spendPool(caster, payment.pool());
                 combatLog.write(encounter, CombatActionType.SPELL_SLOT_USE, caster.getDisplayName()
                         + " uses an innate use of " + payment.spellName() + " (" + pool.currentUses() + "/"
                         + pool.maxUses() + " remaining)", null, caster);
             }
+            case MYSTIC_ARCANUM -> {
+                ResourcePoolEntry pool = spendPool(caster, payment.pool());
+                combatLog.write(encounter, CombatActionType.SPELL_SLOT_USE, caster.getDisplayName()
+                        + " uses their level " + payment.spellLevel() + " Mystic Arcanum for " + payment.spellName()
+                        + " (" + pool.currentUses() + "/" + pool.maxUses() + " remaining)", null, caster);
+            }
             case NONE -> {
             }
         }
+    }
+
+    // Spends one use of the pool that pays, adding it full first for a caster without it, and gives it back as spent
+    private ResourcePoolEntry spendPool(EncounterParticipant caster, ResourcePoolEntry paying) {
+        String poolId = paying.poolId();
+        List<ResourcePoolEntry> pools = caster.getResourcePoolsCurrent() != null
+                ? new ArrayList<>(caster.getResourcePoolsCurrent()) : new ArrayList<>();
+        if (pools.stream().noneMatch(pool -> poolId.equals(pool.poolId()))) {
+            pools.add(paying);
+            caster.setResourcePoolsCurrent(pools);
+        }
+        resourcePoolService.spendPool(caster, poolId, 1);
+        return caster.getResourcePoolsCurrent().stream()
+                .filter(candidate -> poolId.equals(candidate.poolId()))
+                .findFirst()
+                .orElseThrow();
     }
 
     private List<SpellSources.Known> spells(EncounterParticipant caster) {

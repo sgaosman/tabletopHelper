@@ -3,6 +3,8 @@ package com.tabletophelper.character;
 import com.tabletophelper.character.dto.ApplyChoicesRequest;
 import com.tabletophelper.character.dto.CharacterCreateRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
+import com.tabletophelper.character.dto.PoolUseRequest;
+import com.tabletophelper.character.dto.ShortRestRequest;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Feature;
@@ -2020,6 +2022,185 @@ class PendingChoiceServiceTest {
             assertThat(fighter.getPendingChoices()).isEqualTo(missed);
             assertThat(f.choices.missedChoices(fighter)).isEmpty();
             assertThat(f.choices.missedChoices(legacy(f.warlock, 3))).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("A warlock's Mystic Arcanum (PHB p.108)")
+    class MysticArcanum {
+
+        private final Subclass genie = Subclass.builder().id(UUID.randomUUID()).name("The Genie")
+                .characterClass(f.warlock).features("[]").build();
+
+        @BeforeEach
+        void knowTheArcana() {
+            spell("Mass Suggestion", 6, "Bard", "Sorcerer", "Warlock", "Wizard");
+            spell("Circle of Death", 6, "Sorcerer", "Warlock", "Wizard");
+            spell("Heal", 6, "Cleric", "Druid");
+            spell("Plane Shift", 7, "Cleric", "Druid", "Sorcerer", "Warlock", "Wizard");
+            spell("Feeblemind", 8, "Bard", "Druid", "Warlock", "Wizard");
+            spell("Power Word Kill", 9, "Bard", "Sorcerer", "Warlock", "Wizard");
+            // The Genie's expanded spells add wish to the warlock's list for a Genie warlock (TCE p.73)
+            spell("Wish", 9, "Sorcerer", "Wizard", "Warlock (The Genie)");
+            lenient().when(f.subclassRepository.findById(genie.getId())).thenReturn(Optional.of(genie));
+        }
+
+        private void learn(PlayerCharacter pc, PendingChoice choice, String... names) {
+            f.choose(pc, choice, request -> request.setSpells(List.of(names)));
+        }
+
+        private ResourcePoolEntry pool(PlayerCharacter pc, int spellLevel) {
+            return pc.getResourcePools().stream()
+                    .filter(p -> p.poolId().equals(ResourcePoolEntry.mysticArcanumPoolId(spellLevel)))
+                    .findFirst().orElse(null);
+        }
+
+        @Test
+        @DisplayName("Warlock 11 owes a 6th-level arcanum, learned as arcanum:Warlock apart from the spells known, with a "
+                + "pool of one use; levelling down forgets it and its pool")
+        void choiceAtEleven() {
+            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.warlock, 10);
+            assertThat(f.pending(pc, Type.MYSTIC_ARCANUM)).isNull();
+            f.levelUp(pc, f.warlock);
+
+            PendingChoice choice = f.pending(pc, Type.MYSTIC_ARCANUM);
+            assertThat(choice.characterLevel()).isEqualTo(11);
+            assertThat(choice.classLevel()).isEqualTo(11);
+            assertThat(choice.maxSpellLevel()).isEqualTo(6);
+            assertThat(choice.count()).isEqualTo(1);
+            assertThat(choice.spellList()).isEqualTo("Warlock");
+
+            assertThatThrownBy(() -> learn(pc, choice, "Plane Shift"))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("A Mystic Arcanum of level 6 is a level 6 spell, not Plane Shift (level 7)");
+            assertThatThrownBy(() -> learn(pc, choice, "Heal"))
+                    .isInstanceOf(ValidationException.class).hasMessage("Heal isn't on the Warlock spell list");
+            assertThatThrownBy(() -> learn(pc, choice, "Mass Suggestion", "Circle of Death"))
+                    .isInstanceOf(ValidationException.class).hasMessage("Choose 1 Warlock spell, not 2");
+            assertThatThrownBy(() -> f.choose(pc, choice, request -> {
+                request.setSpells(List.of("Mass Suggestion"));
+                request.setSwap(new ApplyChoicesRequest.SpellSwap());
+            })).isInstanceOf(ValidationException.class)
+                    .hasMessage("This MYSTIC_ARCANUM choice takes spells, not swap");
+            List<String> knownBefore = pc.getSpellsKnown() == null ? List.of() : names(pc, "class:Warlock");
+
+            learn(pc, choice, "mass suggestion");
+
+            assertThat(names(pc, "arcanum:Warlock")).containsExactly("Mass Suggestion");
+            assertThat(pc.getSpellsKnown()).filteredOn(s -> "arcanum:Warlock".equals(s.source()))
+                    .singleElement().satisfies(s -> assertThat(s.level()).isEqualTo(6));
+            assertThat(names(pc, "class:Warlock")).isEqualTo(knownBefore);
+            assertThat(pc.getLevelHistory().get(10).choices().mysticArcanum()).isEqualTo("Mass Suggestion");
+            assertThat(f.pending(pc, Type.MYSTIC_ARCANUM)).isNull();
+            assertThat(pool(pc, 6)).satisfies(p -> {
+                assertThat(p.displayName()).isEqualTo("Mystic Arcanum (6th)");
+                assertThat(p.maxUses()).isEqualTo(1);
+                assertThat(p.currentUses()).isEqualTo(1);
+                assertThat(p.resetOn()).isEqualTo("longRest");
+                assertThat(p.sourceName()).isEqualTo("Warlock");
+            });
+
+            f.levelDown(pc);
+
+            assertThat(names(pc, "arcanum:Warlock")).isEmpty();
+            assertThat(pool(pc, 6)).isNull();
+            assertThat(f.pending(pc, Type.MYSTIC_ARCANUM)).isNull();
+            assertThat(names(pc, "class:Warlock")).isEqualTo(knownBefore);
+        }
+
+        @Test
+        @DisplayName("A spent arcanum stays spent until a long rest restores it; a short rest doesn't")
+        void longRestRestores() {
+            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.warlock, 11);
+            learn(pc, f.pending(pc, Type.MYSTIC_ARCANUM), "Circle of Death");
+
+            f.sheet.spendPool(pc.getId(), new PoolUseRequest(ResourcePoolEntry.mysticArcanumPoolId(6), 1), f.userId);
+            assertThat(pool(pc, 6).currentUses()).isZero();
+            f.rests.shortRest(pc.getId(), new ShortRestRequest(List.of()), f.userId);
+            assertThat(pool(pc, 6).currentUses()).isZero();
+
+            f.rests.longRest(pc.getId(), f.userId);
+            assertThat(pool(pc, 6).currentUses()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("A warlock created at 17th level owes four arcana, of 6th to 9th level, each its own pool once made")
+        void createdAtSeventeen() {
+            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.warlock, 17);
+
+            assertThat(pc.getPendingChoices()).filteredOn(c -> c.type() == Type.MYSTIC_ARCANUM)
+                    .extracting(PendingChoice::characterLevel, PendingChoice::maxSpellLevel, PendingChoice::source)
+                    .containsExactly(tuple(11, 6, Source.CREATION), tuple(13, 7, Source.CREATION),
+                            tuple(15, 8, Source.CREATION), tuple(17, 9, Source.CREATION));
+            List<PendingChoice> arcana = pc.getPendingChoices().stream()
+                    .filter(c -> c.type() == Type.MYSTIC_ARCANUM).toList();
+            learn(pc, arcana.get(0), "Mass Suggestion");
+            learn(pc, arcana.get(1), "Plane Shift");
+            learn(pc, arcana.get(2), "Feeblemind");
+            assertThatThrownBy(() -> learn(pc, arcana.get(3), "Wish"))
+                    .isInstanceOf(ValidationException.class).hasMessage("Wish isn't on the Warlock spell list");
+            learn(pc, arcana.get(3), "Power Word Kill");
+
+            assertThat(names(pc, "arcanum:Warlock"))
+                    .containsExactly("Mass Suggestion", "Plane Shift", "Feeblemind", "Power Word Kill");
+            assertThat(pc.getResourcePools()).extracting(ResourcePoolEntry::poolId).contains(
+                    "mystic-arcanum:6", "mystic-arcanum:7", "mystic-arcanum:8", "mystic-arcanum:9");
+        }
+
+        @Test
+        @DisplayName("A Genie warlock may take wish, its patron's expanded spell, as its 9th-level arcanum (TCE p.73)")
+        void genieWish() {
+            PlayerCharacter pc = create(f.warlock, 17, request -> request.setSubclassId(genie.getId()));
+            PendingChoice ninth = pc.getPendingChoices().stream()
+                    .filter(c -> c.type() == Type.MYSTIC_ARCANUM && c.maxSpellLevel() == 9).findFirst().orElseThrow();
+
+            learn(pc, ninth, "Wish");
+
+            assertThat(names(pc, "arcanum:Warlock")).containsExactly("Wish");
+            assertThat(pc.getLevelHistory().get(16).choices().mysticArcanum()).isEqualTo("Wish");
+        }
+
+        @Test
+        @DisplayName("A multiclass character's arcana come from its warlock levels only")
+        void multiclassUsesWarlockLevels() {
+            PlayerCharacter warlockFirst = f.create(f.human, CharacterFixture.scores(), f.warlock, 11, f.sorcerer, 3);
+            assertThat(warlockFirst.getPendingChoices()).filteredOn(c -> c.type() == Type.MYSTIC_ARCANUM)
+                    .singleElement().satisfies(c -> {
+                        assertThat(c.className()).isEqualTo("Warlock");
+                        assertThat(c.classLevel()).isEqualTo(11);
+                        assertThat(c.maxSpellLevel()).isEqualTo(6);
+                    });
+
+            PlayerCharacter sorcererFirst = f.create(f.human, CharacterFixture.scores(), f.sorcerer, 11, f.warlock, 9);
+            assertThat(sorcererFirst.getLevel()).isEqualTo(20);
+            assertThat(sorcererFirst.getPendingChoices()).noneMatch(c -> c.type() == Type.MYSTIC_ARCANUM);
+        }
+
+        @Test
+        @DisplayName("The backfill owes a warlock levelled before arcana each arcanum its levels record none of, and "
+                + "nothing once pending, made, or known already")
+        void backfill() {
+            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.warlock, 13);
+            pc.setPendingChoices(List.of());
+
+            List<PendingChoice> missed = f.choices.missedChoices(pc);
+            assertThat(missed).filteredOn(c -> c.type() == Type.MYSTIC_ARCANUM)
+                    .extracting(PendingChoice::characterLevel, PendingChoice::maxSpellLevel, PendingChoice::source)
+                    .containsExactly(tuple(11, 6, Source.LEVEL_UP), tuple(13, 7, Source.LEVEL_UP));
+            f.choices.addPending(pc, missed);
+            assertThat(f.choices.missedChoices(pc)).noneMatch(c -> c.type() == Type.MYSTIC_ARCANUM);
+
+            PendingChoice sixth = pc.getPendingChoices().stream()
+                    .filter(c -> c.type() == Type.MYSTIC_ARCANUM && c.maxSpellLevel() == 6).findFirst().orElseThrow();
+            learn(pc, sixth, "Mass Suggestion");
+            pc.setPendingChoices(List.of());
+            // The 7th is owed still, unless the sheet knows a 7th-level arcanum no level records
+            assertThat(f.choices.missedChoices(pc)).filteredOn(c -> c.type() == Type.MYSTIC_ARCANUM)
+                    .extracting(PendingChoice::maxSpellLevel).containsExactly(7);
+            List<KnownSpell> known = new ArrayList<>(pc.getSpellsKnown());
+            known.add(new KnownSpell(null, "Plane Shift", 7, "arcanum:Warlock", null, null, null, null, null));
+            pc.setSpellsKnown(known);
+            assertThat(f.choices.missedChoices(pc)).noneMatch(c -> c.type() == Type.MYSTIC_ARCANUM);
         }
     }
 }

@@ -16,6 +16,11 @@ export interface SpellState {
 export interface SpellFilter {
   /** The spell list searched, as the spells table names it, such as "Wizard"; none searches every spell */
   className?: string;
+  /**
+   * A subclass's additions to the list, as the spells table names them, such as "Warlock (The Genie)" for a Genie
+   * warlock's expanded spells (TCE p.73), searched along with the class's list
+   */
+  subclass?: string;
   /** The spell levels offered, 0 for cantrips; the level filter lists them when there are two or more */
   levels: number[];
   /** Only spells of these schools */
@@ -90,13 +95,14 @@ export default function SpellPicker({
     return () => clearTimeout(timer);
   }, [text, debounceMs]);
 
-  const { className, levels, schools, names } = filter;
+  const { className, subclass, levels, schools, names } = filter;
   const levelList = level !== '' ? [level] : levels;
   const params: SpellSearchParams = {
     size: names ? NAMED_PAGE_SIZE : PAGE_SIZE,
     sort: 'name',
     level: levelList.join(','),
     ...(className ? { className } : {}),
+    ...(className && subclass ? { subclass } : {}),
     ...(schools && schools.length > 0 ? { school: schools.join(',') } : {}),
     ...(searchName ? { name: searchName } : {}),
   };

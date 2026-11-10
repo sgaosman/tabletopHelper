@@ -1,6 +1,9 @@
 import { useState, useMemo } from 'react';
 import { Lock, Undo2 } from 'lucide-react';
-import { useRestoreSlot, useSetPreparedSpells, useSpendSlot } from '../../../queries/characters';
+import {
+  useRecoverPool, useRestoreSlot, useSetPreparedSpells, useSpendPool, useSpendSlot,
+} from '../../../queries/characters';
+import { MYSTIC_ARCANUM_SOURCE, mysticArcanumPoolId, mysticArcanumTitle } from '../../../utils/mysticArcanum';
 import SpellCard from '../../../components/reference/SpellCard';
 import IconButton from '../../../components/ui/IconButton';
 import Modal from '../../../components/ui/Modal';
@@ -31,6 +34,8 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
   const spendSlotCommand = useSpendSlot();
   const restoreSlotCommand = useRestoreSlot();
   const setPrepared = useSetPreparedSpells();
+  const spendPoolCommand = useSpendPool();
+  const recoverPoolCommand = useRecoverPool();
   const { data: tables } = useClassTables();
   // The spell whose details are open, by name
   const [detailName, setDetailName] = useState<string | null>(null);
@@ -85,8 +90,14 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
   const featGroups: Array<{ source: string; featName: string; spells: SpellEntry[] }> = [];
   // A subclass's cantrip of the player's choice, such as an Arcane Archer's (XGE p.28)
   const subclassGroups: Array<{ source: string; subclassName: string; spells: SpellEntry[] }> = [];
+  // A warlock's Mystic Arcanum spells, one of each level from 6th (PHB p.108), lowest first
+  const arcana: SpellEntry[] = [];
 
   for (const [source, spells] of sourceGroups) {
+    if (source.startsWith(MYSTIC_ARCANUM_SOURCE)) {
+      arcana.push(...spells);
+      continue;
+    }
     if (source.startsWith('class:')) {
       classGroups.push({ source, className: source.slice(6), spells });
     } else if (source.startsWith('race:')) {
@@ -112,8 +123,25 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
     .filter(([k]) => k.startsWith('pact_'))
     .sort((a, b) => parseInt(a[0].replace('pact_', '')) - parseInt(b[0].replace('pact_', '')));
 
+  arcana.sort((a, b) => a.level - b.level);
+
   // One slot change at a time, so a quick second tap can't spend or restore twice
   const slotBusy = spendSlotCommand.isPending || restoreSlotCommand.isPending;
+  const arcanumBusy = spendPoolCommand.isPending || recoverPoolCommand.isPending;
+
+  // An arcanum's use, from its pool on the sheet; one use when the pool hasn't been worked out yet
+  function arcanumUses(level: number) {
+    const pool = (char.resourcePools ?? []).find(p => p.poolId === mysticArcanumPoolId(level));
+    return { left: pool?.currentUses ?? 1, max: pool?.maxUses ?? 1, pool };
+  }
+
+  // Marks an arcanum used outside an encounter, or gets its use back; a long rest restores it (PHB p.108)
+  function changeArcanum(level: number, spend: boolean) {
+    if (arcanumBusy) return;
+    const use = { poolId: mysticArcanumPoolId(level), amount: 1 };
+    const command = spend ? spendPoolCommand : recoverPoolCommand;
+    void runCommand(command.mutateAsync({ characterId: char.id, use }));
+  }
 
   function spendSlot(level: string) {
     const slot = spellSlots[level];
@@ -355,6 +383,54 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
           </div>
         );
       })}
+
+      {/* A warlock's Mystic Arcanum: each spell cast once without a slot between long rests (PHB p.108) */}
+      {arcana.length > 0 && (
+        <div className="bg-card border border-rule p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-heading text-[16px] font-semibold text-ink">Mystic Arcanum</h3>
+            <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-2 py-0.5 border text-cls-warlock bg-cls-warlock-bg border-illu-border">1/long rest each</span>
+          </div>
+          <div className="space-y-2">
+            {arcana.map(spell => {
+              const { left, max, pool } = arcanumUses(spell.level);
+              return (
+                <div key={spell.level} className="flex items-center gap-2" aria-label={mysticArcanumTitle(spell.level)}>
+                  <span className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-faint w-36 shrink-0">
+                    {mysticArcanumTitle(spell.level)}
+                  </span>
+                  <button
+                    onClick={() => viewSpellDetail(spell.name)}
+                    className="flex-1 min-w-0 text-left py-1.5 px-2 hover:bg-page-alt transition-colors font-body text-[15px] font-semibold text-ink"
+                  >
+                    {spell.name}
+                  </button>
+                  <span className="font-heading text-[13px] font-semibold text-ink">{left}/{max}</span>
+                  {pool && left > 0 && (
+                    <button
+                      onClick={() => changeArcanum(spell.level, true)}
+                      disabled={arcanumBusy}
+                      className="font-body text-[13px] font-semibold text-muted hover:text-ink transition-colors disabled:opacity-50"
+                    >
+                      Use
+                    </button>
+                  )}
+                  {pool && left < max && (
+                    <IconButton
+                      label={`Get back ${mysticArcanumTitle(spell.level)}`}
+                      onClick={() => changeArcanum(spell.level, false)}
+                      disabled={arcanumBusy}
+                      className="p-1 text-faint hover:text-ink disabled:opacity-50"
+                    >
+                      <Undo2 className="w-3 h-3" />
+                    </IconButton>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Subclass always-prepared spells */}
       {subclassAlwaysPreparedGroups.map(group => (

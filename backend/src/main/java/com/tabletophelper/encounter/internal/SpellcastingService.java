@@ -547,9 +547,14 @@ public class SpellcastingService {
     private SpellNumbers numbers(EncounterParticipant caster, String origin) {
         PlayerCharacter character = caster.getCharacter();
         if (character != null && origin != null
-                && (origin.startsWith(CLASS_ORIGIN) || origin.startsWith(KnownSpell.SUBCLASS_SOURCE))) {
+                && (origin.startsWith(CLASS_ORIGIN) || origin.startsWith(KnownSpell.SUBCLASS_SOURCE)
+                    || origin.startsWith(KnownSpell.MYSTIC_ARCANUM_SOURCE))) {
+            // A Mystic Arcanum spell is a warlock spell, cast with the warlock's numbers (PHB p.108)
             Optional<ClassSpellcasting> casting = origin.startsWith(CLASS_ORIGIN)
                     ? characterService.classSpellcasting(character, origin.substring(CLASS_ORIGIN.length()))
+                    : origin.startsWith(KnownSpell.MYSTIC_ARCANUM_SOURCE)
+                    ? characterService.classSpellcasting(character,
+                            origin.substring(KnownSpell.MYSTIC_ARCANUM_SOURCE.length()))
                     : characterService.subclassSpellcasting(character,
                             origin.substring(KnownSpell.SUBCLASS_SOURCE.length()));
             if (casting.isPresent()) {

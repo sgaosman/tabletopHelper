@@ -27,7 +27,7 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  *                       Metamagic options, the feats a background offers, or a SUBCLASS_CANTRIP's cantrips; null for
  *                       any, as an Ability Score Improvement's feat is
  * @param maxSpellLevel  for CANTRIPS and SUBCLASS_CANTRIP 0, and for SPELLS the highest level of spell the class could learn at that class
- *                       level, from its own table (PHB p.164)
+ *                       level, from its own table (PHB p.164); for MYSTIC_ARCANUM the level the spell must be, 6 to 9
  * @param swap           for SPELLS, true when the class may also replace one spell it knows with another, as a bard,
  *                       ranger, sorcerer, warlock, Eldritch Knight or Arcane Trickster may on gaining a level in the
  *                       class
@@ -112,7 +112,14 @@ public record PendingChoice(
          * Spells the class learns, with a known caster's optional swap of one it knows; for a wizard, spells copied
          * into its spellbook for free
          */
-        SPELLS
+        SPELLS,
+        /**
+         * A warlock's Mystic Arcanum (PHB p.108): one warlock spell of the choice's {@code maxSpellLevel}, 6th at Warlock
+         * 11th level, 7th at 13th, 8th at 15th and 9th at 17th, from its {@code spellList} and the patron's expanded
+         * spells, such as the Genie's wish (TCE p.73). Learned with the source "arcanum:Warlock", it is cast once
+         * without a slot between long rests, through its own pool, and doesn't count against the warlock's spells known
+         */
+        MYSTIC_ARCANUM
     }
 
     /** Where it came from. */

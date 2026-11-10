@@ -72,7 +72,8 @@ public class ResourcePoolService {
 
     /**
      * The pools a character should have, from the class feature definitions for its classes and subclasses, one
-     * {@code innate:<spell>} pool for each spell it can cast now with uses of its own (D165), and one
+     * {@code innate:<spell>} pool for each spell it can cast now with uses of its own (D165), a
+     * {@code mystic-arcanum:<level>} pool for each Mystic Arcanum spell it knows (PHB p.108), and one
      * {@code feat:<feat>} pool for each feat with limited uses that its level history records or the DM granted, such
      * as Lucky's (D158). A pool it already has keeps its place and the uses it has spent; one whose source is gone is
      * dropped. A definition's level table, read at the level of the class it names, gives the pool's maximum, its
@@ -118,6 +119,19 @@ public class ResourcePoolService {
             int uses = spell.usesPerLongRest();
             byPoolId.put(poolId, ResourcePoolEntry.innate(spell.name().trim(), uses, sourceType(spell.source()),
                     sourceName(spell.source())).withCurrentUses(keptUses(byPoolId.get(poolId), uses)));
+        }
+
+        // A Mystic Arcanum is cast once without a slot between long rests (PHB p.108): one pool for each arcanum spell
+        // the warlock knows, by its level, so the use spent stays spent if the level's spell changes
+        for (KnownSpell spell : orEmpty(character.getSpellsKnown())) {
+            if (!KnownSpell.isMysticArcanum(spell) || spell.name() == null || spell.name().isBlank()
+                    || spell.level() < 1) {
+                continue;
+            }
+            String poolId = ResourcePoolEntry.mysticArcanumPoolId(spell.level());
+            if (!desiredPoolIds.add(poolId)) continue;
+            byPoolId.put(poolId, ResourcePoolEntry.mysticArcanum(spell.level(), spell.name().trim())
+                    .withCurrentUses(keptUses(byPoolId.get(poolId), 1)));
         }
 
         for (FeatResourceEntry resource : recordedFeatResources(character)) {

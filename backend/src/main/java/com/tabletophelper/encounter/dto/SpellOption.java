@@ -19,7 +19,7 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  *                        for a minute or more, which a player can't cast in combat
  * @param reactionTrigger for a reaction spell, what it is cast in response to, as its casting time says ("which you
  *                        take when ..."); null for any other spell
- * @param sources         what can pay for it, in the order SLOT, PACT_SLOT, INNATE, NONE
+ * @param sources         what can pay for it, in the order SLOT, PACT_SLOT, INNATE, MYSTIC_ARCANUM, NONE
  * @param unavailableReason why the caster can't cast it at all now, such as armour worn without proficiency (PHB
  *                        p.144), which casting refuses for the DM too; null when nothing stops it
  * @param metamagic       the Metamagic options the caster knows, each with its cost and whether it can change this
@@ -72,9 +72,10 @@ public record SpellOption(
      *
      * @param levels   the levels it can be cast at with this source now, lowest first: each slot level with a
      *                 slot left for SLOT, the pact slots' level while one is left for PACT_SLOT, and the spell's
-     *                 own level for INNATE while a use is left and for NONE. Empty when the source is spent.
-     * @param usesLeft the pact slots or innate uses left; null for SLOT and NONE
-     * @param usesMax  the pact slots or innate uses there are; null for SLOT and NONE
+     *                 own level for INNATE and MYSTIC_ARCANUM while a use is left and for NONE. Empty when the source
+     *                 is spent.
+     * @param usesLeft the pact slots, innate uses or Mystic Arcanum use left; null for SLOT and NONE
+     * @param usesMax  the pact slots, innate uses or Mystic Arcanum use there are; null for SLOT and NONE
      */
     public record SourceOption(
             @Schema(requiredMode = REQUIRED) SpellSource source,

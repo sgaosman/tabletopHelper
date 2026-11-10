@@ -6275,6 +6275,7 @@
               "SLOT",
               "PACT_SLOT",
               "INNATE",
+              "MYSTIC_ARCANUM",
               "NONE"
             ]
           },
@@ -6333,6 +6334,7 @@
               "SLOT",
               "PACT_SLOT",
               "INNATE",
+              "MYSTIC_ARCANUM",
               "NONE"
             ]
           },
@@ -9665,6 +9667,10 @@
               "type": "string"
             }
           },
+          "mysticArcanum": {
+            "type": "string",
+            "nullable": true
+          },
           "proficiencies": {
             "type": "array",
             "nullable": true,
@@ -10993,7 +10999,8 @@
               "FEAT",
               "EXPERTISE",
               "CANTRIPS",
-              "SPELLS"
+              "SPELLS",
+              "MYSTIC_ARCANUM"
             ]
           }
         }
@@ -11718,6 +11725,7 @@
               "SLOT",
               "PACT_SLOT",
               "INNATE",
+              "MYSTIC_ARCANUM",
               "NONE"
             ]
           },

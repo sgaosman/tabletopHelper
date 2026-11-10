@@ -19,6 +19,7 @@ import MetamagicStep, { MetamagicTargets } from './spellflow/MetamagicStep';
 import SummonStep from './spellflow/SummonStep';
 import useSummonDraft from './spellflow/useSummonDraft';
 import { draftProblem, isSummoningSpell, summonSummary, toSummonChoice } from '../../utils/summons';
+import { mysticArcanumTitle } from '../../utils/mysticArcanum';
 
 interface Props {
   caster: EncounterParticipant;
@@ -164,13 +165,13 @@ export default function SpellCastModal({
     });
   }
 
-  // A spell that only costs nothing, or only an innate use, has nothing to choose
+  // A spell that only costs nothing, or only an innate use or a Mystic Arcanum, has nothing to choose
   function selectSpell(spell: SpellOption) {
     setSelectedSpell(spell);
     setCastOption(spell.castOptions?.[0] ?? null);
     flow.setError('');
     const available = rowsFor(spell, caster.spellSlotsCurrent ?? {}).filter(row => row.available);
-    if (available.length === 1 && (available[0].source === 'NONE' || available[0].source === 'INNATE')) {
+    if (nothingToChoose(available)) {
       choose(spell, available[0]);
     } else {
       flow.setStep('slot');
@@ -214,7 +215,7 @@ export default function SpellCastModal({
 
   function backBeforeMetamagic() {
     const available = choiceRows.filter(row => row.available);
-    const skipped = available.length === 1 && (available[0].source === 'NONE' || available[0].source === 'INNATE');
+    const skipped = nothingToChoose(available);
     flow.setStep(skipped ? 'spell' : 'slot');
   }
 
@@ -345,6 +346,11 @@ export default function SpellCastModal({
   );
 }
 
+// Only one way to pay, and it is nothing, an innate use or a Mystic Arcanum: a source step would have nothing to choose
+function nothingToChoose(available: ChoiceRow[]): boolean {
+  return available.length === 1 && ['NONE', 'INNATE', 'MYSTIC_ARCANUM'].includes(available[0].source);
+}
+
 // The DM goes over the action economy rather than being refused, so the reason reads as a warning (D174)
 function overBudget(blocked: string | null, asDm: boolean) {
   return blocked && asDm ? `Over the action economy: ${blocked}` : blocked;
@@ -352,7 +358,7 @@ function overBudget(blocked: string | null, asDm: boolean) {
 
 /**
  * Each way to pay for the spell: its slot levels from its own up, with the slots each has left (spent ones too,
- * to show why they can't be picked), the pact slot, an innate use, or nothing.
+ * to show why they can't be picked), the pact slot, an innate use, a warlock's Mystic Arcanum, or nothing.
  */
 function rowsFor(spell: SpellOption, slots: Record<string, SpellSlot>): ChoiceRow[] {
   const rows: ChoiceRow[] = [];
@@ -378,6 +384,12 @@ function rowsFor(spell: SpellOption, slots: Record<string, SpellSlot>): ChoiceRo
     } else if (option.source === 'INNATE') {
       rows.push({
         key: 'innate', source: 'INNATE', level: spell.level, label: 'Innate use',
+        available: option.levels.length > 0, left: option.usesLeft ?? 0, max: option.usesMax ?? 0,
+      });
+    } else if (option.source === 'MYSTIC_ARCANUM') {
+      // A warlock's arcanum casts the spell at its own level without a slot, once between long rests (PHB p.108)
+      rows.push({
+        key: 'arcanum', source: 'MYSTIC_ARCANUM', level: spell.level, label: mysticArcanumTitle(spell.level),
         available: option.levels.length > 0, left: option.usesLeft ?? 0, max: option.usesMax ?? 0,
       });
     } else {
@@ -466,6 +478,7 @@ function SpellRow({ spell, blocked, asDm, onClick }: {
   const castable = !refused && spell.sources.some(s => s.levels.length > 0) && (asDm || !blocked);
   const atWill = spell.level > 0 && spell.sources.some(s => s.source === 'NONE');
   const innate = spell.sources.find(s => s.source === 'INNATE');
+  const arcanum = spell.sources.find(s => s.source === 'MYSTIC_ARCANUM');
   const reasonId = `spell-block-${spell.name.replace(/[^A-Za-z0-9]+/g, '-')}`;
   return (
     <button
@@ -496,6 +509,11 @@ function SpellRow({ spell, blocked, asDm, onClick }: {
         {innate && (
           <span className="font-heading text-[11px] font-semibold tracking-[0.02em] text-cls-monk">
             innate {innate.usesLeft ?? 0}/{innate.usesMax ?? 0}
+          </span>
+        )}
+        {arcanum && (
+          <span className="font-heading text-[11px] font-semibold tracking-[0.02em] text-cls-warlock">
+            arcanum {arcanum.usesLeft ?? 0}/{arcanum.usesMax ?? 0}
           </span>
         )}
         <span className="font-body text-[13px] font-semibold text-faint">
@@ -569,6 +587,8 @@ function sourceText(choice: CastChoice, spell: SpellOption, row: ChoiceRow | und
       return `Using level ${choice.level} pact slot`;
     case 'INNATE':
       return `Using an innate use (${row?.left ?? 0}/${row?.max ?? 0} left)`;
+    case 'MYSTIC_ARCANUM':
+      return `Using your ${mysticArcanumTitle(spell.level)} (${row?.left ?? 0}/${row?.max ?? 0} left)`;
     default:
       return spell.level > 0 ? 'Cast at will' : null;
   }

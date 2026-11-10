@@ -95,4 +95,12 @@ describe('pendingChoices', () => {
       options: ['Prestidigitation', 'Druidcraft'], maxSpellLevel: 0 });
     expect(choiceLabel(cantrip)).toBe('Subclass Cantrip (Fighter 3)');
   });
+
+  it("names a warlock's Mystic Arcanum by its spell level (PHB p.108)", () => {
+    const arcanum = makeMockPendingChoice({ type: 'MYSTIC_ARCANUM', className: 'Warlock', classLevel: 11,
+      characterLevel: 11, maxSpellLevel: 6 });
+    expect(choiceTitle(arcanum)).toBe('Mystic Arcanum (6th)');
+    expect(choiceLabel(arcanum)).toBe('Mystic Arcanum (6th) (Warlock 11)');
+    expect(choiceTitle({ ...arcanum, maxSpellLevel: null })).toBe('Mystic Arcanum');
+  });
 });

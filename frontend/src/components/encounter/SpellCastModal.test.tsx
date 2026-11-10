@@ -252,6 +252,32 @@ describe('SpellCastModal', () => {
     expect(requests[0].body).toMatchObject({ spellName: 'Hex', spellSource: 'PACT_SLOT', slotLevel: 3 });
   });
 
+  it("casts a warlock's Mystic Arcanum at the spell's own level without a slot, and greys it out once spent (PHB p.108)", async () => {
+    spellOptions([
+      { name: 'Hold Monster', level: 5, castingTime: 'ACTION', sources: [{ source: 'PACT_SLOT', levels: [5], usesLeft: 3, usesMax: 3 }] },
+      { name: 'Circle of Death', level: 6, castingTime: 'ACTION', sources: [{ source: 'MYSTIC_ARCANUM', levels: [6], usesLeft: 1, usesMax: 1 }] },
+      { name: 'Plane Shift', level: 7, castingTime: 'ACTION', sources: [{ source: 'MYSTIC_ARCANUM', levels: [], usesLeft: 0, usesMax: 1 }] },
+    ]);
+    targeting();
+    const warlock = makeMockParticipant('part-warlock', 'Hexblade', 'PLAYER', {
+      isCurrentTurn: true, spellSlotsCurrent: { pact_5: { max: 3, used: 0 } },
+    });
+    const requests = castRequests();
+    const { user } = await renderModal({ caster: warlock, participants: [warlock, goblin] });
+
+    expect(await screen.findByRole('button', { name: /Circle of Death/ })).toHaveTextContent('arcanum 1/1');
+    expect(screen.getByRole('button', { name: /Plane Shift/ })).toBeDisabled();
+    // The arcanum is the only way to pay, so the spell goes straight to its targets
+    await user.click(screen.getByRole('button', { name: /Circle of Death/ }));
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Using your Mystic Arcanum (6th) (1/1 left)')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cast Spell' }));
+
+    await screen.findByText('Fire Bolt hits Test Goblin for 7 fire damage.');
+    expect(requests[0].body).toMatchObject({ spellName: 'Circle of Death', spellSource: 'MYSTIC_ARCANUM', slotLevel: 6 });
+  });
+
   it('offers no Manual Modifiers unless they are allowed (D164)', async () => {
     spellOptions(WIZARD_OPTIONS);
     targeting();

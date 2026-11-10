@@ -143,6 +143,7 @@ public class PendingChoiceService {
                         request.getSwap());
                 CharacterUpdates.recordChoices(character, index, c -> c.withSpells(learned));
             }
+            case MYSTIC_ARCANUM -> applyMysticArcanum(character, choice, index, request.getSpells());
         }
 
         List<PendingChoice> pending = copy(character.getPendingChoices());
@@ -173,7 +174,7 @@ public class PendingChoiceService {
             case FIGHTING_STYLE -> List.of("fightingStyle");
             case METAMAGIC -> List.of("metamagic");
             case PROFICIENCY -> List.of("proficiencies");
-            case SUBCLASS_CANTRIP, CANTRIPS -> List.of("spells");
+            case SUBCLASS_CANTRIP, CANTRIPS, MYSTIC_ARCANUM -> List.of("spells");
             case SPELLS -> List.of("spells", "swap");
         };
         given.forEach((field, value) -> {
@@ -635,6 +636,21 @@ public class PendingChoiceService {
                 List.copyOf(CharacterUpdates.merged(c.subclassCantrips(), learned))));
     }
 
+    /**
+     * A warlock's Mystic Arcanum (PHB p.108): one spell of the arcanum's level from the warlock's list or its patron's
+     * expanded spells, known with the source "arcanum:Warlock" and recorded on the level's {@code mysticArcanum}, so
+     * levelling down forgets it. A level that records one already is a 409, as a choice made twice would be.
+     */
+    private void applyMysticArcanum(PlayerCharacter character, PendingChoice choice, int index, List<String> picked) {
+        LevelChoices recorded = character.getLevelHistory().get(index).choices();
+        if (recorded != null && recorded.mysticArcanum() != null) {
+            throw new ConflictException("Level " + choice.characterLevel() + " has its Mystic Arcanum already: "
+                    + recorded.mysticArcanum());
+        }
+        String learned = spellService.learnMysticArcanum(character, choice, picked);
+        CharacterUpdates.recordChoices(character, index, c -> c.withMysticArcanum(learned));
+    }
+
     // The subclass the character's class has, by name; null for none
     private static String subclassNameOf(PlayerCharacter character, UUID classId) {
         if (classId == null) return null;
@@ -827,6 +843,7 @@ public class PendingChoiceService {
             CharacterSpellService.forget(character, level.className(), choices.cantrips(), choices.spells());
         }
         CharacterSpellService.forgetSubclassCantrips(character, choices.subclassCantrips());
+        CharacterSpellService.forgetMysticArcanum(character, choices.mysticArcanum());
         if (choices.subclass() != null) {
             UUID classId = choices.subclass().classId();
             CharacterUpdates.clearClassEntrySubclass(character, classId);
@@ -1180,7 +1197,9 @@ public class PendingChoiceService {
      * levelled before R6 workstream F (or, for Metamagic, before M18, and for the proficiencies before they were owed)
      * can owe them, for the backfill-pending-choices job; it adds them through {@link #addPending}.
      * Expertise the sheet has that no level records, as the creation wizard gave it before, counts against the levels
-     * that give Expertise, oldest first, and Metamagic features no level records against the Metamagic levels.
+     * that give Expertise, oldest first, and Metamagic features no level records against the Metamagic levels. A
+     * warlock's Mystic Arcanum (PHB p.108) is owed at Warlock 11, 13, 15 and 17 when the level records none, none is
+     * pending there and the sheet knows no arcanum of that level, as for a warlock levelled before arcana were owed.
      * Changes nothing.
      *
      * @throws ConflictException when a class the character has can't be found
@@ -1236,9 +1255,27 @@ public class PendingChoiceService {
                         ClassProgression.metamagicOptions(classTables, level.className())));
             }
         }
+        for (LevelHistoryEntry level : history) {
+            int arcanum = level.className() != null
+                    ? ClassProgression.mysticArcanumLevel(classTables, level.className(), level.classLevel()) : 0;
+            boolean recorded = level.choices() != null && level.choices().mysticArcanum() != null;
+            if (arcanum == 0 || recorded || isPending(pending, Type.MYSTIC_ARCANUM, level.characterLevel())
+                    || knowsMysticArcanum(character, arcanum)) {
+                continue;
+            }
+            missed.add(new PendingChoice(UUID.randomUUID(), Type.MYSTIC_ARCANUM, Source.LEVEL_UP,
+                    level.characterLevel(), level.classId(), level.className(), level.classLevel(), 1, null, arcanum,
+                    null, ClassProgression.spellList(classTables, level.className(), null).orElse(level.className())));
+        }
         missed.addAll(missedProficiencyChoices(character, pending));
         missed.sort(PendingChoices.ORDER);
         return missed;
+    }
+
+    // Whether the sheet has a Mystic Arcanum spell of that level already, one no level records
+    private static boolean knowsMysticArcanum(PlayerCharacter character, int spellLevel) {
+        return orEmpty(character.getSpellsKnown()).stream()
+                .anyMatch(spell -> KnownSpell.isMysticArcanum(spell) && spell.level() == spellLevel);
     }
 
     // The PROFICIENCY choices of each subclass the character has that gives bonus proficiencies of the player's choice,

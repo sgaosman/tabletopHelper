@@ -190,6 +190,48 @@ describe('SpellsTab', () => {
     expect(screen.queryByTitle('Remove feat spells')).not.toBeInTheDocument();
   });
 
+  it("shows a warlock's Mystic Arcanum apart from its known spells, each with its use, which it can mark used (PHB p.108)", async () => {
+    const sent: unknown[] = [];
+    server.use(http.post('/api/characters/:id/pools/spend', async ({ params, request }) => {
+      sent.push(await request.json());
+      return HttpResponse.json(makeMockCharacter(params.id as string, 'Morrow', 'Warlock', 13));
+    }));
+    const arcanumPool = (level: number, currentUses: number) => ({
+      poolId: `mystic-arcanum:${level}`, displayName: `Mystic Arcanum (${level}th)`, sourceType: 'CLASS',
+      sourceName: 'Warlock', maxUses: 1, maxUsesFormula: null, currentUses, resetOn: 'longRest', resetAmount: null,
+      resetCheck: null, spendActionType: 'ACTION', icon: 'sparkles', metadata: null,
+    });
+    const char = {
+      ...makeMockCharacter('char-009', 'Morrow', 'Warlock', 13),
+      spellsKnown: [
+        { name: 'Hold Monster', level: 5, source: 'class:Warlock' },
+        { name: 'Plane Shift', level: 7, source: 'arcanum:Warlock' },
+        { name: 'Circle of Death', level: 6, source: 'arcanum:Warlock' },
+      ],
+      resourcePools: [arcanumPool(6, 0), arcanumPool(7, 1)],
+      spellcasting: [casting({ className: 'Warlock', ability: 'CHA', classLevel: 13, highestSpellLevel: 5,
+        cantripsKnown: 4, spellsKnown: 12, preparedSpells: null, pactMagic: true })],
+    };
+    renderTab(char);
+    const user = userEvent.setup();
+
+    expect(within(box('Warlock Spells')).getByText('Known Spells (1/12)')).toBeInTheDocument();
+    const arcana = box('Mystic Arcanum');
+    const sixth = within(arcana).getByLabelText('Mystic Arcanum (6th)');
+    const seventh = within(arcana).getByLabelText('Mystic Arcanum (7th)');
+    expect(sixth).toHaveTextContent('Circle of Death');
+    expect(sixth).toHaveTextContent('0/1');
+    expect(within(sixth).queryByRole('button', { name: 'Use' })).not.toBeInTheDocument();
+    expect(within(sixth).getByRole('button', { name: 'Get back Mystic Arcanum (6th)' })).toBeInTheDocument();
+    expect(seventh).toHaveTextContent('Plane Shift');
+    expect(seventh).toHaveTextContent('1/1');
+    // Lowest level first
+    expect(arcana.textContent?.indexOf('Circle of Death')).toBeLessThan(arcana.textContent?.indexOf('Plane Shift') ?? 0);
+
+    await user.click(within(seventh).getByRole('button', { name: 'Use' }));
+    await waitFor(() => expect(sent).toEqual([{ poolId: 'mystic-arcanum:7', amount: 1 }]));
+  });
+
   it("opens a spell's details in a dialog titled with its name, which Escape closes, giving focus back", async () => {
     server.use(http.get('/api/reference/spells', () => HttpResponse.json({
       // The search matches part of a name: the spell of exactly that name is the one shown

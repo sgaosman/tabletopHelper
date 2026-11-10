@@ -83,6 +83,16 @@ public final class ClassProgression {
     }
 
     /**
+     * The level of the spell a class level's Mystic Arcanum is: a 6th-level warlock spell at Warlock 11th level, 7th at
+     * 13th, 8th at 15th and 9th at 17th (PHB p.108). 0 for a class level that brings none. Only warlock levels bring
+     * one, whatever other classes a multiclass character has.
+     */
+    public static int mysticArcanumLevel(ClassTables tables, String className, int classLevel) {
+        requireClassLevel(classLevel);
+        return tables.classTable(className).map(table -> table.mysticArcanum().getOrDefault(classLevel, 0)).orElse(0);
+    }
+
+    /**
      * The spells a wizard adds to its spellbook for free at a wizard level: six 1st-level spells at 1st level and two
      * at each level after, each of a level it has spell slots for (PHB p.114). 0 for every other class.
      */

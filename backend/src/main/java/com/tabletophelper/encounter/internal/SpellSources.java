@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.dto.SpellOption.SourceOption;
@@ -24,6 +25,9 @@ import java.util.Set;
  *   <li>A cantrip, and a spell its caster has at will, costs nothing (NONE).</li>
  *   <li>A spell with uses of its own, such as a monster's 1/day or a race's once per long rest, spends one
  *       (INNATE). It is cast at its own level, with no upcasting.</li>
+ *   <li>A warlock's Mystic Arcanum spell is cast once without a slot between long rests (PHB p.108), spending its
+ *       level's pool (MYSTIC_ARCANUM), at its own level. A multiclass caster with a slot of its level may still cast it
+ *       with that slot, as a warlock spell it knows (PHB p.164); no pact slot is high enough.</li>
  *   <li>Any other levelled spell needs a slot of at least its level (SLOT), or a pact slot, which casts it at the
  *       pact slots' level (PACT_SLOT). A player character's race and feat spells can be cast with a slot too.</li>
  *   <li>A player character casts only what they can cast now: a levelled spell from a class that prepares its
@@ -75,6 +79,11 @@ final class SpellSources {
         boolean hasOwnUses() {
             return uses != null && uses > 0 && !atWill;
         }
+
+        // A warlock's Mystic Arcanum spell, known with the source "arcanum:Warlock" (PHB p.108)
+        boolean mysticArcanum() {
+            return origin != null && origin.startsWith(KnownSpell.MYSTIC_ARCANUM_SOURCE);
+        }
     }
 
     /**
@@ -98,13 +107,15 @@ final class SpellSources {
      * @param spellName  the spell's name, as the spells table has it
      * @param castLevel  the level it is cast at: the slot's, the pact slots', or the spell's own
      * @param slotKey    the slot spent, such as "3" or "pact_3", for SLOT and PACT_SLOT
-     * @param innatePool the pool that holds the spell's innate uses, full, as a caster without it starts it
+     * @param pool       the pool that pays: for INNATE the one holding the spell's innate uses, and for MYSTIC_ARCANUM
+     *                   the arcanum's of the spell's level, full, as a caster without it starts it; null otherwise
      * @param origin     where the spell cast comes from, such as "class:Wizard" or "race:Tiefling": the entry with the
-     *                   innate use for INNATE, and otherwise a class's entry when the caster has the spell from one
+     *                   innate use for INNATE, "arcanum:Warlock" for MYSTIC_ARCANUM, and otherwise a class's entry when
+     *                   the caster has the spell from one
      * @param castingTime what casting it costs from a turn (D174)
      */
     record Payment(String spellName, int spellLevel, SpellSource source, int castLevel, String slotKey,
-                   ResourcePoolEntry innatePool, String origin, CastingTime castingTime) {
+                   ResourcePoolEntry pool, String origin, CastingTime castingTime) {
     }
 
     // ── Options ──────────────────────────────────────────────────
@@ -147,6 +158,9 @@ final class SpellSources {
                     .filter(Known::hasOwnUses)
                     .findFirst()
                     .ifPresent(innate -> sources.add(innateSource(first.name(), level, innate.uses(), purse)));
+            if (entries.stream().anyMatch(Known::mysticArcanum)) {
+                sources.add(mysticArcanumSource(level, purse));
+            }
         }
         if (level == 0 || entries.stream().anyMatch(Known::atWill)) {
             sources.add(new SourceOption(SpellSource.NONE, List.of(level), null, null));
@@ -236,6 +250,14 @@ final class SpellSources {
         return new SourceOption(SpellSource.INNATE, left > 0 ? List.of(level) : List.of(), left, max);
     }
 
+    // The arcanum's one use between long rests, at the spell's own level; a caster without the pool yet has it
+    private static SourceOption mysticArcanumSource(int level, Purse purse) {
+        ResourcePoolEntry pool = pool(purse, ResourcePoolEntry.mysticArcanumPoolId(level));
+        int max = pool != null ? pool.maxUses() : 1;
+        int left = pool != null ? pool.currentUses() : 1;
+        return new SourceOption(SpellSource.MYSTIC_ARCANUM, left > 0 ? List.of(level) : List.of(), left, max);
+    }
+
     // ── Payment ──────────────────────────────────────────────────
 
     /**
@@ -307,6 +329,20 @@ final class SpellSources {
                         innatePool(name, innate.uses(), sourceType(innate.origin()), sourceName(innate.origin())),
                         innate.origin(), castingTime);
             }
+            case MYSTIC_ARCANUM -> {
+                // PHB p.108: the arcanum casts the spell without a slot, so at its own level
+                if (slotLevel != 0 && slotLevel != level) {
+                    throw new ValidationException(name + " is cast at its own level, " + level
+                            + ", with a Mystic Arcanum: it isn't upcast");
+                }
+                if (chosen.levels().isEmpty()) {
+                    throw new ValidationException(casterName + " has used their level " + level
+                            + " Mystic Arcanum; it comes back on a long rest");
+                }
+                Known arcanum = castable.stream().filter(Known::mysticArcanum).findFirst().orElseThrow();
+                yield new Payment(name, level, SpellSource.MYSTIC_ARCANUM, level, null,
+                        ResourcePoolEntry.mysticArcanum(level, name), arcanum.origin(), castingTime);
+            }
             case NONE -> {
                 if (slotLevel != 0 && slotLevel != level) {
                     throw new ValidationException(level == 0
@@ -342,6 +378,7 @@ final class SpellSources {
         }
         if (source(option, SpellSource.NONE).isPresent()) return SpellSource.NONE;
         if (source(option, SpellSource.INNATE).isPresent()) return SpellSource.INNATE;
+        if (source(option, SpellSource.MYSTIC_ARCANUM).isPresent()) return SpellSource.MYSTIC_ARCANUM;
         return SpellSource.NONE;
     }
 
@@ -362,6 +399,7 @@ final class SpellSources {
             case SLOT -> "with a spell slot";
             case PACT_SLOT -> "with a pact slot";
             case INNATE -> "with an innate use";
+            case MYSTIC_ARCANUM -> "with a Mystic Arcanum";
             case NONE -> "without a slot or a use";
         };
     }

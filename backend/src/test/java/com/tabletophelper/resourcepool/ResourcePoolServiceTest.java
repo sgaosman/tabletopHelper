@@ -197,6 +197,28 @@ class ResourcePoolServiceTest {
     }
 
     @Test
+    @DisplayName("reconciledPools adds a Mystic Arcanum pool of one long-rest use for each arcanum spell, by its level, keeping a spent use, and drops one whose spell is gone (PHB p.108)")
+    void syncAddsMysticArcanumPools() {
+        ResourcePoolEntry spentSixth = ResourcePoolEntry.mysticArcanum(6, "Mass Suggestion").withCurrentUses(0);
+        ResourcePoolEntry eighth = ResourcePoolEntry.mysticArcanum(8, "Feeblemind");
+        PlayerCharacter warlock = PlayerCharacter.builder().level(13)
+                .spellsKnown(List.of(
+                        new KnownSpell(null, "Hold Monster", 5, "class:Warlock", null, null, null, null, null),
+                        new KnownSpell(null, "Mass Suggestion", 6, "arcanum:Warlock", null, null, null, null, null),
+                        new KnownSpell(null, "Plane Shift", 7, "arcanum:Warlock", null, null, null, null, null)))
+                .resourcePools(List.of(spentSixth, eighth))
+                .build();
+
+        List<ResourcePoolEntry> pools = reconcile(warlock);
+
+        assertEquals(List.of(spentSixth, ResourcePoolEntry.mysticArcanum(7, "Plane Shift")), pools);
+        assertEquals("Mystic Arcanum (7th)", pools.get(1).displayName());
+        assertEquals("longRest", pools.get(1).resetOn());
+        assertEquals(1, pools.get(1).maxUses());
+        assertEquals(Map.of("spell", "Plane Shift", "spellLevel", 7), pools.get(1).metadata());
+    }
+
+    @Test
     @DisplayName("reconciledPools adds a feat pool for each feat with limited uses the level history records, keeping its uses (D158)")
     void syncAddsFeatPools() {
         FeatResourceEntry luck = new FeatResourceEntry("Lucky", "Luck Points", 3, 3, "longRest");

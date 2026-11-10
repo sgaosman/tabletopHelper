@@ -200,11 +200,11 @@ class SpellSourcesTest {
             SpellSources.Payment payment = pay("Misty Step", SpellSource.INNATE, 0);
 
             assertEquals(2, payment.castLevel());
-            assertEquals("innate:misty-step", payment.innatePool().poolId());
-            assertEquals(1, payment.innatePool().currentUses());
-            assertEquals("FEAT", payment.innatePool().sourceType());
-            assertEquals("Fey Touched", payment.innatePool().sourceName());
-            assertEquals("longRest", payment.innatePool().resetOn());
+            assertEquals("innate:misty-step", payment.pool().poolId());
+            assertEquals(1, payment.pool().currentUses());
+            assertEquals("FEAT", payment.pool().sourceType());
+            assertEquals("Fey Touched", payment.pool().sourceName());
+            assertEquals("longRest", payment.pool().resetOn());
             assertEquals("feat:Fey Touched", payment.origin());
             assertEquals("Misty Step is cast at its own level, 2, with an innate use: innate spells aren't upcast",
                     refusal("Misty Step", SpellSource.INNATE, 3));
@@ -275,6 +275,89 @@ class SpellSourcesTest {
                 SpellSources.pay("Tiefling", tiefling, purse, "Hellish Rebuke", SpellSource.INNATE, 0).origin());
         assertEquals("race:Tiefling", SpellSources.origin(tiefling.subList(0, 1)));
         assertNull(SpellSources.origin(List.of()));
+    }
+
+    @Nested
+    @DisplayName("A warlock's Mystic Arcanum (PHB p.108)")
+    class MysticArcanum {
+
+        // A Warlock 11 with its 6th-level arcanum, a 5th-level pact slot and a 5th-level spell known
+        private final List<SpellSources.Known> warlock = List.of(
+                classSpell("Hold Monster", 5, "Warlock", false),
+                new SpellSources.Known("Mass Suggestion", 6, "arcanum:Warlock", false, false, false, null, null));
+        private final Map<String, SpellSlot> pactSlots = Map.of("pact_5", new SpellSlot(3, 0));
+
+        private SpellSources.Purse purse(ResourcePoolEntry... pools) {
+            return new SpellSources.Purse(pactSlots, List.of(pools), 11);
+        }
+
+        @Test
+        @DisplayName("The arcanum spell is offered with its one use at its own level; no pact slot is high enough")
+        void option() {
+            List<SpellOption> options = SpellSources.options(warlock, purse());
+
+            assertEquals(List.of("Hold Monster", "Mass Suggestion"), options.stream().map(SpellOption::name).toList());
+            assertEquals(List.of(new SourceOption(SpellSource.MYSTIC_ARCANUM, List.of(6), 1, 1)),
+                    options.get(1).sources());
+            // The 5th-level spell is cast with a pact slot as before, and has no arcanum
+            assertEquals(List.of(new SourceOption(SpellSource.PACT_SLOT, List.of(5), 3, 3)),
+                    options.get(0).sources());
+        }
+
+        @Test
+        @DisplayName("A spent arcanum stays listed with no levels until a long rest refills its pool")
+        void spentOption() {
+            ResourcePoolEntry spent = ResourcePoolEntry.mysticArcanum(6, "Mass Suggestion").withCurrentUses(0);
+
+            SpellOption massSuggestion = SpellSources.options(warlock, purse(spent)).get(1);
+
+            assertEquals(List.of(new SourceOption(SpellSource.MYSTIC_ARCANUM, List.of(), 0, 1)),
+                    massSuggestion.sources());
+        }
+
+        @Test
+        @DisplayName("Casting spends the arcanum's pool at the spell's own level, never a slot, and isn't upcast")
+        void payment() {
+            SpellSources.Payment payment = SpellSources.pay("Warlock", warlock, purse(), "mass suggestion",
+                    SpellSource.MYSTIC_ARCANUM, 0);
+
+            assertEquals(SpellSource.MYSTIC_ARCANUM, payment.source());
+            assertEquals(6, payment.castLevel());
+            assertNull(payment.slotKey());
+            assertEquals("mystic-arcanum:6", payment.pool().poolId());
+            assertEquals("arcanum:Warlock", payment.origin());
+            // Left to the server, a cast at 0 or the spell's level uses the arcanum
+            assertEquals(SpellSource.MYSTIC_ARCANUM,
+                    SpellSources.pay("Warlock", warlock, purse(), "Mass Suggestion", null, 0).source());
+            assertEquals(SpellSource.MYSTIC_ARCANUM,
+                    SpellSources.pay("Warlock", warlock, purse(), "Mass Suggestion", null, 6).source());
+            assertEquals("Mass Suggestion is cast at its own level, 6, with a Mystic Arcanum: it isn't upcast",
+                    assertThrows(ValidationException.class, () -> SpellSources.pay("Warlock", warlock, purse(),
+                            "Mass Suggestion", SpellSource.MYSTIC_ARCANUM, 7)).getMessage());
+            assertEquals("Mass Suggestion can't be cast with a pact slot", assertThrows(ValidationException.class,
+                    () -> SpellSources.pay("Warlock", warlock, purse(), "Mass Suggestion", SpellSource.PACT_SLOT, 0))
+                    .getMessage());
+        }
+
+        @Test
+        @DisplayName("A spent arcanum is refused until a long rest")
+        void spent() {
+            ResourcePoolEntry spent = ResourcePoolEntry.mysticArcanum(6, "Mass Suggestion").withCurrentUses(0);
+
+            assertEquals("Warlock has used their level 6 Mystic Arcanum; it comes back on a long rest",
+                    assertThrows(ValidationException.class, () -> SpellSources.pay("Warlock", warlock, purse(spent),
+                            "Mass Suggestion", SpellSource.MYSTIC_ARCANUM, 0)).getMessage());
+        }
+
+        @Test
+        @DisplayName("A multiclass caster with a slot of the arcanum's level may cast it with the slot too (PHB p.164)")
+        void slotOfItsLevel() {
+            SpellOption option = SpellSources.options(warlock, new SpellSources.Purse(
+                    Map.of("6", new SpellSlot(1, 0), "pact_5", new SpellSlot(3, 0)), List.of(), 20)).get(1);
+
+            assertEquals(List.of(SpellSource.SLOT, SpellSource.MYSTIC_ARCANUM),
+                    option.sources().stream().map(SourceOption::source).toList());
+        }
     }
 
     @Test

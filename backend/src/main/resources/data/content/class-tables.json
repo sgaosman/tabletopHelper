@@ -225,6 +225,7 @@
     "Warlock": {
       "subclassLevel": 1,
       "asiLevels": [4, 8, 12, 16, 19],
+      "mysticArcanum": {"11": 6, "13": 7, "15": 8, "17": 9},
       "spellcasting": {
         "casterType": "pact",
         "spellList": "Warlock",

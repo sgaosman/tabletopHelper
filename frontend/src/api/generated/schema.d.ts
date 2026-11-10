@@ -2448,7 +2448,7 @@ export interface components {
             slotLevel: number;
             spellName: string;
             /** @enum {string|null} */
-            spellSource?: "SLOT" | "PACT_SLOT" | "INNATE" | "NONE" | null;
+            spellSource?: "SLOT" | "PACT_SLOT" | "INNATE" | "MYSTIC_ARCANUM" | "NONE" | null;
             summon?: components["schemas"]["SummonChoice"] | null;
             targetIds: string[];
         };
@@ -2461,7 +2461,7 @@ export interface components {
             slotLevelUsed: number;
             spellName: string;
             /** @enum {string} */
-            spellSource: "SLOT" | "PACT_SLOT" | "INNATE" | "NONE";
+            spellSource: "SLOT" | "PACT_SLOT" | "INNATE" | "MYSTIC_ARCANUM" | "NONE";
             targets: components["schemas"]["TargetOutcome"][];
         };
         CharacterCampaignRequest: {
@@ -3362,6 +3362,7 @@ export interface components {
             fightingStyle?: string | null;
             kenseiWeapons?: string[] | null;
             metamagic?: string[] | null;
+            mysticArcanum?: string | null;
             proficiencies?: string[] | null;
             setsSpellcastingAbility?: boolean | null;
             spells?: components["schemas"]["SpellsLearned"] | null;
@@ -3725,7 +3726,7 @@ export interface components {
             spellList?: string | null;
             swap?: boolean | null;
             /** @enum {string} */
-            type: "SUBCLASS" | "FIGHTING_STYLE" | "METAMAGIC" | "PROFICIENCY" | "SUBCLASS_CANTRIP" | "ASI" | "FEAT" | "EXPERTISE" | "CANTRIPS" | "SPELLS";
+            type: "SUBCLASS" | "FIGHTING_STYLE" | "METAMAGIC" | "PROFICIENCY" | "SUBCLASS_CANTRIP" | "ASI" | "FEAT" | "EXPERTISE" | "CANTRIPS" | "SPELLS" | "MYSTIC_ARCANUM";
         };
         PlaceSummonRequest: {
             creatureType?: string | null;
@@ -3914,7 +3915,7 @@ export interface components {
         SourceOption: {
             levels: number[];
             /** @enum {string} */
-            source: "SLOT" | "PACT_SLOT" | "INNATE" | "NONE";
+            source: "SLOT" | "PACT_SLOT" | "INNATE" | "MYSTIC_ARCANUM" | "NONE";
             /** Format: int32 */
             usesLeft?: number | null;
             /** Format: int32 */

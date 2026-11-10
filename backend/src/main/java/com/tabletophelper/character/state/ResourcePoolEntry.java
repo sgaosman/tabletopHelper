@@ -87,6 +87,34 @@ public record ResourcePoolEntry(
     }
 
     /**
+     * The pool that holds a warlock's Mystic Arcanum of one spell level, on a character sheet or a participant:
+     * "mystic-arcanum:" and the level, such as "mystic-arcanum:6" (PHB p.108).
+     */
+    public static String mysticArcanumPoolId(int spellLevel) {
+        return "mystic-arcanum:" + spellLevel;
+    }
+
+    /**
+     * A full pool of a Mystic Arcanum's one use, which comes back on a long rest (PHB p.108): "Mystic Arcanum (6th)",
+     * with the spell and its level in {@code metadata.spell} and {@code metadata.spellLevel}.
+     */
+    public static ResourcePoolEntry mysticArcanum(int spellLevel, String spellName) {
+        return new ResourcePoolEntry(mysticArcanumPoolId(spellLevel), "Mystic Arcanum (" + ordinal(spellLevel) + ")",
+                "CLASS", "Warlock", 1, null, 1, "longRest", null, null, "ACTION", "sparkles",
+                Map.of("spell", spellName, "spellLevel", spellLevel));
+    }
+
+    // "6th", "7th", "8th" or "9th", as a spell's level is written
+    private static String ordinal(int level) {
+        return switch (level) {
+            case 1 -> "1st";
+            case 2 -> "2nd";
+            case 3 -> "3rd";
+            default -> level + "th";
+        };
+    }
+
+    /**
      * The pool that holds a feat's limited uses, such as Lucky's luck points: "feat:" and the feat's name in kebab
      * case (D158).
      */

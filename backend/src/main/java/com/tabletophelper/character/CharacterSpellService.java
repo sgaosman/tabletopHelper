@@ -359,6 +359,57 @@ public class CharacterSpellService {
         return List.of(spell.getName());
     }
 
+    /**
+     * Learns the spell a MYSTIC_ARCANUM choice owes a warlock (PHB p.108): exactly one spell on the class's list, or
+     * among its patron's expanded spells, such as the Genie's wish (TCE p.73), of exactly the arcanum's level, the
+     * choice's {@code maxSpellLevel}. It is known with the source "arcanum:" and the class's name, so it doesn't count
+     * against the warlock's spells known, and the pools give it a use each long rest. A warlock has one arcanum of
+     * each level. The caller records it on the choice's level, so levelling down past it forgets it.
+     *
+     * @return the spell learned, by the spell data's name
+     * @throws ValidationException for another number of spells, a spell not on the list or of another level, or a
+     *                             level whose arcanum the warlock has already
+     */
+    String learnMysticArcanum(PlayerCharacter character, PendingChoice choice, List<String> names) {
+        ClassSpellcasting casting = choiceCasting(character, choice);
+        List<String> chosen = distinct(orEmpty(names));
+        requireCount(chosen, choice, "spell");
+        int arcanumLevel = choice.maxSpellLevel() != null ? choice.maxSpellLevel() : 0;
+        Spell spell = classSpell(casting, chosen.getFirst());
+        if (spell.getLevel() != arcanumLevel) {
+            throw new ValidationException("A Mystic Arcanum of level " + arcanumLevel + " is a level " + arcanumLevel
+                    + " spell, not " + spell.getName() + " (level " + spell.getLevel() + ")");
+        }
+        List<KnownSpell> known = copy(character.getSpellsKnown());
+        KnownSpell held = known.stream()
+                .filter(s -> KnownSpell.isMysticArcanum(s) && s.level() == arcanumLevel)
+                .findFirst()
+                .orElse(null);
+        if (held != null) {
+            throw new ValidationException(character.getName() + " already has " + held.name()
+                    + " as their level " + arcanumLevel + " Mystic Arcanum");
+        }
+        known.add(new KnownSpell(null, spell.getName(), spell.getLevel(),
+                KnownSpell.MYSTIC_ARCANUM_SOURCE + casting.className(), null, null, null, null, null));
+        character.setSpellsKnown(known);
+        return spell.getName();
+    }
+
+    /**
+     * Forgets the Mystic Arcanum spell a level's MYSTIC_ARCANUM choice taught, as levelling down past the level does:
+     * the arcanum entry of that name. Its pool goes when the pools are worked out again.
+     */
+    static void forgetMysticArcanum(PlayerCharacter character, String spellName) {
+        if (spellName == null || spellName.isBlank()) {
+            return;
+        }
+        String wanted = key(spellName);
+        List<KnownSpell> known = copy(character.getSpellsKnown());
+        known.removeIf(spell -> KnownSpell.isMysticArcanum(spell) && spell.name() != null
+                && key(spell.name()).equals(wanted));
+        character.setSpellsKnown(known);
+    }
+
     /** Whether the character knows a spell of that name, from any source. */
     static boolean knows(PlayerCharacter character, String name) {
         return knows(orEmpty(character.getSpellsKnown()), name);

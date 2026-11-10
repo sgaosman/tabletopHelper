@@ -106,9 +106,12 @@ class PendingChoicesTest {
                         entry(3, List.of("SPELLS swap")), entry(4, List.of("ASI", "CANTRIPS", "SPELLS swap")),
                         entry(5, List.of("SPELLS swap")), entry(6, List.of("SPELLS swap")),
                         entry(7, List.of("SPELLS swap")), entry(8, List.of("ASI", "SPELLS swap")),
-                        entry(9, List.of("SPELLS swap")), entry(10, List.of("CANTRIPS")), entry(11, List.of("SPELLS swap")),
-                        entry(12, List.of("ASI")), entry(13, List.of("SPELLS swap")), entry(15, List.of("SPELLS swap")),
-                        entry(16, List.of("ASI")), entry(17, List.of("SPELLS swap")),
+                        entry(9, List.of("SPELLS swap")), entry(10, List.of("CANTRIPS")),
+                        // Mystic Arcanum at 11th, 13th, 15th and 17th level (PHB p.108)
+                        entry(11, List.of("SPELLS swap", "MYSTIC_ARCANUM")),
+                        entry(12, List.of("ASI")), entry(13, List.of("SPELLS swap", "MYSTIC_ARCANUM")),
+                        entry(15, List.of("SPELLS swap", "MYSTIC_ARCANUM")),
+                        entry(16, List.of("ASI")), entry(17, List.of("SPELLS swap", "MYSTIC_ARCANUM")),
                         entry(19, List.of("ASI", "SPELLS swap")))),
                 Arguments.of("Wizard", 2, wizard()));
     }
@@ -236,6 +239,28 @@ class PendingChoicesTest {
                 .singleElement().satisfies(c -> assertThat(c.spellList()).isEqualTo("Cleric"));
         assertThat(cleric).filteredOn(c -> c.type() == Type.ASI)
                 .singleElement().satisfies(c -> assertThat(c.spellList()).isNull());
+    }
+
+    @Test
+    @DisplayName("A warlock's Mystic Arcanum is one warlock spell of exactly 6th, 7th, 8th or 9th level at Warlock 11, 13, 15 and 17 (PHB p.108), from warlock levels only")
+    void mysticArcanum() {
+        Map<Integer, Integer> arcana = Map.of(11, 6, 13, 7, 15, 8, 17, 9);
+        arcana.forEach((classLevel, spellLevel) -> assertThat(
+                PendingChoices.owedAt(TABLES, classLevel, level("Warlock", "The Fiend", classLevel, 1), Source.LEVEL_UP))
+                .filteredOn(c -> c.type() == Type.MYSTIC_ARCANUM)
+                .singleElement().satisfies(c -> {
+                    assertThat(c.count()).isEqualTo(1);
+                    assertThat(c.maxSpellLevel()).isEqualTo(spellLevel);
+                    assertThat(c.spellList()).isEqualTo("Warlock");
+                    assertThat(c.swap()).isNull();
+                    assertThat(c.classLevel()).isEqualTo(classLevel);
+                }));
+        // A multiclass character's arcana come from its warlock levels: a Sorcerer 11 owes none
+        assertThat(PendingChoices.owedAt(TABLES, 14, level("Sorcerer", null, 11, 1), Source.LEVEL_UP))
+                .noneMatch(c -> c.type() == Type.MYSTIC_ARCANUM);
+        assertThat(PendingChoices.owedAt(TABLES, 14, level("Warlock", null, 11, 1), Source.LEVEL_UP))
+                .filteredOn(c -> c.type() == Type.MYSTIC_ARCANUM)
+                .singleElement().satisfies(c -> assertThat(c.characterLevel()).isEqualTo(14));
     }
 
     @Test

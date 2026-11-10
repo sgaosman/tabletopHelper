@@ -1,4 +1,5 @@
 import type { PendingChoice, PendingChoiceType, PlayerCharacter } from '../types/character';
+import { mysticArcanumTitle } from './mysticArcanum';
 
 /** What each kind of Pending Choice is called on the sheet (D159). */
 const TITLES: Record<PendingChoiceType, string> = {
@@ -12,6 +13,7 @@ const TITLES: Record<PendingChoiceType, string> = {
   EXPERTISE: 'Expertise',
   CANTRIPS: 'Cantrips',
   SPELLS: 'Spells',
+  MYSTIC_ARCANUM: 'Mystic Arcanum',
 };
 
 /**
@@ -130,11 +132,12 @@ export function proficiencyTaken(character: PlayerCharacter, choice: PendingChoi
 }
 
 /**
- * The choice's name, such as "Subclass", "Spellbook" for a wizard's spells, "Skills or Languages", or "Kensei Weapon"
- * for a Way of the Kensei monk's.
+ * The choice's name, such as "Subclass", "Spellbook" for a wizard's spells, "Skills or Languages", "Kensei Weapon"
+ * for a Way of the Kensei monk's, or "Mystic Arcanum (6th)" for a warlock's.
  */
 export function choiceTitle(choice: PendingChoice): string {
   if (isSpellbookChoice(choice)) return 'Spellbook';
+  if (choice.type === 'MYSTIC_ARCANUM' && choice.maxSpellLevel) return mysticArcanumTitle(choice.maxSpellLevel);
   if (choice.type === 'PROFICIENCY' && choice.kenseiWeapons) return 'Kensei Weapon';
   if (choice.type === 'PROFICIENCY') {
     const kinds = KIND_ORDER.filter(kind => (choice.proficiencyOptions?.[kind] ?? []).length > 0);

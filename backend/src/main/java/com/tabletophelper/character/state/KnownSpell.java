@@ -18,7 +18,7 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param name            the spell's name
  * @param level           the spell's level, 0 for a cantrip
  * @param source          where it comes from, such as "class:Wizard", "race:Tiefling", "feat:Magic Initiate",
- *                        "subclass:Arcane Archer" or "monster"
+ *                        "subclass:Arcane Archer", "arcanum:Warlock" for a Mystic Arcanum, or "monster"
  * @param prepared        true when a prepared caster has it prepared
  * @param alwaysPrepared  true when it is always prepared
  * @param atWill          true when it is cast without a slot
@@ -44,6 +44,18 @@ public record KnownSpell(
      * Domain" for a Nature Domain cleric's druid cantrip (PHB p.61); it doesn't count against a class's cantrips known.
      */
     public static final String SUBCLASS_SOURCE = "subclass:";
+
+    /**
+     * What the source of a warlock's Mystic Arcanum spell starts with, before the class's name: "arcanum:Warlock" (PHB
+     * p.108). It is cast once without a slot between long rests, from its pool, uses the warlock's save DC and attack
+     * bonus, and doesn't count against the warlock's spells known.
+     */
+    public static final String MYSTIC_ARCANUM_SOURCE = "arcanum:";
+
+    /** Whether the entry is a Mystic Arcanum spell, by its source. */
+    public static boolean isMysticArcanum(KnownSpell spell) {
+        return spell != null && spell.source() != null && spell.source().startsWith(MYSTIC_ARCANUM_SOURCE);
+    }
 
     /** A spell read from a monster's stat block. */
     public static KnownSpell monster(UUID id, String name, int level) {

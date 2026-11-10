@@ -248,6 +248,17 @@ class ClassProgressionGoldenTest {
     }
 
     @Test
+    @DisplayName("A warlock's Mystic Arcanum is a 6th-level spell at 11th level, 7th at 13th, 8th at 15th and 9th at 17th (PHB p.108); no other class has one")
+    void mysticArcanum() {
+        Map<Integer, Integer> arcana = Map.of(11, 6, 13, 7, 15, 8, 17, 9);
+        IntStream.rangeClosed(0, 20).forEach(level -> assertEquals(arcana.getOrDefault(level, 0),
+                ClassProgression.mysticArcanumLevel(TABLES, "Warlock", level), "Warlock " + level));
+        assertEquals(0, ClassProgression.mysticArcanumLevel(TABLES, "Sorcerer", 11));
+        assertEquals(0, ClassProgression.mysticArcanumLevel(TABLES, "Wizard", 17));
+        assertThrows(IllegalArgumentException.class, () -> ClassProgression.mysticArcanumLevel(TABLES, "Warlock", 21));
+    }
+
+    @Test
     @DisplayName("Class level 0, before a character has any levels in the class, gains nothing")
     void classLevelZeroGainsNothing() {
         assertFalse(ClassProgression.isAsiLevel(TABLES, "Fighter", 0));

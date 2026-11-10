@@ -3406,3 +3406,28 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D161, D176, D177, D178, D179, D183, [[Ongoing Modifier]], [[Already Active Spell]]
 
 **Tests:** new `OngoingModifiersTest`, `ActiveModifiersTest`, `OngoingModifiersIT` (12); 2,889 backend unit, 340 integration and 1,122 frontend.
+
+
+## D186: Warlock Mystic Arcanum
+
+**Date:** 2026-11-10
+**Status:** Accepted — implemented (no migration)
+
+**Context:** the 7th–9th-level spell survey found that warlocks were capped at their Pact Magic slot level (5th) and Mystic Arcanum (PHB p.108) wasn't modelled, so no warlock could learn or cast a spell of 6th level or higher. It blocks the higher-level spell work for warlocks.
+
+**Decision:** Warlock 11, 13, 15 and 17 owe a `MYSTIC_ARCANUM` Pending Choice ([[#D159]]): one spell of exactly 6th, 7th, 8th or 9th level from the warlock list or the patron's expanded spells (the Genie's wish, TCE p.73). The levels are class-table data (`class-tables.json` `mysticArcanum`), counted from warlock levels only, so a multiclass character gets arcana from its warlock levels.
+- The spell is known with source `arcanum:Warlock`, outside spells known, and recorded on that level's `choices.mysticArcanum`, so levelling down forgets it with its pool and any unanswered choice.
+- Each arcanum has a resource pool ([[#D125]]) `mystic-arcanum:<level>`, "Mystic Arcanum (6th)" and so on: one use, back on a long rest, so rests, combat snapshots, Write-back ([[#D166]]) and undo ([[#D176]]) handle it unchanged.
+- In an encounter the new `MYSTIC_ARCANUM` spell source casts it at its own level without a slot, with the warlock's save DC and attack bonus; a higher level or a second cast is refused (400). The cast modal shows the arcanum as a payment row and badge.
+- The `backfill-pending-choices` job owes existing warlocks of 11+ their missing arcana. A warlock created above 11th gets them as pending choices.
+- **Rules calls (choices):** no swapping an arcanum on level-up, a 2024 rule; the 2014 warlock's swap (p.107) covers only spells of a level it has slots for. Always cast at its own level, there being no slot to upcast with. The arcanum may duplicate a spell known from another class. The sheet's pool buttons can spend a use without casting, as for innate spells.
+
+**Rationale:** reusing Pending Choices, known-spell sources and resource pools gives level-down, rests, write-back and undo without new machinery.
+
+**Trade-offs:** not checked in a browser; the payment record's internal `innatePool` field became `pool`.
+
+**Key files:** `PendingChoices.java`, `PendingChoiceService.java`, `CharacterSpellService.java`, `ResourcePoolService.java`, `SpellSources.java`, `CasterSpells.java`, `SpellcastingService.java`, `ClassProgression.java`, `class-tables.json`, `MysticArcanumModal.tsx`, `utils/mysticArcanum.ts`, `SpellsTab.tsx`, `SpellCastModal.tsx`
+
+**Related:** D125, D159, D166, D176, D178, D184, [[Mystic Arcanum]]
+
+**Tests:** new `MysticArcanumIT` (4) and unit groups in `PendingChoicesTest`, `ClassProgressionGoldenTest`, `PendingChoiceServiceTest`, `SpellSourcesTest`, `ResourcePoolServiceTest`; frontend `MysticArcanumModal.test.tsx`; 2,903 backend unit, 344 integration and 1,128 frontend.
