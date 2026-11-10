@@ -34,7 +34,10 @@ TabletopHelper replaces the scattered collection of PDFs, paper notes, and brows
   - Lasting spells (Spiritual Weapon, Moonbeam, Spirit Guardians and others) shown under their caster, with reminders for area damage
   - Summoning: Conjure Animals, the Summon Beast/Fey/Shadowspawn/Undead spirits, Summon Lesser Demons, Find Familiar, Find Steed, Animate Dead and Tiny Servant add their creatures to the encounter
   - Monster actions, multiattack, legendary and lair actions, legendary resistance, recharge and per-day limits
-- **Class resource tracking** — Ki Points, Action Surge, Channel Divinity, Bardic Inspiration, Wild Shape, Rage, Sorcery Points and every other limited-use class, feat and monster resource, tracked on the sheet and spent in encounters, with the features automated: Rage and Reckless Attack, Second Wind, Lay on Hands, Divine Smite, Sneak Attack, Martial Arts and Flurry of Blows, Stunning Strike, fighting styles, Channel Divinity options, Bardic Inspiration, Arcane Recovery, Wild Shape (Elemental Wild Shape included), Font of Magic and all eight PHB Metamagic options
+  - Every spell from cantrips to 9th level has its rules built in: damage, saves, conditions, lasting areas, summons and concentration, with the rest flagged for the DM
+  - Spell buffs and debuffs change the rolls while they last (Bless, Bane, Shield of Faith, Haste, Faerie Fire, Hunter's Mark and many more), and the DM can mark a spell as already active from before the fight
+  - Exhaustion tracked by level with all its effects, and Evasion for rogues, monks and monsters
+- **Class resource tracking** — Ki Points, Action Surge, Channel Divinity, Bardic Inspiration, Wild Shape, Rage, Sorcery Points and every other limited-use class, feat and monster resource, tracked on the sheet and spent in encounters, with the features automated: Rage and Reckless Attack, Second Wind, Lay on Hands, Divine Smite, Sneak Attack, Martial Arts and Flurry of Blows, Stunning Strike, fighting styles, Channel Divinity options, Bardic Inspiration, Arcane Recovery, Wild Shape (Elemental Wild Shape included), Font of Magic, all eight PHB Metamagic options and the warlock's Mystic Arcanum
 - **Armour and armour class** — AC worked out from equipped armour and shield, Unarmored Defense and natural armour, with Strength requirements, Stealth disadvantage and the penalties for armour without proficiency
 - **Glossary** — 104 game terms in rules text open a plain-English definition when clicked
 - **Phone-friendly encounter screens** — players use their phones at the table and the DM a laptop; error notifications and an automatic reconnect banner
@@ -44,7 +47,7 @@ TabletopHelper replaces the scattered collection of PDFs, paper notes, and brows
 - **Reference data caching** — `@Cacheable` on 13 reference endpoints (races, classes, subclasses, backgrounds, feats, spell metadata) eliminates repeated DB reads for static data
 - **Database indexes** — FK indexes on all frequently queried columns (user_id, campaign_id, encounter_id, character_id) plus a GIN index on spells.classes for JSONB containment queries
 - **Input validation** — `@Valid` constraints on character update requests (level 1-20, ability scores 1-30, HP/speed bounds, name length)
-- **Tests** — about 2,800 backend unit tests, 320 integration tests against a real PostgreSQL (Testcontainers) and 1,100 frontend tests (Vitest), run in CI
+- **Tests** — about 3,000 backend unit tests, 400 integration tests against a real PostgreSQL (Testcontainers) and 1,100 frontend tests (Vitest), run in CI
 - **Structured logging** — All exception handlers log with context instead of silently swallowing errors
 
 ### Features Coming Soon

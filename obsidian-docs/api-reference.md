@@ -1860,3 +1860,8 @@ Before R3, "not found" and "not allowed" both returned 400 (`IllegalArgumentExce
 ### 6th-level spells (D188)
 
 `POST /encounters/{id}/combat/action-save {participantId, conditionId}` makes a repeat save that costs the creature's action on its turn (Otto's Irresistible Dance); a success ends the effect. `RepeatSpellEffectRequest` gains `option` and `SpellEffectResponse` gains `useOptions` (Eyebite). The summon kind gains CONJURE_FEY and CREATE_UNDEAD.
+
+
+### 8th- and 9th-level spells (D190)
+
+Spell options gain `duplicatesUpTo` (Wish: the highest spell level it can duplicate); a Wish cast's `option` names the spell, as `"Spell"` or `"Spell: option"`. A feebleminded creature's casts answer 409.

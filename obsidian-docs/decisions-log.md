@@ -3548,3 +3548,32 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D161, D162, D176, D178, D182, D184, D185, D186, D187, D189, [[Evasion]], [[Action Save]], [[Spell Immunity]]
 
 **Tests:** new `SixthLevelMechanicsTest`, `SixthLevelSpellsIT` and a Summon Fiend golden test; 3,048 backend unit, 398 integration and 1,147 frontend.
+
+
+## D190: 8th- and 9th-Level Spells
+
+**Date:** 2026-11-10
+**Status:** Accepted — implemented (no migration; spell templates v7)
+
+**Context:** the last two levels of the higher-level spell sweep ([[#D185]], [[#D187]], [[#D188]], [[#D189]]). The surveys covered all 24 8th-level spells (PHB 18, XGE 4, EGW 2) and 22 9th-level spells (PHB 16, XGE 3, EGW 2, TCE 1).
+
+**Decision:** every 8th- and 9th-level spell has a template, reusing the earlier keys (Power Word Kill: `maxTargetHp` 100 and an HP band that kills outright, which Death Ward stops; Power Word Stun: `maxTargetHp` 150, stunned with a CON save at the end of each turn; Dominate Monster: `controlTransfer`, 8 hours at 9th, a save on damage; Meteor Swarm: `combined` fire and bludgeoning; Sunburst and Abi-Dalzim's Horrid Wilting: `saveDisadvantageTypes`; Feeblemind: `fullDamageOnSave`; Mind Blank and Invulnerability: `DAMAGE_IMMUNITY`; Mass Heal: `removesConditions`; Dark Star and Ravenous Void: `disintegrates`; Antimagic Field: `SPELL_IMMUNITY` 9 on the creatures picked), and adds:
+- **`unaffectedAtOrBelow`** (Psychic Scream ignores INT 2 or lower); **`escapeCheck`** (Maze: DC 20 INT check, rolled at the start of the caster's turn since a banished creature's turns are skipped; minotaurs and goristros escape without rolling, PHB p.258); a trigger's **`endsForCreatureOnSave`** (Weird ends for that creature only); **`roundReminders`** (Storm of Vengeance rounds 2–10, Earthquake's fissures); **`castRoll`** (Time Stop logs its 1d4 + 1 turns).
+- **`healsToFull`** (Power Word Heal, also ending charmed, frightened, paralyzed and stunned) and **`healingPool`** (Mass Heal's 700, split so none is wasted, least hurt first, p.258).
+- **`castsSpell`, the Wish proxy:** a Wish cast names another spell of 8th level or lower (option `"Spell"` or `"Spell: option"`), which runs at its own level, paid by Wish's slot, with Wish's one-action casting time (p.288); `SpellOption.duplicatesUpTo` and a spell field in the cast modal. Other uses of Wish are manual, with the stress reminder.
+- **`critRange`** and **`critDamageDice`** (Blade of Disaster: crits on 18+, 12d12 in all on a crit, not doubled dice, TCE p.106).
+- **Feebleminded** creatures can't cast spells (409, and their spells show as unavailable).
+- **Trigger cast rules:** area triggers now apply the spell's cast rules too (creature types, immunities, disintegration).
+- **Fix to [[#D187]]:** a creature immune to the holding condition no longer comes under a dominating caster's control (found with Mind Blank against Dominate Monster).
+- **Status:** automated 18 (Abi-Dalzim's Horrid Wilting, Dark Star, Dominate Monster, Incendiary Cloud, Maddening Darkness, Maze, Mind Blank, Power Word Stun, Sunburst, Blade of Disaster, Foresight, Invulnerability, Mass Heal, Meteor Swarm, Power Word Heal, Power Word Kill, Psychic Scream, Weird); partial 12 (Antimagic Field, Earthquake, Feeblemind, Holy Aura, Illusory Dragon, Reality Break, Prismatic Wall, Ravenous Void, Storm of Vengeance, Time Ravage, Time Stop, Wish); manual 16 with reasons (Animal Shapes, Antipathy/Sympathy, Clone, Control Weather, Demiplane, Glibness, Mighty Fortress, Telepathy, Tsunami, Astral Projection, Gate, Imprisonment, Mass Polymorph, Shapechange, True Polymorph, True Resurrection, the last pointing to the full-HP revive of [[#D189]]).
+- **Rules calls (choices):** Psychic Scream's exploding head isn't a kill outright, since "killed by this damage" means already dead, so a PC dropped to 0 is dying and the head is a reminder (XGE p.163); Storm of Vengeance's deafness ends with concentration though the text says 5 minutes, with a reminder (p.279); Earthquake's prone save is a no-cost repeat at the end of the caster's turn (p.236); Illusory Dragon's breath is rolled untyped (XGE p.157).
+
+**Rationale:** with [[#D185]]–[[#D189]], every spell from cantrips to 9th level now has a template, so concentration, durations, slots, Mystic Arcanum ([[#D186]]) and the log work for all of them, and most combat spells resolve automatically.
+
+**Trade-offs:** still open: Time Stop's extra turns, creature form replacement (Polymorph, True Polymorph, Shapechange, Animal Shapes), Feeblemind's INT and CHA of 1, Earthquake's forced concentration save, Prismatic Wall's sequential layers (the random ray table doesn't fit; only its blinding is automated), Antimagic suppression inside the field, Holy Aura's blinding retaliation, Wish's other uses, and Storm of Vengeance's and Tsunami's per-round damage. Greater Restoration's options don't include feeblemind, so ending it that way is a reminder. Golden counts: 525 templates; Careful and Heightened 187, Empowered 153, Extended 345, Quickened 395, Subtle 525, Twinned 186; 66 lasting spells. Not checked in a browser.
+
+**Key files:** `reference/SpellTemplate.java`, `encounter/internal/SpellCaster.java`, `SpellEffects.java`, `EffectApplier.java`, `SpellcastingService.java`, `rules/combat/Effect.java`, `Resolver.java`, `data/spell-effects/spell-effect-definitions.json`, `spellflow/ConfirmStep.tsx`, `SpellCastModal.tsx`
+
+**Related:** D177, D182, D184, D185, D186, D187, D188, D189, [[Spell Proxy]], [[Healing Pool]]
+
+**Tests:** new `HighLevelMechanicsTest` (12), `HighLevelSpellsIT` (12); 3,060 backend unit, 410 integration and 1,148 frontend.
