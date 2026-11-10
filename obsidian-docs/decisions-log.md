@@ -3490,3 +3490,34 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D176, D177, D182, D183, D184, D185, D186, [[Counted Save]], [[Controlled Creature]]
 
 **Tests:** new `FifthLevelMechanicsTest` (9), `FifthLevelSpellsIT` (15); 3,014 backend unit, 378 integration and 1,143 frontend.
+
+
+## D189: 7th-Level Spells
+
+**Date:** 2026-11-10
+**Status:** Accepted — implemented (no migration; spell templates v5). Built in parallel with D188 (6th level), which lands after it.
+
+**Context:** the next level of the higher-level spell sweep ([[#D185]], [[#D187]]). The survey of all 28 7th-level spells (PHB 20, XGE 4, one each EGW, FTD, IDRotF, TCE) found new gaps: effects by current HP, instant death, random ray tables, effects when a spell ends, the dead rising, and revival at full HP.
+
+**Decision:** every 7th-level spell has a template, with these generic template keys added:
+- **`maxTargetHp`** (creatures above it are unaffected: Power Word Pain) and **`noEffectOnConditions`** (Divine Word on the deafened).
+- **`hpThresholdEffects`:** bands of current HP `{maxHp, conditionsInflicted, killsOutright}`, the creature taking the lowest band it fits (Divine Word: 20 or fewer dies outright, 30 blinded/deafened/stunned 1 hour, 40 blinded/deafened 10 minutes, 50 deafened 1 minute, each condition with its own duration and no concentration). Killing outright ([[#D183]]'s dead, no death saves) is one path, `EffectApplier.killOutright`, which Death Ward ([[#D185]]) stops once.
+- **`banishes`** `{types, durationRounds}` (Divine Word's failing celestials, elementals, fey and fiends for 24 hours; Plane Shift's banish option with no end date), using [[#D185]]'s Banished; the condition **plane shifted** takes travellers out of the fight, which is how a monster escapes.
+- **`rayTable`:** a d8 per creature, rows `{roll, color, damageDice, damageType, conditionsInflicted, countedSaves, reminder, rollsTwice}`, with one DEX save against all of a creature's rays (Prismatic Spray: 10d6 of the ray's type; indigo restrains and counts CON saves ([[#D187]]), three failures petrifying through the new `countedSaves.failureCondition`; violet's banishment logged for the DM; 8 rolls twice, rerolling 8s).
+- **`detonation`** `{damageDice, damageType, saveAbility, halfOnSave, growsEachTurn, upcastScaling}`: damage when the spell ends, however it ends, growing each of the caster's turns (Delayed Blast Fireball: 12d6, +1d6 a turn, on the creatures picked at the cast).
+- **`raisesOnKill`** `{creatureTypes, form}`: a humanoid Finger of Death kills rises as a Zombie under the caster's command at the start of the caster's next turn ([[#D182]]); a dying PC isn't killed, so nothing rises.
+- **`followUpSave`** `{ability, conditionsInflicted, option, on: HIT|FAILED_SAVE}` (Whirlwind's STR save or restrained); **`conditionsByOption`** (Forcecage's box gives Enclosed, its cage `caged`, no save, 1 hour, no concentration).
+- **Ongoing Modifier kinds** `SPEED_MAX` (Power Word Pain's 10 ft) and `HEAL_EACH_TURN` (Regenerate's 1 HP at the start of each of the target's turns, also at 0 HP; copies don't stack, PHB p.205); summon kind `CONJURE_CELESTIAL` (CR 4, 5 at 9th level, placed by the DM, a 1-minute cast).
+- **Revival at full HP:** `POST /characters/{id}/revive?fullHitPoints=true` and a "Full HP" revive button for the DM (Resurrection, the −4 penalty as a reminder).
+- **Status:** automated 11 (Finger of Death, Fire Storm, Crown of Stars, Mordenkainen's Sword, Prismatic Spray, Delayed Blast Fireball, Divine Word, Power Word Pain, Forcecage, Plane Shift, Regenerate); partial 5 (Whirlwind, Reverse Gravity, Etherealness, Tether Essence, Draconic Transformation); Conjure Celestial as a summon; manual with reasons: Simulacrum, Create Magen, Resurrection (with the full-HP revive), Teleport, Symbol, Project Image, Mirage Arcane, Mordenkainen's Magnificent Mansion, Sequester, Dream of the Blue Veil, Temple of the Gods. A 7th-level Mystic Arcanum ([[#D186]]) casts Finger of Death without a slot.
+- **Rules calls (choices):** one DEX save per creature against all its Prismatic Spray rays (p.267); Divine Word's lowest band wins and its conditions keep their own durations (p.234); Death Ward stops a damageless kill, then ends (p.230); Delayed Blast Fireball also explodes when its minute runs out; Fire Storm spares plants by leaving them out of the targets; Regenerate heals while below the maximum, at 0 HP too.
+
+**Rationale:** generic keys again, reused at 8th and 9th (Power Word Kill and Stun use `maxTargetHp` and `killsOutright`; Prismatic Wall the ray table).
+
+**Trade-offs:** the Finger of Death zombie needs no bonus-action command and can't be re-placed through the summon step; Plane Shift's banish option doesn't limit the caster to one target; Divine Word's bands apply as the save resolves, so a Legendary Resistance used afterwards doesn't undo them; Power Word Pain doesn't check charm immunity; Power Word Pain's check disadvantage and the save before casting are reminders. Not checked in a browser.
+
+**Key files:** `reference/SpellTemplate.java`, `encounter/internal/SpellCaster.java`, `EffectApplier.java`, `SpellEffects.java`, `TurnProcessor.java`, `Summoner.java`, `encounter/state/SpellEffectEntry.java`, `rules/combat/OngoingModifiers.java`, `SummonRules.java`, `character/WriteBackService.java`, `data/spell-effects/spell-effect-definitions.json`, `utils/spellEffects.ts`, `CampaignDetailPage.tsx`
+
+**Related:** D182, D183, D185, D186, D187, [[Detonation]], [[HP Band]], [[Killed Outright]]
+
+**Tests:** new `SeventhLevelMechanicsTest` (12), `SeventhLevelSpellsIT` (10); 3,026 backend unit, 388 integration and 1,145 frontend.

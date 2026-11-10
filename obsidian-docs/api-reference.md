@@ -1850,3 +1850,8 @@ Before R3, "not found" and "not allowed" both returned 400 (`IllegalArgumentExce
 ### 5th-level spells (D187)
 
 `SpellEffectResponse` gains `tallies`, `tallyRule` (such as "CON 3/3") and `controlledIds`. `SummonOptions.SpiritPreview` gains `armourClasses`, and the summon kind gains four values. A spell with cast options (Greater Restoration, Destructive Wave and others) requires `option` on the cast.
+
+
+### 7th-level spells (D189)
+
+`POST /characters/{id}/revive` takes `fullHitPoints=true` to revive at the full HP maximum (Resurrection). `SpellEffectResponse` gains `detonation` (`DetonationResponse`: dice so far, type, save) and `risingIds`. The summon kind gains CONJURE_CELESTIAL.
