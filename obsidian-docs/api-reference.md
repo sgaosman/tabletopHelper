@@ -1855,3 +1855,8 @@ Before R3, "not found" and "not allowed" both returned 400 (`IllegalArgumentExce
 ### 7th-level spells (D189)
 
 `POST /characters/{id}/revive` takes `fullHitPoints=true` to revive at the full HP maximum (Resurrection). `SpellEffectResponse` gains `detonation` (`DetonationResponse`: dice so far, type, save) and `risingIds`. The summon kind gains CONJURE_CELESTIAL.
+
+
+### 6th-level spells (D188)
+
+`POST /encounters/{id}/combat/action-save {participantId, conditionId}` makes a repeat save that costs the creature's action on its turn (Otto's Irresistible Dance); a success ends the effect. `RepeatSpellEffectRequest` gains `option` and `SpellEffectResponse` gains `useOptions` (Eyebite). The summon kind gains CONJURE_FEY and CREATE_UNDEAD.
