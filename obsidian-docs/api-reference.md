@@ -1887,3 +1887,7 @@ No endpoint or DTO changed; what requests mean did:
 ### Cast-screen controls (D200)
 
 Spell options gain `targetRoles` `{primaryTargets, pickedWithinFeet, darts}` (null for most spells): how many of the targets are the spell's own and how near the rest must be, or the darts at each cast level (Magic Missile `{"1": 3, …, "9": 11}`). `SpellEffectResponse` gains `usableByIds` (the creatures that use it with their own action, as Dragon's Breath's touched creature) and `repeatableTriggers` (triggers whose `uses` multiplies, as Spike Growth's ENTER). A condition's `repeatSave` gains `check` and `skill`, in the response only: an action that rolls an ability check, not a save.
+
+### Frightened (D201)
+
+`POST /combat/condition/add` takes an optional `sourceParticipantId`, the creature a frightened target fears (400 for any other condition, the creature itself or an unknown participant). `PUT /combat/condition/fear-sight {participantId, conditionId, outOfSight}` marks a frightened condition's source out of sight or back (DM only, Active, undoable; 400 for a condition that isn't frightened). Participants gain `fears: [{conditionId, sourceId, sourceName, inSight, sight, markedOutOfSight}]`; the Player View blanks a hidden source.

@@ -416,6 +416,8 @@ export function useEncounterAction() {
       setHp: change(combatApi.setHp),
       addCondition: change(combatApi.addCondition),
       removeCondition: change(combatApi.removeCondition),
+      // The DM's mark that a fear's source is out of sight (D201)
+      markFearSight: change(combatApi.markFearSight),
       setExhaustion: change(combatApi.setExhaustion),
       setSpellConsent: change(combatApi.setSpellConsent),
       rollDeathSave: change(combatApi.rollDeathSave),

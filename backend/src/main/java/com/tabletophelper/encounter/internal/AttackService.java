@@ -879,8 +879,9 @@ public class AttackService {
             }
             return null;
         }
+        // A fear whose source is in sight gives disadvantage, which rules Sneak Attack out (PHB p.290, D201)
         RollMode mode = AttackRules.setup(delivery.attackerSources(), CreatureStats.side(actor),
-                CreatureStats.side(target), delivery.withinFiveFeet()).rollMode();
+                CreatureStats.side(target), delivery.withinFiveFeet(), Fears.attackSources(actor)).rollMode();
         if (!AttackFeatures.sneakAttackApplies(claim, mode)) {
             if (claimed) {
                 notes.add("no Sneak Attack with disadvantage");

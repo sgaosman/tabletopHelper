@@ -4,6 +4,12 @@ import type { Schemas } from '../api/schema';
 export type ConditionEntry = Schemas['ConditionEntry'];
 
 /**
+ * One of a participant's fears (D201): its frightened entry, what it is frightened of, and whether that is in sight,
+ * which gives it disadvantage on attack rolls and ability checks (PHB p.290).
+ */
+export type FearStatus = Schemas['FearResponse'];
+
+/**
  * The save a condition's creature repeats at the end of each of its turns to end it (D162). awaitingRoll is
  * set when the campaign leaves a player character's roll to its player.
  */

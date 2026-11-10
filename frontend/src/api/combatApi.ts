@@ -101,8 +101,16 @@ export const combatApi = {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/hp`, { targetId, hpCurrent, hpTemp });
   },
 
-  addCondition(encounterId: string, targetId: string, condition: string, duration?: number) {
-    return api.post<Encounter>(`/encounters/${encounterId}/combat/condition/add`, { targetId, condition, duration: duration ?? undefined });
+  // sourceParticipantId: on frightened, the creature it is frightened of (D201)
+  addCondition(encounterId: string, targetId: string, condition: string, duration?: number, sourceParticipantId?: string) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/condition/add`,
+      { targetId, condition, duration: duration ?? undefined, sourceParticipantId: sourceParticipantId ?? undefined });
+  },
+
+  /** The DM marks the source of a creature's fear out of its sight, or back in sight (PHB p.290, D201). */
+  markFearSight(encounterId: string, participantId: string, conditionId: string, outOfSight: boolean) {
+    return api.put<Encounter>(`/encounters/${encounterId}/combat/condition/fear-sight`,
+      { participantId, conditionId, outOfSight });
   },
 
   /** The DM sets a creature's exhaustion level, 0 to 6, while the encounter is prepared or under way (D183). */

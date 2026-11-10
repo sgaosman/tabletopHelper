@@ -6,6 +6,7 @@ import { http, HttpResponse } from 'msw';
 import { makeMockCondition, makeMockEncounter, makeMockParticipant } from '../../test/mocks/handlers';
 import { server } from '../../test/mocks/server';
 import { EncounterProvider } from '../../context/EncounterContext';
+import type { FearStatus } from '../../types/encounter';
 import ConditionChips from './ConditionChips';
 
 const restrained = makeMockCondition('restrained', { sourceSpellName: 'Entangle', duration: 10, appliedRound: 2 });
@@ -163,5 +164,68 @@ describe('ConditionChips', () => {
     expect(onRemove).toHaveBeenCalledWith(prone);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
-});
+  describe('a fear (D201)', () => {
+    const fear = makeMockCondition('frightened', { sourceSpellName: 'Cause Fear', sourceParticipantId: 'dragon' });
+    const inSight = {
+      conditionId: fear.id, sourceId: 'dragon', sourceName: 'Adult Red Dragon', inSight: true, sight: 'in sight',
+      markedOutOfSight: false,
+    } satisfies FearStatus;
 
+    it('names what the creature is frightened of and that it is in sight, with what that does', () => {
+      const vex = makeMockParticipant('p', 'Vex', 'PLAYER', { activeConditions: [fear], fears: [inSight] });
+      plainRender(<ConditionChips participant={vex} roundNumber={1} />);
+
+      const chip = screen.getByText('frightened of Adult Red Dragon (Cause Fear) · in sight');
+      expect(chip.getAttribute('title')).toContain('In sight: disadvantage on attack rolls and ability checks');
+      expect(chip.getAttribute('title')).toContain("It can't willingly move closer to Adult Red Dragon");
+    });
+
+    it("says why a source is out of sight, and reminds the table of Fear's Dash away", () => {
+      const ofFear = makeMockCondition('frightened', { sourceSpellName: 'Fear' });
+      const vex = makeMockParticipant('p', 'Vex', 'PLAYER', {
+        activeConditions: [ofFear],
+        fears: [{ ...inSight, conditionId: ofFear.id, sourceName: 'Mage', inSight: false, sight: 'the source is invisible' }],
+      });
+      plainRender(<ConditionChips participant={vex} roundNumber={1} />);
+
+      const chip = screen.getByText('frightened of Mage (Fear) · out of sight');
+      expect(chip.getAttribute('title')).toContain('Out of sight (the source is invisible): no disadvantage');
+      expect(chip.getAttribute('title')).toContain('On each of its turns it must Dash away from Mage');
+    });
+
+    it('a fear of no one named reads plainly, with whether it counts as in sight', () => {
+      const vex = makeMockParticipant('p', 'Vex', 'PLAYER', {
+        activeConditions: [fear],
+        fears: [{ ...inSight, sourceId: null, sourceName: null }],
+      });
+      plainRender(<ConditionChips participant={vex} roundNumber={1} />);
+      expect(screen.getByText('frightened (Cause Fear) · in sight').getAttribute('title'))
+        .toContain("It can't willingly move closer to the source of its fear");
+    });
+
+    it('gives the DM a button that marks the source out of sight, and back in sight once marked', async () => {
+      const onToggle = vi.fn();
+      const user = userEvent.setup();
+      const vex = makeMockParticipant('p', 'Vex', 'PLAYER', { activeConditions: [fear], fears: [inSight] });
+      const { rerender } = plainRender(<ConditionChips participant={vex} roundNumber={1} onToggleFearSight={onToggle} />);
+
+      await user.click(screen.getByRole('button', { name: 'Mark Adult Red Dragon out of sight' }));
+      expect(onToggle).toHaveBeenCalledWith(fear, true);
+
+      const marked = makeMockParticipant('p', 'Vex', 'PLAYER', {
+        activeConditions: [fear],
+        fears: [{ ...inSight, inSight: false, sight: 'marked out of sight by the DM', markedOutOfSight: true }],
+      });
+      rerender(<ConditionChips participant={marked} roundNumber={1} onToggleFearSight={onToggle} />);
+      expect(screen.getByText('frightened of Adult Red Dragon (Cause Fear) · out of sight')).toBeInTheDocument();
+      await user.click(await screen.findByRole('button', { name: 'Mark Adult Red Dragon back in sight' }));
+      await waitFor(() => expect(onToggle).toHaveBeenLastCalledWith(fear, false));
+    });
+
+    it('offers no sight button without onToggleFearSight, as in the Player View', () => {
+      const vex = makeMockParticipant('p', 'Vex', 'PLAYER', { activeConditions: [fear], fears: [inSight] });
+      plainRender(<ConditionChips participant={vex} roundNumber={1} />);
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    });
+  });
+});

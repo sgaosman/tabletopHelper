@@ -22,6 +22,7 @@ import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ValidationException;
 import com.tabletophelper.rules.combat.AttackRules;
 import com.tabletophelper.rules.combat.BeastShapes;
 import com.tabletophelper.rules.combat.ChannelDivinity;
@@ -29,6 +30,7 @@ import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
 import com.tabletophelper.rules.combat.DamageRules;
 import com.tabletophelper.rules.combat.Effect;
+import com.tabletophelper.rules.combat.Fear;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.OngoingModifier;
 import com.tabletophelper.rules.combat.OngoingModifiers;
@@ -891,14 +893,29 @@ public class EffectApplier {
      * condition ends the creature's concentration.
      */
     public void addCondition(Encounter encounter, EncounterParticipant target, String condition, Integer duration) {
+        addCondition(encounter, target, condition, duration, null);
+    }
+
+    /**
+     * As {@link #addCondition(Encounter, EncounterParticipant, String, Integer)}, with the creature that caused it, as
+     * the DM names the source of a fear (PHB p.290, D201), or null for none. A creature can fear more than one
+     * creature, so a frightened entry is added beside one with another source; one with the same source makes this do
+     * nothing.
+     */
+    public void addCondition(Encounter encounter, EncounterParticipant target, String condition, Integer duration,
+                             EncounterParticipant source) {
         String name = condition.trim().toLowerCase();
         List<ConditionEntry> conditions = conditions(target);
-        if (conditions.stream().anyMatch(c -> c.name().equalsIgnoreCase(name))) {
+        UUID sourceId = source != null ? source.getId() : null;
+        boolean byItsSource = Fear.isFrightened(name);
+        if (conditions.stream().anyMatch(c -> c.name().equalsIgnoreCase(name)
+                && (!byItsSource || Objects.equals(c.sourceParticipantId(), sourceId)))) {
             return;
         }
-        conditions.add(ConditionEntry.manual(name, duration, encounter.getRoundNumber()));
+        conditions.add(ConditionEntry.manual(name, duration, encounter.getRoundNumber(), sourceId));
         target.setActiveConditions(conditions);
         combatLog.write(encounter, CombatActionType.CONDITION_ADD, target.getDisplayName() + " gains condition: " + name
+                + (source != null ? " of " + source.getDisplayName() : "")
                 + (duration != null ? " (" + duration + " rounds)" : ""), null, target);
         if (INCAPACITATING.contains(name)) {
             endConcentration(encounter, target, name);
@@ -933,6 +950,39 @@ public class EffectApplier {
         combatLog.write(encounter, CombatActionType.CONDITION_REMOVE,
                 target.getDisplayName() + " loses condition: " + name, null, target);
         releaseFreed(encounter);
+    }
+
+    /**
+     * The DM marks the source of the creature's fear out of its line of sight, or back in sight (PHB p.290, D201): while
+     * marked out, the fear gives no disadvantage on its attack rolls and ability checks. Logged; nothing happens when
+     * the mark is already as asked.
+     */
+    public void markFearSourceOutOfSight(Encounter encounter, EncounterParticipant creature, UUID conditionId,
+                                         boolean outOfSight) {
+        List<ConditionEntry> conditions = conditions(creature);
+        for (int i = 0; i < conditions.size(); i++) {
+            ConditionEntry condition = conditions.get(i);
+            if (!condition.id().equals(conditionId)) {
+                continue;
+            }
+            if (condition.sourceMarkedOutOfSight() == outOfSight) {
+                return;
+            }
+            conditions.set(i, condition.withSourceOutOfSight(outOfSight));
+            creature.setActiveConditions(conditions);
+            String source = Fears.of(creature).stream()
+                    .filter(status -> status.condition().id().equals(conditionId) && status.label() != null)
+                    .map(Fears.Status::label)
+                    .findFirst()
+                    .orElse("the source of its fear");
+            combatLog.write(encounter, CombatActionType.CONDITION_ADD, "The DM marks " + source
+                    + (outOfSight ? " out of " : " back in ") + creature.getDisplayName() + "'s sight: its "
+                    + condition.name() + (outOfSight ? " no longer gives" : " gives")
+                    + " disadvantage on attack rolls and ability checks" + (outOfSight ? "" : " while it is in sight"),
+                    null, creature);
+            return;
+        }
+        throw new ValidationException("Condition not found");
     }
 
     // ── Turn boundaries ──────────────────────────────────────────
@@ -1091,16 +1141,16 @@ public class EffectApplier {
      * The ability check a creature makes with its action against its spell's save DC to end the condition (D199), as a
      * creature frightened by Wrathful Smite steels its resolve with a Wisdom check (PHB p.289) or one restrained by
      * Ensnaring Strike's vines pulls free with a Strength check (PHB p.237): a d20 and the ability's modifier, no save
-     * proficiency or save bonus, with disadvantage when the creature is frightened or poisoned or has exhaustion (PHB
-     * p.290, p.292, p.291), the source of a fear being in sight there being no map. A success ends the condition; the
-     * caller ends the spell with it.
+     * proficiency or save bonus, with disadvantage when the creature is poisoned or has exhaustion (PHB p.292, p.291),
+     * or is frightened with the source of its fear in sight (PHB p.290, {@link Fears}, D201). A success ends the
+     * condition; the caller ends the spell with it.
      */
     private void abilityCheckToEnd(Encounter encounter, EncounterParticipant participant,
                                    List<ConditionEntry> conditions, ConditionEntry condition) {
         RepeatSave save = condition.repeatSave();
         List<String> names = CreatureStats.conditionNames(participant);
-        boolean hindered = names.stream().anyMatch(name -> name.equalsIgnoreCase("frightened")
-                || name.equalsIgnoreCase("poisoned")) || Exhaustion.clamp(participant.getExhaustionLevel()) >= 1;
+        boolean hindered = names.stream().anyMatch(name -> name.equalsIgnoreCase("poisoned"))
+                || Exhaustion.clamp(participant.getExhaustionLevel()) >= 1 || Fears.anyInSight(participant);
         int first = resolver.d20();
         int d20 = hindered ? Math.min(first, resolver.d20()) : first;
         int modifier = Ability.modifier(stats.abilityScore(participant, save.ability()));

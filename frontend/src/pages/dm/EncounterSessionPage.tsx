@@ -197,7 +197,11 @@ function ActionPanel({
                 onChange={consent => actions.setSpellConsent(selectedTarget.id, consent)} />
             </div>
           )}
-          <ConditionForm onSubmit={(condition, duration) => actions.addCondition(selectedTarget.id, condition, duration)} />
+          {/* Frightened asks what the creature is frightened of (D201) */}
+          <ConditionForm
+            sources={participants.filter(p => p.id !== selectedTarget.id)}
+            onSubmit={(condition, duration, source) => actions.addCondition(selectedTarget.id, condition, duration, source)}
+          />
         </>
       )}
       {actionMode === 'concentration' && (
@@ -794,6 +798,8 @@ function DmSessionView() {
                     roundNumber={encounter.roundNumber}
                     onRemove={isActive ? c => actions.removeCondition(p.id, c.name) : undefined}
                     showRepeatSave={isActive}
+                    // The DM's mark that a fear's source is out of sight, there being no map (D201)
+                    onToggleFearSight={isActive ? (c, outOfSight) => actions.markFearSight(p.id, c.id, outOfSight) : undefined}
                   />
                   <ActiveSpells
                     participant={p}

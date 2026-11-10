@@ -1936,6 +1936,47 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/condition/fear-sight": {
+      "put": {
+        "operationId": "markFearSourceSight",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FearSightRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/condition/remove": {
       "post": {
         "operationId": "removeCondition",
@@ -8070,6 +8111,10 @@
               }
             ]
           },
+          "sourceOutOfSight": {
+            "type": "boolean",
+            "nullable": true
+          },
           "sourceParticipantId": {
             "type": "string",
             "format": "uuid",
@@ -8111,6 +8156,11 @@
           "duration": {
             "type": "integer",
             "format": "int32",
+            "nullable": true
+          },
+          "sourceParticipantId": {
+            "type": "string",
+            "format": "uuid",
             "nullable": true
           },
           "targetId": {
@@ -8776,6 +8826,60 @@
             "minimum": 0,
             "type": "integer",
             "format": "int32"
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "FearResponse": {
+        "required": [
+          "conditionId",
+          "inSight",
+          "markedOutOfSight",
+          "sight"
+        ],
+        "type": "object",
+        "properties": {
+          "conditionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inSight": {
+            "type": "boolean"
+          },
+          "markedOutOfSight": {
+            "type": "boolean"
+          },
+          "sight": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "sourceName": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "FearSightRequest": {
+        "required": [
+          "conditionId",
+          "outOfSight",
+          "participantId"
+        ],
+        "type": "object",
+        "properties": {
+          "conditionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outOfSight": {
+            "type": "boolean"
           },
           "participantId": {
             "type": "string",
@@ -11071,6 +11175,13 @@
           "exhaustionLevel": {
             "type": "integer",
             "format": "int32"
+          },
+          "fears": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/FearResponse"
+            }
           },
           "fightingStyles": {
             "type": "array",

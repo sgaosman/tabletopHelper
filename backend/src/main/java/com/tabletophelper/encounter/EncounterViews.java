@@ -261,13 +261,17 @@ public final class EncounterViews {
 
     /*
      * The Ongoing Modifiers' parts of a participant without the hidden participants (D157, D184): a chip names no hidden
-     * caster, and a Spell Effect lists no hidden creature among those it affects.
+     * caster, and a Spell Effect lists no hidden creature among those it affects. A fear names no hidden source (D201).
      */
     private static ParticipantResponse withoutHidden(ParticipantResponse participant, Set<UUID> hidden) {
         if (hidden.isEmpty()) {
             return participant;
         }
         return participant.toBuilder()
+                .fears(participant.getFears() == null ? null : participant.getFears().stream()
+                        .map(fear -> hidden.contains(fear.getSourceId())
+                                ? fear.toBuilder().sourceId(null).sourceName(null).build() : fear)
+                        .toList())
                 .spellModifiers(participant.getSpellModifiers() == null ? null : participant.getSpellModifiers()
                         .stream()
                         .map(chip -> hidden.contains(chip.getCasterId()) ? chip.toBuilder().casterId(null).build()

@@ -148,8 +148,9 @@ public final class AttackRules {
      *       {@link StandardActions#dodging}); one that attacked recklessly gives advantage until its next turn (PHB
      *       p.48, {@link ClassFeatures#reckless}).</li>
      * </ul>
-     * A hit on an unconscious or paralyzed target from within 5 feet is a critical hit. Frightened stays with the
-     * attacker's own choice, since whether it can see the source of its fear isn't known.
+     * A hit on an unconscious or paralyzed target from within 5 feet is a critical hit. Frightened isn't read here: its
+     * disadvantage depends on whether the source of the fear is in sight ({@link Fear}), so the encounter adds it as a
+     * named source, "attacker frightened (Adult Red Dragon in sight)" (PHB p.290, D201).
      */
     public static Setup setup(Collection<RollMode> sources, Side attacker, Side target, boolean withinFiveFeet) {
         return setup(sources, attacker, target, withinFiveFeet, List.of());

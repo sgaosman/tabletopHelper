@@ -3846,3 +3846,29 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D177, D199
 
 **Tests:** `RiderAndMissileSpellsTest` (TargetRoles, 3), `RiderAndMissileSpellsIT` (+2), `AreaSpellsIT` and `ConditionSpellsIT` assertions; 26 frontend tests (`targetRoles.test.ts`, `TargetStep`, `SpellCastModal`, `RepeatEffectModal`, `ConditionChips`, the player page). 3,267 backend unit, 505 integration and 1,189 frontend tests. Checked in a browser on the rehearsal copy: a Mage's Magic Missile shared 2 and 1 darts between two goblins, each dart rolled and logged on its own.
+
+
+## D201: Frightened, Automated
+
+**Date:** 2026-11-11
+**Status:** Accepted — implemented (no migration)
+
+**Context:** a frightened creature has disadvantage on ability checks and attack rolls while the source of its fear is within line of sight, and can't willingly move closer to it (PHB p.290). Until now the attack setup left frightened to the attacker's own choice, since whether it could see the source wasn't known. The user asked for it automated as far as the app can without a map; the work ran unattended overnight, so rules calls are recorded here.
+
+**Decision:**
+- **The source:** a frightened condition's `sourceParticipantId` names who frightened it. Spells (Cause Fear, Fear, Wrathful Smite, Eyebite, Weird…), monster actions (Frightful Presence) and Channel Divinity (Abjure Enemy) already recorded their caster or user; tests now pin it. The DM's Add Condition takes an optional "Frightened of" creature (`sourceParticipantId`, frightened only, not the creature itself); a creature may fear several creatures, each its own entry.
+- **In sight** (`rules/combat/Fear.java`, `encounter/internal/Fears.java`), in this order: the DM's per-condition "out of sight" mark (`PUT /combat/condition/fear-sight`, undoable); the frightened creature blinded without blindsight (PHB p.290, MM p.8); the source not there to see (dead, dismissed, banished, plane shifted, removed, Blinking on the Ethereal Plane); the source invisible to a creature without blindsight, truesight (while it can see) or See Invisibility, Faerie Fire's outline keeping it visible (PHB p.239). A fear with no recorded source counts as in sight, though blindness and the mark still end that.
+- **Illusions:** Phantasmal Killer, Weird and Illusory Dragon frighten with the spell's illusion, not the caster, so only blindness and the DM's mark take their source out of sight.
+- **The effect:** while in sight, disadvantage on the creature's attack rolls against anyone, named "attacker frightened (Adult Red Dragon in sight)", and on the ability checks the app rolls ([[#D199]]'s `AbilityChecks`: initiative, Hide, Counterspell and Dispel Magic, contests, escapes, action checks such as Wrathful Smite's). Saves are unaffected. Sneak Attack counts the disadvantage.
+- **Poisoned's checks:** `AbilityChecks` now gives a poisoned creature disadvantage on those checks too (PHB p.292), which it lacked.
+- **UI:** the condition form shows "Frightened of" for frightened; the chip reads "frightened of X (spell) · in sight" or "· out of sight", its tooltip naming the disadvantage, "It can't willingly move closer to X" and, for Fear and Eyebite, the Dash away; the DM has an eye button to mark the source out of sight or back. The Player View blanks a hidden source's name.
+
+**Rationale:** perception the app already models (blindness, invisibility, senses, absence) decides most cases; walls and cover need a map, so the DM's mark covers them.
+
+**Trade-offs:** "line of sight" is read as the creature being able to see the source, so blindness ends it. A Blinking source counts as gone even to truesight. The illusion spells are a fixed list of three in `Fear.java`. The mark is logged as a condition entry, a new log type needing a migration. "Can't move closer", Fear's Dash and dropped items, its repeat save out of the caster's sight, Eyebite's 60 ft and Illusory Dragon's line of sight stay with the DM and are on the map list.
+
+**Key files:** `rules/combat/Fear.java`, `encounter/internal/Fears.java`, `AbilityChecks.java`, `CreatureStats.java`, `AttackService.java`, `EffectApplier.java`, `ConditionService.java`, `encounter/state/ConditionEntry.java`, `encounter/dto/FearSightRequest.java`, `components/encounter/ConditionForm.tsx`, `ConditionChips.tsx`, `utils/conditions.ts`
+
+**Related:** D161, D183, D199, D200
+
+**Tests:** `FearTest` (7), `FrightenedTest` (20, poisoned's checks included), `FrightenedIT` (5); `ConditionForm.test.tsx` (+3), `ConditionChips.test.tsx` (+5).

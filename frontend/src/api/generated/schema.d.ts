@@ -772,6 +772,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/condition/fear-sight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["markFearSourceSight"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/condition/remove": {
         parameters: {
             query?: never;
@@ -2945,6 +2961,7 @@ export interface components {
             name: string;
             repeatSave?: components["schemas"]["RepeatSave"] | null;
             saveOnDamage?: components["schemas"]["DamageSave"] | null;
+            sourceOutOfSight?: boolean | null;
             /** Format: uuid */
             sourceParticipantId?: string | null;
             sourceRequiresConcentration?: boolean | null;
@@ -2956,6 +2973,8 @@ export interface components {
             condition: string;
             /** Format: int32 */
             duration?: number | null;
+            /** Format: uuid */
+            sourceParticipantId?: string | null;
             /** Format: uuid */
             targetId: string;
         };
@@ -3142,6 +3161,23 @@ export interface components {
         ExhaustionRequest: {
             /** Format: int32 */
             level: number;
+            /** Format: uuid */
+            participantId: string;
+        };
+        FearResponse: {
+            /** Format: uuid */
+            conditionId: string;
+            inSight: boolean;
+            markedOutOfSight: boolean;
+            sight: string;
+            /** Format: uuid */
+            sourceId?: string | null;
+            sourceName?: string | null;
+        };
+        FearSightRequest: {
+            /** Format: uuid */
+            conditionId: string;
+            outOfSight: boolean;
             /** Format: uuid */
             participantId: string;
         };
@@ -3763,6 +3799,7 @@ export interface components {
             displayName: string;
             /** Format: int32 */
             exhaustionLevel: number;
+            fears?: components["schemas"]["FearResponse"][] | null;
             fightingStyles?: string[] | null;
             form?: components["schemas"]["WildShapeForm"] | null;
             formName?: string | null;
@@ -5844,6 +5881,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ConditionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    markFearSourceSight: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FearSightRequest"];
             };
         };
         responses: {

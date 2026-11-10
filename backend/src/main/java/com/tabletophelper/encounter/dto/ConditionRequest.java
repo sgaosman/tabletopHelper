@@ -16,4 +16,8 @@ public class ConditionRequest {
     private String condition;
 
     private Integer duration;
+
+    // On adding frightened, the participant the creature is frightened of, so its disadvantage applies only while that
+    // source is in sight (PHB p.290, D201); null for none recorded. Refused for any other condition
+    private UUID sourceParticipantId;
 }

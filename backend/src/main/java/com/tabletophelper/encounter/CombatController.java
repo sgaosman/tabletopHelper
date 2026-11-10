@@ -221,6 +221,17 @@ public class CombatController {
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    // The DM marks the source of a creature's fear out of its sight, or back in sight (PHB p.290, D201)
+    @PutMapping("/condition/fear-sight")
+    public ResponseEntity<EncounterResponse> markFearSourceSight(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody FearSightRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = conditionService.markFearSourceSight(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
     @PostMapping("/condition/remove")
     public ResponseEntity<EncounterResponse> removeCondition(
             @PathVariable UUID encounterId,

@@ -14,7 +14,9 @@ import java.util.function.IntSupplier;
 
 /**
  * The d20 of an ability check the engine rolls (D199), with the advantage and disadvantage the creature has on it:
- * any exhaustion gives disadvantage on every ability check (PHB p.291, D183), and its Ongoing Modifiers' CHECK_MODEs
+ * any exhaustion gives disadvantage on every ability check (PHB p.291, D183), so does being poisoned (PHB p.292,
+ * D201) and being frightened while the
+ * source of the fear is in sight (PHB p.290, {@link Fears}, D201), and its Ongoing Modifiers' CHECK_MODEs
  * give theirs, as Enhance Ability's advantage on one ability's checks (PHB p.237) or Heat Metal's disadvantage while
  * the creature keeps hold of the hot object (PHB p.250). Any advantage and any disadvantage cancel (PHB p.173). The
  * checks are initiative, Hide's Dexterity (Stealth), the spellcasting ability checks of Counterspell and Dispel Magic,
@@ -35,7 +37,8 @@ public final class AbilityChecks {
 
     /**
      * The named sources of advantage and disadvantage on the creature's check of the ability, and of the skill when it
-     * has one, as {@link OngoingModifiers#checkSources} reads them, with its exhaustion's disadvantage first.
+     * has one, as {@link OngoingModifiers#checkSources} reads them, with its exhaustion's disadvantage first and its
+     * fears' next (D201).
      *
      * @param ability the check's ability; null when it isn't known, as a spellcasting check with no ability given
      * @param skill   the skill, or {@link com.tabletophelper.rules.combat.OngoingModifier#INITIATIVE_CHECK}; null for
@@ -47,6 +50,12 @@ public final class AbilityChecks {
         if (Exhaustion.abilityCheckDisadvantage(exhaustion)) {
             sources.add(new AttackRules.Source(RollMode.DISADVANTAGE, Exhaustion.conditionName(exhaustion)));
         }
+        // A poisoned creature has disadvantage on ability checks (PHB p.292, D201)
+        if (CreatureStats.conditionNames(creature).stream().anyMatch("poisoned"::equalsIgnoreCase)) {
+            sources.add(new AttackRules.Source(RollMode.DISADVANTAGE, "poisoned"));
+        }
+        // A fear whose source is in sight (PHB p.290, D201), such as "frightened (Adult Red Dragon in sight)"
+        sources.addAll(Fears.checkSources(creature));
         sources.addAll(OngoingModifiers.checkSources(ability != null ? ability.name() : null, skill,
                 ActiveModifiers.labelledOn(creature)));
         return sources;

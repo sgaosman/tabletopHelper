@@ -143,6 +143,9 @@ public class EncounterResponse {
 
         private List<ConditionEntry> activeConditions;
 
+        // Each frightened entry's source and whether it is in sight (PHB p.290, D201); null for none
+        private List<FearResponse> fears;
+
         // Its exhaustion level, 0 to 6 (PHB p.291, D183), shown to players for every creature they see
         @Schema(requiredMode = REQUIRED)
         private Integer exhaustionLevel;
@@ -387,6 +390,39 @@ public class EncounterResponse {
 
         // The dice it gains at the end of each of its caster's turns, such as "1d6"; null for none
         private String grows;
+    }
+
+    /**
+     * A participant's frightened entry, with what it is frightened of and whether that is within its line of sight
+     * (PHB p.290, D201): while it is, the creature has disadvantage on its attack rolls and ability checks.
+     */
+    @Data
+    @Builder(toBuilder = true)
+    public static class FearResponse {
+
+        // The frightened entry in activeConditions
+        @Schema(requiredMode = REQUIRED)
+        private UUID conditionId;
+
+        // The creature it fears, or the caster of an illusion it fears; null when none is recorded, the creature has
+        // left the encounter, or in the Player View one hidden from players (D157)
+        private UUID sourceId;
+
+        // What it fears, such as "Adult Red Dragon" or "Merlin's Illusory Dragon"; null as sourceId is
+        private String sourceName;
+
+        // Whether the source is in sight, so the fear gives disadvantage
+        @Schema(requiredMode = REQUIRED)
+        private boolean inSight;
+
+        // Why, in words: "in sight", "marked out of sight by the DM", "the creature is blinded", "the source isn't
+        // there to see" or "the source is invisible"
+        @Schema(requiredMode = REQUIRED)
+        private String sight;
+
+        // Whether the DM has marked the source out of sight
+        @Schema(requiredMode = REQUIRED)
+        private boolean markedOutOfSight;
     }
 
     /** A spell whose Ongoing Modifiers are on a participant (D184), shown as a chip such as "Bless". */

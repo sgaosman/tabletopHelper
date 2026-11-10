@@ -21,6 +21,7 @@ import com.tabletophelper.encounter.internal.ChannelDivinityEffects;
 import com.tabletophelper.encounter.internal.CommandRecorder;
 import com.tabletophelper.encounter.internal.EffectApplier;
 import com.tabletophelper.encounter.internal.EncounterTurns;
+import com.tabletophelper.encounter.internal.Fears;
 import com.tabletophelper.encounter.internal.FeatureEffects;
 import com.tabletophelper.encounter.internal.MetamagicCasting;
 import com.tabletophelper.encounter.internal.MonsterPools;
@@ -745,6 +746,7 @@ public class EncounterService {
                         .hpTemp(p.getHpTemp())
                         .armourClass(CreatureStats.armourClass(p))
                         .activeConditions(withActionChecks(p.getActiveConditions()))
+                        .fears(fearResponses(p))
                         .exhaustionLevel(Exhaustion.clamp(p.getExhaustionLevel()))
                         .concentrationSpell(p.getConcentration() != null ? p.getConcentration().spell() : null)
                         .concentrationSlotLevel(p.getConcentration() != null ? p.getConcentration().slotLevel() : null)
@@ -867,6 +869,22 @@ public class EncounterService {
      * p.264), as the action-save rolls them (D199). Read from the spell's template, so a condition stored before keeps
      * its check too; the stored conditions are not changed.
      */
+    // Each frightened entry's source and whether it is in sight (PHB p.290, D201); null for none
+    private static List<EncounterResponse.FearResponse> fearResponses(EncounterParticipant participant) {
+        List<Fears.Status> fears = Fears.of(participant);
+        if (fears.isEmpty()) {
+            return null;
+        }
+        return fears.stream().map(fear -> EncounterResponse.FearResponse.builder()
+                .conditionId(fear.condition().id())
+                .sourceId(fear.source() != null ? fear.source().getId() : null)
+                .sourceName(fear.label())
+                .inSight(fear.inSight())
+                .sight(fear.sight().words())
+                .markedOutOfSight(fear.condition().sourceMarkedOutOfSight())
+                .build()).toList();
+    }
+
     private List<ConditionEntry> withActionChecks(List<ConditionEntry> conditions) {
         if (conditions == null) {
             return null;

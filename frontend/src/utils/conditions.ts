@@ -1,4 +1,4 @@
-import type { RepeatSave } from '../types/encounter';
+import type { ConditionEntry, EncounterParticipant, FearStatus, RepeatSave } from '../types/encounter';
 
 /** The 14 conditions of the 2014 rules, as the server names them. */
 export const ALL_CONDITIONS = [
@@ -21,4 +21,41 @@ export const DAMAGE_TYPES = [
 export function repeatRollName(save: RepeatSave): string {
   if (save.skill) return `${save.ability} (${save.skill}) check`;
   return save.check ? `${save.ability} check` : `${save.ability} save`;
+}
+
+/** A participant's fear for its frightened entry (D201), if the server sent one. */
+export function fearFor(participant: EncounterParticipant, condition: ConditionEntry): FearStatus | undefined {
+  return participant.fears?.find(fear => fear.conditionId === condition.id);
+}
+
+// The spells whose fear makes the creature Dash away from its source on its turns
+const DASHES_AWAY: Record<string, string> = {
+  Fear: 'PHB p.239',
+  Eyebite: 'PHB p.238',
+};
+
+/**
+ * What the table applies by hand while a creature is frightened, there being no map (PHB p.290, D201): it can't
+ * willingly move closer to the source of its fear, and Fear's or Eyebite's panic makes it Dash away from the caster on
+ * each of its turns.
+ */
+export function fearReminders(condition: ConditionEntry, fear?: FearStatus): string[] {
+  const source = fear?.sourceName ?? 'the source of its fear';
+  const reminders = [`It can't willingly move closer to ${source}`];
+  const page = condition.sourceSpellName ? DASHES_AWAY[condition.sourceSpellName] : undefined;
+  if (page) {
+    reminders.push(`On each of its turns it must Dash away from ${source} by the safest route `
+      + `(${condition.sourceSpellName}, ${page})`);
+  }
+  return reminders;
+}
+
+/**
+ * Whether the fear's source is in sight, in words for its chip and tooltip (D201): "in sight", which gives disadvantage
+ * on attack rolls and ability checks, or "out of sight" with why.
+ */
+export function fearSightNote(fear: FearStatus): string {
+  return fear.inSight
+    ? 'In sight: disadvantage on attack rolls and ability checks'
+    : `Out of sight (${fear.sight}): no disadvantage`;
 }

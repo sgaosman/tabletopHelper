@@ -10,9 +10,11 @@ import com.tabletophelper.encounter.EncounterService;
 import com.tabletophelper.encounter.dto.ConditionRequest;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.dto.ExhaustionRequest;
+import com.tabletophelper.encounter.dto.FearSightRequest;
 import com.tabletophelper.encounter.dto.RepeatSaveRequest;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.rules.Exhaustion;
+import com.tabletophelper.rules.combat.Fear;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
@@ -46,8 +48,40 @@ public class ConditionService {
             throw new ValidationException("Exhaustion has six levels; the DM sets a creature's level with the "
                     + "exhaustion control");
         }
-        effectApplier.addCondition(encounter, CombatAccess.participant(encounter, request.getTargetId()),
-                request.getCondition(), request.getDuration());
+        EncounterParticipant target = CombatAccess.participant(encounter, request.getTargetId());
+        EncounterParticipant source = null;
+        if (request.getSourceParticipantId() != null) {
+            // The source of a fear, so its disadvantage applies only while that creature is in sight (PHB p.290, D201)
+            if (!Fear.isFrightened(condition)) {
+                throw new ValidationException("Only frightened records the creature it is of");
+            }
+            source = CombatAccess.target(encounter, request.getSourceParticipantId(), userId);
+            if (source.getId().equals(target.getId())) {
+                throw new ValidationException("A creature can't be frightened of itself");
+            }
+        }
+        effectApplier.addCondition(encounter, target, request.getCondition(), request.getDuration(), source);
+        return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    /**
+     * The DM marks the source of a creature's fear out of its line of sight, or back in sight (PHB p.290, D201): there
+     * is no map, so the DM says when a wall or a corner hides it. Logged and undoable (D176). An unknown condition is a
+     * 400, and so is one that isn't frightened.
+     */
+    @Transactional
+    public EncounterResponse markFearSourceSight(UUID encounterId, FearSightRequest request, UUID userId) {
+        Encounter encounter = access.beginAsDm(encounterId, userId);
+        EncounterParticipant participant = CombatAccess.participant(encounter, request.participantId());
+        ConditionEntry condition = (participant.getActiveConditions() != null
+                ? participant.getActiveConditions() : List.<ConditionEntry>of()).stream()
+                .filter(c -> request.conditionId().equals(c.id()))
+                .findFirst()
+                .orElseThrow(() -> new ValidationException("Condition not found"));
+        if (!Fear.isFrightened(condition.name())) {
+            throw new ValidationException("Only a frightened condition has a source to see");
+        }
+        effectApplier.markFearSourceOutOfSight(encounter, participant, condition.id(), request.outOfSight());
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 

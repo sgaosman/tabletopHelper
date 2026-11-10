@@ -445,6 +445,8 @@ public class CreatureStats {
         if (packTactics(attacker, target)) {
             sources.add(new AttackRules.Source(RollMode.ADVANTAGE, PACK_TACTICS));
         }
+        // A frightened attacker whose fear's source is in sight has disadvantage, against anyone (PHB p.290, D201)
+        sources.addAll(Fears.attackSources(attacker));
         Set<UUID> oneShots = new HashSet<>();
         for (ActiveModifiers.Found found : attackers) {
             OngoingModifier modifier = found.modifier();

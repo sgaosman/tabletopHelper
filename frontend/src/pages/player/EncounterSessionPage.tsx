@@ -76,10 +76,11 @@ function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClo
           allowManualModifiers={encounter.allowPlayerManualModifiers} onDone={onClose} />
       )}
       {actionMode === 'condition' && (
-        <ConditionForm onSubmit={async (condition, duration) => {
-          await actions.addCondition(target.id, condition, duration);
-          onClose();
-        }} />
+        <ConditionForm sources={encounter.participants.filter(p => p.id !== target.id)}
+          onSubmit={async (condition, duration, source) => {
+            await actions.addCondition(target.id, condition, duration, source);
+            onClose();
+          }} />
       )}
       {actionMode === 'concentration' && (
         <ConcentrationForm onSubmit={async spellName => {
