@@ -365,7 +365,7 @@ class SpellEffectsTest {
         }
 
         @Test
-        @DisplayName("The bundled data's 69 lasting spells each leave a Spell Effect its caster directs at the cost "
+        @DisplayName("The bundled data's 71 lasting spells each leave a Spell Effect its caster directs at the cost "
                 + "the spell's text gives, or whose area acts by itself at the moments it gives, or both (M15)")
         void bundledLastingSpells() throws IOException {
             Map<String, ActionCost> costs = new LinkedHashMap<>();
@@ -454,8 +454,12 @@ class SpellEffectsTest {
             // Storm of Vengeance's and Tsunami's uses deal their round's damage at no cost (PHB p.279, p.284, D195)
             expected.put("Storm of Vengeance", ActionCost.NONE);
             expected.put("Tsunami", ActionCost.NONE);
-            // Web's webs repeat its DEX save for a creature entering them or starting its turn there (PHB p.287, D197)
-            assertEquals(69, triggers.size());
+            // Dragon's Breath's exhalation takes the touched creature's action (XGE p.154, D199)
+            expected.put("Dragon's Breath", ActionCost.ACTION);
+            // Web's webs repeat its DEX save for a creature entering them or starting its turn there (PHB p.287, D197),
+            // and Fog Cloud blinds a creature entering it (PHB p.243, D199); with Dragon's Breath, 71 lasting spells
+            assertEquals(71, triggers.size());
+            assertEquals(List.of(SpellTrigger.ENTER), triggers.get("Fog Cloud"));
             assertEquals(List.of(SpellTrigger.ENTER, SpellTrigger.START_OF_TURN), triggers.get("Web"));
             assertEquals(List.of(SpellTrigger.END_OF_TURN), triggers.get("Weird"));
             assertEquals(List.of(SpellTrigger.ENTER, SpellTrigger.START_OF_TURN), triggers.get("Ravenous Void"));

@@ -1,6 +1,7 @@
 package com.tabletophelper.encounter.internal;
 
 import com.tabletophelper.character.state.ResourcePoolEntry;
+import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.Encounter;
@@ -205,8 +206,11 @@ public class EffectApplier {
         boolean harmfulSpell = use.actor() != null && use.actionType() == CombatActionType.SPELL_CAST
                 && outcomes.size() == 1 && (!effect.damage().isEmpty() || !effect.conditions().isEmpty());
         List<Applied> applied = new ArrayList<>();
+        // The temporary hit points each target has before the hit, which Armor of Agathys' cold needs (PHB p.215, D199)
+        Map<UUID, Integer> tempBefore = new java.util.HashMap<>();
         for (Resolver.TargetOutcome outcome : outcomes) {
             EncounterParticipant target = CombatAccess.participant(encounter, outcome.targetId());
+            tempBefore.put(target.getId(), target.getHpTemp() != null ? target.getHpTemp() : 0);
             // Sanctuary's WIS save comes first, for an attack roll or a one-target harmful spell (PHB p.272), then an
             // attack roll against Mirror Image's caster may target a duplicate instead (PHB p.260) (D196)
             String warded = (attack || harmfulSpell) && defensiveSpells != null
@@ -219,7 +223,7 @@ public class EffectApplier {
         }
         endOnAttackOrCast(encounter, use.actor(), ending, "it attacks");
         if (attack) {
-            retaliate(encounter, use.actor(), (Effect.Attack) effect.delivery(), applied);
+            retaliate(encounter, use.actor(), (Effect.Attack) effect.delivery(), applied, tempBefore);
         }
         endExtraTurnsIfOthers(encounter, use.actor(), applied);
         return applied;
@@ -288,8 +292,9 @@ public class EffectApplier {
      * within 10 feet are the DM's. The attacker's own defences count, and a dead attacker takes nothing.
      */
     private void retaliate(Encounter encounter, EncounterParticipant attacker, Effect.Attack attack,
-                           List<Applied> applied) {
+                           List<Applied> applied, Map<UUID, Integer> tempBefore) {
         if (!attack.withinFiveFeet() || attacker == null) {
+            endSpentTempHpWards(encounter, applied);
             return;
         }
         for (Applied hit : applied) {
@@ -303,6 +308,11 @@ public class EffectApplier {
                 if (retaliation == null || retaliation.dice() == null || attacker.getLifeState() == LifeState.DEAD) {
                     continue;
                 }
+                // Armor of Agathys strikes back only at a hit while its caster has the temporary hit points, the hit
+                // that takes the last of them included (PHB p.215, D199)
+                if (retaliation.needsTempHp() && tempBefore.getOrDefault(hit.target().getId(), 0) <= 0) {
+                    continue;
+                }
                 com.tabletophelper.rules.Dice dice = com.tabletophelper.rules.Dice.parse(retaliation.dice());
                 Effect back = new Effect(protection.spell(), new Effect.Automatic(),
                         List.of(new Effect.DamagePart(dice, retaliation.type())), null, List.of(), false, null);
@@ -310,6 +320,26 @@ public class EffectApplier {
                         CombatActionType.SPELL_EFFECT_REPEAT, "strikes back at", "", protection.spell(), null);
                 applyTo(encounter, use, back, resolver.resolve(back, List.of(stats.target(attacker, back))).getFirst(),
                         null, SpellEffects.CastRules.NONE);
+            }
+        }
+        endSpentTempHpWards(encounter, applied);
+    }
+
+    /*
+     * A ward that lasts only while its caster has temporary hit points ends once they are gone, as Armor of Agathys
+     * does (PHB p.215, D199): checked after every hit, melee or not. Damage of other kinds that takes the last of them
+     * leaves the effect until the next hit, which it then does nothing to.
+     */
+    private void endSpentTempHpWards(Encounter encounter, List<Applied> applied) {
+        for (Applied hit : applied) {
+            EncounterParticipant creature = hit.target();
+            if (creature.getHpTemp() != null && creature.getHpTemp() > 0) {
+                continue;
+            }
+            for (SpellEffectEntry ward : effects(creature)) {
+                if (ward.retaliation() != null && ward.retaliation().needsTempHp()) {
+                    endWholeEffect(encounter, creature, ward, "its temporary hit points are gone");
+                }
             }
         }
     }
@@ -1217,6 +1247,72 @@ public class EffectApplier {
         replaceEffect(caster, changed);
         return changed;
     }
+
+    /**
+     * Puts on a Spell Effect without Ongoing Modifiers the option its cast chose and the creatures it touched (D199), as
+     * Dragon's Breath's damage type and the creature that may exhale it (XGE p.154), or Alter Self's natural weapons
+     * (PHB p.211).
+     */
+    public void holdFor(EncounterParticipant caster, UUID effectId, List<EncounterParticipant> creatures,
+                        String option) {
+        SpellEffectEntry effect = find(caster, effectId);
+        replaceEffect(caster, effect.withModifiers(creatures.stream().map(EncounterParticipant::getId).toList(),
+                effect.modifiers(), option, effect.repeatSave(), effect.endReminder(),
+                Boolean.TRUE.equals(effect.modifiersOnly())));
+    }
+
+    /**
+     * A dead creature returned to life by a spell, as Revivify's 1 hit point (PHB p.272, D199): its hit points set as the
+     * DM's revive sets them (D161), with the unconsciousness of its dying gone, and an entry naming the spell.
+     */
+    public void revive(Encounter encounter, EncounterParticipant caster, EncounterParticipant target, int hp,
+                       String spellName) {
+        Vitals before = vitals(target);
+        // Exhaustion level 6 is death (PHB p.291, D183): no spell brings the creature back while it lasts
+        if (Exhaustion.dies(Exhaustion.clamp(target.getExhaustionLevel()))) {
+            throw new ConflictException(target.getDisplayName() + " has 6 levels of exhaustion; lower the exhaustion "
+                    + "level before reviving them");
+        }
+        VitalsChange change = DamageRules.setHp(before, hp);
+        setVitals(target, change.vitals());
+        combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.REVIVE,
+                caster.getDisplayName() + "'s " + spellName + " returns " + target.getDisplayName() + " to life with "
+                        + change.vitals().hp() + " HP"), caster, target).healingDone(change.vitals().hp()));
+        if (change.removeUnconsciousFromDowned()) {
+            removeUnconsciousFromZeroHp(target);
+        }
+    }
+
+    /**
+     * The things a spell gives its caster to use later, as Goodberry's ten berries (PHB p.246, D199): a resource pool on
+     * the participant, spent with an action, each use restoring its hit points to the creature that eats it. A pool from
+     * an earlier casting gains the new uses. How many it holds now.
+     */
+    public int addSpellPool(EncounterParticipant caster, String spellName, SpellTemplate.SpellPool given) {
+        String poolId = SPELL_POOL_PREFIX + spellName.trim().toLowerCase(java.util.Locale.ROOT).replace(' ', '-');
+        List<ResourcePoolEntry> pools = new ArrayList<>(caster.getResourcePoolsCurrent() != null
+                ? caster.getResourcePoolsCurrent() : List.of());
+        for (int i = 0; i < pools.size(); i++) {
+            ResourcePoolEntry pool = pools.get(i);
+            if (pool != null && poolId.equals(pool.poolId())) {
+                int held = pool.currentUses() + given.uses();
+                pools.set(i, new ResourcePoolEntry(pool.poolId(), pool.displayName(), pool.sourceType(),
+                        pool.sourceName(), Math.max(pool.maxUses(), held), pool.maxUsesFormula(), held,
+                        pool.resetOn(), pool.resetAmount(), pool.resetCheck(), pool.spendActionType(), pool.icon(),
+                        pool.metadata()));
+                caster.setResourcePoolsCurrent(pools);
+                return held;
+            }
+        }
+        pools.add(new ResourcePoolEntry(poolId, given.name(), "SPELL", spellName, given.uses(),
+                String.valueOf(given.uses()), given.uses(), "never", null, null, "ACTION", null,
+                Map.of("effect", FeatureEffects.SPELL_HEALING, "heals", given.heals())));
+        caster.setResourcePoolsCurrent(pools);
+        return given.uses();
+    }
+
+    /** What a spell's resource pool's ID starts with, as Goodberry's "spell:goodberry" (D199). */
+    public static final String SPELL_POOL_PREFIX = "spell:";
 
     /** Adds damage a creature takes at the end of its next turn to the Spell Effect (D185). */
     public void delay(EncounterParticipant caster, UUID effectId, EncounterParticipant target, String dice,

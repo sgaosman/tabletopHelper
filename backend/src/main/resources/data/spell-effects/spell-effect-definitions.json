@@ -3236,7 +3236,7 @@
       "materialCostGp": null
     },
     "concentration": false,
-    "durationRounds": null,
+    "durationRounds": 600,
     "durationText": "1 hour",
     "deliveryMethod": "SELF",
     "spellAttackType": null,
@@ -3260,29 +3260,29 @@
           "additionalDicePerLevel": null,
           "additionalFlatPerLevel": 5
         }
-      },
-      {
-        "effectType": "DAMAGE",
-        "damageDice": "5",
-        "damageType": "cold",
-        "upcastScaling": {
-          "additionalDicePerLevel": null,
-          "additionalFlatPerLevel": 5
-        },
-        "cantripScaling": null
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "Both temp HP and cold damage increase by 5 for each slot level above 1st",
     "specialMechanics": "Cold damage is dealt to creatures that hit you with melee attacks while you have the temp HP.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Reactive damage: cold damage triggers when hit by melee attack while temp HP remain. Requires tracking temp HP from this specific spell.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SELF_BUFF",
     "classes": [
       "Warlock"
     ],
-    "notes": "Flat values (not dice). Both temp HP and retaliatory cold damage scale by +5 per slot level."
+    "notes": "Flat values (not dice). Both temp HP and retaliatory cold damage scale by +5 per slot level.",
+    "tempHitPoints": {
+      "flat": 5,
+      "perSlotLevel": 5
+    },
+    "retaliation": {
+      "damageDice": "5",
+      "damageType": "cold",
+      "perSlotLevel": 5,
+      "whileTempHp": true
+    }
   },
   {
     "spellName": "Arms of Hadar",
@@ -3736,7 +3736,9 @@
       "Cleric",
       "Paladin"
     ],
-    "notes": "Material component consumed (25 gp). Primarily out-of-combat. Wedding rite has combat implications (+2 AC)."
+    "notes": "Material component consumed (25 gp). Primarily out-of-combat. Wedding rite has combat implications (+2 AC).",
+    "keepsEffect": true,
+    "reminder": "The rite chosen (Atonement, Bless Water, Coming of Age, Dedication, Funeral Rite or Wedding) is the DM's: Coming of Age and Dedication give +1d4 to one ability check or saving throw within 24 hours, and Wedding +2 AC while the couple are within 30 feet of each other for 7 days (XGE p.151)."
   },
   {
     "spellName": "Chaos Bolt",
@@ -3960,20 +3962,31 @@
         "condition": "blinded",
         "saveToAvoid": null,
         "durationRounds": 1,
-        "durationText": "Until end of your next turn"
+        "durationText": "Until end of your next turn",
+        "untilCasterTurnEnd": true
       }
     ],
     "healing": null,
     "upcastDescription": "Roll an additional 2d10 per slot level above 1st",
     "specialMechanics": "HP pool mechanic: 6d10 total HP of creatures affected in ascending HP order. No save. Ignores unconscious creatures and those that can't see.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "HP pool targeting from lowest HP - requires knowledge of all creatures' current HP in the cone to determine who is affected.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "No saving throw. HP pool mechanic identical to Sleep but blinds instead. Upcast adds 2d10 to pool per level."
+    "notes": "No saving throw. HP pool mechanic identical to Sleep but blinds instead. Upcast adds 2d10 to pool per level.",
+    "hpPool": {
+      "dice": "6d10",
+      "upcastDice": "2d10"
+    },
+    "immuneIfImmuneTo": "blinded",
+    "noEffectOnConditions": [
+      "unconscious",
+      "blinded"
+    ],
+    "reminder": "A creature that can't see for another reason, such as having no eyes, is unaffected (the DM's). Choose the creatures in the 15-foot cone."
   },
   {
     "spellName": "Command",
@@ -3989,7 +4002,7 @@
       "materialCostGp": null
     },
     "concentration": false,
-    "durationRounds": 1,
+    "durationRounds": null,
     "durationText": "1 round",
     "deliveryMethod": "SAVING_THROW",
     "spellAttackType": null,
@@ -4017,21 +4030,40 @@
       {
         "condition": "prone",
         "saveToAvoid": "WIS",
-        "durationRounds": null,
-        "durationText": "Grovel command only - falls prone and ends turn"
+        "durationText": "Grovel: falls prone and ends its turn"
       }
     ],
     "healing": null,
     "upcastDescription": "One additional creature per slot level above 1st (must be within 30 feet of each other)",
     "specialMechanics": "No effect on undead, creatures that don't understand caster's language, or if command is directly harmful.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Effect depends on which one-word command is given. DM determines behavior for non-standard commands.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SAVE_CONDITION",
     "classes": [
       "Cleric",
       "Paladin"
     ],
-    "notes": "REVIEW: 'Grovel' command causes prone (listed in conditionInflict). Other commands have varying effects that need DM adjudication."
+    "notes": "REVIEW: 'Grovel' command causes prone (listed in conditionInflict). Other commands have varying effects that need DM adjudication.",
+    "castOptions": [
+      "approach",
+      "drop",
+      "flee",
+      "grovel",
+      "halt"
+    ],
+    "conditionsByOption": {
+      "approach": [],
+      "drop": [],
+      "flee": [],
+      "grovel": [
+        "prone"
+      ],
+      "halt": []
+    },
+    "noEffectOn": [
+      "undead"
+    ],
+    "reminder": "On its next turn the target follows the command: Approach moves toward you by the shortest route, ending its turn within 5 feet; Drop drops what it holds; Flee moves away from you by the fastest means; Grovel falls prone and ends its turn; Halt doesn't move and takes no actions (the DM applies all but prone). A creature that doesn't understand your language, or a command directly harmful to it, has no effect."
   },
   {
     "spellName": "Compelled Duel",
@@ -5103,13 +5135,14 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": "Permanent companion until dismissed or killed. Can deliver touch spells. Telepathic link within 100 ft. Can see through familiar's senses as action.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Creates a permanent companion creature with its own stat block, initiative, and actions. Touch spell delivery requires coordination.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SUMMON",
     "classes": [
       "Wizard"
     ],
-    "notes": "Ritual. Material consumed (10 gp). Familiar can't attack but can take other actions. Celestial, fey, or fiend type."
+    "notes": "Ritual. Material consumed (10 gp). Familiar can't attack but can take other actions. Celestial, fey, or fiend type.",
+    "reminder": "The familiar can deliver your touch spells with its reaction, and you can see through its senses with your action; the telepathic link (100 feet) and sending it to a pocket dimension are the DM's."
   },
   {
     "spellName": "Fog Cloud",
@@ -5125,9 +5158,9 @@
       "materialCostGp": null
     },
     "concentration": true,
-    "durationRounds": null,
+    "durationRounds": 600,
     "durationText": "1 hour",
-    "deliveryMethod": "NONE",
+    "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
     "saveAbility": null,
     "halfOnSave": false,
@@ -5147,12 +5180,17 @@
         "description": "Creates 20-foot-radius sphere of fog. Area is heavily obscured. Dispersed by moderate+ wind."
       }
     ],
-    "conditionsInflicted": [],
+    "conditionsInflicted": [
+      {
+        "condition": "blinded",
+        "durationText": "While inside the fog"
+      }
+    ],
     "healing": null,
     "upcastDescription": "Radius increases by 20 feet per slot level above 1st",
     "specialMechanics": "Heavily obscured area. Blocks line of sight. Effectively blinds creatures within.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Heavily obscured area creates complex line-of-sight interactions. Creatures in fog are effectively blinded (advantage/disadvantage on attacks).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "UTILITY",
     "classes": [
       "Druid",
@@ -5160,7 +5198,18 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Concentration. Heavily obscured = effectively blinded for creatures within. Upcast increases radius."
+    "notes": "Concentration. Heavily obscured = effectively blinded for creatures within. Upcast increases radius.",
+    "effectTriggers": [
+      {
+        "when": [
+          "ENTER"
+        ],
+        "conditionsInflicted": [
+          "blinded"
+        ]
+      }
+    ],
+    "reminder": "Creatures in the 20-foot-radius fog (20 feet more for each slot level above 1st) are heavily obscured, so effectively blinded: choose them, apply the fog to one that enters, and end blinded on one that leaves (the DM's). A wind of 10 miles per hour disperses it."
   },
   {
     "spellName": "Frost Fingers",
@@ -5286,7 +5335,7 @@
     "concentration": false,
     "durationRounds": null,
     "durationText": "Instantaneous",
-    "deliveryMethod": "NONE",
+    "deliveryMethod": "SELF",
     "spellAttackType": null,
     "saveAbility": null,
     "halfOnSave": false,
@@ -5302,27 +5351,28 @@
     "canTargetEnemies": false,
     "effects": [
       {
-        "effectType": "HEAL",
-        "healingDice": "1",
-        "description": "Creates 10 berries, each heals 1 HP when eaten (action). Berries last 24 hours."
+        "effectType": "OTHER",
+        "description": "Ten berries, each restoring 1 hit point to the creature that eats it with its action"
       }
     ],
     "conditionsInflicted": [],
-    "healing": {
-      "healingDice": "1 per berry (10 berries total)",
-      "healingBonus": null,
-      "upcastScaling": null
-    },
+    "healing": null,
     "upcastDescription": null,
     "specialMechanics": "Creates 10 berries. Each berry heals 1 HP and provides a day's nourishment. Eating a berry costs an action.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Creates consumable items (10 berries) that are used over time. Each use is a separate action. Life Domain Cleric Disciple of Life interaction is commonly debated.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "HEAL",
     "classes": [
       "Druid",
       "Ranger"
     ],
-    "notes": "REVIEW: Life Domain Disciple of Life interaction (2+spell level per berry) is a common ruling question. 10 berries x 1 HP each."
+    "notes": "REVIEW: Life Domain Disciple of Life interaction (2+spell level per berry) is a common ruling question. 10 berries x 1 HP each.",
+    "spellPool": {
+      "name": "Goodberries",
+      "uses": 10,
+      "heals": 1
+    },
+    "reminder": "The berries lose their potency 24 hours after the casting; each provides a day's nourishment."
   },
   {
     "spellName": "Grease",
@@ -6838,7 +6888,9 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Concentration. Visual only (no sound). Can be moved with action. Investigation check to see through."
+    "notes": "Concentration. Visual only (no sound). Can be moved with action. Investigation check to see through.",
+    "keepsEffect": true,
+    "reminder": "An image up to a 15-foot cube that you move with your action; a creature that uses its action to examine it makes an Intelligence (Investigation) check against your spell save DC to see through it (PHB p.276)."
   },
   {
     "spellName": "Silvery Barbs",
@@ -6955,23 +7007,34 @@
         "condition": "unconscious",
         "saveToAvoid": null,
         "durationRounds": 10,
-        "durationText": "1 minute (ends on damage or action to wake)",
-        "saveToEndOnDamage": true,
-        "saveToEndCondition": "another creature uses action to wake target"
+        "durationText": "1 minute (ends on damage or an action to wake it)",
+        "endsOnDamage": true
       }
     ],
     "healing": null,
     "upcastDescription": "Roll an additional 2d8 per slot level above 1st",
     "specialMechanics": "HP pool mechanic: 5d8 total HP of creatures affected in ascending HP order. No save. Ignores unconscious creatures. Undead and charm-immune creatures unaffected.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "HP pool targeting from lowest HP - requires knowledge of all creatures' current HP in the area to determine who is affected. No saving throw.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Bard",
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "No saving throw. HP pool mechanic. Ignores unconscious creatures. Undead and charm-immune immune. Upcast adds 2d8 to pool."
+    "notes": "No saving throw. HP pool mechanic. Ignores unconscious creatures. Undead and charm-immune immune. Upcast adds 2d8 to pool.",
+    "hpPool": {
+      "dice": "5d8",
+      "upcastDice": "2d8"
+    },
+    "noEffectOn": [
+      "undead"
+    ],
+    "immuneIfImmuneTo": "charmed",
+    "noEffectOnConditions": [
+      "unconscious"
+    ],
+    "reminder": "A sleeper also wakes when another creature uses its action to shake or slap it awake (end the condition by hand); elves and half-elves can't be put to sleep by magic (Fey Ancestry). Choose the creatures within the 20-foot radius."
   },
   {
     "spellName": "Snare",
@@ -6987,7 +7050,7 @@
       "materialCostGp": null
     },
     "concentration": false,
-    "durationRounds": null,
+    "durationRounds": 4800,
     "durationText": "8 hours",
     "deliveryMethod": "SAVING_THROW",
     "spellAttackType": null,
@@ -7043,7 +7106,9 @@
       "Ranger",
       "Wizard"
     ],
-    "notes": "1-minute casting. Material consumed (rope, no GP cost). Trap that restrains. Investigation to detect, DEX save or Arcana check to escape."
+    "notes": "1-minute casting. Material consumed (rope, no GP cost). Trap that restrains. Investigation to detect, DEX save or Arcana check to escape.",
+    "keepsEffect": true,
+    "reminder": "A Small or larger creature moving into the 5-foot circle makes a DEX save or is hoisted, restrained and hanging upside down; it repeats the DEX save at the end of each of its turns, and it or another can use an action for an Intelligence (Arcana) check against your spell save DC, to end it (apply restrained by hand) (XGE p.165)."
   },
   {
     "spellName": "Speak with Animals",
@@ -7885,15 +7950,24 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Multiple mode choices (Aquatic Adaptation, Change Appearance, Natural Weapons) with different mechanical effects",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SELF_BUFF",
     "classes": [
       "Artificer",
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Natural Weapons option: unarmed strikes deal 1d6 bludgeoning/piercing/slashing, +1 to attack and damage, counts as magic"
+    "notes": "Natural Weapons option: unarmed strikes deal 1d6 bludgeoning/piercing/slashing, +1 to attack and damage, counts as magic",
+    "castOptions": [
+      "aquatic adaptation",
+      "change appearance",
+      "natural weapons (bludgeoning)",
+      "natural weapons (piercing)",
+      "natural weapons (slashing)"
+    ],
+    "keepsEffect": true,
+    "reminder": "Aquatic Adaptation: gills and webbing, breathing underwater and a swimming speed equal to your walking speed; Change Appearance: your look, which an action changes again (both the DM's). Natural Weapons: a Natural Weapon heads your attack options, 1d6 + STR, proficient, magic, +1 to attack and damage."
   },
   {
     "spellName": "Animal Messenger",
@@ -8665,8 +8739,8 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Requires caster to use action each turn to maintain. Target must attack a creature chosen by the caster. WIS save at end of each turn to end.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Bard",
@@ -8674,7 +8748,12 @@
       "Warlock",
       "Wizard"
     ],
-    "notes": "Humanoids only. Charmed target must use action to melee attack a creature chosen by caster. Caster must use action each turn to maintain."
+    "notes": "Humanoids only. Charmed target must use action to melee attack a creature chosen by caster. Caster must use action each turn to maintain.",
+    "targetTypes": [
+      "humanoid"
+    ],
+    "turnReminder": "Crown of Madness: use your action to maintain it, or it ends.",
+    "reminder": "The charmed target uses its action before moving on each of its turns to make a melee attack against a creature other than itself that you mentally choose, or acts normally if you choose none or none is in its reach (the DM's)."
   },
   {
     "spellName": "Darkness",
@@ -8860,28 +8939,44 @@
     "canTargetEnemies": false,
     "effects": [
       {
-        "effectType": "DAMAGE",
-        "damageDice": "3d6",
-        "damageType": "acid, cold, fire, lightning, or poison (chosen at cast)",
-        "upcastScaling": {
-          "additionalDicePerLevel": "1d6",
-          "additionalFlatPerLevel": 0
-        },
-        "description": "Target can use action to exhale 15ft cone. DEX save, half on success."
+        "effectType": "BUFF",
+        "description": "The touched creature can use its action to exhale a 15-foot cone: 3d6 of the chosen type, DEX save for half"
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "Damage increases by 1d6 for each slot level above 2nd",
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Grants touched creature ability to exhale 15ft cone (DEX save, damage) as an action on future turns. Damage type chosen at cast time.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Bonus action to cast. Touched creature gains breath weapon (action, 15ft cone, DEX save, half on success). Choose damage type at casting."
+    "notes": "Bonus action to cast. Touched creature gains breath weapon (action, 15ft cone, DEX save, half on success). Choose damage type at casting.",
+    "castOptions": [
+      "acid",
+      "cold",
+      "fire",
+      "lightning",
+      "poison"
+    ],
+    "repeatEffect": {
+      "deliveryMethod": "SAVING_THROW",
+      "saveAbility": "DEX",
+      "halfOnSave": true,
+      "damageDice": "3d6",
+      "damageType": "OPTION",
+      "usesUpcastScaling": true,
+      "upcastScaling": {
+        "additionalDicePerLevel": "1d6",
+        "additionalFlatPerLevel": 0
+      }
+    },
+    "repeatActionType": "ACTION",
+    "usedByTarget": true,
+    "reminder": "The touched creature exhales with its own action, against your spell save DC: choose the creatures in the 15-foot cone."
   },
   {
     "spellName": "Dust Devil",
@@ -9236,13 +9331,14 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Summons a permanent steed (warhorse, pony, camel, elk, or mastiff). Steed has its own stat block and acts in combat.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SUMMON",
     "classes": [
       "Paladin"
     ],
-    "notes": "10-minute casting time. Steed is permanent until dismissed or drops to 0 HP. Re-casting summons same steed restored to max HP."
+    "notes": "10-minute casting time. Steed is permanent until dismissed or drops to 0 HP. Re-casting summons same steed restored to max HP.",
+    "reminder": "While you ride it, a spell you cast that targets only you can also target the steed; the telepathic bond (1 mile) is the DM's."
   },
   {
     "spellName": "Find Traps",
@@ -9455,14 +9551,15 @@
     "healing": null,
     "upcastDescription": "Conjure one additional familiar for each slot level above 2nd",
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Summons 3 familiars with individual stat blocks. Can deliver touch spells.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SUMMON",
     "classes": [
       "Warlock",
       "Wizard"
     ],
-    "notes": "1 minute casting. If you already have a familiar, one fewer conjured."
+    "notes": "1 minute casting. If you already have a familiar, one fewer conjured.",
+    "reminder": "Each familiar can deliver one of your touch spells; the telepathic link and shared senses (1 mile) are the DM's."
   },
   {
     "spellName": "Fortune's Favor",
@@ -11212,14 +11309,15 @@
         "condition": "blinded",
         "saveToAvoid": "CON",
         "durationRounds": 1,
-        "durationText": "until end of caster's next turn"
+        "durationText": "until end of caster's next turn",
+        "untilCasterTurnEnd": true
       }
     ],
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Two modes: Fireworks (CON save, blinded until end of next turn, 10ft radius) or Smoke (20ft radius heavily obscured, 1 minute). Requires existing nonmagical fire.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SAVE_CONDITION",
     "classes": [
       "Artificer",
@@ -11227,7 +11325,21 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Requires existing nonmagical fire within 5ft cube. Two modes: Fireworks (10ft, CON save, blinded) or Smoke (20ft radius, heavily obscured, 1 min). Extinguishes the fire."
+    "notes": "Requires existing nonmagical fire within 5ft cube. Two modes: Fireworks (10ft, CON save, blinded) or Smoke (20ft radius, heavily obscured, 1 min). Extinguishes the fire.",
+    "castOptions": [
+      "fireworks",
+      "smoke"
+    ],
+    "noSaveOptions": [
+      "smoke"
+    ],
+    "conditionsByOption": {
+      "fireworks": [
+        "blinded"
+      ],
+      "smoke": []
+    },
+    "reminder": "It needs a nonmagical flame, which it extinguishes. Fireworks: choose the creatures within 10 feet of the flame. Smoke: thick smoke spreads 20 feet from the flame, heavily obscured for 1 minute or until a strong wind disperses it (the DM's)."
   },
   {
     "spellName": "Ray of Enfeeblement",
@@ -12107,14 +12219,15 @@
     "healing": null,
     "upcastDescription": "Use higher level wherever spell's level appears in stat block",
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Summons a creature with its own stat block (Bestial Spirit). Environment choice affects traits. Creature acts on caster's initiative, immediately after.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SUMMON",
     "classes": [
       "Druid",
       "Ranger"
     ],
-    "notes": "200gp gilded acorn (not consumed). Concentration 1 hour. Creature shares initiative, acts after caster. Dodges if no commands given."
+    "notes": "200gp gilded acorn (not consumed). Concentration 1 hour. Creature shares initiative, acts after caster. Dodges if no commands given.",
+    "reminder": "The spirit's riders that need positions, such as Pack Tactics and Flyby, are the DM's."
   },
   {
     "spellName": "Tasha's Mind Whip",
@@ -12674,14 +12787,15 @@
     "healing": null,
     "upcastDescription": "Animate or reassert control over 2 additional undead creatures for each slot level above 3rd",
     "specialMechanics": "Creates skeleton or zombie from corpse/bones. Control lasts 24 hours, must recast to maintain. Bonus action to command.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Creates persistent undead companions that need stat blocks, initiative, and ongoing command management",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Cleric",
       "Wizard"
     ],
-    "notes": "Reviewed and deliberately kept as COMPLEX with requiresManualResolution=true: corpse targeting, 24-hour reassert control, non-concentration, and per-corpse tracking make this genuinely complex."
+    "notes": "Reviewed and deliberately kept as COMPLEX with requiresManualResolution=true: corpse targeting, 24-hour reassert control, non-concentration, and per-corpse tracking make this genuinely complex.",
+    "reminder": "Casting it again within 24 hours reasserts control over up to four of your undead (two more for each slot level above 3rd) instead: the DM's."
   },
   {
     "spellName": "Antagonize",
@@ -12956,40 +13070,97 @@
     "canTargetEnemies": true,
     "effects": [
       {
-        "effectType": "DAMAGE",
-        "damageDice": "1d8",
-        "damageType": "necrotic",
-        "upcastScaling": null,
-        "cantripScaling": null
-      },
-      {
-        "effectType": "CONDITION",
-        "condition": "cursed",
-        "saveToAvoid": true,
-        "durationRounds": 10,
-        "durationText": "Up to 1 minute (concentration)"
+        "effectType": "DEBUFF",
+        "description": "One curse: disadvantage on checks and saves with one ability; disadvantage on attacks against you; a WIS save each turn or its action is wasted; or your attacks and spells deal it an extra 1d8 necrotic",
+        "modifiers": [
+          {
+            "kind": "SAVE_MODE",
+            "mode": "DISADVANTAGE",
+            "ability": "STR",
+            "option": "strength"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "DISADVANTAGE",
+            "ability": "DEX",
+            "option": "dexterity"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "DISADVANTAGE",
+            "ability": "CON",
+            "option": "constitution"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "DISADVANTAGE",
+            "ability": "INT",
+            "option": "intelligence"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "DISADVANTAGE",
+            "ability": "WIS",
+            "option": "wisdom"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "DISADVANTAGE",
+            "ability": "CHA",
+            "option": "charisma"
+          },
+          {
+            "kind": "ATTACK_MODE",
+            "mode": "DISADVANTAGE",
+            "scope": "AFFECTED_VS_CASTER",
+            "option": "attacks against caster"
+          },
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "1d8",
+            "damageTypes": [
+              "necrotic"
+            ],
+            "scope": "CASTER_VS_AFFECTED",
+            "option": "necrotic"
+          }
+        ]
       }
     ],
-    "conditionsInflicted": [
-      {
-        "condition": "cursed",
-        "saveToAvoid": "WIS",
-        "durationRounds": 10,
-        "durationText": "Concentration, up to 1 minute"
-      }
-    ],
+    "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "4th level: concentration up to 10 minutes. 5th+: 8 hours, no concentration. 7th+: 24 hours. 9th: until dispelled.",
     "specialMechanics": "Choose curse effect: disadvantage on ability checks/saves with one ability; disadvantage on attacks against caster; WIS save each turn or waste action; caster's attacks/spells deal extra 1d8 necrotic. DM may allow custom curse.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Multiple curse effect options that the caster must choose from, each with different mechanical impacts",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Bard",
       "Cleric",
       "Wizard"
     ],
-    "notes": "REVIEW: 1d8 necrotic damage is only one of four curse options, not always applied. Touch range."
+    "notes": "REVIEW: 1d8 necrotic damage is only one of four curse options, not always applied. Touch range.",
+    "castOptions": [
+      "strength",
+      "dexterity",
+      "constitution",
+      "intelligence",
+      "wisdom",
+      "charisma",
+      "attacks against caster",
+      "wasted action",
+      "necrotic"
+    ],
+    "durationBySlot": {
+      "3": 10,
+      "4": 100,
+      "5": 4800,
+      "7": 14400,
+      "9": null
+    },
+    "noConcentrationFromSlot": 5,
+    "keepsEffect": true,
+    "reminder": "An ability's curse gives disadvantage on its ability checks too (the DM's for checks the app doesn't roll). Wasted action: at the start of each of its turns the target makes a WIS save or wastes its action doing nothing (the DM's). Necrotic: your spells that deal it damage without an attack roll add the 1d8 too (the DM's). At 9th level it lasts until dispelled."
   },
   {
     "spellName": "Blinding Smite",
@@ -13321,14 +13492,15 @@
     "healing": null,
     "upcastDescription": "5th level: 2x creatures. 7th level: 3x creatures. 9th level: 4x creatures.",
     "specialMechanics": "DM chooses specific creatures. Summoned beasts are also considered fey. Disappear at 0 HP or when spell ends.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "DM chooses creatures, multiple summons require stat blocks, initiative, and action management",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Druid",
       "Ranger"
     ],
-    "notes": null
+    "notes": null,
+    "reminder": "The beasts obey your verbal commands; with none, they defend themselves (the DM's)."
   },
   {
     "spellName": "Conjure Barrage",
@@ -13498,12 +13670,12 @@
     "concentration": true,
     "durationRounds": 10,
     "durationText": "Concentration, up to 1 minute",
-    "deliveryMethod": "SELF",
+    "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
     "saveAbility": null,
     "halfOnSave": false,
     "autoHit": false,
-    "targetType": "SELF_EMANATION",
+    "targetType": "SPECIAL",
     "targetCount": null,
     "targetCountUpcastScaling": null,
     "aoeShape": "sphere",
@@ -13514,24 +13686,32 @@
     "canTargetEnemies": false,
     "effects": [
       {
-        "effectType": "DAMAGE",
-        "damageDice": "1d4",
-        "damageType": "radiant",
-        "upcastScaling": null,
-        "cantripScaling": null
+        "effectType": "BUFF",
+        "description": "Each creature you choose in the aura deals an extra 1d4 radiant on its weapon hits",
+        "modifiers": [
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "1d4",
+            "damageTypes": [
+              "radiant"
+            ],
+            "weaponOnly": true
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": "30-foot radius aura moves with caster. Each nonhostile creature in the aura deals extra 1d4 radiant damage on weapon attack hits.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Persistent aura buff that modifies weapon attack damage for all friendly creatures within range each turn",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Paladin"
     ],
-    "notes": "Applies to all nonhostile creatures in range, not just allies you choose."
+    "notes": "Applies to all nonhostile creatures in range, not just allies you choose.",
+    "reminder": "The aura is 30 feet around you and moves with you: choose the nonhostile creatures in it, you among them; one that comes into it or leaves it is the DM's."
   },
   {
     "spellName": "Daylight",
@@ -13755,12 +13935,20 @@
         "description": "Target regards all creatures as enemies. Must choose targets at random. Must make opportunity attacks if provoked. Repeat save when taking damage."
       }
     ],
-    "conditionsInflicted": [],
+    "conditionsInflicted": [
+      {
+        "condition": "enemies abound",
+        "saveToAvoid": "INT",
+        "durationText": "Concentration, up to 1 minute; an INT save each time it takes damage",
+        "saveToEndOnDamage": true,
+        "saveToEndAbility": "INT"
+      }
+    ],
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": "Creatures immune to frightened auto-succeed. On failed INT save, target cannot distinguish friend from foe. Targets attacks randomly. Repeat save each time it takes damage.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Requires random target selection for affected creature's attacks and tracking repeated saves on damage",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Bard",
@@ -13768,7 +13956,9 @@
       "Warlock",
       "Wizard"
     ],
-    "notes": "REVIEW: No classes listed in source data; from Xanathar's Guide (typically Bard, Sorcerer, Warlock, Wizard)."
+    "notes": "REVIEW: No classes listed in source data; from Xanathar's Guide (typically Bard, Sorcerer, Warlock, Wizard).",
+    "succeedsIfImmuneTo": "frightened",
+    "reminder": "The target can't tell friend from foe: it chooses the targets of its attacks, spells and other abilities at random among the creatures it can see, and it makes opportunity attacks against any creature that provokes one (the DM's)."
   },
   {
     "spellName": "Erupting Earth",
@@ -14287,22 +14477,50 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target transforms into a misty cloud. Flying speed of 10 feet. Resistance to nonmagical damage. Advantage on Strength, Dexterity, and Constitution saving throws. Can pass through small holes and cracks. Can't fall. Can't talk, manipulate objects, attack, or cast spells."
+        "description": "A misty cloud: resistance to nonmagical damage, advantage on STR, DEX and CON saves, can't attack or cast spells",
+        "modifiers": [
+          {
+            "kind": "RESISTANCE",
+            "damageTypes": [
+              "all"
+            ],
+            "requires": "NONMAGICAL"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "STR"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "DEX"
+          },
+          {
+            "kind": "SAVE_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "CON"
+          },
+          {
+            "kind": "CANT_ATTACK_OR_CAST"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": "Target can't attack or cast spells while in gaseous form. Ends if creature drops to 0 HP.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Complex transformation with multiple mechanical effects: resistance to nonmagical damage, advantage on three save types, speed change, movement restrictions, inability to attack/cast",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "BUFF_NO_ROLL",
     "classes": [
       "Sorcerer",
       "Warlock",
       "Wizard"
     ],
-    "notes": null
+    "notes": null,
+    "reminder": "Only a willing creature. It flies at 10 feet, passes through small holes and narrow openings, treats liquids as solid surfaces, can't fall, talk or manipulate objects, and drops what it carries; the spell ends if it drops to 0 hit points (end it by hand)."
   },
   {
     "spellName": "Glyph of Warding",
@@ -14363,7 +14581,9 @@
       "Cleric",
       "Wizard"
     ],
-    "notes": "Explosive runes: halfOnSave true. Spell glyph depends on stored spell. Damage type chosen when glyph is created."
+    "notes": "Explosive runes: halfOnSave true. Spell glyph depends on stored spell. Damage type chosen when glyph is created.",
+    "keepsEffect": true,
+    "reminder": "When triggered, Explosive Runes deal 5d8 (1d8 more for each slot level above 3rd) of the chosen type in a 20-foot sphere, DEX save for half, or the stored spell takes effect; the DM applies it (PHB p.245)."
   },
   {
     "spellName": "Haste",
@@ -14793,7 +15013,9 @@
       "Bard",
       "Wizard"
     ],
-    "notes": "Ritual castable. Primarily a rest/shelter spell. Blocks all spells and magical effects from passing through."
+    "notes": "Ritual castable. Primarily a rest/shelter spell. Blocks all spells and magical effects from passing through.",
+    "keepsEffect": true,
+    "reminder": "A 10-foot dome around you that creatures and objects can't pass through unless inside when it was cast; spells and magical effects can't extend through it; it ends if you leave it (PHB p.255)."
   },
   {
     "spellName": "Life Transference",
@@ -15041,7 +15263,9 @@
       "Cleric",
       "Wizard"
     ],
-    "notes": "REVIEW: Source is AitFR-AVT. conditionInflict 'invisible' in source data refers to the glyphs being invisible, not a condition applied to creatures. Included per cross-reference requirement but flagged."
+    "notes": "REVIEW: Source is AitFR-AVT. conditionInflict 'invisible' in source data refers to the glyphs being invisible, not a condition applied to creatures. Included per cross-reference requirement but flagged.",
+    "keepsEffect": true,
+    "reminder": "When one of the linked glyphs is triggered, the stored spell takes effect at the other; the DM applies it (AitFR-AVT p.9)."
   },
   {
     "spellName": "Magic Circle",
@@ -15059,12 +15283,12 @@
     "concentration": false,
     "durationRounds": 600,
     "durationText": "1 hour",
-    "deliveryMethod": "SAVING_THROW",
+    "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
-    "saveAbility": "CHA",
+    "saveAbility": null,
     "halfOnSave": false,
     "autoHit": false,
-    "targetType": "AOE_CYLINDER",
+    "targetType": "SPECIAL",
     "targetCount": null,
     "targetCountUpcastScaling": null,
     "aoeShape": "cylinder",
@@ -15072,19 +15296,28 @@
     "selfOnly": false,
     "canTargetSelf": false,
     "canTargetAllies": true,
-    "canTargetEnemies": true,
+    "canTargetEnemies": false,
     "effects": [
       {
-        "effectType": "OTHER",
-        "description": "Creates a 10-foot radius, 20-foot tall cylinder. Chosen creature types (celestials, elementals, fey, fiends, undead) can't willingly enter by nonmagical means. Must CHA save to use teleportation/interplanar travel to enter. Chosen types have disadvantage on attacks against targets in cylinder. Targets in cylinder can't be charmed, frightened, or possessed by chosen types. Can be reversed to trap creatures inside."
+        "effectType": "BUFF",
+        "description": "Creatures of the chosen type have disadvantage on attacks against those in the cylinder",
+        "modifiers": [
+          {
+            "kind": "ATTACKED_MODE",
+            "mode": "DISADVANTAGE",
+            "attackerTypes": [
+              "OPTION"
+            ]
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "Duration increases by 1 hour for each slot level above 3rd",
     "specialMechanics": "Can be cast in reverse to trap specified creature types inside the cylinder. Affects celestials, elementals, fey, fiends, and/or undead (caster's choice).",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Complex protective ward with multiple effects against chosen creature types, optional reverse mode, and CHA save only for teleportation entry",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Cleric",
@@ -15092,7 +15325,24 @@
       "Warlock",
       "Wizard"
     ],
-    "notes": "CHA save is only for teleportation/interplanar travel through the circle, not for general entry. Not a concentration spell."
+    "notes": "CHA save is only for teleportation/interplanar travel through the circle, not for general entry. Not a concentration spell.",
+    "castOptions": [
+      "celestial",
+      "elemental",
+      "fey",
+      "fiend",
+      "undead"
+    ],
+    "durationBySlot": {
+      "3": 600,
+      "4": 1200,
+      "5": 1800,
+      "6": 2400,
+      "7": 3000,
+      "8": 3600,
+      "9": 4200
+    },
+    "reminder": "Choose the creatures inside the 10-foot-radius cylinder. A creature of the type can't willingly enter it by nonmagical means and makes a CHA save to teleport into it, and can't charm, frighten or possess those inside (the DM's). Reversed, it keeps one creature of the type inside instead."
   },
   {
     "spellName": "Major Image",
@@ -15269,7 +15519,9 @@
       "Cleric",
       "Druid"
     ],
-    "notes": "Ritual castable. Damage and prone are defensive/conditional (only if stone is destroyed or reshaped). Included per cross-reference requirement from damageInflict and conditionInflict in source data."
+    "notes": "Ritual castable. Damage and prone are defensive/conditional (only if stone is destroyed or reshaped). Included per cross-reference requirement from damageInflict and conditionInflict in source data.",
+    "keepsEffect": true,
+    "reminder": "You are inside the stone, aware of its surroundings with disadvantage on Perception checks, able to cast spells on yourself; partial destruction or reshaping of the stone expels you with 6d6 bludgeoning damage, its complete destruction or transmutation with 50 (PHB p.259)."
   },
   {
     "spellName": "Melf's Minute Meteors",
@@ -15540,7 +15792,9 @@
       "Druid",
       "Ranger"
     ],
-    "notes": null
+    "notes": null,
+    "keepsEffect": true,
+    "reminder": "Overgrowth makes a 100-foot radius cost 4 feet of movement for every foot; Enrichment (8 hours) doubles the food plants yield within half a mile for a year (PHB p.266)."
   },
   {
     "spellName": "Protection from Energy",
@@ -15765,15 +16019,17 @@
     },
     "upcastDescription": null,
     "specialMechanics": "Target must have died within the last minute. Cannot return a creature that died of old age. Cannot restore missing body parts.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Requires dead creature target (died within 1 minute); system must validate death timing and consume 300gp material",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "HEAL",
     "classes": [
       "Artificer",
       "Cleric",
       "Paladin"
     ],
-    "notes": null
+    "notes": null,
+    "revivesDead": 1,
+    "reminder": "Only a creature that died within the last minute, not of old age, and missing no vital body parts; the 300 gp of diamonds are consumed."
   },
   {
     "spellName": "Sending",
@@ -16289,8 +16545,8 @@
     "healing": null,
     "upcastDescription": "Use the higher spell slot level wherever the spell's level appears in the stat block (increases HP, damage, AC)",
     "specialMechanics": "Summoned creature uses Fey Spirit stat block. Mood determines special trait. Disappears at 0 HP or when spell ends.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Summoned creature with stat block, initiative, and actions that need to be managed each turn",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SUMMON",
     "classes": [
       "Druid",
@@ -16298,7 +16554,8 @@
       "Warlock",
       "Wizard"
     ],
-    "notes": "REVIEW: Tasha's Cauldron summon spell. Material component not consumed."
+    "notes": "REVIEW: Tasha's Cauldron summon spell. Material component not consumed.",
+    "reminder": "The spirit's Fey Step and its mood's rider are the DM's."
   },
   {
     "spellName": "Summon Lesser Demons",
@@ -16340,14 +16597,15 @@
     "healing": null,
     "upcastDescription": "6th-7th level slot: twice as many demons. 8th-9th level slot: three times as many demons.",
     "specialMechanics": "Demons are hostile to ALL creatures. Optional: use blood component to draw protective circle on ground that demons can't cross. Using blood this way consumes it when spell ends.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Random demon count, DM chooses types, demons are hostile to everyone, protective circle mechanic, multiple creatures to manage",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SUMMON",
     "classes": [
       "Warlock",
       "Wizard"
     ],
-    "notes": "REVIEW: Material component optionally consumed (for protective circle). Demons attack nearest non-demon creatures."
+    "notes": "REVIEW: Material component optionally consumed (for protective circle). Demons attack nearest non-demon creatures.",
+    "reminder": "The demons are hostile to every creature; the blood circle that keeps them out is the DM's."
   },
   {
     "spellName": "Summon Shadowspawn",
@@ -16389,14 +16647,15 @@
     "healing": null,
     "upcastDescription": "Use the higher spell slot level wherever the spell's level appears in the stat block (increases HP, damage, AC)",
     "specialMechanics": "Summoned creature uses Shadow Spirit stat block. Emotion determines special traits. Disappears at 0 HP or when spell ends.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Summoned creature with stat block, initiative, and actions that need to be managed each turn",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SUMMON",
     "classes": [
       "Warlock",
       "Wizard"
     ],
-    "notes": "REVIEW: Tasha's Cauldron summon spell. Material component not consumed."
+    "notes": "REVIEW: Tasha's Cauldron summon spell. Material component not consumed.",
+    "reminder": "The spirit's Dreadful Scream positions, Shadow Stealth and its emotion's rider are the DM's."
   },
   {
     "spellName": "Summon Undead",
@@ -16438,14 +16697,15 @@
     "healing": null,
     "upcastDescription": "Use the higher spell slot level wherever the spell's level appears in the stat block (increases HP, damage, AC)",
     "specialMechanics": "Summoned creature uses Undead Spirit stat block. Form determines special traits. Disappears at 0 HP or when spell ends.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Summoned creature with stat block, initiative, and actions that need to be managed each turn",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SUMMON",
     "classes": [
       "Warlock",
       "Wizard"
     ],
-    "notes": "REVIEW: Tasha's Cauldron summon spell. Material component not consumed."
+    "notes": "REVIEW: Tasha's Cauldron summon spell. Material component not consumed.",
+    "reminder": "The spirit's Festering Aura, Grave Bolt riders and Incorporeal Passage are the DM's."
   },
   {
     "spellName": "Thunder Step",
@@ -16616,14 +16876,15 @@
     "healing": null,
     "upcastDescription": "Animate two additional objects for each slot level above 3rd",
     "specialMechanics": "Target must be a Tiny nonmagical object not attached to another object or surface. Controlled via bonus action within 120 feet.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Summoned creature(s) with stat block that need turn-by-turn management; scales with upcast level",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SUMMON",
     "classes": [
       "Artificer",
       "Wizard"
     ],
-    "notes": null
+    "notes": null,
+    "reminder": "The object must be Tiny, nonmagical and not attached to anything; its tasks out of combat are the DM's."
   },
   {
     "spellName": "Tongues",
@@ -16805,7 +17066,9 @@
     "classes": [
       "Wizard"
     ],
-    "notes": null
+    "notes": null,
+    "keepsEffect": true,
+    "reminder": "A wall 30 feet long, 10 feet high and 10 feet thick that blocks line of sight; a creature in it is blinded and moves at a third of its speed (XGE p.170)."
   },
   {
     "spellName": "Wall of Water",
@@ -16855,7 +17118,9 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": null
+    "notes": null,
+    "keepsEffect": true,
+    "reminder": "A wall that is difficult terrain; ranged weapon attacks through it have disadvantage, fire damage through it is halved, and cold damage freezes a 5-foot section (AC 5, 15 hit points) (XGE p.170)."
   },
   {
     "spellName": "Water Breathing",

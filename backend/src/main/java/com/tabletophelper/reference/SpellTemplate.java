@@ -151,6 +151,10 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             template.concentrationSave();
             template.layers();
             template.roundEffects();
+            // And the condition, summoning and low-level spells' keys (D199)
+            template.hpPool();
+            template.revivesDead();
+            template.spellPool();
             return template;
         } catch (IllegalArgumentException | JacksonException e) {
             return empty(json, e.getMessage() != null ? e.getMessage() : e.toString());
@@ -401,6 +405,22 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
     }
 
     /**
+     * The flat damage its retaliation adds for each slot level above the spell's, as Armor of Agathys' 5 cold (PHB
+     * p.215, D199): the retaliation's {@code perSlotLevel}; 0 for none.
+     */
+    public int retaliationPerSlotLevel() {
+        return json != null ? json.path("retaliation").path("perSlotLevel").asInt(0) : 0;
+    }
+
+    /**
+     * Whether its retaliation strikes back only while its caster has temporary hit points, ending once they are gone, as
+     * Armor of Agathys' (PHB p.215, D199): the retaliation's {@code whileTempHp}.
+     */
+    public boolean retaliationWhileTempHp() {
+        return json != null && json.path("retaliation").path("whileTempHp").asBoolean(false);
+    }
+
+    /**
      * The ability of the save each creature the spell reaches makes, when it is concentrating, to keep its concentration,
      * as Earthquake's Constitution save on the cast and each later use (PHB p.236, D195): the template's
      * {@code concentrationSave}, or null for none.
@@ -489,9 +509,11 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             for (Map.Entry<String, JsonNode> entry : node.properties()) {
                 try {
                     int level = Integer.parseInt(entry.getKey().trim());
-                    if (level <= slotLevel && level > best && entry.getValue().isInt()) {
+                    // A null entry lasts until dispelled, as Bestow Curse from a 9th-level slot (PHB p.218, D199)
+                    if (level <= slotLevel && level > best
+                            && (entry.getValue().isInt() || entry.getValue().isNull())) {
                         best = level;
-                        rounds = entry.getValue().asInt(0);
+                        rounds = entry.getValue().isNull() ? null : entry.getValue().asInt(0);
                     }
                 } catch (NumberFormatException e) {
                     throw new IllegalArgumentException("durationBySlot needs slot levels as keys, not " + entry.getKey());
@@ -515,6 +537,19 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             return null;
         }
         return node.path("flat").asInt(0);
+    }
+
+    /**
+     * As {@link #tempHitPoints(String)}, cast with a slot of slotLevel: its {@code perSlotLevel} more for each slot level
+     * above the spell's, as Armor of Agathys' 5 more (PHB p.215, D199).
+     */
+    public Integer tempHitPoints(String option, int slotLevel) {
+        Integer flat = tempHitPoints(option);
+        if (flat == null) {
+            return null;
+        }
+        int per = json.path("tempHitPoints").path("perSlotLevel").asInt(0);
+        return flat + per * Math.max(0, slotLevel - level());
     }
 
     /** The creature types it can target alone, as Dominate Beast's beast (PHB p.234); empty for any. */
@@ -1284,6 +1319,109 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         return node.asString("");
     }
 
+    // ── Keys the condition, summoning and low-level spells added (D199), read from the stored JSON ──
+
+    /**
+     * A pool of hit points a cast rolls and spends on the creatures it reaches, lowest current hit points first, as
+     * Sleep's 5d8 (PHB p.276) and Color Spray's 6d10 (PHB p.222): the template's {@code hpPool}.
+     *
+     * @param dice       the pool's dice at the spell's own level
+     * @param upcastDice the dice each slot level above it adds, such as Sleep's 2d8; null for none
+     */
+    public record HpPool(String dice, String upcastDice) {
+    }
+
+    /** The template's hit-point pool, or null when it has none. */
+    public HpPool hpPool() {
+        JsonNode node = json != null ? json.get("hpPool") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isObject() || text(node, "dice") == null) {
+            throw new IllegalArgumentException("hpPool needs its dice");
+        }
+        checkDice(text(node, "dice"));
+        if (text(node, "upcastDice") != null) {
+            checkDice(text(node, "upcastDice"));
+        }
+        return new HpPool(text(node, "dice"), text(node, "upcastDice"));
+    }
+
+    /**
+     * Whether a cast leaves a Spell Effect on its caster for its duration though the app resolves nothing of it, so the
+     * spell shows and expires as the DM applies it, as Leomund's Tiny Hut's dome (PHB p.255) or a Glyph of Warding (PHB
+     * p.245): the template's {@code keepsEffect}. The effect holds the cast's option, if any.
+     */
+    public boolean keepsEffect() {
+        return json != null && json.path("keepsEffect").asBoolean(false);
+    }
+
+    /**
+     * Whether the creature the spell touched uses its effect again, with its own action, rather than the caster, as
+     * Dragon's Breath's exhalation (XGE p.154): the template's {@code usedByTarget}. The effect stays the caster's and
+     * keeps its numbers, the caster's spell save DC among them.
+     */
+    public boolean usedByTarget() {
+        return json != null && json.path("usedByTarget").asBoolean(false);
+    }
+
+    /**
+     * The hit points a cast returns a dead creature to life with, as Revivify's 1 (PHB p.272): the template's
+     * {@code revivesDead}; null for a spell that revives none. Such a spell reaches only dead creatures.
+     */
+    public Integer revivesDead() {
+        JsonNode node = json != null ? json.get("revivesDead") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isInt() || node.asInt(0) <= 0) {
+            throw new IllegalArgumentException("revivesDead is not a whole number above 0");
+        }
+        return node.asInt(0);
+    }
+
+    /**
+     * Things a cast gives its caster to use later, each spent from a resource pool with the cost the pool names, as
+     * Goodberry's ten berries, each restoring 1 hit point to the creature that eats it with its action (PHB p.246).
+     *
+     * @param name   the pool's name, such as "Goodberries"
+     * @param uses   how many a cast gives
+     * @param heals  the hit points each use restores
+     */
+    public record SpellPool(String name, int uses, int heals) {
+    }
+
+    /** The template's {@code spellPool}, or null when the cast gives none. */
+    public SpellPool spellPool() {
+        JsonNode node = json != null ? json.get("spellPool") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isObject() || text(node, "name") == null || !node.path("uses").isInt()
+                || node.path("uses").asInt(0) <= 0) {
+            throw new IllegalArgumentException("spellPool needs a name and its uses");
+        }
+        return new SpellPool(text(node, "name"), node.path("uses").asInt(0), Math.max(0, node.path("heals").asInt(0)));
+    }
+
+    /**
+     * Whether it needs concentration when cast with a slot of slotLevel: its {@code concentration}, unless its
+     * {@code noConcentrationFromSlot} is at or below the slot, as Bestow Curse needs none from a 5th-level slot (PHB
+     * p.218).
+     */
+    public boolean concentrationAt(int slotLevel) {
+        if (!Boolean.TRUE.equals(concentration)) {
+            return false;
+        }
+        JsonNode node = json != null ? json.get("noConcentrationFromSlot") : null;
+        return node == null || !node.isInt() || slotLevel < node.asInt(0);
+    }
+
+    /** Whether its duration grows with the slot (D185, D199): its template has a {@code durationBySlot}. */
+    public boolean durationScales() {
+        return json != null && json.path("durationBySlot").isObject();
+    }
+
     // Dice the app can roll, or an IllegalArgumentException naming them
     private static void checkDice(String dice) {
         try {
@@ -1467,16 +1605,19 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      * @param saveToEndOnDamage whether a creature that takes damage repeats the save, a success ending the spell, as
      *                          Dominate Beast's target does (PHB p.234)
      * @param damageSaveAdvantage whether that save has advantage, as Tasha's Hideous Laughter's (PHB p.280)
+     * @param untilCasterTurnEnd whether it lasts until the end of its caster's next turn, as Color Spray's blindness
+     *                          (PHB p.222, D199): the data's {@code untilCasterTurnEnd}
      */
     public record ConditionInflicted(String condition, Integer durationRounds, boolean saveToEndEachTurn,
                                      String saveToEndAbility, boolean conditionalSave, boolean endsOnAttackOrCast,
-                                     boolean endsOnDamage, boolean saveToEndOnDamage, boolean damageSaveAdvantage) {
+                                     boolean endsOnDamage, boolean saveToEndOnDamage, boolean damageSaveAdvantage,
+                                     boolean untilCasterTurnEnd) {
 
         /** A condition that taking damage doesn't end. */
         public ConditionInflicted(String condition, Integer durationRounds, boolean saveToEndEachTurn,
                                   String saveToEndAbility, boolean conditionalSave, boolean endsOnAttackOrCast) {
             this(condition, durationRounds, saveToEndEachTurn, saveToEndAbility, conditionalSave, endsOnAttackOrCast,
-                    false, false, false);
+                    false, false, false, false);
         }
 
         /** A condition as the data lists it: its name, or an object naming it. */
@@ -1492,7 +1633,8 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
                     node.path("saveToEndEachTurn").asBoolean(false), text(node, "saveToEndAbility"),
                     !node.path("saveToEndCondition").isMissingNode(), node.path("endsOnAttackOrCast").asBoolean(false),
                     node.path("endsOnDamage").asBoolean(false), node.path("saveToEndOnDamage").asBoolean(false),
-                    node.path("saveToEndOnDamageAdvantage").asBoolean(false));
+                    node.path("saveToEndOnDamageAdvantage").asBoolean(false),
+                    node.path("untilCasterTurnEnd").asBoolean(false));
         }
 
         /** Its name in lower case, or null when it gives none. */
