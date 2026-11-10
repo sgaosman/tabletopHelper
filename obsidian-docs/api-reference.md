@@ -1865,3 +1865,8 @@ Before R3, "not found" and "not allowed" both returned 400 (`IllegalArgumentExce
 ### 8th- and 9th-level spells (D190)
 
 Spell options gain `duplicatesUpTo` (Wish: the highest spell level it can duplicate); a Wish cast's `option` names the spell, as `"Spell"` or `"Spell: option"`. A feebleminded creature's casts answer 409.
+
+
+### Creature forms (D192)
+
+`GET /encounters/{id}/combat/form-options?participantId&spell&targetId` lists the forms a spell allows for a creature. `POST /encounters/{id}/combat/change-form {participantId, targetId, creatureId}` gives a new form for an action (Shapechange, Animal Shapes). Cast requests take `forms` (creature id to monster id) for Polymorph, Mass Polymorph, True Polymorph, Shapechange and Animal Shapes. Participants gain `form` and `formName`; `wildShape` is set only for a druid's Wild Shape.

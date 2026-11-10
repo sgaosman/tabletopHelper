@@ -3625,3 +3625,29 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D165, D191, [[Additional Spellcasting]]
 
 **Tests:** `MonsterSpellCoverageTest.everyStatBlockSpellcasterCasts`, two new `MonsterSpellbookTest` cases, new `StatBlockSpellcastingIT` (2: Baba Lysaga casts Fireball with a slot; Arkhan spends an innate daily use); 3,094 backend unit, 415 integration and 1,148 frontend.
+
+
+## D192: Creature Forms for the Polymorph Family
+
+**Date:** 2026-11-10
+**Status:** Accepted — implemented (no migration). Logged after D193, which was pushed first.
+
+**Context:** [[#D185]] left Polymorph's beast form to the DM, because a monster target would need every stat-block read switched to the beast; True Polymorph, Shapechange, Animal Shapes and Mass Polymorph ([[#D190]]) were manual. Polymorph is in 45 monster stat blocks.
+
+**Decision:** the Wild Shape form record ([[#D178]]) serves spells too. It records the spell that gave it, the form's creature type, the INT, WIS and CHA it keeps when they replace the creature's own, whether the creature keeps its own proficiencies and features, whether it can cast, and the form's stat-block traits. The form lives on the spell's condition entry (`polymorphed`, `shapechanged`, `animal shape`), so concentration, ending, undo ([[#D176]]) and the revert at 0 HP with the extra damage carried over need no new mechanism.
+- **Rules reads use the form first:** ability scores, saves, skills, damage defences, condition immunities, Evasion ([[#D188]]), creature type, speed and traits. A full replacement (Polymorph, True Polymorph, Mass Polymorph) uses only the form's numbers; Wild Shape and Shapechange keep the creature's own and take the higher save or skill bonus.
+- **Traits follow the form ([[#D191]]):** a polymorphed rakshasa loses Limited Magic Immunity and a Magic Resistant monster its advantage, and a form whose stat block has Magic Resistance gives it; a PC's race traits (Gnome Cunning) stay only under Wild Shape and Shapechange. The "weapon attacks are magical" check reads the form too.
+- **Monster targets** use the form's actions and multiattack, with legendary and lair actions refused; the Player View shows only the form's name. A creature in a form can't cast unless the spell allows it (Shapechange), and a PC can't make weapon attacks in any form. The creature gets its own HP and AC back however the entry ends.
+- **Casting:** `CastSpellRequest.forms` maps each creature the spell transforms to a monster; a missing form is a 400 and one beyond the limits a 409, checked before anything is spent. `GET /combat/form-options` lists the allowed forms; `POST /combat/change-form` gives the Shapechange or Animal Shapes caster a new form for an action. `rules/combat/ShapeSpells` holds each spell's limits.
+- **Frontend:** a form step in the cast flow (a picker per target, with a filter and the limit), "Name (as Giant Ape)" on the participant row, the form's actions, and a "New form" control.
+- **Rules calls (choices):** Polymorph and True Polymorph limit the form to the target's CR, or its level for a PC (PHB p.266, p.283); Mass Polymorph allows up to half a level for a target without a CR, fractions kept (XGE p.160); for Shapechange a monster caster's CR stands in for its level, casting is allowed in any form (whether the form can physically cast is the DM's), a new form with more HP keeps the current HP, and after reverting at 0 the caster can take a new form while concentrating (p.274); Animal Shapes reads "Large or smaller" from the size (p.212); Polymorph-family forms replace all six scores and drop own proficiencies, features and defences, Animal Shapes keeps INT, WIS and CHA, Shapechange keeps both.
+
+**Rationale:** one form record for Wild Shape and spells keeps every stat read in one place.
+
+**Trade-offs:** Mass Polymorph's "willing" option applies to every target; True Polymorph's object cases and full-hour permanence are the DM's; the True Polymorph and Shapechange pickers load every monster; Turn Resistance and the Evasion trait text still read the creature's own stat block, so a polymorphed vampire still resists turning; a Wild Shape begun before this change has no traits stored. Not checked in a browser.
+
+**Key files:** `rules/combat/ShapeSpells.java`, `encounter/internal/FormSpells.java`, `encounter/state/WildShapeForm.java`, `EffectApplier.java`, `CreatureStats.java`, `MonsterActionService.java`, `SpellcastingService.java`, `EncounterViews.java`, `spellflow/FormStep.tsx`, `FormPicker.tsx`, `ChangeFormControl.tsx`, `utils/formSpells.ts`
+
+**Related:** D176, D177, D178, D182, D185, D188, D190, D191, [[Form]]
+
+**Tests:** new `ShapeSpellsTest` (8), `FormStatsTest`, `FormSpellsIT`, frontend `FormStep` and `ChangeFormControl` tests; 3,109 backend unit, 424 integration and 1,158 frontend.
