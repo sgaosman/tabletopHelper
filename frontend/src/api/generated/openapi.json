@@ -2762,6 +2762,47 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/spell-consent": {
+      "put": {
+        "operationId": "setSpellConsent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpellConsentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/spell-effect/end": {
       "post": {
         "operationId": "endSpellEffect",
@@ -6418,6 +6459,13 @@
             "minimum": 0,
             "type": "integer",
             "format": "int32"
+          },
+          "spellConsents": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "nullable": true
           },
           "spellName": {
             "minLength": 1,
@@ -11173,6 +11221,14 @@
             "format": "int32",
             "nullable": true
           },
+          "spellConsent": {
+            "type": "string",
+            "nullable": true
+          },
+          "spellConsentTrait": {
+            "type": "string",
+            "nullable": true
+          },
           "spellModifiers": {
             "type": "array",
             "items": {
@@ -12166,6 +12222,27 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          }
+        }
+      },
+      "SpellConsentRequest": {
+        "required": [
+          "consent",
+          "participantId"
+        ],
+        "type": "object",
+        "properties": {
+          "consent": {
+            "type": "string",
+            "enum": [
+              "NEVER",
+              "HELPFUL",
+              "ALWAYS"
+            ]
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },

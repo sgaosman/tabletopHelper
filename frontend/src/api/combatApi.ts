@@ -10,6 +10,7 @@ import type {
   CombatLogEntry,
   CastSpellRequest,
   CastSpellResponse,
+  SpellConsent,
   RepeatSpellEffectRequest,
   MonsterActionRequest,
   MonsterActionResponse,
@@ -107,6 +108,14 @@ export const combatApi = {
   /** The DM sets a creature's exhaustion level, 0 to 6, while the encounter is prepared or under way (D183). */
   setExhaustion(encounterId: string, participantId: string, level: number) {
     return api.put<Encounter>(`/encounters/${encounterId}/combat/exhaustion`, { participantId, level });
+  },
+
+  /**
+   * Whoever controls a creature with a trait such as Limited Magic Immunity sets which spells it lets through, while the
+   * encounter is prepared or under way (D198).
+   */
+  setSpellConsent(encounterId: string, participantId: string, consent: SpellConsent) {
+    return api.put<Encounter>(`/encounters/${encounterId}/combat/spell-consent`, { participantId, consent });
   },
 
   removeCondition(encounterId: string, targetId: string, condition: string) {

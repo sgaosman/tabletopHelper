@@ -27,6 +27,7 @@ import CombatLog from '../../components/encounter/CombatLog';
 import ConnectionStatus, { ConnectionBanner } from '../../components/encounter/ConnectionStatus';
 import ConditionForm from '../../components/encounter/ConditionForm';
 import ExhaustionControl from '../../components/common/ExhaustionControl';
+import SpellConsentControl from '../../components/encounter/SpellConsentControl';
 import ConcentrationForm from '../../components/encounter/ConcentrationForm';
 import ActiveSpellForm from '../../components/encounter/ActiveSpellForm';
 import ManualAttackForm from '../../components/encounter/ManualAttackForm';
@@ -189,6 +190,13 @@ function ActionPanel({
               onChange={level => actions.setExhaustion(selectedTarget.id, level)}
             />
           </div>
+          {/* Which spells a creature with Limited Magic Immunity lets through (MM p.257, D198) */}
+          {selectedTarget.spellConsentTrait && (
+            <div className="mb-3">
+              <SpellConsentControl participant={selectedTarget}
+                onChange={consent => actions.setSpellConsent(selectedTarget.id, consent)} />
+            </div>
+          )}
           <ConditionForm onSubmit={(condition, duration) => actions.addCondition(selectedTarget.id, condition, duration)} />
         </>
       )}

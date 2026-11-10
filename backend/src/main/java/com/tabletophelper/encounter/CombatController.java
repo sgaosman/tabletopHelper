@@ -10,6 +10,7 @@ import com.tabletophelper.encounter.internal.HitPointService;
 import com.tabletophelper.encounter.internal.LegendaryResistanceService;
 import com.tabletophelper.encounter.internal.MonsterActionService;
 import com.tabletophelper.encounter.internal.PoolUseService;
+import com.tabletophelper.encounter.internal.SpellConsentService;
 import com.tabletophelper.encounter.internal.SpellcastingService;
 import com.tabletophelper.encounter.internal.StandardActionService;
 import com.tabletophelper.encounter.internal.SummonService;
@@ -54,6 +55,7 @@ public class CombatController {
     private final SummonService summonService;
     private final UndoService undoService;
     private final EncounterService encounterService;
+    private final SpellConsentService spellConsentService;
 
     // A weapon attack the server works out, or an attack entered by hand, which is a Manual Modifier (D164)
     @PostMapping("/attack")
@@ -204,6 +206,18 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = conditionService.setExhaustion(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // Which spells a creature lets through a trait such as Limited Magic Immunity (MM p.257, D198), set by whoever
+    // controls it while the encounter is prepared or under way
+    @PutMapping("/spell-consent")
+    public ResponseEntity<EncounterResponse> setSpellConsent(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody SpellConsentRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = spellConsentService.setSpellConsent(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 

@@ -81,6 +81,7 @@ public class EncounterService {
     private final SpellEffects spellEffects;
     private final Summoner summoner;
     private final EffectApplier effectApplier;
+    private final CreatureStats creatureStats;
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -749,6 +750,8 @@ public class EncounterService {
                         .deathSaveDue(Boolean.TRUE.equals(p.getDeathSaveDue()) && p.getLifeState() == LifeState.DYING)
                         .hasLairActions(p.getParticipantType() == ParticipantType.MONSTER ? hasLairActions(p) : null)
                         .controlledByUserId(p.getControlledByUserId())
+                        .spellConsentTrait(creatureStats.spellConsentTrait(p))
+                        .spellConsent(creatureStats.spellConsentTrait(p) != null ? p.getSpellConsent().name() : null)
                         .deathSaveSuccesses(p.getDeathSaveSuccesses())
                         .deathSaveFailures(p.getDeathSaveFailures())
                         .notes(p.getNotes())

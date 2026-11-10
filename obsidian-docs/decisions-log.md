@@ -3757,3 +3757,28 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Tests:** new `WeaponRiderSpellsTest` (13), `WeaponRiderSpellsIT` (9); 3,158 backend unit, 451 integration and 1,159 frontend.
 
 **Update to D197 (2026-11-10, Branding Smite):** the check D197 asked for found a real bug: Branding Smite's template was a SELF spell with a plain 2d6 damage part, so casting it dealt the radiant damage to its own caster (the D193 test cast Arkhan's and he took it). It is now a one-shot weapon-hit Ongoing Modifier like Staggering Smite's ([[#D184]], [[#D185]]): 2d6 radiant on the caster's next weapon hit, +1d6 per slot above 2nd (PHB p.219), with the invisibility and light effect as a reminder. Spell templates v11; Empowered Spell's golden count goes from 147 to 146; `StatBlockSpellcastingIT` now checks the caster's HP is untouched by the cast.
+
+
+## D198: Psychic Scream's Exploding Head and Spell Consent
+
+**Date:** 2026-11-10
+**Status:** Accepted — implemented (V36; spell templates v12)
+
+**Context:** the user's review of the overnight spell work ([[#D190]], [[#D191]]). Psychic Scream's exploding head is flavour the user wanted in the log; Limited Magic Immunity's "unless it wishes to be" was read in D191 as "never affected except by its own spells", which keeps an ally's Heal or Bless off a rakshasa as surely as an ally's Fireball.
+
+**Decision:**
+- **Psychic Scream's kill note** (XGE p.163): a template's `killNote {text, needsHead}` adds its words to the log line of a creature its damage kills, Psychic Scream's "...and its head explodes!". Flavour only. A monster dies at 0 hit points; a player character at 0 is dying, not dead, so it gets the words only when the damage kills it outright (massive damage, PHB p.197). `CreatureStats.hasHead` reads the creature's form: no ooze, no swarm (by name), and none of a short list of shapeless stat blocks (air and water elementals, water weird, will-o'-wisp, gibbering mouther, otyugh, roper, shambling mound, vine blight and the like), since the bestiary has no field for a head.
+- **Spell Consent:** a trait whose words let the creature choose to be affected ("unless it/he/she wishes to be": the rakshasa and Zakya rakshasa, Mahadi, Mordakhesh, Tiamat's "Unless she wishes to be affected", RoT p.92) has a standing choice on the participant (V36 `spell_consent`): `HELPFUL` (the default), `ALWAYS` or `NEVER`. The hollyphant's Aura of Invulnerability gives no choice (BGDIA p.237). Whoever controls the creature sets it, the DM or the player a spell gave control to ([[#D187]]), with `PUT /encounters/{id}/combat/spell-consent` while Preparing or Active; it costs nothing and undo doesn't take it back.
+- **Harmful or helpful** (`SpellTemplate.harmful()`): a spell is harmful if it calls for a save or an attack roll, or deals damage; else a spell only for allies is helpful even with conditions, since it is cast on willing creatures (Invisibility, Sanctuary); else conditions or enemies-only targeting (Hex, Hunter's Mark) make it harmful. A spell with no template counts as harmful.
+- **A cast's own choice:** the cast request's `spellConsents {participantId: true|false}` overrides the standing choice for that cast, made only for one of the cast's targets that has such a trait and only by whoever controls it (403 otherwise, 400 for a target without the trait). The confirm step offers "its setting / yes / no" for each such target the user controls. The log says "Rakshasa lets Cure Wounds affect it (Limited Magic Immunity)." Later uses of a lasting spell, as Moonbeam's each turn, follow the standing choice.
+- **Confirmed with the user:** Wall of Fire's damage each turn has no save (PHB p.285), as the spell's text gives none after the first.
+
+**Rationale:** there is no way to stop a cast mid-way and ask another user, so the choice is made beforehand, with a sensible default (an ally's Fireball kept out, its Heal let in) and a per-cast override for the odd case. This corrects D191's reading, and its note that Tiamat's trait gives no choice.
+
+**Trade-offs:** the harmful test reads the template, so a spell whose template marks it wrongly lets the wrong spells through; the per-cast choice or the standing one fixes a single case. Players see the setting only on a creature a player controls. No map, so a hollyphant's aura covering others stays the DM's.
+
+**Key files:** `encounter/state/SpellConsent.java`, `V36__spell_consent.sql`, `encounter/internal/SpellConsentService.java`, `CreatureStats.java` (`spellConsentTrait`, `choosesToBeAffected`, `hasHead`), `SpellCaster.java`, `SpellcastingService.java`, `EffectApplier.java`, `reference/SpellTemplate.java`, `components/encounter/SpellConsentControl.tsx`, `spellflow/ConsentChoices.tsx`, `utils/spellConsent.ts`
+
+**Related:** D187, D188, D190, D191, D196
+
+**Tests:** `SpellTraitsTest` (Consent, 5), `HighLevelMechanicsTest` (headExplodes), new `SpellConsentIT` (4), `FlywayMigrationIT` and `PreviewMigrationJobIT` for V36, `SpellConsentControl.test.tsx` (4); 3,164 backend unit, 457 integration and 1,163 frontend.

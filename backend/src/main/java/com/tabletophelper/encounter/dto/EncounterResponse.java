@@ -182,6 +182,12 @@ public class EncounterResponse {
 
         private UUID controlledByUserId;
 
+        // A trait that keeps spells off it "unless it wishes to be" affected, as a rakshasa's Limited Magic Immunity
+        // (MM p.257, D198), by name, and which spells it lets through, NEVER, HELPFUL or ALWAYS; both null for a
+        // creature without one. Players see them only for a creature a player controls
+        private String spellConsentTrait;
+        private String spellConsent;
+
         // The columns allow null, but participants are only created through the entity's builder,
         // which starts each of these, and combat code reads them without a null check
         @Schema(requiredMode = REQUIRED)

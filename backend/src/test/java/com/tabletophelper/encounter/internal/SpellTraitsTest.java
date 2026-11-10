@@ -2,8 +2,10 @@ package com.tabletophelper.encounter.internal;
 
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.SpellConsent;
 import com.tabletophelper.encounter.state.RepeatSave;
 import com.tabletophelper.reference.Race;
+import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.Effect;
@@ -16,9 +18,11 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -231,6 +235,122 @@ class SpellTraitsTest {
             cast(wizard, "Big Storm", 7, List.of(rakshasa));
             assertEquals(90, rakshasa.getHpCurrent());
             assertTrue(f.descriptions().stream().anyMatch(d -> d.contains("(advantage: Limited Magic Immunity)")));
+        }
+    }
+
+    @Nested
+    @DisplayName("Choosing to be affected (D198)")
+    class Consent {
+
+        private static final String HEAL = """
+                {"spellLevel": 6, "deliveryMethod": "AUTO_HIT", "canTargetAllies": true, "canTargetEnemies": true,
+                 "effects": [{"effectType": "HEAL", "healingDice": "70"}], "healing": {"healingDice": "70"}}""";
+
+        private EncounterParticipant rakshasa;
+
+        @BeforeEach
+        void setUp() {
+            f.spell("Heal", 6, HEAL);
+            f.spell("Firebolt Storm", 5, FIREBOLT);
+            rakshasa = monsterWithTraits("Rakshasa", 110, LIMITED_MAGIC_IMMUNITY);
+            rakshasa.setHpCurrent(20);
+        }
+
+        private SpellCaster.CastResult cast(String spell, int level, Map<UUID, Boolean> consents) {
+            return f.spellCaster.cast(f.encounter, wizard, spell, level, List.of(rakshasa), "INT", 7, 15, null, "",
+                    MetamagicCasting.Plan.NONE, null, null, consents);
+        }
+
+        @Test
+        @DisplayName("By default a rakshasa lets an ally's Heal through and keeps its Fireball out (MM p.257)")
+        void helpfulOnly() {
+            assertEquals("Limited Magic Immunity", f.stats.spellConsentTrait(rakshasa));
+            assertEquals(SpellConsent.HELPFUL, rakshasa.getSpellConsent());
+            cast("Heal", 6, Map.of());
+            assertEquals(90, rakshasa.getHpCurrent());
+            assertTrue(f.descriptions().stream().anyMatch(d -> d.contains("Rakshasa lets Heal affect it (Limited Magic "
+                    + "Immunity)")), f.descriptions().toString());
+
+            f.dice.script(5, 5, 5, 5, 2);
+            cast("Firebolt Storm", 5, Map.of());
+            assertEquals(90, rakshasa.getHpCurrent());
+        }
+
+        @Test
+        @DisplayName("Set to never, it keeps out even Heal; set to always, it takes the Fireball too")
+        void neverAndAlways() {
+            rakshasa.setSpellConsent(SpellConsent.NEVER);
+            cast("Heal", 6, Map.of());
+            assertEquals(20, rakshasa.getHpCurrent());
+
+            rakshasa.setSpellConsent(SpellConsent.ALWAYS);
+            rakshasa.setHpCurrent(110);
+            // 4d6 (5, 5, 5, 5) = 20; its DEX save of 2 fails
+            f.dice.script(5, 5, 5, 5, 2, 2);
+            cast("Firebolt Storm", 5, Map.of());
+            assertEquals(90, rakshasa.getHpCurrent());
+        }
+
+        @Test
+        @DisplayName("The choice made for a cast overrides the standing one, either way")
+        void castChoice() {
+            cast("Heal", 6, Map.of(rakshasa.getId(), false));
+            assertEquals(20, rakshasa.getHpCurrent());
+
+            rakshasa.setHpCurrent(110);
+            f.dice.script(5, 5, 5, 5, 2, 2);
+            cast("Firebolt Storm", 5, Map.of(rakshasa.getId(), true));
+            assertEquals(90, rakshasa.getHpCurrent());
+        }
+
+        @Test
+        @DisplayName("Tiamat's \"unless she wishes\" gives the choice (RoT p.92); the hollyphant's aura gives none, keeping "
+                + "a low-level Heal out whatever is chosen (BGDIA p.237)")
+        void whoChooses() {
+            EncounterParticipant tiamat = monsterWithTraits("Tiamat", 615, """
+                    [{"name": "Limited Magic Immunity", "description": "Unless she wishes to be affected, Tiamat is \
+                    immune to spells of 6th level or lower."}]""");
+            EncounterParticipant mahadi = monsterWithTraits("Mahadi the Rakshasa", 110, """
+                    [{"name": "Limited Magic Immunity", "description": "Mahadi can't be affected or detected by \
+                    spells of 6th level or lower unless he wishes to be."}]""");
+            EncounterParticipant hollyphant = monsterWithTraits("Hollyphant", 36, """
+                    [{"name": "Aura of Invulnerability", "description": "An invisible barrier of magical force forms \
+                    a 10-foot-radius sphere around the hollyphant for as long as it lives. Any spell of 5th level or \
+                    lower cast from outside the barrier can't affect creatures or objects within it."}]""");
+            assertEquals("Limited Magic Immunity", f.stats.spellConsentTrait(tiamat));
+            assertEquals("Limited Magic Immunity", f.stats.spellConsentTrait(mahadi));
+            assertNull(f.stats.spellConsentTrait(hollyphant));
+
+            f.spell("Cure Wounds", 1, HEAL.replace("\"spellLevel\": 6", "\"spellLevel\": 1"));
+            hollyphant.setHpCurrent(10);
+            hollyphant.setSpellConsent(SpellConsent.ALWAYS);
+            f.spellCaster.cast(f.encounter, wizard, "Cure Wounds", 1, List.of(hollyphant), "INT", 7, 15, null, "",
+                    MetamagicCasting.Plan.NONE, null, null, Map.of());
+            assertEquals(10, hollyphant.getHpCurrent());
+        }
+
+        @Test
+        @DisplayName("Harmful: a save, an attack, damage, conditions or enemies only, as Hex; Heal, Bless and Invisibility aren't")
+        void harmful() {
+            assertTrue(template(FIREBOLT).harmful());
+            assertTrue(template("""
+                    {"deliveryMethod": "AUTO_HIT", "canTargetAllies": false, "canTargetEnemies": true,
+                     "effects": [{"effectType": "DEBUFF"}]}""").harmful());
+            assertTrue(template("""
+                    {"deliveryMethod": "AUTO_HIT", "canTargetAllies": true, "canTargetEnemies": true,
+                     "conditionsInflicted": [{"condition": "unconscious"}]}""").harmful());
+            assertFalse(template(HEAL).harmful());
+            // A spell only for allies is cast on willing creatures, so Invisibility's condition is helpful
+            assertFalse(template("""
+                    {"deliveryMethod": "AUTO_HIT", "canTargetAllies": true, "canTargetEnemies": false,
+                     "conditionsInflicted": [{"condition": "invisible"}]}""").harmful());
+            assertFalse(template("""
+                    {"deliveryMethod": "AUTO_HIT", "canTargetAllies": true, "canTargetEnemies": false,
+                     "effects": [{"effectType": "BUFF"}]}""").harmful());
+        }
+
+        private static SpellTemplate template(String json) {
+            return SpellTemplate.parse(json);
         }
     }
 

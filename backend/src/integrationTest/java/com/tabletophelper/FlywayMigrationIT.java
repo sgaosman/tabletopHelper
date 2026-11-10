@@ -44,14 +44,14 @@ class FlywayMigrationIT extends IntegrationTest {
     private EntityManagerFactory entityManagerFactory;
 
     @Test
-    @DisplayName("Flyway applied V0–V6 and V8–V35 to the empty database; V7 was never used")
+    @DisplayName("Flyway applied V0–V6 and V8–V36 to the empty database; V7 was never used")
     void appliedVersionsMatchMigrationFiles() {
         List<String> versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
 
         assertThat(versions).containsExactly("0", "1", "2", "3", "4", "5", "6", "8", "9", "10", "11", "12", "13", "14", "15",
                 "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33",
-                "34", "35");
+                "34", "35", "36");
     }
 
     @Test
@@ -179,6 +179,20 @@ class FlywayMigrationIT extends IntegrationTest {
         assertThat(jdbcTemplate.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
                 + "WHERE conname = 'combat_logs_action_type_check'", String.class))
                 .contains("'SUMMON'", "'SUMMON_END'", "'SPELL_EFFECT_END'");
+    }
+
+    @Test
+    @DisplayName("V36 adds spell_consent to encounter_participants, NOT NULL, HELPFUL by default, and one of NEVER, "
+            + "HELPFUL or ALWAYS")
+    void spellConsentColumn() {
+        assertThat(jdbcTemplate.queryForList("SELECT data_type::text AS type, is_nullable::text AS nullable, "
+                + "column_default::text AS defaulted FROM information_schema.columns WHERE table_schema = 'public' "
+                + "AND table_name = 'encounter_participants' AND column_name = 'spell_consent'"))
+                .containsExactly(Map.of("type", "character varying", "nullable", "NO",
+                        "defaulted", "'HELPFUL'::character varying"));
+        assertThat(jdbcTemplate.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = "
+                + "'chk_encounter_participants_spell_consent'", String.class))
+                .contains("NEVER").contains("HELPFUL").contains("ALWAYS");
     }
 
     @Test

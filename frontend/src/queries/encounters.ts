@@ -417,6 +417,7 @@ export function useEncounterAction() {
       addCondition: change(combatApi.addCondition),
       removeCondition: change(combatApi.removeCondition),
       setExhaustion: change(combatApi.setExhaustion),
+      setSpellConsent: change(combatApi.setSpellConsent),
       rollDeathSave: change(combatApi.rollDeathSave),
       rollRepeatSave: change(combatApi.rollRepeatSave),
       rollActionSave: change(combatApi.rollActionSave),

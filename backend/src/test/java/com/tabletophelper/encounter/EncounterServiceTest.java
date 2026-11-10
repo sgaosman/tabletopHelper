@@ -91,7 +91,8 @@ class EncounterServiceTest {
                 new EncounterResults(eventPublisher, writeBackService),
                 new CommandRecorder(combatCommandRepository, combatLogRepository, objectMapper),
                 mock(com.tabletophelper.encounter.internal.SpellEffects.class),
-                mock(com.tabletophelper.encounter.internal.Summoner.class), effectApplier);
+                mock(com.tabletophelper.encounter.internal.Summoner.class), effectApplier,
+                mock(com.tabletophelper.encounter.internal.CreatureStats.class));
 
         dmUserId = UUID.randomUUID();
         campaignId = UUID.randomUUID();

@@ -33,6 +33,7 @@ import com.tabletophelper.rules.combat.Metamagic;
 import com.tabletophelper.rules.combat.SpellTrigger;
 import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
@@ -144,6 +145,8 @@ public class SpellcastingService {
 
         // A Polymorph-family spell's forms are checked before anything is spent (D192)
         FormSpells.Prepared forms = formSpells.prepare(caster, casting.spellName(), targets, request.getForms());
+        // So is each choice to be affected despite a trait such as Limited Magic Immunity (MM p.257, D198)
+        Map<UUID, Boolean> consents = consents(encounter, targets, request.getSpellConsents(), userId);
 
         String costNote = quickened ? costNote(CastingTime.BONUS_ACTION) : costNote(payment.castingTime());
         Charge.SpellKind kind = payment.spellLevel() == 0 ? Charge.SpellKind.CANTRIP : Charge.SpellKind.LEVELLED;
@@ -172,7 +175,8 @@ public class SpellcastingService {
                 : spellCaster.cast(encounter, caster, casting.spellName(), casting.castLevel(),
                 targets, own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
                 saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(),
-                costNote + (duplicate != null ? " through " + payment.spellName() : ""), metamagic, summon, option);
+                costNote + (duplicate != null ? " through " + payment.spellName() : ""), metamagic, summon, option,
+                consents);
         if (summon != null) {
             summoner.afterCast(encounter, caster, summon, casting.castLevel(), own.ability(),
                     attackBonus(own, request.getOverrideSpellAttackBonus()),
@@ -183,6 +187,37 @@ public class SpellcastingService {
         defensiveSpells.afterCast(caster, casting.spellName(), targets, saveDc(own, request.getOverrideSpellSaveDC()));
         effectApplier.endOnAttackOrCast(encounter, caster, ending, "it casts a spell");
         return response(encounter, result, payment.castLevel(), payment.source());
+    }
+
+    /*
+     * The choices made for this cast to be affected, or not, despite a trait that keeps spells off a target "unless it
+     * wishes to be", as a rakshasa's Limited Magic Immunity (MM p.257, D198): each for one of the cast's targets that has
+     * such a trait, made by whoever controls it, the DM or the player a spell gave control to.
+     */
+    private Map<UUID, Boolean> consents(Encounter encounter, List<EncounterParticipant> targets,
+                                        Map<UUID, Boolean> chosen, UUID userId) {
+        if (chosen == null || chosen.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, Boolean> consents = new LinkedHashMap<>();
+        chosen.forEach((targetId, affected) -> {
+            EncounterParticipant target = targets.stream().filter(t -> t.getId().equals(targetId)).findFirst()
+                    .orElseThrow(() -> new ValidationException("A choice to be affected is only for one of the "
+                            + "spell's targets"));
+            if (stats.spellConsentTrait(target) == null) {
+                throw new ValidationException(target.getDisplayName() + " has no trait that lets it choose to be "
+                        + "affected by spells");
+            }
+            if (affected == null) {
+                throw new ValidationException("Choose whether " + target.getDisplayName() + " is affected");
+            }
+            if (!CombatAccess.isDm(encounter, userId) && !userId.equals(target.getControlledByUserId())) {
+                throw new ForbiddenException("Only whoever controls " + target.getDisplayName()
+                        + " can choose whether it is affected");
+            }
+            consents.put(targetId, affected);
+        });
+        return consents;
     }
 
     // Counterspell, whose counter is already resolved, or Dispel Magic on its one target (D196)

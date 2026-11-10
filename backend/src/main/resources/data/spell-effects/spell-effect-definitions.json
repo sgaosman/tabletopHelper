@@ -30099,7 +30099,11 @@
       "ability": "INT",
       "max": 2
     },
-    "reminder": "A creature killed by it has its head explode, assuming it has one."
+    "reminder": "A creature killed by it has its head explode, assuming it has one.",
+    "killNote": {
+      "text": "...and its head explodes!",
+      "needsHead": true
+    }
   },
   {
     "spellName": "Ravenous Void",

@@ -7,10 +7,12 @@ import com.tabletophelper.character.EquippedArmour;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.SpellConsent;
 import com.tabletophelper.encounter.state.SummonLink;
 import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.Race;
+import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.rules.ProficiencyBonus;
@@ -204,6 +206,11 @@ public class CreatureStats {
             "(?:(?:can't be affected(?: or detected)? by|immune to) spells of (\\d)(?:st|nd|rd|th) level or lower"
                     + "|any spell of (\\d)(?:st|nd|rd|th) level or lower cast from outside the barrier can't affect)",
             Pattern.CASE_INSENSITIVE);
+    // The words that let the creature choose to be affected anyway (D198): the rakshasa's "unless it wishes to be"
+    // (MM p.257), Mahadi's and Mordakhesh's "unless he wishes to be", Tiamat's "Unless she wishes to be affected" (RoT
+    // p.92)
+    private static final Pattern UNLESS_IT_WISHES = Pattern.compile("unless (?:it|he|she|they) wish(?:es)? to be",
+            Pattern.CASE_INSENSITIVE);
 
     /** A trait by its name and its words, from a stat block or a race (D191). */
     public record Trait(String name, String description) {
@@ -288,9 +295,9 @@ public class CreatureStats {
 
     /**
      * The participant's trait that keeps a spell of this level from it, as a rakshasa's Limited Magic Immunity keeps
-     * spells of 6th level or lower (MM p.257, D191), by name, or null. The creature may choose to be affected; the app
-     * takes it that it doesn't, unless it casts the spell itself. A spell's level is its own, whatever slot it was cast
-     * with, as for the Globe of Invulnerability (D188).
+     * spells of 6th level or lower (MM p.257, D191), by name, or null; a spell it casts itself reaches it. Whether a
+     * creature that may choose to be affected does is the caster's to decide, by {@link #choosesToBeAffected} (D198). A
+     * spell's level is its own, whatever slot it was cast with, as for the Globe of Invulnerability (D188).
      */
     public String spellImmunityTrait(EncounterParticipant caster, EncounterParticipant target, int spellLevel) {
         if (caster == target) {
@@ -304,6 +311,44 @@ public class CreatureStats {
             }
         }
         return null;
+    }
+
+    /**
+     * The participant's trait that keeps spells off it "unless it wishes to be" affected, as a rakshasa's Limited Magic
+     * Immunity (MM p.257, D198) or Tiamat's (RoT p.92), by name, or null for a creature with none: the hollyphant's Aura
+     * of Invulnerability gives no choice (BGDIA p.237).
+     */
+    public String spellConsentTrait(EncounterParticipant participant) {
+        for (Trait trait : traits(participant)) {
+            if (LIMITED_MAGIC_IMMUNITY.matcher(trait.description()).find()
+                    && UNLESS_IT_WISHES.matcher(trait.description()).find()) {
+                return trait.name();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Whether the target lets a spell through its trait (D198): a choice made for this cast by whoever controls it, or
+     * else the standing one, its {@link SpellConsent}, which lets through every spell, only those that don't harm it, or
+     * none. A creature whose trait gives no choice, as Tiamat's, never does.
+     *
+     * @param chosen  the choice made for this cast, or null for none
+     * @param harmful whether the spell harms it, as {@link SpellTemplate#harmful()} reads
+     */
+    public boolean choosesToBeAffected(EncounterParticipant target, Boolean chosen, boolean harmful) {
+        if (spellConsentTrait(target) == null) {
+            return false;
+        }
+        if (chosen != null) {
+            return chosen;
+        }
+        SpellConsent consent = target.getSpellConsent() != null ? target.getSpellConsent() : SpellConsent.HELPFUL;
+        return switch (consent) {
+            case ALWAYS -> true;
+            case HELPFUL -> !harmful;
+            case NEVER -> false;
+        };
     }
 
     /**
@@ -577,6 +622,32 @@ public class CreatureStats {
             return participant.getSummon().creatureType();
         }
         return participant.getMonster() != null ? participant.getMonster().getType() : null;
+    }
+
+    // The creatures whose stat blocks give no head (D198): beyond oozes and swarms, the MM's shapeless ones, such as the
+    // air and water elementals, a whirlwind and a wave, and the gibbering mouther, a mass of mouths and eyes
+    private static final Set<String> HEADLESS = Set.of("air elemental", "water elemental", "water weird",
+            "will-o'-wisp", "gibbering mouther", "otyugh", "roper", "shambling mound", "vine blight", "gas spore",
+            "violet fungus", "shrieker", "skeletal rats", "paper whirlwind", "black pudding", "gelatinous cube",
+            "gray ooze", "ochre jelly");
+
+    /**
+     * Whether the creature has a head, for flavour such as Psychic Scream's exploding one (XGE p.163, D198): not an ooze,
+     * a swarm, or one of the shapeless creatures named above, read from the form it is in; a player character has one.
+     */
+    public static boolean hasHead(EncounterParticipant participant) {
+        Optional<WildShapeForm> form = WildShapeForm.of(participant);
+        String name = form.map(WildShapeForm::beastName)
+                .orElse(participant.getMonster() != null ? participant.getMonster().getName() : null);
+        String type = typeForSpells(participant);
+        if (type != null && type.contains("ooze")) {
+            return false;
+        }
+        if (name == null) {
+            return true;
+        }
+        String lower = name.trim().toLowerCase(Locale.ROOT);
+        return !lower.contains("swarm") && !HEADLESS.contains(lower);
     }
 
     /**

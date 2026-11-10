@@ -22,6 +22,9 @@ import { draftProblem, isSummoningSpell, summonSummary, toSummonChoice } from '.
 import { mysticArcanumTitle } from '../../utils/mysticArcanum';
 import FormStep, { type FormChoice } from './spellflow/FormStep';
 import { formSubjects, isFormSpell } from '../../utils/formSpells';
+import { useAuth } from '../../hooks/useAuth';
+import { consentTargets } from '../../utils/spellConsent';
+import ConsentChoices from './spellflow/ConsentChoices';
 
 interface Props {
   caster: EncounterParticipant;
@@ -97,6 +100,11 @@ export default function SpellCastModal({
   const subjects = formSpell && selectedSpell
     ? formSubjects(selectedSpell.name, caster, flow.selectedTargets, participants) : [];
   const formsMissing = subjects.some(s => !forms[s.id]);
+  // Whether this cast affects each target whose trait lets it choose, as a rakshasa's Limited Magic Immunity (D198),
+  // chosen by whoever controls it; a target left out takes its standing choice
+  const { user } = useAuth();
+  const [consents, setConsents] = useState<Record<string, boolean>>({});
+  const choosing = consentTargets(participants.filter(p => flow.selectedTargets.includes(p.id)), user?.userId, asDm);
 
   const filteredSpells = useMemo(() => {
     const q = search.toLowerCase();
@@ -203,8 +211,15 @@ export default function SpellCastModal({
         ? toSummonChoice(summonOptions.data, summonDraft) : undefined,
       forms: formSpell
         ? Object.fromEntries(subjects.map(s => [s.id, forms[s.id].monsterId])) : undefined,
+      spellConsents: consentRequest(),
       ...flow.overrides(),
     }, caster.id));
+  }
+
+  // The choices made for the cast's targets still chosen, or nothing when none was made
+  function consentRequest() {
+    const made = Object.entries(consents).filter(([id]) => choosing.some(target => target.id === id));
+    return made.length > 0 ? Object.fromEntries(made) : undefined;
   }
 
   // Back from targeting or confirm: to the creatures of a summoning spell, else to Metamagic when it was offered, else
@@ -333,6 +348,8 @@ export default function SpellCastModal({
             onCareful={setCareful}
             onHeightened={setHeightened}
           />
+          <ConsentChoices targets={choosing} spellName={selectedSpell!.name} chosen={consents}
+            onChange={setConsents} />
           {summoning && summonOptions.data && summonDraft && (
             <p className="font-body text-[15px] font-semibold text-ink">
               Summons: {summonSummary(summonOptions.data, summonDraft)}

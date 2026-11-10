@@ -1076,6 +1076,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/spell-consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setSpellConsent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/spell-effect/end": {
         parameters: {
             query?: never;
@@ -2497,6 +2513,9 @@ export interface components {
             overrideSpellSaveDC?: number | null;
             /** Format: int32 */
             slotLevel: number;
+            spellConsents?: {
+                [key: string]: boolean;
+            } | null;
             spellName: string;
             /** @enum {string|null} */
             spellSource?: "SLOT" | "PACT_SLOT" | "INNATE" | "MYSTIC_ARCANUM" | "NONE" | null;
@@ -3785,6 +3804,8 @@ export interface components {
             };
             /** Format: int32 */
             spellAttackBonus?: number | null;
+            spellConsent?: string | null;
+            spellConsentTrait?: string | null;
             spellModifiers: components["schemas"]["SpellModifierResponse"][];
             /** Format: int32 */
             spellSaveDc?: number | null;
@@ -4047,6 +4068,12 @@ export interface components {
             source?: string | null;
             /** Format: date-time */
             updatedAt?: string | null;
+        };
+        SpellConsentRequest: {
+            /** @enum {string} */
+            consent: "NEVER" | "HELPFUL" | "ALWAYS";
+            /** Format: uuid */
+            participantId: string;
         };
         SpellEffectResponse: {
             affectedIds: string[];
@@ -6309,6 +6336,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CastSpellResponse"];
+                };
+            };
+        };
+    };
+    setSpellConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpellConsentRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
                 };
             };
         };

@@ -234,13 +234,17 @@ public class SpellEffects {
      * @param saveDisadvantageTypes the creature types that save with disadvantage (Sunbeam's undead and oozes)
      * @param blocksCasting         its caster can't cast spells while it lasts (Tenser's Transformation)
      * @param movable               its caster may move its Spell Effect at any time (Fizban's Platinum Shield)
+     * @param killNote              the log's words for a creature its damage kills, as Psychic Scream's exploding head
+     *                              (XGE p.163); flavour only, null for none
+     * @param killNoteNeedsHead     whether those words are only for a creature with a head
      */
     public record CastRules(int damageFloor, boolean disintegrates, boolean reducesHpMax, int hpMaxRounds,
                             String immuneIfImmuneTo, String succeedsIfImmuneTo,
-                            List<String> saveDisadvantageTypes, boolean blocksCasting, boolean movable) {
+                            List<String> saveDisadvantageTypes, boolean blocksCasting, boolean movable,
+                            String killNote, boolean killNoteNeedsHead) {
 
         public static final CastRules NONE = new CastRules(0, false, false, 0, null, null, List.of(),
-                false, false);
+                false, false, null, false);
 
         /** Whether its damage needs more than the usual rules once rolled. */
         public boolean limitsDamage() {
@@ -257,12 +261,22 @@ public class SpellEffects {
                 && template.repeatEffect() != null && !template.repeatEffect().replaces()).orElse(false);
     }
 
+    /**
+     * Whether a creature would want to keep the spell off, as a rakshasa letting through only helpful spells would an
+     * ally's Fireball but not its Heal (D198): {@link SpellTemplate#harmful()}, and harmful for a spell without a
+     * template, so a creature that lets through only helpful spells isn't affected by one the app can't read.
+     */
+    public boolean harmful(String spellName) {
+        return template(spellName).map(SpellTemplate::harmful).orElse(true);
+    }
+
     /** What the spell's template adds to a cast (D188); nothing for a spell without one. */
     public CastRules castRules(String spellName) {
         return template(spellName).map(template -> new CastRules(template.damageFloor(), template.disintegrates(),
                 template.reducesHpMax(), template.hpMaxReductionRounds(),
                 template.immuneIfImmuneTo(), template.succeedsIfImmuneTo(), template.saveDisadvantageTypes(),
-                template.blocksCasting(), template.movable())).orElse(CastRules.NONE);
+                template.blocksCasting(), template.movable(), template.killNote(), template.killNoteNeedsHead()))
+                .orElse(CastRules.NONE);
     }
 
     // The conditions that lasted as long as the spell's own duration, lasting as long as the slot's (D185)

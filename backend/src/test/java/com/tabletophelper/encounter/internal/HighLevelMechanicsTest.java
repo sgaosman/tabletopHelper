@@ -1,6 +1,8 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.Rng;
@@ -22,6 +24,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -134,6 +137,36 @@ class HighLevelMechanicsTest {
             assertEquals(32, mage.getHpCurrent());
             assertTrue(CombatFixture.conditionNames(mage).contains("stunned"));
             assertTrue(logged("Psychic Scream has no effect on Wolf (INT 2 or lower)"));
+        }
+
+        @Test
+        @DisplayName("Psychic Scream's kill note is for a creature its damage kills that has a head, flavour only (XGE p.163, D198)")
+        void headExplodes() {
+            f.spell("Psychic Scream", 9, """
+                    {"spellLevel": 9, "deliveryMethod": "SAVING_THROW", "saveAbility": "INT", "halfOnSave": true,
+                     "killNote": {"text": "...and its head explodes!", "needsHead": true},
+                     "effects": [{"effectType": "DAMAGE", "damageDice": "2d6", "damageType": "psychic"}],
+                     "conditionsInflicted": ["stunned"]}""");
+            EncounterParticipant mage = f.monster("Mage", 5, 12);
+            EncounterParticipant mouther = f.monster("Gibbering Mouther", 5, 9);
+            EncounterParticipant ogre = f.monster("Ogre", 40, 11);
+            EncounterParticipant fighter = f.player("Fighter", 5, 16);
+            EncounterParticipant squire = f.player("Squire", 3, 12);
+            // 2d6 (4, 4) = 8, and every save fails: the mage and the mouther die, the ogre lives, the fighter is
+            // dying, and the squire's 5 left over reaches its maximum of 3, so it dies outright (PHB p.197)
+            f.dice.script(4, 4, 1, 1, 1, 1, 1);
+            cast("Psychic Scream", 9, List.of(mage, mouther, ogre, fighter, squire));
+
+            assertEquals(LifeState.DEAD, mage.getLifeState());
+            assertEquals(LifeState.DEAD, mouther.getLifeState());
+            assertEquals(LifeState.DEAD, squire.getLifeState());
+            assertNotEquals(LifeState.DEAD, fighter.getLifeState());
+            List<String> exploded = f.log.stream().map(CombatLog::getDescription)
+                    .filter(text -> text != null && text.contains("...and its head explodes!"))
+                    .toList();
+            assertEquals(2, exploded.size(), exploded.toString());
+            assertTrue(exploded.stream().anyMatch(text -> text.contains("Mage")));
+            assertTrue(exploded.stream().anyMatch(text -> text.contains("Squire")));
         }
 
         @Test

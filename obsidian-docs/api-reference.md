@@ -1870,3 +1870,7 @@ Spell options gain `duplicatesUpTo` (Wish: the highest spell level it can duplic
 ### Creature forms (D192)
 
 `GET /encounters/{id}/combat/form-options?participantId&spell&targetId` lists the forms a spell allows for a creature. `POST /encounters/{id}/combat/change-form {participantId, targetId, creatureId}` gives a new form for an action (Shapechange, Animal Shapes). Cast requests take `forms` (creature id to monster id) for Polymorph, Mass Polymorph, True Polymorph, Shapechange and Animal Shapes. Participants gain `form` and `formName`; `wildShape` is set only for a druid's Wild Shape.
+
+### Spell Consent (D198)
+
+`PUT /encounters/{id}/combat/spell-consent {participantId, consent}` sets which spells a creature with an "unless it wishes to be" trait lets through: `NEVER`, `HELPFUL` or `ALWAYS`. The DM may set it, or the player who controls the creature; Preparing or Active only. 400 for a creature without such a trait, 403 for anyone else. Cast requests take `spellConsents` (participant id to true or false), this cast's choice for such a target, made only by whoever controls it. Participants carry `spellConsentTrait` and `spellConsent`, null for a creature without the trait; the Player View keeps them only on a creature a player controls.

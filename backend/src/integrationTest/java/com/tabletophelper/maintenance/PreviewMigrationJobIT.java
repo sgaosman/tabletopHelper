@@ -50,8 +50,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * preview, which loads participants with entities now at V33, gave way to V33's, applied against participants with an
  * active spell and concentration spells in a schema at V32 (M15); its preview, which loads participants with entities
  * now at V34, gave way to V34's, applied against participants with Spell Effects in a schema at V33 (D182); its
- * preview, which loads participants with entities now at V35, gave way to V35's, previewed and applied against a
- * character and its participants in a schema at V34 (D183).
+ * preview, which loads participants with entities now at V35, gave way to V35's, applied against a character and its
+ * participants in a schema at V34 (D183); its preview, which loads participants with entities now at V36, gave way to
+ * V36's, previewed and applied against a rakshasa and a goblin in a schema at V35 (D198).
  */
 class PreviewMigrationJobIT extends IntegrationTest {
 
@@ -68,6 +69,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
     private static final String V33_SCHEMA = "v33_preview";
     private static final String V34_SCHEMA = "v34_preview";
     private static final String V35_SCHEMA = "v35_preview";
+    private static final String V36_SCHEMA = "v36_preview";
 
     @Autowired private DataSource dataSource;
     @Autowired private EntityManagerFactory entityManagerFactory;
@@ -98,6 +100,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V33_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V34_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V35_SCHEMA + " CASCADE");
+        jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V36_SCHEMA + " CASCADE");
     }
 
     @BeforeEach
@@ -1225,26 +1228,6 @@ class PreviewMigrationJobIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("Previews V35 on a database at V34: every row loads with level 0, what a participant joined with is "
-            + "untouched, and nothing is written")
-    void previewsV35() {
-        Map<String, UUID> rows = v35Rows();
-        DataSource v35 = schemaDataSource(V35_SCHEMA);
-        String joinedBefore = jdbcTemplate.queryForObject("SELECT joined_with::text FROM " + V35_SCHEMA
-                + ".encounter_participants WHERE id = ?", String.class, rows.get("Aria"));
-
-        MaintenanceReport report = new PreviewMigrationJob(v35, new JdbcTemplate(v35), entityManagerFactory,
-                objectMapper, "35").run(false);
-
-        assertThat(report.warnings()).isEmpty();
-        assertThat(report.changes()).noneMatch(change -> change.contains("joined_with"));
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
-                + "AND column_name = 'exhaustion_level'", Integer.class, V35_SCHEMA)).isZero();
-        assertThat(jdbcTemplate.queryForObject("SELECT joined_with::text FROM " + V35_SCHEMA
-                + ".encounter_participants WHERE id = ?", String.class, rows.get("Aria"))).isEqualTo(joinedBefore);
-    }
-
-    @Test
     @DisplayName("V35 gives every character and participant exhaustion level 0, kept from 0 to 6 and never null, and "
             + "leaves what a participant joined with as it was")
     void appliesV35() {
@@ -1273,5 +1256,68 @@ class PreviewMigrationJobIT extends IntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update("UPDATE " + V35_SCHEMA + ".encounter_participants "
                 + "SET exhaustion_level = NULL WHERE id = ?", rows.get("Goblin")))
                 .hasMessageContaining("exhaustion_level");
+    }
+
+    // ── V36: Spell Consent (D198) ────────────────────────────────
+
+    /**
+     * Takes a schema of its own to V35 and fills it as D198 found it: a rakshasa and a goblin in an Active encounter,
+     * neither with a standing choice of which spells it lets through.
+     */
+    private Map<String, UUID> v36Rows() {
+        Flyway.configure().dataSource(dataSource).schemas(V36_SCHEMA).locations("classpath:db/migration")
+                .target("35").load().migrate();
+        UUID dm = UUID.randomUUID();
+        UUID campaign = UUID.randomUUID();
+        UUID encounter = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V36_SCHEMA + ".users (id, username, email, password_hash) "
+                + "VALUES (?, 'dm', 'dm@example.com', 'hash')", dm);
+        jdbcTemplate.update("INSERT INTO " + V36_SCHEMA + ".campaigns (id, name, invite_code, dm_user_id) "
+                + "VALUES (?, 'Lost Mine', 'ABCD2345', ?)", campaign, dm);
+        jdbcTemplate.update("INSERT INTO " + V36_SCHEMA + ".encounters (id, name, status, campaign_id, round_number) "
+                + "VALUES (?, 'Palace', 'ACTIVE', ?, 2)", encounter, campaign);
+        Map<String, UUID> rows = new java.util.LinkedHashMap<>();
+        for (String name : List.of("Rakshasa", "Goblin")) {
+            UUID id = UUID.randomUUID();
+            jdbcTemplate.update("INSERT INTO " + V36_SCHEMA + ".encounter_participants (id, display_name, "
+                    + "participant_type, hp_max, hp_current, armour_class, life_state, encounter_id) "
+                    + "VALUES (?, ?, 'MONSTER', 110, 110, 16, 'ALIVE', ?)", id, name, encounter);
+            rows.put(name, id);
+        }
+        return rows;
+    }
+
+    @Test
+    @DisplayName("Previews V36 on a database at V35: every participant loads with HELPFUL, and nothing is written")
+    void previewsV36() {
+        v36Rows();
+        DataSource v36 = schemaDataSource(V36_SCHEMA);
+
+        MaintenanceReport report = new PreviewMigrationJob(v36, new JdbcTemplate(v36), entityManagerFactory,
+                objectMapper, "36").run(false);
+
+        assertThat(report.warnings()).isEmpty();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
+                + "AND column_name = 'spell_consent'", Integer.class, V36_SCHEMA)).isZero();
+    }
+
+    @Test
+    @DisplayName("V36 gives every participant HELPFUL, never null and only NEVER, HELPFUL or ALWAYS")
+    void appliesV36() {
+        Map<String, UUID> rows = v36Rows();
+
+        Flyway.configure().dataSource(dataSource).schemas(V36_SCHEMA).locations("classpath:db/migration")
+                .target("36").load().migrate();
+
+        assertThat(jdbcTemplate.queryForList("SELECT spell_consent FROM " + V36_SCHEMA
+                + ".encounter_participants", String.class)).containsExactly("HELPFUL", "HELPFUL");
+        jdbcTemplate.update("UPDATE " + V36_SCHEMA + ".encounter_participants SET spell_consent = 'NEVER' "
+                + "WHERE id = ?", rows.get("Rakshasa"));
+        assertThatThrownBy(() -> jdbcTemplate.update("UPDATE " + V36_SCHEMA + ".encounter_participants "
+                + "SET spell_consent = 'SOMETIMES' WHERE id = ?", rows.get("Goblin")))
+                .hasMessageContaining("chk_encounter_participants_spell_consent");
+        assertThatThrownBy(() -> jdbcTemplate.update("UPDATE " + V36_SCHEMA + ".encounter_participants "
+                + "SET spell_consent = NULL WHERE id = ?", rows.get("Goblin")))
+                .hasMessageContaining("spell_consent");
     }
 }

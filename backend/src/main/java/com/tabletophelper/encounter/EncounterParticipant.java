@@ -7,6 +7,7 @@ import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.SpellConsent;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.SummonLink;
 import com.tabletophelper.encounter.state.TurnEconomy;
@@ -148,6 +149,13 @@ public class EncounterParticipant {
 
     @Column(name = "controlled_by_user_id")
     private UUID controlledByUserId;
+
+    // Which spells a trait that keeps spells off it "unless it wishes" lets through, as a rakshasa's Limited Magic
+    // Immunity (MM p.257, D198); read only for a creature with such a trait
+    @Enumerated(EnumType.STRING)
+    @Column(name = "spell_consent", length = 10, nullable = false)
+    @Builder.Default
+    private SpellConsent spellConsent = SpellConsent.HELPFUL;
 
     @Column(name = "death_save_successes")
     @Builder.Default

@@ -50,6 +50,12 @@ export type ProtectionRequest = Schemas['ProtectionRequest'];
 
 export type CastSpellRequest = Schemas['CastSpellRequest'];
 
+/**
+ * Which spells a creature lets through a trait that keeps spells off it "unless it wishes to be" affected, as a
+ * rakshasa's Limited Magic Immunity (MM p.257, D198), set by whoever controls it.
+ */
+export type SpellConsent = Schemas['SpellConsentRequest']['consent'];
+
 /** A Metamagic option put on a cast (PHB p.102, M18), with the creatures Careful or Heightened Spell names. */
 export type MetamagicChoice = Schemas['MetamagicChoice'];
 

@@ -62,4 +62,10 @@ public class CastSpellRequest {
     // (the caster's) and Animal Shapes (D192): the monster row of the creature it becomes, checked before anything is
     // spent; any other spell refuses it with a 400
     private Map<UUID, UUID> forms;
+
+    // For a target whose trait keeps spells off it "unless it wishes to be" affected, as a rakshasa's Limited Magic
+    // Immunity (MM p.257, D198), by its participant ID: true to be affected by this cast, false not to. Only whoever
+    // controls the target may choose, the DM or the player a spell gave control to; a target left out takes its standing
+    // choice, its spellConsent
+    private Map<UUID, Boolean> spellConsents;
 }

@@ -105,6 +105,21 @@ public class SpellCaster {
                            List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
                            Boolean advantage, String costNote, MetamagicCasting.Plan metamagic,
                            Summoner.Prepared summoning, String option) {
+        return cast(encounter, caster, spellName, slotLevel, targets, castingAbility, attackBonus, saveDc, advantage,
+                costNote, metamagic, summoning, option, Map.of());
+    }
+
+    /**
+     * As {@link #cast(Encounter, EncounterParticipant, String, int, List, String, int, int, Boolean, String,
+     * MetamagicCasting.Plan, Summoner.Prepared, String)}, with the choices made for this cast by whoever controls a
+     * target whose trait keeps spells off it "unless it wishes to be" affected, as a rakshasa's (MM p.257, D198): true
+     * to be affected, false not to, by the target's participant ID, already checked. A target with no choice made here
+     * takes its standing {@link com.tabletophelper.encounter.state.SpellConsent}.
+     */
+    public CastResult cast(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
+                           List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
+                           Boolean advantage, String costNote, MetamagicCasting.Plan metamagic,
+                           Summoner.Prepared summoning, String option, Map<UUID, Boolean> consents) {
         requireCanCast(caster);
         SpellEffects.SpellPlan plan = spellEffects.forCast(spellName, slotLevel, caster, castingAbility, attackBonus,
                 saveDc, advantage, option);
@@ -164,8 +179,19 @@ public class SpellCaster {
         // is immune to it, as one that can't be charmed is to Mass Suggestion (PHB p.258, D188)
         int spellLevel = plan.spellLevel();
         List<EncounterParticipant> globed = reached.stream()
-                .filter(target -> shielded(caster, target, spellLevel))
+                .filter(target -> shielded(caster, target, spellName, spellLevel, consents.get(target.getId())))
                 .toList();
+        // A creature that may choose to be affected and does, as a rakshasa letting through its ally's Heal (D198)
+        List<EncounterParticipant> letThrough = reached.stream()
+                .filter(target -> !globed.contains(target) && globe(caster, target, spellLevel) == null
+                        && stats.spellImmunityTrait(caster, target, spellLevel) != null)
+                .toList();
+        if (!letThrough.isEmpty()) {
+            effectApplier.summary(encounter, use, letThrough.stream()
+                    .map(target -> target.getDisplayName() + " lets " + spellName + " affect it ("
+                            + stats.spellImmunityTrait(caster, target, spellLevel) + ")")
+                    .collect(Collectors.joining("; ")) + ".");
+        }
         List<EncounterParticipant> immune = reached.stream()
                 .filter(target -> !globed.contains(target) && rules.immuneIfImmuneTo() != null
                         && stats.immuneToCondition(target, rules.immuneIfImmuneTo(), true))
@@ -972,10 +998,18 @@ public class SpellCaster {
 
     /**
      * Whether something keeps a spell of this level from the target (D191): a Globe of Invulnerability it is inside
-     * (PHB p.245, D188), or its own trait, as a rakshasa's Limited Magic Immunity (MM p.257).
+     * (PHB p.245, D188), or its own trait, as a rakshasa's Limited Magic Immunity (MM p.257), unless the trait lets it
+     * choose to be affected and it does (D198), by the choice made for this cast or its standing one.
+     *
+     * @param chosen the choice made for this cast by whoever controls the target, or null for none
      */
-    boolean shielded(EncounterParticipant caster, EncounterParticipant target, int spellLevel) {
-        return globe(caster, target, spellLevel) != null || stats.spellImmunityTrait(caster, target, spellLevel) != null;
+    boolean shielded(EncounterParticipant caster, EncounterParticipant target, String spellName, int spellLevel,
+                     Boolean chosen) {
+        if (globe(caster, target, spellLevel) != null) {
+            return true;
+        }
+        return stats.spellImmunityTrait(caster, target, spellLevel) != null
+                && !stats.choosesToBeAffected(target, chosen, spellEffects.harmful(spellName));
     }
 
     // What the log adds for the creatures a Globe of Invulnerability or a trait kept the spell from
@@ -1064,7 +1098,7 @@ public class SpellCaster {
                                                      EncounterParticipant caster, String spellName, int spellLevel,
                                                      List<EncounterParticipant> targets) {
         List<EncounterParticipant> globed = targets.stream()
-                .filter(target -> shielded(caster, target, spellLevel))
+                .filter(target -> shielded(caster, target, spellName, spellLevel, null))
                 .toList();
         if (!globed.isEmpty()) {
             effectApplier.summary(encounter, use, globeNote(spellName, caster, globed, spellLevel).trim());

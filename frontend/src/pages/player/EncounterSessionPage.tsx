@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { EncounterProvider } from '../../context/EncounterContext';
 import { useEncounter } from '../../hooks/useEncounter';
 import { useAuth } from '../../hooks/useAuth';
+import SpellConsentControl from '../../components/encounter/SpellConsentControl';
 import { useCombatLog, useEncounterAction } from '../../queries/encounters';
 import type { EncounterParticipant, SpellEffect } from '../../types/encounter';
 import { apiErrorMessage } from '../../api/errors';
@@ -489,6 +490,13 @@ function PlayerSessionView() {
                   onMove={isOwn && isActive ? (effect, targetId) => { void effectCommand(() => actions.moveSpellEffect({ participantId: p.id, effectId: effect.id, targetId })); } : undefined}
                   participants={encounter.participants}
                 />
+                {/* Which spells a creature the player controls lets through its Limited Magic Immunity (D198) */}
+                {isOwn && p.spellConsentTrait && (
+                  <div className="mt-2">
+                    <SpellConsentControl participant={p} disabled={!isActive}
+                      onChange={consent => actions.setSpellConsent(p.id, consent)} />
+                  </div>
+                )}
               </ParticipantRow>
             );
           })}

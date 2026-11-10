@@ -436,6 +436,13 @@ public class EffectApplier {
         VitalsChange healingChange = DamageRules.heal(damageChange.vitals(), healing);
         setVitals(target, healingChange.vitals());
         int healed = healingChange.vitals().hp() - damageChange.vitals().hp();
+        // A creature the spell's damage killed gets the template's words, as Psychic Scream's exploding head (XGE
+        // p.163): flavour only, and only for a creature with a head when the words need one. A player character at 0
+        // hit points is dying, not dead, so it gets them only if the damage killed it outright
+        boolean killed = dealt > 0 && before.lifeState() != LifeState.DEAD
+                && healingChange.vitals().lifeState() == LifeState.DEAD && taken.form() == null;
+        String killNote = killed && !dust && rules.killNote() != null
+                && (!rules.killNoteNeedsHead() || CreatureStats.hasHead(target)) ? " " + rules.killNote() : "";
 
         // A creature the Effect killed gets none of its conditions, and one immune to a condition doesn't get it
         List<String> immune = target.getLifeState() == LifeState.DEAD ? List.of()
@@ -463,7 +470,8 @@ public class EffectApplier {
                 + (healing < outcome.healing() ? " " + target.getDisplayName() + " can't regain hit points ("
                         + noHealingSource(target) + ")." : "")
                 + (warded != null ? " " + warded : "") + floorNote
-                + (dust ? " " + target.getDisplayName() + " is disintegrated, reduced to fine gray dust." : "");
+                + (dust ? " " + target.getDisplayName() + " is disintegrated, reduced to fine gray dust." : "")
+                + killNote;
         CombatLog.CombatLogBuilder entry = CombatLogWriter.about(
                         combatLog.entry(encounter, use.actionType(), description), use.actor(), target)
                 .rollValue(outcome.d20())

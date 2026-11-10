@@ -526,6 +526,7 @@ What each content loader last loaded (V25, D169). One row per loader.
 | is_visible_to_players | BOOLEAN | DEFAULT TRUE | |
 | life_state | VARCHAR(10) | NOT NULL, CHECK | ALIVE, DYING, STABLE or DEAD (V16, D161). Replaced `is_alive`, because a Stable PC's death saves are reset and can't otherwise be told from a Dying PC's. |
 | controlled_by_user_id | UUID | FK → users, NULLABLE | For PLAYER, set to character owner |
+| spell_consent | VARCHAR(10) | NOT NULL, DEFAULT 'HELPFUL', CHECK NEVER/HELPFUL/ALWAYS | Which spells a creature with an "unless it wishes to be" trait, as a rakshasa's Limited Magic Immunity, lets through (V36, D198); read only for such a creature, and not in undo snapshots |
 | death_save_successes | INTEGER | DEFAULT 0 | |
 | death_save_failures | INTEGER | DEFAULT 0 | |
 | death_save_due | BOOLEAN | NOT NULL, DEFAULT FALSE | Set when a Dying PC's turn starts, until it rolls the death save or stops dying (V17, D163) |

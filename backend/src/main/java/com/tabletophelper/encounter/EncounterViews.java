@@ -298,6 +298,10 @@ public final class EncounterViews {
                 .resourcePoolsCurrent(null)
                 .turnEconomy(null)
                 .attacksPerAction(null)
+                // Which spells a monster lets through its Limited Magic Immunity is the DM's, unless a player controls
+                // it (D198)
+                .spellConsentTrait(monster.getControlledByUserId() != null ? monster.getSpellConsentTrait() : null)
+                .spellConsent(monster.getControlledByUserId() != null ? monster.getSpellConsent() : null)
                 // A polymorphed monster's form shows by name only: its numbers and the monster's own hit points kept on
                 // it are the DM's (D157, D192)
                 .form(null)

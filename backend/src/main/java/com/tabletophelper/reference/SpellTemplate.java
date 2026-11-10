@@ -987,6 +987,48 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
     }
 
     /**
+     * The words the log adds when the spell's damage kills a creature, as Psychic Scream's "...and its head explodes!"
+     * (XGE p.163): the template's {@code killNote} object's text, or null. Flavour only; it changes nothing.
+     */
+    public String killNote() {
+        JsonNode node = json != null ? json.path("killNote").path("text") : null;
+        return node != null && node.isString() && !node.asString("").isBlank() ? node.asString() : null;
+    }
+
+    /** Whether the kill note is only for a creature with a head: the {@code killNote} object's needsHead. */
+    public boolean killNoteNeedsHead() {
+        return json != null && json.path("killNote").path("needsHead").asBoolean(false);
+    }
+
+    /**
+     * Whether a creature would want to keep the spell off (D198), as a rakshasa with Limited Magic Immunity "unless it
+     * wishes to be" affected (MM p.257) would an ally's Fireball but not its Heal or Bless: it calls for a save or an
+     * attack roll, or deals damage; or, for a spell that can target enemies, gives conditions or can target only them, as
+     * Hex and Hunter's Mark can. A spell only for allies is cast on willing creatures, so its conditions, as
+     * Invisibility's and Sanctuary's, are helpful, as are healing and buffs.
+     */
+    public boolean harmful() {
+        if (json == null) {
+            return false;
+        }
+        String delivery = json.path("deliveryMethod").asString("");
+        if ("SAVING_THROW".equals(delivery) || "SPELL_ATTACK".equals(delivery)) {
+            return true;
+        }
+        for (JsonNode effect : json.path("effects")) {
+            if ("DAMAGE".equals(effect.path("effectType").asString(""))) {
+                return true;
+            }
+        }
+        boolean allies = json.path("canTargetAllies").asBoolean(false);
+        boolean enemies = json.path("canTargetEnemies").asBoolean(false);
+        if (allies && !enemies) {
+            return false;
+        }
+        return !json.path("conditionsInflicted").isEmpty() || enemies && !allies;
+    }
+
+    /**
      * Whether a creature that fails its save has its hit point maximum reduced by the damage it took, as Harm's for an
      * hour (PHB p.249): the template's {@code hpMaxReducedByDamage} object.
      */
