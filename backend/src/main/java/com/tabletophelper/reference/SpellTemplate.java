@@ -151,6 +151,9 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             template.concentrationSave();
             template.layers();
             template.roundEffects();
+            // And the lasting area spells' keys (D199)
+            template.castEffect();
+            template.conditionDamage();
             return template;
         } catch (IllegalArgumentException | JacksonException e) {
             return empty(json, e.getMessage() != null ? e.getMessage() : e.toString());
@@ -797,10 +800,19 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      * @param countedSaves  the saves a creature with them counts at the end of its turns, or null
      * @param reminder      what the log reminds the DM of for a creature that failed, or null
      * @param rollsTwice    whether the creature is struck by two rows instead, rolled again with this one rerolled
+     * @param saveAbility   the ability of this row's own save, as Nathair's Mischief's Dexterity save against its
+     *                      flowers (FTD p.20, D199); null for the spell's save
      */
     public record Ray(int roll, String color, String damageDice, String damageType,
                       List<ConditionInflicted> conditions, CountedSaves countedSaves, String reminder,
-                      boolean rollsTwice) {
+                      boolean rollsTwice, String saveAbility) {
+
+        /** A row saved against with the spell's own save (D189). */
+        public Ray(int roll, String color, String damageDice, String damageType,
+                   List<ConditionInflicted> conditions, CountedSaves countedSaves, String reminder,
+                   boolean rollsTwice) {
+            this(roll, color, damageDice, damageType, conditions, countedSaves, reminder, rollsTwice, null);
+        }
     }
 
     /** The template's {@code rayTable}, in roll order; empty for none (D189). */
@@ -830,7 +842,7 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             }
             rays.add(new Ray(ray.path("roll").asInt(0), text(ray, "color"), dice, text(ray, "damageType"),
                     listOf(conditions), countedSaves(ray.get("countedSaves")), text(ray, "reminder"),
-                    ray.path("rollsTwice").asBoolean(false)));
+                    ray.path("rollsTwice").asBoolean(false), text(ray, "saveAbility")));
         }
         rays.sort(java.util.Comparator.comparingInt(Ray::roll));
         return List.copyOf(rays);
@@ -1087,8 +1099,15 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      *
      * @param condition the condition's name
      * @param ability   the save's ability, such as "WIS"
+     * @param skill     the skill of an ability check made in place of the save, as Phantasmal Force's Intelligence
+     *                  (Investigation) check against the spell save DC (PHB p.264, D199); null for a saving throw
      */
-    public record ActionSave(String condition, String ability) {
+    public record ActionSave(String condition, String ability, String skill) {
+
+        /** An action spent on a saving throw (D188). */
+        public ActionSave(String condition, String ability) {
+            this(condition, ability, null);
+        }
     }
 
     /** The template's action save, or null when it has none. */
@@ -1097,7 +1116,7 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         if (node == null || !node.isObject() || text(node, "condition") == null || text(node, "ability") == null) {
             return null;
         }
-        return new ActionSave(text(node, "condition"), text(node, "ability"));
+        return new ActionSave(text(node, "condition"), text(node, "ability"), text(node, "skill"));
     }
 
     // ── Keys the 8th- and 9th-level spells added (D190), read from the stored JSON ──
@@ -1282,6 +1301,179 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         }
         checkDice(node.asString(""));
         return node.asString("");
+    }
+
+    // ── Keys the lasting area spells added (D199), read from the stored JSON ──
+
+    /**
+     * Whether the cast itself resolves anything against creatures: false for a lasting spell whose area acts only
+     * through its triggers and its caster's later uses, as Stinking Cloud's save at the start of a creature's turn (PHB
+     * p.278), Spike Growth's thorns (PHB p.277) or Aura of Vitality's healing as a bonus action (PHB p.216). The cast
+     * then starts its concentration and Spell Effect and rolls nothing. The template's {@code castResolves}; true when
+     * it doesn't say (D199).
+     */
+    public boolean castResolves() {
+        return json == null || json.path("castResolves").asBoolean(true);
+    }
+
+    /**
+     * What the cast does in place of the spell's own effect, given as a trigger's effect is (D199): its delivery, save,
+     * dice and conditions, as Hunger of Hadar's blindness with no roll for the creatures in the sphere (PHB p.251),
+     * whose damage comes only from its triggers, or Tasha's Caustic Brew's Dexterity save to be covered in acid (TCE
+     * p.115).
+     *
+     * @param effect     the replacement effect, read as a repeat effect object
+     * @param conditions the conditions it gives, its own {@code conditionsInflicted}
+     */
+    public record CastEffect(RepeatEffect effect, List<ConditionInflicted> conditions) {
+    }
+
+    /** The template's {@code castEffect}, or null when the cast uses the spell's own effect (D199). */
+    public CastEffect castEffect() {
+        JsonNode node = json != null ? json.get("castEffect") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isObject()) {
+            throw new IllegalArgumentException("castEffect is not an object");
+        }
+        if (text(node, "damageDice") != null) {
+            checkDice(text(node, "damageDice"));
+        }
+        List<ConditionInflicted> conditions = node.path("conditionsInflicted").isArray()
+                ? READER.convertValue(node.get("conditionsInflicted"), CONDITIONS) : List.of();
+        return new CastEffect(RepeatEffect.of(node), listOf(conditions));
+    }
+
+    /**
+     * What the log says of each creature that fails the spell's save, at the cast, a use again or a trigger, as Gust of
+     * Wind's push of 15 feet (PHB p.248), which the DM then plays out: the template's {@code failNote}, with
+     * {@code {caster}} for the caster's name; null for none (D199).
+     */
+    public String failNote() {
+        return json != null ? text(json, "failNote") : null;
+    }
+
+    /**
+     * Whether the conditions the spell gives stay when it ends, as Sleet Storm's prone (PHB p.276): a prone creature
+     * stays prone until it stands up (PHB p.292). The template's {@code conditionsOutlastSpell} (D199).
+     */
+    public boolean conditionsOutlastSpell() {
+        return json != null && json.path("conditionsOutlastSpell").asBoolean(false);
+    }
+
+    /**
+     * Whether its Ongoing Modifiers reach a creature that succeeds on its save too, as Spirit Guardians halves the speed
+     * of every creature in its area it affects, whatever the save (PHB p.278): the template's
+     * {@code modifiersOnSuccess} (D199).
+     */
+    public boolean modifiersOnSuccess() {
+        return json != null && json.path("modifiersOnSuccess").asBoolean(false);
+    }
+
+    /**
+     * Whether a creature that doesn't need to breathe succeeds on its save automatically, as against Stinking Cloud's
+     * poison (PHB p.278): the template's {@code succeedsWithoutBreath} (D199).
+     */
+    public boolean succeedsWithoutBreath() {
+        return json != null && json.path("succeedsWithoutBreath").asBoolean(false);
+    }
+
+    /**
+     * The damage type whose immunity makes a creature succeed on its save automatically, as poison against Stinking
+     * Cloud (PHB p.278): the template's {@code succeedsIfImmuneToDamage}; null for none (D199).
+     */
+    public String succeedsIfImmuneToDamage() {
+        return json != null ? text(json, "succeedsIfImmuneToDamage") : null;
+    }
+
+    /**
+     * Damage a creature with one of the spell's conditions takes at the start of each of its turns, as Tasha's Caustic
+     * Brew's 2d4 acid to a creature covered in it, 2d4 more for each slot level above 1st (TCE p.115) (D199).
+     *
+     * @param condition     the condition, from this spell, that brings it
+     * @param upcastScaling what each slot level above the spell's own adds, or null
+     */
+    public record ConditionDamage(String condition, String damageDice, String damageType, Upcast upcastScaling) {
+    }
+
+    /** The template's {@code conditionDamage}, or null for none (D199). */
+    public ConditionDamage conditionDamage() {
+        JsonNode node = json != null ? json.get("conditionDamage") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isObject() || text(node, "condition") == null || text(node, "damageDice") == null) {
+            throw new IllegalArgumentException("conditionDamage needs a condition and damageDice");
+        }
+        checkDice(text(node, "damageDice"));
+        return new ConditionDamage(text(node, "condition").trim().toLowerCase(java.util.Locale.ROOT),
+                text(node, "damageDice"), text(node, "damageType"), read(node, "upcastScaling", Upcast.class));
+    }
+
+    /**
+     * Whether one roll on its {@link #rayTable()} holds for every creature the cast or use reaches, as Nathair's
+     * Mischief's d4 for the whole cube (FTD p.20), rather than one roll for each: the template's {@code sharedRoll}
+     * (D199).
+     */
+    public boolean sharedRoll() {
+        return json != null && json.path("sharedRoll").asBoolean(false);
+    }
+
+    /**
+     * The ability of the save a concentrating creature its trigger at that moment reaches makes to keep concentrating,
+     * as a Constitution save for one starting its turn in Sleet Storm (PHB p.276): the trigger's {@code
+     * concentrationSave}; null for none (D199). Unlike {@link #concentrationSave()}, the cast doesn't make it.
+     */
+    public String triggerConcentrationSave(SpellTrigger when) {
+        JsonNode trigger = firstTrigger(when);
+        return trigger != null ? text(trigger, "concentrationSave") : null;
+    }
+
+    /**
+     * Whether a creature that fails the save against its trigger at that moment spends its action that turn, as one
+     * retching in Stinking Cloud (PHB p.278): the trigger's {@code costsActionOnFail} (D199).
+     */
+    public boolean triggerCostsAction(SpellTrigger when) {
+        return triggerFlag(when, "costsActionOnFail");
+    }
+
+    /**
+     * Whether each creature its trigger at that moment reaches spends one of the effect's uses, the spell ending when
+     * none are left, as Cordon of Arrows' pieces of ammunition (PHB p.228) and Healing Spirit's heals (XGE p.157): the
+     * trigger's {@code spendsUse} (D199).
+     */
+    public boolean triggerSpendsUse(SpellTrigger when) {
+        return triggerFlag(when, "spendsUse");
+    }
+
+    /**
+     * Whether the DM may apply its trigger at that moment several times at once, as Spike Growth's 2d4 for every 5 feet
+     * a creature moves in it (PHB p.277): the trigger's {@code repeatable} (D199).
+     */
+    public boolean triggerRepeatable(SpellTrigger when) {
+        return triggerFlag(when, "repeatable");
+    }
+
+    // The boolean key of the first trigger at that moment, as trigger(when) finds it; false when it has none
+    private boolean triggerFlag(SpellTrigger when, String key) {
+        JsonNode trigger = firstTrigger(when);
+        return trigger != null && trigger.path(key).asBoolean(false);
+    }
+
+    // The first trigger object at that moment, as trigger(when) finds it; null when there is none
+    private JsonNode firstTrigger(SpellTrigger when) {
+        if (json == null || !json.path("effectTriggers").isArray()) {
+            return null;
+        }
+        for (JsonNode trigger : json.path("effectTriggers")) {
+            for (JsonNode moment : trigger.path("when")) {
+                if (when.name().equals(moment.asString(""))) {
+                    return trigger;
+                }
+            }
+        }
+        return null;
     }
 
     // Dice the app can roll, or an IllegalArgumentException naming them
@@ -1539,15 +1731,34 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      * @param count      how many it has at the spell's own level
      * @param perSlotLevel how many more for each slot level above it
      * @param maxPerUse  the most one use may spend
+     * @param plusSpellcastingModifier whether the caster's spellcasting ability modifier adds to the count, as Healing
+     *                   Spirit's 1 + the modifier (XGE p.157, D199)
+     * @param minimum    the fewest it has, as Healing Spirit's two; null for none
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record EffectUses(Integer count, Integer perSlotLevel, Integer maxPerUse) {
+    public record EffectUses(Integer count, Integer perSlotLevel, Integer maxPerUse, Boolean plusSpellcastingModifier,
+                             Integer minimum) {
+
+        /** A count the caster's modifier doesn't change (M15). */
+        public EffectUses(Integer count, Integer perSlotLevel, Integer maxPerUse) {
+            this(count, perSlotLevel, maxPerUse, null, null);
+        }
 
         /** How many it has when cast with a slot of slotLevel for a spell of spellLevel. */
         public int at(int spellLevel, int slotLevel) {
+            return at(spellLevel, slotLevel, 0);
+        }
+
+        /**
+         * How many it has when cast with a slot of slotLevel for a spell of spellLevel by a caster with this
+         * spellcasting ability modifier, which counts only when {@link #plusSpellcastingModifier} says so (D199).
+         */
+        public int at(int spellLevel, int slotLevel, int spellcastingModifier) {
             int base = count != null ? count : 0;
             int per = perSlotLevel != null ? perSlotLevel : 0;
-            return base + per * Math.max(0, slotLevel - spellLevel);
+            int uses = base + per * Math.max(0, slotLevel - spellLevel)
+                    + (Boolean.TRUE.equals(plusSpellcastingModifier) ? spellcastingModifier : 0);
+            return minimum != null ? Math.max(minimum, uses) : uses;
         }
 
         /** The most one use may spend, at least one. */

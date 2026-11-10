@@ -195,16 +195,22 @@ class SpellEffectIT extends IntegrationTest {
 
     @Test
     @DisplayName("Spirit Guardians cast at 4th level on the ogre deals its upcast 4d8 at once, halved by a successful "
-            + "WIS save, and its Spell Effect still starts for the later triggers (the user's ruling, D177)")
+            + "WIS save, and its Spell Effect still starts for the later triggers (the user's ruling, D177); the cast "
+            + "chooses radiant or necrotic, and the ogre's speed is halved though it saved (D199)")
     void spiritGuardiansDamageAtCast() {
         useShippedTemplate("Spirit Guardians");
         aria(participant -> participant.setSpellSlotsCurrent(new HashMap<>(Map.of("4", new SpellSlot(1, 0)))));
         // 4d8 rolls 9; the ogre's WIS save of 18 - 2 beats DC 14, so it takes half, 4
         dice.script(2, 2, 2, 3, 18);
-        cast("Spirit Guardians", 4, List.of(ogreId));
+        expect(HttpStatus.OK, exchange(HttpMethod.POST,
+                "/api/encounters/" + encounterId + "/combat/cast-spell?actorId=" + ariaId,
+                Map.of("spellName", "Spirit Guardians", "slotLevel", 4, "targetIds", List.of(ogreId),
+                        "option", "radiant"), dm.accessToken()));
 
         JsonNode state = dmState();
         assertThat(participant(state, ogreId).get("hpCurrent").asInt()).isEqualTo(36);
+        assertThat(participant(state, ariaId).get("activeEffects").get(0).get("option").asString())
+                .isEqualTo("radiant");
         JsonNode aria = participant(state, ariaId);
         assertThat(aria.get("concentrationSpell").asString()).isEqualTo("Spirit Guardians");
         JsonNode guardians = aria.get("activeEffects").get(0);

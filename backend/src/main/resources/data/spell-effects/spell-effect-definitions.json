@@ -7141,8 +7141,8 @@
     "healing": null,
     "upcastDescription": "Damage increases by 2d4 for each slot level above 1st",
     "specialMechanics": "On failed save, creature covered in acid. Takes 2d4 acid at start of each of its turns. An action can scrape/wash acid off. Concentration.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Ongoing damage at start of each affected creature's turn. Can be removed by action (self or ally). Concentration.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "SAVE_DAMAGE",
     "classes": [
       "Artificer",
@@ -7150,17 +7150,22 @@
       "Wizard"
     ],
     "notes": "30-foot line, 5 feet wide. Concentration. Ongoing acid damage per turn. Can be washed off with action. No initial damage on cast - only ongoing.",
-    "effectTriggers": [
-      {
-        "when": [
-          "START_OF_TURN"
-        ],
-        "deliveryMethod": "AUTO_HIT",
-        "damageDice": "2d4",
-        "damageType": "acid",
-        "usesUpcastScaling": true
+    "castEffect": {
+      "deliveryMethod": "SAVING_THROW",
+      "conditionsInflicted": [
+        "covered in acid"
+      ]
+    },
+    "conditionDamage": {
+      "condition": "covered in acid",
+      "damageDice": "2d4",
+      "damageType": "acid",
+      "upcastScaling": {
+        "additionalDicePerLevel": "2d4",
+        "additionalFlatPerLevel": 0
       }
-    ]
+    },
+    "reminder": "A creature covered in acid takes 2d4 acid damage at the start of each of its turns, 2d4 more for each slot level above 1st, until the spell ends or a creature uses its action to scrape or wash the acid off itself or another creature (TCE p.115); the DM then removes the covered in acid condition."
   },
   {
     "spellName": "Tasha's Hideous Laughter",
@@ -8603,13 +8608,28 @@
     "healing": null,
     "upcastDescription": "Amount of ammunition increases by 2 for each slot level above 2nd",
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Persistent trap effect; triggers when creature enters 30ft area; limited ammunition (4 pieces); each piece destroyed after triggering",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Ranger"
     ],
-    "notes": "4 pieces of ammo planted; each triggers once then is destroyed. Caster can designate creatures to ignore. 8 hour duration."
+    "notes": "4 pieces of ammo planted; each triggers once then is destroyed. Caster can designate creatures to ignore. 8 hour duration.",
+    "castResolves": false,
+    "effectUses": {
+      "count": 4,
+      "perSlotLevel": 2
+    },
+    "effectTriggers": [
+      {
+        "when": [
+          "ENTER",
+          "END_OF_TURN"
+        ],
+        "spendsUse": true
+      }
+    ],
+    "reminder": "Whenever a creature other than you comes within 30 feet of the ammunition for the first time on a turn or ends its turn there, one piece flies up to strike it: a Dexterity saving throw or 1d6 piercing damage, and the piece is destroyed. The spell ends when no ammunition remains, and it ignores the creatures you designate when you cast it (PHB p.228). The DM applies it to the creatures that come near."
   },
   {
     "spellName": "Crown of Madness",
@@ -9653,15 +9673,28 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Persistent line effect. STR save each turn for creatures starting turn in line. Pushed 15ft on fail. Moving closer costs double movement. Can change direction as bonus action.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Druid",
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Concentration, 1 minute. 60ft long, 10ft wide line. Bonus action to change direction each turn."
+    "notes": "Concentration, 1 minute. 60ft long, 10ft wide line. Bonus action to change direction each turn.",
+    "castResolves": false,
+    "failNote": "is pushed 15 feet away from {caster} along the line",
+    "effectTriggers": [
+      {
+        "when": [
+          "START_OF_TURN"
+        ]
+      }
+    ],
+    "repeatEffect": true,
+    "repeatActionType": "BONUS_ACTION",
+    "directedResolves": false,
+    "reminder": "A creature that starts its turn in the line makes a Strength saving throw or is pushed 15 feet away from you along it, and moving closer to you costs 2 feet for every foot. The gust disperses gas or vapor and puts out candles, torches and similar unprotected flames; protected flames dance with a 50 percent chance of going out. As a bonus action on each of your turns you can change the line's direction (PHB p.248). The DM applies the wind to the creatures in it and moves them."
   },
   {
     "spellName": "Healing Spirit",
@@ -9708,14 +9741,44 @@
     "healing": null,
     "upcastDescription": "Healing increases by 1d6 for each slot level above 2nd",
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Creates a healing zone. Creatures moving through or starting turn there can be healed (no action). Limited total heals (1 + spellcasting mod). Movable 30ft as bonus action.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Druid",
       "Ranger"
     ],
-    "notes": "Bonus action to cast. 5ft cube zone. Movable 30ft as bonus action. Cannot heal constructs or undead. Total heals = 1 + spellcasting ability modifier."
+    "notes": "Bonus action to cast. 5ft cube zone. Movable 30ft as bonus action. Cannot heal constructs or undead. Total heals = 1 + spellcasting ability modifier.",
+    "castResolves": false,
+    "noEffectOn": [
+      "undead",
+      "construct"
+    ],
+    "effectUses": {
+      "count": 1,
+      "plusSpellcastingModifier": true,
+      "minimum": 2
+    },
+    "effectTriggers": [
+      {
+        "when": [
+          "ENTER",
+          "START_OF_TURN"
+        ],
+        "deliveryMethod": "AUTO_HIT",
+        "healingDice": "1d6",
+        "usesUpcastScaling": true,
+        "upcastScaling": {
+          "additionalDicePerLevel": "1d6",
+          "additionalFlatPerLevel": 0
+        },
+        "spendsUse": true
+      }
+    ],
+    "repeatEffect": true,
+    "repeatActionType": "BONUS_ACTION",
+    "directedResolves": false,
+    "reminder": "Whenever you or a creature you can see moves into the spirit's space for the first time on a turn or starts its turn there, you can have the spirit restore 1d6 hit points to it, 1d6 more for each slot level above 2nd, with no action. The spirit can't heal constructs or undead, heals 1 + your spellcasting ability modifier times (at least twice) and then disappears, and you can move it up to 30 feet as a bonus action on your turn (XGE p.157). The DM applies the healing."
   },
   {
     "spellName": "Heat Metal",
@@ -10824,7 +10887,11 @@
           "START_OF_TURN"
         ]
       }
-    ]
+    ],
+    "saveDisadvantageTypes": [
+      "shapechanger"
+    ],
+    "reminder": "A shapechanger makes its saving throw with disadvantage, and if it fails it also instantly reverts to its original form and can't assume a different form until it leaves the spell's light. The beam sheds dim light, and on each of your turns after you cast it you can use an action to move it up to 60 feet in any direction (PHB p.261); the DM applies it to a creature that enters it or starts its turn there."
   },
   {
     "spellName": "Nathair's Mischief",
@@ -10885,15 +10952,60 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Random effect each turn (d4 table). Different saves (WIS or DEX) depending on result. Movable 10ft before rolling. Effects last until start of next turn.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Bard",
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Concentration. 20ft cube, movable 10ft before roll each turn. Random d4 table determines effect."
+    "notes": "Concentration. 20ft cube, movable 10ft before roll each turn. Random d4 table determines effect.",
+    "sharedRoll": true,
+    "rayTable": [
+      {
+        "roll": 1,
+        "color": "the smell of apple pie",
+        "saveAbility": "WIS",
+        "conditionsInflicted": [
+          {
+            "condition": "charmed",
+            "durationRounds": 1
+          }
+        ]
+      },
+      {
+        "roll": 2,
+        "color": "bouquets of flowers",
+        "saveAbility": "DEX",
+        "conditionsInflicted": [
+          {
+            "condition": "blinded",
+            "durationRounds": 1
+          }
+        ]
+      },
+      {
+        "roll": 3,
+        "color": "giggling",
+        "saveAbility": "WIS",
+        "conditionsInflicted": [
+          {
+            "condition": "incapacitated",
+            "durationRounds": 1
+          }
+        ],
+        "reminder": "it giggles until the start of {caster}'s next turn, using all its movement to move in a random direction"
+      },
+      {
+        "roll": 4,
+        "color": "drops of molasses",
+        "reminder": "the cube is difficult terrain until the start of {caster}'s next turn"
+      }
+    ],
+    "repeatEffect": true,
+    "repeatActionType": "NONE",
+    "reminder": "Roll on the Mischievous Surge table when you cast the spell and again at the start of each of your turns until it ends, after moving the cube up to 10 feet if you like: use the spell's effect then, at no cost. Each surge lasts until the start of your next turn (FTD p.20). The DM picks the creatures in the cube."
   },
   {
     "spellName": "Nystul's Magic Aura",
@@ -11042,8 +11154,8 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Creates an illusion perceived only by the target. DM adjudicates what the illusion is and how the target interacts with it. 1d6 psychic damage per round if illusion can logically deal damage.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "repeatActionType": "NONE",
     "repeatEffect": {
       "deliveryMethod": "AUTO_HIT",
@@ -11057,7 +11169,23 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "INT save. No effect on undead or constructs. Target treats illusion as real. Investigation check (INT vs spell DC) to realize it's an illusion. Target perceives damage as type appropriate to illusion."
+    "notes": "INT save. No effect on undead or constructs. Target treats illusion as real. Investigation check (INT vs spell DC) to realize it's an illusion. Target perceives damage as type appropriate to illusion.",
+    "castEffect": {
+      "deliveryMethod": "SAVING_THROW",
+      "conditionsInflicted": [
+        "phantasm"
+      ]
+    },
+    "actionSave": {
+      "condition": "phantasm",
+      "ability": "INT",
+      "skill": "Investigation"
+    },
+    "noEffectOn": [
+      "undead",
+      "construct"
+    ],
+    "reminder": "On a failed save you create a phantasm no larger than a 10-foot cube that only the target perceives and treats as real. Each round on your turn the phantasm can deal it 1d6 psychic damage if it is in the phantasm's area or within 5 feet of it and the illusion could logically deal damage: use the spell's effect on it, at no cost. The target can use its action on an Intelligence (Investigation) check against your spell save DC, and the spell ends on a success (PHB p.264)."
   },
   {
     "spellName": "Prayer of Healing",
@@ -11879,14 +12007,28 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Damage based on movement through area (2d4 per 5ft), not saves. Area is difficult terrain. Camouflaged (Perception check to detect). Damage depends on exact movement path.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Druid",
       "Ranger"
     ],
-    "notes": "20ft radius, difficult terrain. 2d4 piercing per 5ft of movement. Camouflaged (WIS Perception check vs spell DC to detect). Concentration 10 minutes. No save for damage."
+    "notes": "20ft radius, difficult terrain. 2d4 piercing per 5ft of movement. Camouflaged (WIS Perception check vs spell DC to detect). Concentration 10 minutes. No save for damage.",
+    "castResolves": false,
+    "effectTriggers": [
+      {
+        "when": [
+          "ENTER"
+        ],
+        "deliveryMethod": "AUTO_HIT",
+        "damageDice": "2d4",
+        "damageType": "piercing",
+        "usesUpcastScaling": false,
+        "repeatable": true
+      }
+    ],
+    "reminder": "The ground in the area is difficult terrain, and a creature that moves into or within it takes 2d4 piercing damage for every 5 feet it travels: the DM applies the thorns once for each 5 feet. The thorns are camouflaged, so a creature that can't see the area when the spell is cast must make a Wisdom (Perception) check against your spell save DC to recognize the terrain as hazardous before entering it (PHB p.277)."
   },
   {
     "spellName": "Spiritual Weapon",
@@ -12850,8 +12992,8 @@
     },
     "upcastDescription": null,
     "specialMechanics": "Bonus action each turn to heal one creature in the 30-foot radius aura for 2d6 HP",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Requires bonus action each turn to select a creature in the aura and heal it",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "repeatActionType": "BONUS_ACTION",
     "repeatEffect": {
       "deliveryMethod": "AUTO_HIT",
@@ -12862,7 +13004,9 @@
     "classes": [
       "Paladin"
     ],
-    "notes": null
+    "notes": null,
+    "castResolves": false,
+    "reminder": "Until the spell ends, you can use a bonus action on each of your turns to have one creature in the aura, you included, regain 2d6 hit points (PHB p.216): use the spell's effect on it."
   },
   {
     "spellName": "Beacon of Hope",
@@ -14499,8 +14643,8 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": "Creature starting turn in area takes 2d6 cold damage (no save). Creature ending turn in area must DEX save or take 2d6 acid damage. Creatures fully within area are blinded (no save). Area is difficult terrain. No light can illuminate the area.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Persistent AOE with two separate damage triggers (start of turn cold, end of turn acid DEX save), automatic blinding in area, difficult terrain, and no-light zone",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Warlock"
@@ -14509,12 +14653,24 @@
     "effectTriggers": [
       {
         "when": [
+          "ENTER"
+        ],
+        "deliveryMethod": "AUTO_HIT",
+        "conditionsInflicted": [
+          "blinded"
+        ]
+      },
+      {
+        "when": [
           "START_OF_TURN"
         ],
         "deliveryMethod": "AUTO_HIT",
         "damageDice": "2d6",
         "damageType": "cold",
-        "usesUpcastScaling": false
+        "usesUpcastScaling": false,
+        "conditionsInflicted": [
+          "blinded"
+        ]
       },
       {
         "when": [
@@ -14527,7 +14683,14 @@
         "damageType": "acid",
         "usesUpcastScaling": false
       }
-    ]
+    ],
+    "castEffect": {
+      "deliveryMethod": "AUTO_HIT",
+      "conditionsInflicted": [
+        "blinded"
+      ]
+    },
+    "reminder": "A void of blackness and bitter cold fills the sphere: no light can illuminate it, it is difficult terrain, and a creature fully within it is blinded. A creature that starts its turn in it takes 2d6 cold damage, and one that ends its turn there makes a Dexterity saving throw or takes 2d6 acid damage (PHB p.251). The DM applies the sphere to the creatures in it and ends the blindness of one that leaves."
   },
   {
     "spellName": "Hypnotic Pattern",
@@ -15879,15 +16042,36 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": "Persistent AOE: DEX save to avoid prone when entering or starting turn. CON save to maintain concentration. Heavily obscured. Difficult terrain. Exposed flames doused.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Persistent AOE with per-turn saves (DEX for prone, CON for concentration), heavily obscured area, difficult terrain tracking",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Druid",
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "REVIEW: Two different saves — DEX for prone and CON for concentration. Cylinder is 20ft tall with 40ft radius."
+    "notes": "REVIEW: Two different saves — DEX for prone and CON for concentration. Cylinder is 20ft tall with 40ft radius.",
+    "conditionsOutlastSpell": true,
+    "effectTriggers": [
+      {
+        "when": [
+          "ENTER"
+        ],
+        "conditionsInflicted": [
+          "prone"
+        ]
+      },
+      {
+        "when": [
+          "START_OF_TURN"
+        ],
+        "conditionsInflicted": [
+          "prone"
+        ],
+        "concentrationSave": "CON"
+      }
+    ],
+    "reminder": "The area is heavily obscured and difficult terrain, and exposed flames in it are doused. A creature that enters it for the first time on a turn or starts its turn there makes a Dexterity saving throw or falls prone, and one that starts its turn there while concentrating makes a Constitution saving throw against your spell save DC or loses its concentration (PHB p.276). The DM applies the storm to the creatures in it; a prone creature stays prone after the spell ends."
   },
   {
     "spellName": "Slow",
@@ -16089,7 +16273,7 @@
       {
         "effectType": "DAMAGE",
         "damageDice": "3d8",
-        "damageType": "radiant",
+        "damageType": "OPTION",
         "upcastScaling": {
           "additionalDicePerLevel": "1d8",
           "additionalFlatPerLevel": 0
@@ -16098,7 +16282,12 @@
       },
       {
         "effectType": "DEBUFF",
-        "description": "Affected creature's speed is halved in the area"
+        "description": "Affected creature's speed is halved in the area",
+        "modifiers": [
+          {
+            "kind": "SPEED_HALVED"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -16117,9 +16306,16 @@
         "when": [
           "ENTER",
           "START_OF_TURN"
-        ]
+        ],
+        "addsAffected": true
       }
-    ]
+    ],
+    "castOptions": [
+      "radiant",
+      "necrotic"
+    ],
+    "modifiersOnSuccess": true,
+    "reminder": "Radiant if you are good or neutral, necrotic if you are evil. The creatures you designate as unaffected when you cast it are those you leave out; the spirits move with you, and an affected creature's speed is halved in the area (PHB p.278). The halving stays on each creature the spirits reached until the spell ends, so the DM ignores it for one that has left the area."
   },
   {
     "spellName": "Spirit Shroud",
@@ -16239,15 +16435,29 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": "Persistent AOE cloud, heavily obscured. Wind can disperse: moderate wind (10+ mph) in 4 rounds, strong wind (20+ mph) in 1 round. Spreads around corners.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Persistent AOE with per-turn CON save causing action loss (not a standard condition), heavily obscured area, wind dispersal rules",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Bard",
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "REVIEW: No standard condition inflicted. Effect is 'wastes action retching' which is mechanically similar to incapacitated but not technically that condition."
+    "notes": "REVIEW: No standard condition inflicted. Effect is 'wastes action retching' which is mechanically similar to incapacitated but not technically that condition.",
+    "castResolves": false,
+    "succeedsIfImmuneTo": "poisoned",
+    "succeedsIfImmuneToDamage": "poison",
+    "succeedsWithoutBreath": true,
+    "failNote": "spends its action this turn retching and reeling",
+    "effectTriggers": [
+      {
+        "when": [
+          "START_OF_TURN"
+        ],
+        "costsActionOnFail": true
+      }
+    ],
+    "reminder": "Each creature completely within the cloud at the start of its turn makes a Constitution saving throw against poison; on a failure it spends its action that turn retching and reeling, and a creature that doesn't need to breathe or is immune to poison succeeds automatically. The cloud spreads around corners and is heavily obscured; a moderate wind (at least 10 miles per hour) disperses it after 4 rounds, a strong wind (at least 20 miles per hour) after 1 round (PHB p.278). The DM applies the cloud to the creatures in it."
   },
   {
     "spellName": "Summon Fey",
@@ -17008,14 +17218,15 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": "Wall is up to 50 feet long, 15 feet high, 1 foot thick. Can be shaped in any continuous path along the ground. Damage only when wall first appears. Persistent barrier effect for duration.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Wall placement with shapeable path, persistent barrier blocking small flyers and projectiles, initial damage on appearance",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Druid",
       "Ranger"
     ],
-    "notes": null
+    "notes": null,
+    "reminder": "The wall is up to 50 feet long, 15 feet high and 1 foot thick, in any continuous path along the ground, and keeps fog, smoke and other gases at bay. Small or smaller flying creatures or objects can't pass through it, loose lightweight materials brought into it fly upward, arrows, bolts and other ordinary projectiles launched at targets behind it are deflected upward and automatically miss (boulders hurled by giants or siege engines are unaffected), and creatures in gaseous form can't pass through it (PHB p.288). The DM applies these."
   },
   {
     "spellName": "Arcane Eye",

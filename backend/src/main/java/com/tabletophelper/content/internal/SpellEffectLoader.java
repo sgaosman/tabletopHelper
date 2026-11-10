@@ -60,8 +60,9 @@ public class SpellEffectLoader implements ContentLoader {
         // close the high-level gaps, such as layers and concentrationSave (D195); 9: the low-level spells automated in
         // D196, such as Counterspell, Dispel Magic, Mirror Image and Sanctuary; 10: the low-level spells automated in
         // D197, such as Zephyr Strike, Flame Arrows and Ray of Enfeeblement; 11: Branding Smite as a weapon-hit
-        // rider instead of damage to its caster; 12: Psychic Scream's kill note (D198)
-        return 12;
+        // rider instead of damage to its caster; 12: Psychic Scream's kill note (D198); 13: the lasting area spells
+        // automated in D199, such as Stinking Cloud, Spike Growth and Healing Spirit
+        return 13;
     }
 
     @Override

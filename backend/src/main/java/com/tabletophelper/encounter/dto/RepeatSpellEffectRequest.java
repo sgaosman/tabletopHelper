@@ -33,7 +33,8 @@ public class RepeatSpellEffectRequest {
     // The moment of a turn the effect acts at, for the DM's use; null for the caster's own use
     private SpellTrigger trigger;
 
-    // How many of the effect's uses to spend, such as one or two meteors; one when left out
+    // How many of the effect's uses to spend, such as one or two meteors; one when left out. With a trigger that allows
+    // it, how many times the DM applies it at once, as Spike Growth's 2d4 for each 5 feet moved (D199)
     @Min(1)
     @Max(10)
     private Integer uses;

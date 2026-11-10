@@ -109,6 +109,24 @@ public class SpellEffects {
                     : "Complex spell requires DM adjudication";
             return manual(spellName, spellLevel, reason, concentration, durationRounds, verbal);
         }
+        // A cast that does something else than the spell's lasting effect, as Hunger of Hadar's blindness with no roll,
+        // its damage coming only from its triggers (PHB p.251, D199)
+        SpellTemplate.CastEffect castEffect = template.castEffect();
+        if (castEffect != null) {
+            SpellPlan replaced = planFor(template, spellName, castEffect.effect(), false, castEffect.conditions(),
+                    slotLevel, caster, castingAbility, attackBonus, saveDc, advantage);
+            if (!replaced.automated()) {
+                return manual(spellName, spellLevel, replaced.manualReason(), concentration, durationRounds, verbal);
+            }
+            Effect own = replaced.effect();
+            Map<String, Effect.ConditionEnd> ends = own.conditionEnds();
+            if (!java.util.Objects.equals(durationRounds, template.durationRounds())) {
+                ends = scaled(ends, template.durationRounds(), durationRounds);
+            }
+            Effect effect = new Effect(spellName, own.delivery(), own.damage(), own.healing(), own.conditions(),
+                    concentration, durationRounds, ends);
+            return new SpellPlan(spellName, spellLevel, effect, null, concentration, durationRounds, verbal);
+        }
         String deliveryMethod = orNone(template.deliveryMethod());
         if (option != null && template.noSaveOptions().stream().anyMatch(option::equalsIgnoreCase)) {
             deliveryMethod = "AUTO_HIT";
@@ -237,14 +255,34 @@ public class SpellEffects {
      * @param killNote              the log's words for a creature its damage kills, as Psychic Scream's exploding head
      *                              (XGE p.163); flavour only, null for none
      * @param killNoteNeedsHead     whether those words are only for a creature with a head
+     * @param succeedsWithoutBreath a creature that doesn't need to breathe succeeds on its save, as against Stinking
+     *                              Cloud (PHB p.278, D199)
+     * @param succeedsIfImmuneToDamage the damage type whose immunity makes a creature succeed on its save, as poison
+     *                              against Stinking Cloud (D199); null for none
+     * @param failNote              what the log says of a creature that fails its save, as Gust of Wind's push (PHB
+     *                              p.248, D199); null for none
+     * @param conditionsOutlastSpell its conditions stay when it ends, as Sleet Storm's prone (PHB p.276, D199)
+     * @param modifiersOnSuccess    its Ongoing Modifiers reach a creature that saves too, as Spirit Guardians' halved
+     *                              speed (PHB p.278, D199)
      */
     public record CastRules(int damageFloor, boolean disintegrates, boolean reducesHpMax, int hpMaxRounds,
                             String immuneIfImmuneTo, String succeedsIfImmuneTo,
                             List<String> saveDisadvantageTypes, boolean blocksCasting, boolean movable,
-                            String killNote, boolean killNoteNeedsHead) {
+                            String killNote, boolean killNoteNeedsHead, boolean succeedsWithoutBreath,
+                            String succeedsIfImmuneToDamage, String failNote, boolean conditionsOutlastSpell,
+                            boolean modifiersOnSuccess) {
 
         public static final CastRules NONE = new CastRules(0, false, false, 0, null, null, List.of(),
                 false, false, null, false);
+
+        /** The rules without the lasting area spells' keys (D188, D198). */
+        public CastRules(int damageFloor, boolean disintegrates, boolean reducesHpMax, int hpMaxRounds,
+                         String immuneIfImmuneTo, String succeedsIfImmuneTo, List<String> saveDisadvantageTypes,
+                         boolean blocksCasting, boolean movable, String killNote, boolean killNoteNeedsHead) {
+            this(damageFloor, disintegrates, reducesHpMax, hpMaxRounds, immuneIfImmuneTo, succeedsIfImmuneTo,
+                    saveDisadvantageTypes, blocksCasting, movable, killNote, killNoteNeedsHead, false, null, null,
+                    false, false);
+        }
 
         /** Whether its damage needs more than the usual rules once rolled. */
         public boolean limitsDamage() {
@@ -275,8 +313,69 @@ public class SpellEffects {
         return template(spellName).map(template -> new CastRules(template.damageFloor(), template.disintegrates(),
                 template.reducesHpMax(), template.hpMaxReductionRounds(),
                 template.immuneIfImmuneTo(), template.succeedsIfImmuneTo(), template.saveDisadvantageTypes(),
-                template.blocksCasting(), template.movable(), template.killNote(), template.killNoteNeedsHead()))
+                template.blocksCasting(), template.movable(), template.killNote(), template.killNoteNeedsHead(),
+                template.succeedsWithoutBreath(), template.succeedsIfImmuneToDamage(), template.failNote(),
+                template.conditionsOutlastSpell(), template.modifiersOnSuccess()))
                 .orElse(CastRules.NONE);
+    }
+
+    /**
+     * Whether the cast itself resolves anything against creatures (D199): false for a spell whose template says so, as
+     * Spike Growth's, whose area acts only through its triggers (PHB p.277). A spell the DM resolves by hand, or one
+     * without a template, is true here, as its cast goes the usual way.
+     */
+    public boolean castResolves(String spellName) {
+        return template(spellName)
+                .filter(template -> !Boolean.TRUE.equals(template.requiresManualResolution()))
+                .map(SpellTemplate::castResolves)
+                .orElse(true);
+    }
+
+    /** Whether one roll on the spell's table holds for every creature, as Nathair's Mischief's (FTD p.20, D199). */
+    public boolean sharedRoll(String spellName) {
+        return template(spellName).map(SpellTemplate::sharedRoll).orElse(false);
+    }
+
+    /**
+     * What the spell's trigger at that moment does besides its effect (D199).
+     *
+     * @param concentrationSave the ability of the save a concentrating creature it reaches makes to keep concentrating,
+     *                          as in Sleet Storm (PHB p.276); null for none
+     * @param costsAction       a creature that fails its save spends its action, as one retching in Stinking Cloud
+     *                          (PHB p.278)
+     * @param spendsUse         each creature it reaches spends one of the effect's uses, as Cordon of Arrows' pieces
+     *                          of ammunition (PHB p.228)
+     * @param repeatable        the DM may apply it several times at once, as Spike Growth's thorns for each 5 feet
+     *                          moved (PHB p.277)
+     */
+    public record TriggerRules(String concentrationSave, boolean costsAction, boolean spendsUse, boolean repeatable) {
+
+        public static final TriggerRules NONE = new TriggerRules(null, false, false, false);
+    }
+
+    /** What the spell's trigger at that moment does besides its effect (D199); nothing without a template. */
+    public TriggerRules triggerRules(String spellName, SpellTrigger when) {
+        return template(spellName).map(template -> new TriggerRules(template.triggerConcentrationSave(when),
+                        template.triggerCostsAction(when), template.triggerSpendsUse(when),
+                        template.triggerRepeatable(when)))
+                .orElse(TriggerRules.NONE);
+    }
+
+    /**
+     * Damage a creature with the condition from the spell takes at the start of each of its turns, as Tasha's Caustic
+     * Brew's acid (TCE p.115, D199), with the upcast dice for a slot of slotLevel; null for none or dice that can't be
+     * read.
+     */
+    public static Effect conditionDamage(String spellName, SpellTemplate template, String condition, int slotLevel) {
+        SpellTemplate.ConditionDamage damage = template.conditionDamage();
+        if (damage == null || condition == null || !damage.condition().equalsIgnoreCase(condition.trim())) {
+            return null;
+        }
+        int levelsAbove = template.level() > 0 ? Math.max(0, slotLevel - template.level()) : 0;
+        return damageParts(damage.damageDice(), damage.damageType(), damage.upcastScaling(), levelsAbove, 0)
+                .filter(parts -> !parts.isEmpty())
+                .map(parts -> new Effect(spellName, new Effect.Automatic(), parts, null, List.of(), false, null))
+                .orElse(null);
     }
 
     // The conditions that lasted as long as the spell's own duration, lasting as long as the slot's (D185)
@@ -595,7 +694,11 @@ public class SpellEffects {
                     : template.firstDamageEffect().map(SpellTemplate.Part::upcastScaling).orElse(null);
             int levelsAbove = repeat.usesUpcastScaling() && spellLevel > 0 ? slotLevel - spellLevel : 0;
             damage = damageParts(repeat.damageDice(), repeat.damageType(), upcastScaling, levelsAbove, modifier);
-            healing = healing(repeat.healingDice(), null, 0, modifier);
+            // Healing that grows with the slot, as Healing Spirit's 1d6 for each level above 2nd (XGE p.157, D199): the
+            // effect's own upcast, else the spell's healing's
+            SpellTemplate.Upcast healingUpcast = repeat.upcastScaling() != null ? repeat.upcastScaling()
+                    : template.healing() != null ? template.healing().upcastScaling() : null;
+            healing = healing(repeat.healingDice(), healingUpcast, levelsAbove, modifier);
         } else {
             deliveryMethod = orNone(template.deliveryMethod());
             spellAttackType = template.spellAttackType();
@@ -868,9 +971,18 @@ public class SpellEffects {
 
     /** What casting the spell with a slot of slotLevel leaves behind, if it leaves a Spell Effect. */
     public Optional<Lasting> lasting(String spellName, int slotLevel) {
+        return lasting(spellName, slotLevel, 0);
+    }
+
+    /**
+     * As {@link #lasting(String, int)}, cast by a caster with this spellcasting ability modifier, which uses that grow
+     * with it count, as Healing Spirit's 1 + the modifier, at least two (XGE p.157, D199).
+     */
+    public Optional<Lasting> lasting(String spellName, int slotLevel, int spellcastingModifier) {
         return template(spellName).filter(SpellTemplate::lasting).map(template -> new Lasting(
                 template.durationRounds(slotLevel),
-                template.effectUses() != null ? template.effectUses().at(template.level(), slotLevel) : null));
+                template.effectUses() != null
+                        ? template.effectUses().at(template.level(), slotLevel, spellcastingModifier) : null));
     }
 
     /**
@@ -953,6 +1065,18 @@ public class SpellEffects {
         boolean forcesSave = template.saveAbility() != null && !template.saveAbility().isBlank();
         // Empowered Spell rerolls the damage rolled when the spell is cast
         boolean dealsDamage = template.firstDamageEffect().isPresent();
+        // A cast that resolves nothing, as Spike Growth's, or something of its own, as Hunger of Hadar's blindness,
+        // forces a save and rolls damage only as that does (D199): what its area does later is no part of the cast
+        SpellTemplate.CastEffect castEffect = template.castEffect();
+        if (!template.castResolves()) {
+            forcesSave = false;
+            dealsDamage = false;
+        } else if (castEffect != null && castEffect.effect() != null) {
+            String delivery = castEffect.effect().deliveryMethod() != null ? castEffect.effect().deliveryMethod()
+                    : template.deliveryMethod();
+            forcesSave = "SAVING_THROW".equals(delivery) && (forcesSave || castEffect.effect().saveAbility() != null);
+            dealsDamage = castEffect.effect().damageDice() != null;
+        }
         SpellTemplate.TargetScaling scaling = template.targetCountUpcastScaling();
         return new Metamagic.SpellFacts(template.level(), castingTime(time), forcesSave,
                 dealsDamage, template.durationRounds(), template.durationText(),

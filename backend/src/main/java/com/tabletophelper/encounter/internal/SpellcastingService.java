@@ -384,6 +384,12 @@ public class SpellcastingService {
         if (request.getTargetIds().isEmpty()) {
             throw new ValidationException("Choose the creatures " + spellName + " acts on");
         }
+        // Several at once only for a trigger that allows it, as Spike Growth's 2d4 for each 5 feet moved (PHB p.277,
+        // D199); a request's uses are otherwise ignored here, as before
+        int times = request.getUses() != null ? request.getUses() : 1;
+        if (!spellEffects.triggerRules(spellName, when).repeatable()) {
+            times = 1;
+        }
         List<EncounterParticipant> targets = CombatAccess.targets(encounter, request.getTargetIds(), userId);
         SpellNumbers own = numbers(caster, casterSpells.origin(caster, spellName));
         List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(own.attackBonus(), own.saveDc(),
@@ -391,7 +397,8 @@ public class SpellcastingService {
         manualModifiers.log(encounter, CombatActionType.SPELL_EFFECT_REPEAT, caster,
                 caster.getDisplayName() + "'s " + spellName, userId, modifiers);
         SpellCaster.CastResult result = spellCaster.trigger(encounter, caster, effect, when, targets, own.ability(),
-                attackBonus(own, request.getOverrideSpellAttackBonus()), saveDc(own, request.getOverrideSpellSaveDC()));
+                attackBonus(own, request.getOverrideSpellAttackBonus()), saveDc(own, request.getOverrideSpellSaveDC()),
+                times);
         return response(encounter, result, effect.castLevel(), SpellSource.NONE);
     }
 

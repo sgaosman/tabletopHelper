@@ -365,7 +365,7 @@ class SpellEffectsTest {
         }
 
         @Test
-        @DisplayName("The bundled data's 69 lasting spells each leave a Spell Effect its caster directs at the cost "
+        @DisplayName("The bundled data's 75 lasting spells each leave a Spell Effect its caster directs at the cost "
                 + "the spell's text gives, or whose area acts by itself at the moments it gives, or both (M15)")
         void bundledLastingSpells() throws IOException {
             Map<String, ActionCost> costs = new LinkedHashMap<>();
@@ -454,15 +454,24 @@ class SpellEffectsTest {
             // Storm of Vengeance's and Tsunami's uses deal their round's damage at no cost (PHB p.279, p.284, D195)
             expected.put("Storm of Vengeance", ActionCost.NONE);
             expected.put("Tsunami", ActionCost.NONE);
-            // Web's webs repeat its DEX save for a creature entering them or starting its turn there (PHB p.287, D197)
-            assertEquals(69, triggers.size());
+            // The lasting area spells (D199): Gust of Wind's new direction, Healing Spirit's move and Nathair's
+            // Mischief's surge at the start of the caster's turn (PHB p.248, XGE p.157, FTD p.20)
+            expected.put("Gust of Wind", ActionCost.BONUS_ACTION);
+            expected.put("Healing Spirit", ActionCost.BONUS_ACTION);
+            expected.put("Nathair's Mischief", ActionCost.NONE);
+            // Web's webs repeat its DEX save for a creature entering them or starting its turn there (PHB p.287, D197);
+            // Stinking Cloud, Sleet Storm, Spike Growth, Healing Spirit, Cordon of Arrows, Gust of Wind and Nathair's
+            // Mischief join, and Tasha's Caustic Brew's acid becomes a condition's damage at the start of each turn
+            // (D199)
+            assertEquals(75, triggers.size());
             assertEquals(List.of(SpellTrigger.ENTER, SpellTrigger.START_OF_TURN), triggers.get("Web"));
             assertEquals(List.of(SpellTrigger.END_OF_TURN), triggers.get("Weird"));
             assertEquals(List.of(SpellTrigger.ENTER, SpellTrigger.START_OF_TURN), triggers.get("Ravenous Void"));
             assertEquals(expected, Map.copyOf(costs));
-            // Only Moonbeam's, Dust Devil's and Dawn's uses move them without resolving anything (PHB p.261, XGE p.154,
-            // p.153)
-            assertEquals(Set.of("Moonbeam", "Dust Devil", "Dawn"), moves.entrySet().stream()
+            // Only Moonbeam's, Dust Devil's, Dawn's, Gust of Wind's and Healing Spirit's uses move them without
+            // resolving anything (PHB p.261, XGE p.154, p.153, PHB p.248, XGE p.157)
+            assertEquals(Set.of("Moonbeam", "Dust Devil", "Dawn", "Gust of Wind", "Healing Spirit"), moves.entrySet()
+                    .stream()
                     .filter(Map.Entry::getValue).map(Map.Entry::getKey).collect(Collectors.toSet()));
 
             List<SpellTrigger> enterOrStart = List.of(SpellTrigger.ENTER, SpellTrigger.START_OF_TURN);
@@ -472,10 +481,17 @@ class SpellEffectsTest {
             assertEquals(List.of(SpellTrigger.ENTER, SpellTrigger.END_OF_TURN), triggers.get("Create Bonfire"));
             assertEquals(List.of(SpellTrigger.END_OF_TURN), triggers.get("Flaming Sphere"));
             assertEquals(List.of(SpellTrigger.END_OF_TURN), triggers.get("Dust Devil"));
-            assertEquals(List.of(SpellTrigger.START_OF_TURN, SpellTrigger.END_OF_TURN), triggers.get("Hunger of Hadar"));
-            for (String spell : List.of("Searing Smite", "Ensnaring Strike", "Tasha's Caustic Brew")) {
+            // Hunger of Hadar blinds a creature entering the sphere too (PHB p.251, D199)
+            assertEquals(List.of(SpellTrigger.ENTER, SpellTrigger.START_OF_TURN, SpellTrigger.END_OF_TURN),
+                    triggers.get("Hunger of Hadar"));
+            for (String spell : List.of("Searing Smite", "Ensnaring Strike", "Stinking Cloud", "Gust of Wind")) {
                 assertEquals(List.of(SpellTrigger.START_OF_TURN), triggers.get(spell), spell);
             }
+            assertFalse(triggers.containsKey("Tasha's Caustic Brew"));
+            assertEquals(enterOrStart, triggers.get("Sleet Storm"));
+            assertEquals(enterOrStart, triggers.get("Healing Spirit"));
+            assertEquals(List.of(SpellTrigger.ENTER), triggers.get("Spike Growth"));
+            assertEquals(List.of(SpellTrigger.ENTER, SpellTrigger.END_OF_TURN), triggers.get("Cordon of Arrows"));
             assertEquals(List.of(SpellTrigger.ENTER, SpellTrigger.END_OF_TURN), triggers.get("Wall of Fire"));
             assertEquals(enterOrStart, triggers.get("Evard's Black Tentacles"));
             assertEquals(enterOrStart, triggers.get("Sickening Radiance"));

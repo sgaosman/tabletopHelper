@@ -949,6 +949,17 @@ public class EffectApplier {
         }
         ConditionEntry condition = found.get();
         RepeatSave save = condition.repeatSave();
+        // An ability check made with the action in place of the save, as Phantasmal Force's Intelligence
+        // (Investigation) check (PHB p.264, D199)
+        String skill = save.madeByAction() ? templateOf(condition.sourceSpellName())
+                .map(com.tabletophelper.reference.SpellTemplate::actionSave)
+                .filter(action -> action.condition().equalsIgnoreCase(condition.name()))
+                .map(com.tabletophelper.reference.SpellTemplate.ActionSave::skill)
+                .orElse(null) : null;
+        if (skill != null) {
+            checkByAction(encounter, participant, conditions, condition, skill);
+            return;
+        }
         int modifier = stats.saveModifier(participant, save.ability());
         CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(participant, save.ability(),
                 List.of(condition.name()));
@@ -993,6 +1004,32 @@ public class EffectApplier {
         }
         participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
         spendModifiers(encounter, roll.spentOneShots());
+    }
+
+    /*
+     * An ability check a creature makes with its action to end a condition (D199), as Phantasmal Force's Intelligence
+     * (Investigation) check against the spell save DC, whose success shows the phantasm to be an illusion (PHB p.264):
+     * d20 plus the creature's skill modifier, as its sheet or stat block gives it. A check, not a save, so neither save
+     * bonuses nor Legendary Resistance count.
+     */
+    private void checkByAction(Encounter encounter, EncounterParticipant participant, List<ConditionEntry> conditions,
+                               ConditionEntry condition, String skill) {
+        RepeatSave save = condition.repeatSave();
+        int d20 = resolver.d20();
+        int modifier = stats.skillModifier(participant, skill, save.ability());
+        int total = d20 + modifier;
+        boolean success = total >= save.dc();
+        String description = participant.getDisplayName() + " uses its action on a " + save.ability().name() + " ("
+                + skill + ") check against " + condition.name() + ": d20(" + d20 + ")" + signed(modifier) + " = "
+                + total + " vs DC " + save.dc() + (success ? " — succeeds, and " + condition.name() + " ends."
+                : " — fails, and stays " + condition.name() + ".");
+        combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.REPEAT_SAVE, description),
+                null, participant).rollValue(d20).rollTotal(total));
+        int index = conditions.indexOf(condition);
+        if (success) {
+            conditions.remove(index);
+        }
+        participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
     }
 
     /**
@@ -1562,10 +1599,62 @@ public class EffectApplier {
             }
         }
         escapeAttempts(encounter, creature);
+        conditionDamage(encounter, creature);
         if (creature.getLifeState() == LifeState.ALIVE && conditions(creature).stream()
                 .anyMatch(c -> CONFUSED.equalsIgnoreCase(c.name()))) {
             confusedTurn(encounter, creature);
         }
+    }
+
+    /*
+     * The damage a creature with a spell's condition takes at the start of each of its turns (D199), as one covered in
+     * Tasha's Caustic Brew's acid takes 2d4 acid, 2d4 more for each slot level above 1st (TCE p.115), dealt with no roll
+     * by the spell's caster. The slot is the caster's concentration's when the condition belongs to it, else the
+     * spell's own level. Scraping the acid off is an action the DM records by removing the condition.
+     */
+    private void conditionDamage(Encounter encounter, EncounterParticipant creature) {
+        if (spellRepository == null) {
+            return;
+        }
+        for (ConditionEntry condition : List.copyOf(conditions(creature))) {
+            if (condition.sourceSpellName() == null || creature.getLifeState() == LifeState.DEAD) {
+                continue;
+            }
+            Optional<com.tabletophelper.reference.SpellTemplate> template = templateOf(condition.sourceSpellName());
+            if (template.isEmpty() || template.get().conditionDamage() == null) {
+                continue;
+            }
+            EncounterParticipant caster = condition.sourceParticipantId() == null ? null
+                    : participant(encounter, condition.sourceParticipantId()).orElse(null);
+            ConcentrationInstance held = caster != null ? caster.getConcentration() : null;
+            int slotLevel = held != null && held.id().equals(condition.concentrationInstanceId())
+                    && held.slotLevel() != null ? held.slotLevel() : template.get().level();
+            Effect damage = SpellEffects.conditionDamage(condition.sourceSpellName(), template.get(), condition.name(),
+                    slotLevel);
+            if (damage == null) {
+                continue;
+            }
+            String source = (caster != null ? caster.getDisplayName() + "'s " : "") + condition.sourceSpellName();
+            Use use = new Use(caster, source + " (" + condition.name() + ")", CombatActionType.SPELL_EFFECT_REPEAT,
+                    "deals its damage to", "", condition.sourceSpellName(), null);
+            applyTo(encounter, use, damage, resolver.resolve(damage, List.of(stats.target(creature, damage)))
+                    .getFirst(), null, SpellEffects.CastRules.NONE);
+        }
+    }
+
+    /**
+     * Uses up the creature's action this turn, as a failed save against Stinking Cloud does (PHB p.278, D199): spent from
+     * its turn's economy when it is the creature's turn. False when it isn't, so the DM keeps to it on that turn.
+     */
+    public boolean loseAction(Encounter encounter, EncounterParticipant creature) {
+        if (!EncounterTurns.isCurrentTurn(encounter, creature.getId()) || creature.getLifeState() != LifeState.ALIVE) {
+            return false;
+        }
+        TurnEconomy economy = economy(creature);
+        creature.setTurnEconomy(economy.withBudget(com.tabletophelper.rules.combat.ActionEconomy.spend(
+                economy.budget(), com.tabletophelper.rules.combat.Charge.of(
+                        com.tabletophelper.rules.combat.ActionCost.ACTION, true))));
+        return true;
     }
 
     /** The condition of a creature Confusion has affected (PHB p.224, D185). */

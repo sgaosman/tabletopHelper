@@ -130,6 +130,12 @@ public class SpellCaster {
                 + (slotLevel > 0 && slotLevel > plan.spellLevel() ? " at level " + slotLevel : "") + costNote
                 + metamagic.note();
 
+        // A lasting spell whose area acts only later, as Spike Growth's thorns (PHB p.277, D199)
+        if (summoning == null && !spellEffects.castResolves(spellName)) {
+            return castForLater(encounter, caster, spellName, slotLevel, plan, lead, castingAbility, attackBonus,
+                    saveDc, costNote, metamagic, option);
+        }
+
         if (!plan.automated()) {
             ConcentrationInstance instance = plan.concentration()
                     ? effectApplier.startConcentration(encounter, caster, spellName, slotLevel, plan.durationRounds())
@@ -146,7 +152,8 @@ public class SpellCaster {
                             List.of(caster), saveDc)
                     : ModifierCast.NONE;
             leaveEffect(encounter, caster, spellName, slotLevel, instance, false, metamagic, onCaster,
-                    spellEffects.later(spellName, slotLevel, option), List.of(), 0);
+                    spellEffects.later(spellName, slotLevel, option), List.of(), 0,
+                    stats.spellcastingModifier(caster, castingAbility, attackBonus));
             return new CastResult(spellName, plan.spellLevel(), plan.concentration(), manualReason, summary,
                     List.of());
         }
@@ -222,26 +229,35 @@ public class SpellCaster {
                     .collect(Collectors.joining(", ")) + ".");
         }
         List<EffectApplier.Applied> applied = new ArrayList<>();
+        // Conditions that stay when the spell ends, as Sleet Storm's prone (PHB p.276, D199), belong to no
+        // Concentration Instance and keep no duration
+        EffectApplier.Use applying = rules.conditionsOutlastSpell() ? use.withoutInstance() : use;
+        if (rules.conditionsOutlastSpell()) {
+            effect = new Effect(effect.name(), effect.delivery(), effect.damage(), effect.healing(),
+                    effect.conditions(), effect.concentration(), null, effect.conditionEnds());
+        }
         if (!seventh.rays().isEmpty()) {
             // A table each creature rolls on, as Prismatic Spray's d8 (PHB p.267, D189)
-            applied.addAll(rays(encounter, caster, use, spellName, effect, seventh.rays(), normal, saveDc));
+            applied.addAll(rays(encounter, caster, applying, spellName, effect, seventh.rays(), normal, saveDc));
         } else if (!normal.isEmpty() || maximised.isEmpty()) {
             // With no targets at all the spell still resolves, rolling its dice as before (D177)
-            List<Resolver.Target> resolvedAgainst = stats.spellTargets(normal, effect, caster).stream()
+            Effect resolving = effect;
+            List<Resolver.Target> resolvedAgainst = stats.spellTargets(normal, resolving, caster).stream()
                     .map(target -> withMetamagic(withCastRules(target, normal, rules), metamagic))
                     .toList();
-            applied.addAll(effectApplier.apply(encounter, use, effect,
-                    resolver.resolve(effect, CreatureStats.side(caster), resolvedAgainst, metamagic.empoweredDice()),
-                    rules));
+            applied.addAll(effectApplier.apply(encounter, applying, resolving,
+                    resolver.resolve(resolving, CreatureStats.side(caster), resolvedAgainst,
+                            metamagic.empoweredDice()), rules));
         }
         if (!maximised.isEmpty()) {
             Effect most = maximumDamage(effect);
             List<Resolver.Target> resolvedAgainst = stats.spellTargets(maximised, most, caster).stream()
                     .map(target -> withMetamagic(target.withSaveSource(RollMode.DISADVANTAGE), metamagic))
                     .toList();
-            applied.addAll(effectApplier.apply(encounter, use, most,
+            applied.addAll(effectApplier.apply(encounter, applying, most,
                     resolver.resolve(most, CreatureStats.side(caster), resolvedAgainst, 0), rules));
         }
+        String failNote = failNotes(encounter, use, caster, rules, applied);
         String typeNote = globeNote(spellName, caster, globed, plan.spellLevel())
                 + immuneNote(spellName, immune, rules.immuneIfImmuneTo())
                 + typeNote(spellName, unaffected, maximised)
@@ -259,9 +275,16 @@ public class SpellCaster {
                 .map(EffectApplier.Applied::target)
                 .filter(target -> target.getLifeState() != LifeState.DEAD)
                 .toList();
+        // Modifiers that reach a creature whatever its save, as Spirit Guardians' halved speed (PHB p.278, D199)
+        List<EncounterParticipant> underModifiers = !rules.modifiersOnSuccess() ? affected : applied.stream()
+                .filter(result -> result.outcome().outcome() != Outcome.MISS)
+                .map(EffectApplier.Applied::target)
+                .filter(target -> target.getLifeState() != LifeState.DEAD)
+                .distinct()
+                .toList();
         int spellcastingModifier = stats.spellcastingModifier(caster, castingAbility, attackBonus);
         SpellEffects.ModifierPlan modifiers = spellEffects.modifiers(spellName, slotLevel, option,
-                spellcastingModifier, affected.isEmpty() ? null : affected.getFirst());
+                spellcastingModifier, underModifiers.isEmpty() ? null : underModifiers.getFirst());
         // Temporary hit points the cast gives, as Guardian of Nature's Great Tree's (XGE p.157, D185)
         Integer tempHp = spellEffects.tempHitPoints(spellName, option);
         if (tempHp != null) {
@@ -280,7 +303,8 @@ public class SpellCaster {
         // A spell on its caster that leaves uses, as Crown of Stars' motes (XGE p.152, D189), spends none by being cast
         boolean spentOne = !reached.isEmpty() && !(effect.delivery() instanceof Effect.Self);
         String modifierNote = leaveEffect(encounter, caster, spellName, slotLevel, instance, spentOne,
-                metamagic, new ModifierCast(modifiers, affected, saveDc), later, delayedOn, dealt);
+                metamagic, new ModifierCast(modifiers, underModifiers, saveDc), later, delayedOn, dealt,
+                spellcastingModifier);
         String fifthNote = afterCast(encounter, caster, spellName, option, use, instance, reached, applied,
                 affected, saveDc, castingAbility, attackBonus);
         String seventhNote = afterSeventh(encounter, caster, spellName, slotLevel, option, use, seventh, normal,
@@ -294,8 +318,66 @@ public class SpellCaster {
             effectApplier.summary(encounter, use, spellName + ": " + reminder);
         }
         return new CastResult(spellName, plan.spellLevel(), plan.concentration(), null,
-                summary(lead, applied) + typeNote + modifierNote + fifthNote + seventhNote + highNote + reminderNote,
+                summary(lead, applied) + typeNote + failNote + modifierNote + fifthNote + seventhNote + highNote
+                        + reminderNote,
                 outcomes(effect, applied));
+    }
+
+    /*
+     * The cast of a lasting spell whose area or later uses do everything (D199), as Spike Growth's thorns (PHB p.277),
+     * Stinking Cloud's save at the start of a creature's turn (PHB p.278) or Aura of Vitality's heal as a bonus action
+     * (PHB p.216): its concentration and Spell Effect start, and nothing is rolled; the DM applies the area to creatures
+     * through the effect's triggers, and its caster uses it on later turns.
+     */
+    private CastResult castForLater(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
+                                    SpellEffects.SpellPlan plan, String lead, String castingAbility, int attackBonus,
+                                    int saveDc, String costNote, MetamagicCasting.Plan metamagic, String option) {
+        if (plan.verbal() && silenced(caster) && !metamagic.has(Metamagic.Option.SUBTLE)) {
+            throw new ConflictException("Cannot cast spells with verbal components while silenced");
+        }
+        ConcentrationInstance instance = plan.concentration()
+                ? effectApplier.startConcentration(encounter, caster, spellName, slotLevel, plan.durationRounds())
+                : null;
+        EffectApplier.Use use = use(caster, spellName, costNote, instance);
+        String summary = lead + ". Nothing is rolled yet: " + spellName + " acts on creatures through its Spell "
+                + "Effect.";
+        effectApplier.summary(encounter, use, summary);
+        int spellcastingModifier = stats.spellcastingModifier(caster, castingAbility, attackBonus);
+        String note = leaveEffect(encounter, caster, spellName, slotLevel, instance, false, metamagic,
+                new ModifierCast(spellEffects.modifiers(spellName, slotLevel, option, spellcastingModifier, null),
+                        List.of(), saveDc),
+                spellEffects.later(spellName, slotLevel, option), List.of(), 0, spellcastingModifier);
+        String uses = EffectApplier.effects(caster).stream()
+                .filter(effect -> effect.spell().equalsIgnoreCase(spellName) && effect.usesLeft() != null)
+                .reduce((first, second) -> second)
+                .map(effect -> " It has " + effect.usesLeft() + " uses.")
+                .orElse("");
+        String reminder = spellEffects.castReminder(spellName);
+        if (reminder != null) {
+            effectApplier.summary(encounter, use, spellName + ": " + reminder);
+        }
+        return new CastResult(spellName, plan.spellLevel(), plan.concentration(), null,
+                summary + note + uses + (reminder != null ? " " + reminder : ""), List.of());
+    }
+
+    /*
+     * What the log says of each creature that failed the spell's save (D199), as Gust of Wind's push of 15 feet (PHB
+     * p.248), for the DM to play out; what the summary adds, or nothing.
+     */
+    private String failNotes(Encounter encounter, EffectApplier.Use use, EncounterParticipant caster,
+                             SpellEffects.CastRules rules, List<EffectApplier.Applied> applied) {
+        if (rules.failNote() == null) {
+            return "";
+        }
+        List<String> notes = applied.stream()
+                .filter(result -> result.outcome().outcome() == Outcome.SAVE_FAIL
+                        && result.target().getLifeState() != LifeState.DEAD)
+                .map(result -> result.target().getDisplayName() + " "
+                        + rules.failNote().replace("{caster}", caster.getDisplayName()) + ".")
+                .distinct()
+                .toList();
+        notes.forEach(note -> effectApplier.summary(encounter, use, note));
+        return notes.isEmpty() ? "" : " " + String.join(" ", notes);
     }
 
     // Whether the creature's score in the floor's ability is at or below it (D190)
@@ -411,15 +493,47 @@ public class SpellCaster {
         List<EffectApplier.Applied> applied = new ArrayList<>();
         Map<SpellTemplate.CountedSaves, List<EncounterParticipant>> counting = new LinkedHashMap<>();
         List<String> reminders = new ArrayList<>();
+        // One roll for the whole area, as Nathair's Mischief's d4 for its cube (FTD p.20, D199), each row with its own
+        // save; a row that asks for no save, as its molasses' difficult terrain, is a reminder for the DM
+        boolean shared = spellEffects.sharedRoll(spellName);
+        List<SpellTemplate.Ray> sharedStruck = new ArrayList<>();
+        List<Integer> sharedRolls = new ArrayList<>();
+        if (shared) {
+            SpellTemplate.Ray first = ray(table, sharedRolls, sides);
+            sharedStruck.addAll(first.rollsTwice()
+                    ? List.of(reroll(table, sharedRolls, sides), reroll(table, sharedRolls, sides)) : List.of(first));
+            SpellTemplate.Ray row = sharedStruck.getFirst();
+            boolean saved = row.damageDice() != null || !row.conditions().isEmpty();
+            String ability = row.saveAbility() != null ? row.saveAbility().toUpperCase(java.util.Locale.ROOT)
+                    : save.ability() != null ? save.ability().name() : "";
+            effectApplier.summary(encounter, use, spellName + " rolls d" + sides + ": "
+                    + sharedRolls.stream().map(String::valueOf).collect(Collectors.joining(", ")) + " ("
+                    + sharedStruck.stream().map(r -> r.color() != null ? r.color() : "#" + r.roll())
+                    .collect(Collectors.joining(" and ")) + ")"
+                    + (saved && !creatures.isEmpty() ? ": a DC " + save.dc() + " " + ability + " save for each creature"
+                    + " in the area." : "."));
+            if (!saved) {
+                sharedStruck.stream().filter(r -> r.reminder() != null)
+                        .forEach(r -> reminders.add(spellName + ": " + r.reminder()
+                                .replace("{dc}", String.valueOf(saveDc)).replace("{caster}", caster.getDisplayName())));
+                countAndRemind(encounter, caster, use, spellName, counting, reminders, saveDc);
+                return applied;
+            }
+        }
         for (EncounterParticipant creature : creatures) {
             List<SpellTemplate.Ray> struck = new ArrayList<>();
             List<Integer> rolls = new ArrayList<>();
-            SpellTemplate.Ray first = ray(table, rolls, sides);
-            if (first.rollsTwice()) {
-                struck.add(reroll(table, rolls, sides));
-                struck.add(reroll(table, rolls, sides));
+            if (shared) {
+                struck.addAll(sharedStruck);
+                rolls.addAll(sharedRolls);
             } else {
-                struck.add(first);
+                SpellTemplate.Ray first = ray(table, rolls, sides);
+                if (first.rollsTwice()) {
+                    struck.add(reroll(table, rolls, sides));
+                    struck.add(reroll(table, rolls, sides));
+                } else {
+                    struck.add(first);
+                }
             }
             List<Effect.DamagePart> damage = new ArrayList<>();
             List<String> conditions = new ArrayList<>();
@@ -438,12 +552,18 @@ public class SpellCaster {
                     }
                 }
             }
-            effectApplier.summary(encounter, use, creature.getDisplayName() + " is struck by the "
-                    + struck.stream().map(ray -> ray.color() != null ? ray.color() : "#" + ray.roll())
-                            .collect(Collectors.joining(" and ")) + " ray" + (struck.size() > 1 ? "s" : "")
-                    + " (d" + sides + ": " + rolls.stream().map(String::valueOf).collect(Collectors.joining(", "))
-                    + ").");
-            Effect each = new Effect(spellName, save, damage, null, conditions, false, null, ends);
+            if (!shared) {
+                effectApplier.summary(encounter, use, creature.getDisplayName() + " is struck by the "
+                        + struck.stream().map(ray -> ray.color() != null ? ray.color() : "#" + ray.roll())
+                                .collect(Collectors.joining(" and ")) + " ray" + (struck.size() > 1 ? "s" : "")
+                        + " (d" + sides + ": " + rolls.stream().map(String::valueOf).collect(Collectors.joining(", "))
+                        + ").");
+            }
+            // A row's own save, as Nathair's Mischief's Dexterity save against its flowers (FTD p.20, D199)
+            Effect.Save rowSave = struck.getFirst().saveAbility() != null
+                    ? new Effect.Save(Ability.parse(struck.getFirst().saveAbility()).orElse(save.ability()), save.dc(),
+                    save.halfDamageOnSuccess()) : save;
+            Effect each = new Effect(spellName, rowSave, damage, null, conditions, false, null, ends);
             List<EffectApplier.Applied> result = effectApplier.apply(encounter, use, each,
                     resolver.resolve(each, CreatureStats.side(caster), stats.spellTargets(List.of(creature), each, caster)));
             applied.addAll(result);
@@ -581,7 +701,15 @@ public class SpellCaster {
      */
     private void concentrationSaves(Encounter encounter, EncounterParticipant caster, EffectApplier.Use use,
                                     String spellName, int saveDc, List<EncounterParticipant> creatures) {
-        String abilityName = spellEffects.concentrationSave(spellName);
+        concentrationSaves(encounter, caster, use, spellName, saveDc, creatures,
+                spellEffects.concentrationSave(spellName));
+    }
+
+    // As above, with the save's ability given, as a trigger's own, Sleet Storm's at the start of a turn (PHB p.276,
+    // D199); nothing for none
+    private void concentrationSaves(Encounter encounter, EncounterParticipant caster, EffectApplier.Use use,
+                                    String spellName, int saveDc, List<EncounterParticipant> creatures,
+                                    String abilityName) {
         Optional<Ability> ability = abilityName != null ? Ability.parse(abilityName) : Optional.empty();
         if (ability.isEmpty()) {
             return;
@@ -1073,8 +1201,38 @@ public class SpellCaster {
         if (ofType(creature, rules.saveDisadvantageTypes())) {
             changed = changed.withSaveSource(RollMode.DISADVANTAGE);
         }
+        // Stinking Cloud's poison: a creature immune to poison, or that doesn't need to breathe, succeeds (PHB p.278,
+        // D199)
+        if (rules.succeedsIfImmuneToDamage() != null && stats.defences(creature, rules.succeedsIfImmuneToDamage())
+                .contains(com.tabletophelper.rules.combat.DamageRules.Defence.IMMUNITY)) {
+            changed = changed.succeedingAutomatically();
+        } else if (rules.succeedsWithoutBreath() && breathless(stats.traits(creature))) {
+            changed = changed.succeedingAutomatically();
+        }
         return changed;
     }
+
+    /**
+     * Whether traits say the creature doesn't need to breathe (D199), as an undead's or construct's stat block or a
+     * warforged's Constructed Resilience words it: "doesn't need to breathe", "doesn't require air" (MM's Unusual
+     * Nature and Undead Nature) or "can't breathe". Rules call: a creature's type alone says nothing, since the stat
+     * blocks name this where it holds.
+     */
+    static boolean breathless(List<CreatureStats.Trait> traits) {
+        for (CreatureStats.Trait trait : traits) {
+            String text = ((trait.name() != null ? trait.name() : "") + " " + (trait.description() != null
+                    ? trait.description() : "")).toLowerCase(java.util.Locale.ROOT).replace('’', '\'');
+            if (BREATHLESS.matcher(text).find()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final java.util.regex.Pattern BREATHLESS = java.util.regex.Pattern.compile(
+            "(doesn't|does not|don't|do not|needn't) (need to |)(eat, drink, or |eat or |)breathe"
+                    + "|(doesn't|does not|don't|do not) (need|require) air"
+                    + "|doesn't need air");
 
     /*
      * What the spell's rules do once it is applied (D188): Harm lowers the maximum of a creature that failed its save by
@@ -1159,7 +1317,7 @@ public class SpellCaster {
         String note = leaveEffect(encounter, caster, spellName, slotLevel, instance, false, MetamagicCasting.Plan.NONE,
                 new ModifierCast(modifiers, affected,
                         caster.getSpellSaveDc() != null ? caster.getSpellSaveDc() : 10),
-                spellEffects.later(spellName, slotLevel, option), List.of(), 0);
+                spellEffects.later(spellName, slotLevel, option), List.of(), 0, spellcastingModifier);
         return summary + note;
     }
 
@@ -1230,8 +1388,9 @@ public class SpellCaster {
     private String leaveEffect(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
                                ConcentrationInstance instance, boolean spentOne, MetamagicCasting.Plan metamagic,
                                ModifierCast modifiers, SpellEffects.Later later, List<EncounterParticipant> delayedOn,
-                               int dealt) {
-        Optional<SpellEffects.Lasting> lasting = spellEffects.lasting(spellName, slotLevel);
+                               int dealt, int spellcastingModifier) {
+        // Uses that grow with the caster's modifier, as Healing Spirit's heals (XGE p.157, D199)
+        Optional<SpellEffects.Lasting> lasting = spellEffects.lasting(spellName, slotLevel, spellcastingModifier);
         SpellEffects.ModifierPlan plan = modifiers.plan();
         // A lasting spell keeps its modifiers for the creatures its triggers bring under it later, as Sickening
         // Radiance's light (XGE p.164, D185)
@@ -1369,6 +1528,7 @@ public class SpellCaster {
                 targets);
         List<EffectApplier.Applied> applied = new ArrayList<>();
         SpellTemplate.Layers layers = spellEffects.layers(spellName);
+        List<SpellTemplate.Ray> table = spellEffects.seventhLevel(spellName).rays();
         for (int i = 0; i < times; i++) {
             if (layers != null) {
                 // Passing through the layers in order, as Prismatic Wall's (PHB p.267, D195)
@@ -1378,12 +1538,19 @@ public class SpellCaster {
             List<EncounterParticipant> standing = outside.stream()
                     .filter(target -> target.getLifeState() != LifeState.DEAD)
                     .toList();
+            if (!table.isEmpty()) {
+                // The table rolled again, as Nathair's Mischief's at the start of each of its caster's turns (FTD
+                // p.21, D199)
+                applied.addAll(rays(encounter, caster, applying, spellName, effect, table, standing, saveDc));
+                continue;
+            }
             List<Resolver.Target> resolvedAgainst = stats.spellTargets(standing, effect, caster).stream()
                     .map(target -> withCastRules(target, standing, rules))
                     .toList();
             applied.addAll(effectApplier.apply(encounter, applying, effect,
                     resolver.resolve(effect, CreatureStats.side(caster), resolvedAgainst), rules));
         }
+        String failNote = failNotes(encounter, use, caster, rules, applied);
         afterSixthLevelRules(encounter, caster, spellName, spellEffect.castLevel(), rules, applied);
         concentrationSaves(encounter, caster, use, spellName, saveDc, outside);
         drain(encounter, caster, spellName, fifth, applied);
@@ -1399,7 +1566,7 @@ public class SpellCaster {
             }
             extra += " " + spellName + " ends.";
         }
-        return new CastResult(spellName, plan.spellLevel(), false, null, summary(lead, applied) + extra,
+        return new CastResult(spellName, plan.spellLevel(), false, null, summary(lead, applied) + failNote + extra,
                 outcomes(effect, applied));
     }
 
@@ -1493,6 +1660,22 @@ public class SpellCaster {
     public CastResult trigger(Encounter encounter, EncounterParticipant caster, SpellEffectEntry spellEffect,
                               SpellTrigger when, List<EncounterParticipant> targets, String castingAbility,
                               int attackBonus, int saveDc) {
+        return trigger(encounter, caster, spellEffect, when, targets, castingAbility, attackBonus, saveDc, 1);
+    }
+
+    /**
+     * As {@link #trigger(Encounter, EncounterParticipant, SpellEffectEntry, SpellTrigger, List, String, int, int)},
+     * applied `times` times at once, as Spike Growth's 2d4 for each 5 feet a creature moves (PHB p.277, D199): the
+     * damage dice are multiplied and rolled once. The spell's rules hold for its area too (D199): its creature types it
+     * has no effect on, as Healing Spirit's undead and constructs (XGE p.157), and the saves it makes easier or harder,
+     * as Moonbeam's shapechangers' disadvantage (PHB p.261) or Stinking Cloud's automatic success for a creature that
+     * doesn't breathe (PHB p.278). A trigger may also spend the effect's uses, one for each creature it reaches, the
+     * spell ending on the last, as Cordon of Arrows' ammunition (PHB p.228); make a concentrating creature save, as Sleet
+     * Storm does (PHB p.276); or use up the action of a creature that fails, as Stinking Cloud does.
+     */
+    public CastResult trigger(Encounter encounter, EncounterParticipant caster, SpellEffectEntry spellEffect,
+                              SpellTrigger when, List<EncounterParticipant> targets, String castingAbility,
+                              int attackBonus, int saveDc, int times) {
         String spellName = spellEffect.spell();
         SpellEffects.SpellPlan plan = spellEffects.forTrigger(spellName, when, spellEffect.castLevel(), caster,
                 castingAbility, attackBonus, saveDc);
@@ -1504,7 +1687,8 @@ public class SpellCaster {
         EffectApplier.Use use = new EffectApplier.Use(caster, caster.getDisplayName(),
                 CombatActionType.SPELL_EFFECT_REPEAT, spellName + " (" + moment + ")", "on", spellName,
                 instanceOf(caster, spellEffect));
-        String lead = caster.getDisplayName() + "'s " + spellName + " acts on a creature " + moment;
+        String lead = caster.getDisplayName() + "'s " + spellName + " acts on a creature " + moment
+                + (times > 1 ? ", " + times + " times" : "");
 
         if (!plan.automated()) {
             String summary = lead + " — " + plan.manualReason();
@@ -1513,34 +1697,52 @@ public class SpellCaster {
         }
         CombatAccess.requireNotDead(targets);
         CombatAccess.requireReachable(caster, targets);
+        SpellEffects.TriggerRules extras = spellEffects.triggerRules(spellName, when);
+        if (extras.spendsUse() && spellEffect.usesLeft() != null && targets.size() > spellEffect.usesLeft()) {
+            throw new ConflictException(spellName + " has " + spellEffect.usesLeft() + " left");
+        }
         effectApplier.summary(encounter, use, lead + ".");
+        // The cast rules hold for what the area does too, as Dark Star's disintegrating a creature its damage leaves at 0
+        // hit points (EGW p.186, D190)
+        SpellEffects.CastRules triggerRules = spellEffects.castRules(spellName);
+        // Conditions that outlast the spell, as Sleet Storm's prone (PHB p.276, D199)
+        EffectApplier.Use applying = triggerRules.conditionsOutlastSpell() ? use.withoutInstance() : use;
         // A Globe of Invulnerability keeps the spell's area out too (PHB p.245, D188)
         List<EncounterParticipant> outside = outsideGlobes(encounter, use, caster, spellName, plan.spellLevel(),
                 targets);
+        // The creature types it has no effect on, as Healing Spirit's undead and constructs (XGE p.157, D199)
+        List<EncounterParticipant> unaffected = outside.stream()
+                .filter(target -> ofType(target, spellEffects.typeRules(spellName).noEffectOn()))
+                .toList();
+        if (!unaffected.isEmpty()) {
+            effectApplier.summary(encounter, use, typeNote(spellName, unaffected, List.of()).trim());
+        }
+        List<EncounterParticipant> reached = outside.stream().filter(target -> !unaffected.contains(target)).toList();
         // A creature that already has the trigger's condition from this spell takes its damage with no save, as one
         // Evard's Black Tentacles already restrain (PHB p.238, D185)
         Optional<SpellTemplate.EffectTrigger> trigger = spellEffects.trigger(spellName, when);
         String held = trigger.map(SpellTemplate.EffectTrigger::whenConditioned).orElse(null);
-        List<EncounterParticipant> conditioned = held == null ? List.of() : outside.stream()
+        List<EncounterParticipant> conditioned = held == null ? List.of() : reached.stream()
                 .filter(target -> hasFrom(target, held, spellName, caster))
                 .toList();
-        List<EncounterParticipant> saving = outside.stream().filter(target -> !conditioned.contains(target)).toList();
+        List<EncounterParticipant> saving = reached.stream().filter(target -> !conditioned.contains(target)).toList();
         List<EffectApplier.Applied> applied = new ArrayList<>();
-        // The cast rules hold for what the area does too, as Dark Star's disintegrating a creature its damage leaves at 0
-        // hit points (EGW p.186, D190)
-        SpellEffects.CastRules triggerRules = spellEffects.castRules(spellName);
-        if (!saving.isEmpty() || conditioned.isEmpty()) {
-            applied.addAll(effectApplier.apply(encounter, use, plan.effect(),
-                    resolver.resolve(plan.effect(), CreatureStats.side(caster),
-                            stats.spellTargets(saving, plan.effect(), caster)), triggerRules));
+        // The damage type the cast chose, as Spirit Guardians' radiant or necrotic (PHB p.278, D199)
+        Effect effect = times(withOptionType(plan.effect(), spellEffect.option()), times);
+        if (!saving.isEmpty() || conditioned.isEmpty() && reached.size() == outside.size()) {
+            List<Resolver.Target> resolvedAgainst = stats.spellTargets(saving, effect, caster).stream()
+                    .map(target -> withCastRules(target, saving, triggerRules))
+                    .toList();
+            applied.addAll(effectApplier.apply(encounter, applying, effect,
+                    resolver.resolve(effect, CreatureStats.side(caster), resolvedAgainst), triggerRules));
         }
-        Effect resolvedWith = plan.effect();
+        Effect resolvedWith = effect;
         if (!conditioned.isEmpty()) {
             Optional<SpellEffects.SpellPlan> automatic = spellEffects.forConditionedTrigger(spellName, when,
                     spellEffect.castLevel(), caster, castingAbility, attackBonus, saveDc);
             if (automatic.isPresent() && automatic.get().automated()) {
-                Effect noSave = automatic.get().effect();
-                applied.addAll(effectApplier.apply(encounter, use, noSave,
+                Effect noSave = times(withOptionType(automatic.get().effect(), spellEffect.option()), times);
+                applied.addAll(effectApplier.apply(encounter, applying, noSave,
                         resolver.resolve(noSave, CreatureStats.side(caster),
                                 stats.spellTargets(conditioned, noSave, caster)), triggerRules));
                 if (saving.isEmpty()) {
@@ -1548,10 +1750,93 @@ public class SpellCaster {
                 }
             }
         }
-        afterTrigger(encounter, caster, spellEffect, trigger.orElse(null), applied);
+        String extra = failNotes(encounter, use, caster, triggerRules, applied)
+                + lostActions(encounter, use, extras, applied);
+        if (extras.concentrationSave() != null) {
+            concentrationSaves(encounter, caster, use, spellName, saveDc, reached, extras.concentrationSave());
+        }
+        afterTrigger(encounter, caster, spellEffect, trigger.orElse(null), applied, triggerRules);
         endOnSave(encounter, caster, spellEffect, when, applied);
-        return new CastResult(spellName, plan.spellLevel(), false, null, summary(lead, applied),
+        if (extras.spendsUse()) {
+            extra += spendUses(encounter, caster, spellEffect, applied.stream()
+                    .map(EffectApplier.Applied::target).distinct().toList().size());
+        }
+        return new CastResult(spellName, plan.spellLevel(), false, null, summary(lead, applied) + extra,
                 outcomes(resolvedWith, applied));
+    }
+
+    // The Effect with a damage type of OPTION dealing the type its cast chose, as Spirit Guardians' (PHB p.278, D199)
+    static Effect withOptionType(Effect effect, String option) {
+        if (option == null || effect.damage().stream().noneMatch(part -> "option".equals(part.type()))) {
+            return effect;
+        }
+        List<Effect.DamagePart> parts = effect.damage().stream()
+                .map(part -> "option".equals(part.type())
+                        ? new Effect.DamagePart(part.dice(), option.toLowerCase(java.util.Locale.ROOT)) : part)
+                .toList();
+        return new Effect(effect.name(), effect.delivery(), parts, effect.healing(), effect.conditions(),
+                effect.concentration(), effect.durationRounds(), effect.conditionEnds());
+    }
+
+    // The Effect's damage dice taken `times` times, as Spike Growth's 2d4 for each of several 5-foot moves (D199)
+    static Effect times(Effect effect, int times) {
+        if (times <= 1 || effect.damage().isEmpty()) {
+            return effect;
+        }
+        List<Effect.DamagePart> parts = effect.damage().stream()
+                .map(part -> new Effect.DamagePart(new Dice(part.dice().count() * times, part.dice().sides(),
+                        part.dice().modifier() * times), part.type()))
+                .toList();
+        return new Effect(effect.name(), effect.delivery(), parts, effect.healing(), effect.conditions(),
+                effect.concentration(), effect.durationRounds(), effect.conditionEnds());
+    }
+
+    /*
+     * The creatures that failed a trigger's save and so use up their action this turn, as one retching in Stinking
+     * Cloud (PHB p.278, D199): spent from the economy of the creature whose turn it is, and logged for the DM otherwise.
+     */
+    private String lostActions(Encounter encounter, EffectApplier.Use use, SpellEffects.TriggerRules rules,
+                               List<EffectApplier.Applied> applied) {
+        if (!rules.costsAction()) {
+            return "";
+        }
+        List<String> notes = new ArrayList<>();
+        for (EffectApplier.Applied result : applied) {
+            EncounterParticipant creature = result.target();
+            if (result.outcome().outcome() != Outcome.SAVE_FAIL || creature.getLifeState() != LifeState.ALIVE) {
+                continue;
+            }
+            String note = effectApplier.loseAction(encounter, creature)
+                    ? creature.getDisplayName() + "'s action this turn is spent."
+                    : creature.getDisplayName() + " can't use its action on its turn (the DM keeps to it).";
+            effectApplier.summary(encounter, use, note);
+            notes.add(note);
+        }
+        return notes.isEmpty() ? "" : " " + String.join(" ", notes);
+    }
+
+    /*
+     * One of the Spell Effect's uses for each creature a trigger reached, as a piece of Cordon of Arrows' ammunition (PHB
+     * p.228) or one of Healing Spirit's heals (XGE p.157) (D199); with none left the spell ends, and its concentration
+     * with it. What the summary adds.
+     */
+    private String spendUses(Encounter encounter, EncounterParticipant caster, SpellEffectEntry spellEffect,
+                             int creatures) {
+        if (spellEffect.usesLeft() == null || creatures == 0) {
+            return "";
+        }
+        SpellEffectEntry spent = effectApplier.spendEffectUses(caster, spellEffect.id(), creatures);
+        int left = spent != null && spent.usesLeft() != null ? spent.usesLeft() : 0;
+        if (left > 0) {
+            return " " + spellEffect.spell() + " has " + left + " left.";
+        }
+        ConcentrationInstance held = instanceOf(caster, spellEffect);
+        if (held != null) {
+            effectApplier.endConcentration(encounter, caster, spellEffect.spell() + " ends: none of its uses are left");
+        } else {
+            effectApplier.endEffect(encounter, caster, spellEffect.id(), "none of its uses are left");
+        }
+        return " " + spellEffect.spell() + " ends, none of its uses left.";
     }
 
     // Whether the creature has the condition from this caster's spell
@@ -1567,10 +1852,13 @@ public class SpellCaster {
      * What follows a trigger (D185): each creature that failed its save, or that it reached with no save, gains the
      * trigger's exhaustion, recorded on the Spell Effect so it goes when the spell ends, and comes under the spell's
      * Ongoing Modifiers when the trigger says so, as Sickening Radiance's light and exhaustion (XGE p.164); and the damage
-     * dealt counts against the effect's budget, as Guardian of Faith's (PHB p.246).
+     * dealt counts against the effect's budget, as Guardian of Faith's (PHB p.246). A spell whose modifiers reach a
+     * creature whatever its save, as Spirit Guardians' halved speed (PHB p.278, D199), brings one that saved under them
+     * too.
      */
     private void afterTrigger(Encounter encounter, EncounterParticipant caster, SpellEffectEntry spellEffect,
-                              SpellTemplate.EffectTrigger trigger, List<EffectApplier.Applied> applied) {
+                              SpellTemplate.EffectTrigger trigger, List<EffectApplier.Applied> applied,
+                              SpellEffects.CastRules rules) {
         if (trigger != null && (trigger.exhaustion() > 0 || trigger.addsAffected())) {
             List<EncounterParticipant> failed = applied.stream()
                     .filter(result -> switch (result.outcome().outcome()) {
@@ -1581,7 +1869,13 @@ public class SpellCaster {
                     .filter(target -> target.getLifeState() != LifeState.DEAD)
                     .toList();
             if (trigger.addsAffected()) {
-                effectApplier.addAffected(caster, spellEffect.id(), failed);
+                List<EncounterParticipant> under = !rules.modifiersOnSuccess() ? failed : applied.stream()
+                        .filter(result -> result.outcome().outcome() != Outcome.MISS)
+                        .map(EffectApplier.Applied::target)
+                        .filter(target -> target.getLifeState() != LifeState.DEAD)
+                        .distinct()
+                        .toList();
+                effectApplier.addAffected(caster, spellEffect.id(), under);
             }
             if (trigger.exhaustion() > 0) {
                 effectApplier.exhaust(encounter, caster, spellEffect.id(), failed, trigger.exhaustion());
