@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Channel Divinity under the 2014 PHB (M17): the cleric's (PHB p.58–59) and the paladin's (PHB p.85) options, their
@@ -43,6 +44,27 @@ public final class ChannelDivinity {
 
     /** Preserve Life heals five times the cleric's level (PHB p.60). */
     public static final int PRESERVE_LIFE_PER_LEVEL = 5;
+
+    /**
+     * The entry Abjure Enemy leaves on a creature that failed its save, beside its frightened (PHB p.88, D199): its
+     * speed is 0, and it can't benefit from any bonus to it, for as long as the fear lasts, 1 minute or until it takes
+     * damage.
+     */
+    public static final String ABJURED = "abjured";
+
+    /**
+     * The entry Abjure Enemy leaves on a creature that succeeded on its save (PHB p.88, D199): its speed is halved for 1
+     * minute or until it takes damage.
+     */
+    public static final String ABJURED_SLOWED = "abjured (half speed)";
+
+    // A trait that keeps turning off its creature (D199): Turn Immunity's "immune to effects that turn undead" (the
+    // revenant's, MM p.259, and the demilich's, MM p.48) or "features that turn undead" (the avatar of death's, DMG
+    // p.164), and Lord Soth's Marshal Undead, "unless Soth is incapacitated" (DSotDQ)
+    private static final Pattern TURN_IMMUNITY = Pattern.compile(
+            "immune to (?:effects|features) that turn undead", Pattern.CASE_INSENSITIVE);
+    private static final Pattern UNLESS_INCAPACITATED = Pattern.compile("unless [^.]*incapacitated",
+            Pattern.CASE_INSENSITIVE);
 
     // A stat block trait that gives advantage on saves against turning, such as a vampire spawn's or a mummy lord's
     private static final List<String> TURN_RESISTANCE_TRAITS = List.of("turn resistance", "turn defiance");
@@ -272,6 +294,18 @@ public final class ChannelDivinity {
         OptionalDouble highest = destroyUndeadRating(clericLevel);
         OptionalDouble cr = challengeRating(rating);
         return highest.isPresent() && cr.isPresent() && cr.getAsDouble() <= highest.getAsDouble();
+    }
+
+    /**
+     * Whether a trait's words make its creature immune to being turned (D199), as Turn Immunity's "immune to effects
+     * that turn undead" (MM p.259): such a creature is left out of Turn Undead, Turn the Unholy and Destroy Undead. One
+     * that holds "unless" the creature is incapacitated, as Lord Soth's Marshal Undead, doesn't while it is.
+     */
+    public static boolean immuneToTurning(String traitWords, boolean incapacitated) {
+        if (traitWords == null || !TURN_IMMUNITY.matcher(traitWords).find()) {
+            return false;
+        }
+        return !(incapacitated && UNLESS_INCAPACITATED.matcher(traitWords).find());
     }
 
     /** Whether a stat block's traits give advantage on saves against turning, such as Turn Resistance. */

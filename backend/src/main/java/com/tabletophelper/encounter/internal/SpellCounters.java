@@ -11,6 +11,7 @@ import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.Resolver;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
@@ -111,10 +112,14 @@ public class SpellCounters {
         boolean success = countered.level() <= slotLevel;
         if (!success) {
             int modifier = stats.spellcastingModifier(counterer, castingAbility, attackBonus);
-            int roll = resolver.d20();
+            // Advantage on checks of the spellcasting ability, as Enhance Ability's Fox's Cunning gives (PHB p.237, D199)
+            AbilityChecks.Roll rolled = AbilityChecks.roll(resolver::d20, AbilityChecks.sources(counterer,
+                    Ability.parse(castingAbility != null ? castingAbility : counterer.getSpellcastingAbility())
+                            .orElse(null), null));
+            int roll = rolled.d20();
             int dc = 10 + countered.level();
             success = roll + modifier >= dc;
-            check = ": spellcasting ability check d20(" + roll + ")" + signed(modifier) + " = " + (roll + modifier)
+            check = ": spellcasting ability check " + rolled.dice() + signed(modifier) + " = " + (roll + modifier)
                     + " vs DC " + dc;
         }
         String text = counterer.getDisplayName() + " counters " + countered.caster().getDisplayName() + "'s " + spell
@@ -197,10 +202,13 @@ public class SpellCounters {
             boolean ends = spell.level() <= slotLevel;
             String check = "";
             if (!ends) {
-                int roll = resolver.d20();
+                AbilityChecks.Roll rolled = AbilityChecks.roll(resolver::d20, AbilityChecks.sources(dispeller,
+                        Ability.parse(castingAbility != null ? castingAbility
+                                : dispeller.getSpellcastingAbility()).orElse(null), null));
+                int roll = rolled.d20();
                 int dc = 10 + spell.level();
                 ends = roll + modifier >= dc;
-                check = " (check d20(" + roll + ")" + signed(modifier) + " = " + (roll + modifier) + " vs DC " + dc
+                check = " (check " + rolled.dice() + signed(modifier) + " = " + (roll + modifier) + " vs DC " + dc
                         + ")";
             }
             String text = spell.spellName() + " (level " + spell.level() + ") on " + target.getDisplayName()

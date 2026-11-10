@@ -5,6 +5,7 @@ import com.tabletophelper.rules.Dice;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -54,27 +55,37 @@ public final class OngoingModifiers {
     }
 
     /**
-     * Speeds with the modifiers, each kind the same way: feet added or taken first, such as Longstrider's +10 (PHB
-     * p.256) or Ray of Frost's -10 (PHB p.271), never below 0; then doubled for Haste (PHB p.250) and halved, rounding
-     * down, for Slow (PHB p.277), so both together leave it as it was. Exhaustion is applied after these (D183).
+     * Speeds with the modifiers, each kind the same way: a speed a spell gives first, as Fly's flying speed of 60 feet
+     * (PHB p.243) or Spider Climb's climbing speed equal to the walking speed (PHB p.277), a higher one of that kind
+     * staying (D199); then feet added or taken, such as Longstrider's +10 (PHB p.256) or Ray of Frost's -10 (PHB p.271),
+     * never below 0, one limited to a speed, as Kinetic Jaunt's to walking (TCE p.110, D199), changing that one alone;
+     * then doubled for Haste (PHB p.250) and halved, rounding down, for Slow (PHB p.277), so both together leave it as
+     * it was. Exhaustion is applied after these (D183).
      */
     public static Map<String, Integer> speeds(Map<String, Integer> speeds, List<OngoingModifier> modifiers) {
-        int added = 0;
         int doubled = 0;
         int halved = 0;
         // Freedom of Movement: magic can't reduce the creature's speed (PHB p.244, D185)
         boolean protectedSpeed = modifiers.stream().anyMatch(m -> m.kind() == OngoingModifier.Kind.SPEED_PROTECTED);
+        Map<String, Integer> base = new LinkedHashMap<>(speeds);
         for (OngoingModifier modifier : modifiers) {
-            if (protectedSpeed && (modifier.kind() == OngoingModifier.Kind.SPEED_HALVED
-                    || modifier.kind() == OngoingModifier.Kind.SPEED && modifier.flat() < 0)) {
+            if (modifier.kind() == OngoingModifier.Kind.GRANTED_SPEED && modifier.requires() != null
+                    && !modifier.requires().isBlank()) {
+                Integer feet = modifier.flat() > 0 ? Integer.valueOf(modifier.flat()) : speeds.get(OngoingModifier.WALK);
+                if (feet != null) {
+                    base.merge(modifier.requires().trim().toLowerCase(Locale.ROOT), feet, Math::max);
+                }
+            }
+        }
+        for (OngoingModifier modifier : modifiers) {
+            if (protectedSpeed && modifier.kind() == OngoingModifier.Kind.SPEED_HALVED) {
                 continue;
             }
             switch (modifier.kind()) {
-                case SPEED -> added += modifier.flat();
                 case SPEED_DOUBLED -> doubled++;
                 case SPEED_HALVED -> halved++;
                 default -> {
-                    // Not a speed
+                    // Not a doubling or a halving
                 }
             }
         }
@@ -85,7 +96,15 @@ public final class OngoingModifiers {
                 .min(Integer::compare)
                 .orElse(null);
         Map<String, Integer> changed = new LinkedHashMap<>();
-        for (Map.Entry<String, Integer> speed : speeds.entrySet()) {
+        for (Map.Entry<String, Integer> speed : base.entrySet()) {
+            int added = 0;
+            for (OngoingModifier modifier : modifiers) {
+                if (modifier.kind() == OngoingModifier.Kind.SPEED && !(protectedSpeed && modifier.flat() < 0)
+                        && (modifier.requires() == null || modifier.requires().isBlank()
+                        || modifier.requires().trim().equalsIgnoreCase(speed.getKey()))) {
+                    added += modifier.flat();
+                }
+            }
             int feet = speed(speed.getValue(), added, doubled, halved);
             changed.put(speed.getKey(), cap != null ? Math.min(feet, Math.max(0, cap)) : feet);
         }
@@ -220,6 +239,39 @@ public final class OngoingModifiers {
             bonuses.addAll(bonuses(modifiers, OngoingModifier.Kind.INITIATIVE, modifier -> true));
         }
         return bonuses;
+    }
+
+    /**
+     * The named sources of advantage and disadvantage the modifiers give an ability check the engine rolls (D199): a
+     * CHECK_MODE of the check's ability, or of every ability, and of its skill or of none, as Enhance Ability's Owl's
+     * Wisdom on any Wisdom check (PHB p.237). Initiative is a Dexterity check (PHB p.189), so it counts a Dexterity mode
+     * with no skill and one for initiative alone, as Jim's Glowing Coin's (Acquisitions Incorporated p.76); a mode for a skill, such as
+     * Enthrall's Wisdom (Perception) (PHB p.238), counts only for that skill.
+     *
+     * @param ability the check's ability, such as "WIS"; null when it isn't known, which counts the modes for every
+     *                ability alone
+     * @param skill   its skill, such as "Stealth", or {@link OngoingModifier#INITIATIVE_CHECK}; null for a plain check
+     */
+    public static List<AttackRules.Source> checkSources(String ability, String skill, List<Labelled> modifiers) {
+        List<AttackRules.Source> sources = new ArrayList<>();
+        for (Labelled labelled : modifiers) {
+            OngoingModifier modifier = labelled.modifier();
+            if (modifier.kind() != OngoingModifier.Kind.CHECK_MODE || modifier.mode() == null) {
+                continue;
+            }
+            boolean abilityMatches = modifier.ability() == null
+                    || ability != null && modifier.ability().equalsIgnoreCase(ability);
+            boolean skillMatches = modifier.skill() == null || modifier.skill().equalsIgnoreCase(skill);
+            if (abilityMatches && skillMatches) {
+                sources.add(new AttackRules.Source(modifier.mode(), labelled.label()));
+            }
+        }
+        return sources;
+    }
+
+    /** Whether the modifiers keep the creature from taking reactions (Shocking Grasp, PHB p.275, D199). */
+    public static boolean noReactions(List<OngoingModifier> modifiers) {
+        return modifiers.stream().anyMatch(modifier -> modifier.kind() == OngoingModifier.Kind.NO_REACTIONS);
     }
 
     /** The dice and amounts the modifiers add to an attack roll, weapon-only ones only for a weapon attack. */

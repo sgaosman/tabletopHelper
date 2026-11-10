@@ -996,7 +996,7 @@
     "concentration": true,
     "durationRounds": 10,
     "durationText": "1 minute",
-    "deliveryMethod": "NONE",
+    "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
     "saveAbility": null,
     "halfOnSave": false,
@@ -1008,12 +1008,18 @@
     "aoeSize": null,
     "selfOnly": false,
     "canTargetSelf": false,
-    "canTargetAllies": false,
-    "canTargetEnemies": false,
+    "canTargetAllies": true,
+    "canTargetEnemies": true,
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "You have advantage on all Charisma checks directed at one non-hostile creature of your choice for the duration."
+        "description": "You have advantage on all Charisma checks directed at one non-hostile creature of your choice for the duration.",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "the caster has advantage on Charisma checks directed at it"
+          }
+        ]
       },
       {
         "effectType": "OTHER",
@@ -1033,7 +1039,9 @@
       "Warlock",
       "Wizard"
     ],
-    "notes": "Primarily a social/out-of-combat spell. The hostility after the spell ends is a significant drawback."
+    "notes": "Primarily a social/out-of-combat spell. The hostility after the spell ends is a significant drawback.",
+    "reminder": "Cast it on a creature that isn't hostile toward you (PHB p.244).",
+    "endReminder": "{target} realizes magic was used to influence its mood and becomes hostile toward the caster, as Friends ends."
   },
   {
     "spellName": "Frostbite",
@@ -2074,7 +2082,8 @@
     "classes": [
       "Druid"
     ],
-    "notes": "Attacking with the flame ends the spell. Range of attack is 30 feet. The spell persists for up to 10 minutes if not used offensively."
+    "notes": "Attacking with the flame ends the spell. Range of attack is 30 feet. The spell persists for up to 10 minutes if not used offensively.",
+    "reminder": "The flame sheds bright light in a 10-foot radius and dim light for another 10 feet for 10 minutes until you hurl it; hurling it ends the spell, so a flame kept for a later turn is hurled by casting it again (PHB p.269)."
   },
   {
     "spellName": "Ray of Frost",
@@ -2469,13 +2478,19 @@
       },
       {
         "effectType": "DEBUFF",
-        "description": "On hit, target can't take reactions until the start of its next turn."
+        "description": "On hit, target can't take reactions until the start of its next turn.",
+        "modifiers": [
+          {
+            "kind": "NO_REACTIONS",
+            "until": "TARGET_TURN_START"
+          }
+        ]
       }
     ],
     "conditionsInflicted": null,
     "healing": null,
     "upcastDescription": null,
-    "specialMechanics": "You have advantage on the attack roll if the target is wearing armor made of metal.",
+    "specialMechanics": "Advantage on the attack roll against a target wearing metal armour, read from a character's equipped armour or a monster's AC (D199); on a hit the target can't take reactions until the start of its next turn.",
     "requiresManualResolution": false,
     "manualResolutionReason": null,
     "patternCategory": "ATTACK_DAMAGE",
@@ -2484,7 +2499,8 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Excellent for disengaging: prevents reactions (including opportunity attacks) and is a melee spell attack (touch range)."
+    "notes": "Excellent for disengaging: prevents reactions (including opportunity attacks) and is a melee spell attack (touch range).",
+    "attackAdvantageVs": "METAL_ARMOUR"
   },
   {
     "spellName": "Spare the Dying",
@@ -3327,13 +3343,19 @@
       },
       {
         "effectType": "DEBUFF",
-        "description": "On failed save, target can't take reactions until its next turn"
+        "description": "On failed save, target can't take reactions until its next turn",
+        "modifiers": [
+          {
+            "kind": "NO_REACTIONS",
+            "until": "TARGET_TURN_START"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "Damage increases by 1d6 for each slot level above 1st",
-    "specialMechanics": "Half damage on successful save, no reaction-denial on success.",
+    "specialMechanics": "Half damage on a successful save; a creature that fails can't take reactions until its next turn, an Ongoing Modifier on it (D199).",
     "requiresManualResolution": false,
     "manualResolutionReason": null,
     "patternCategory": "SAVE_DAMAGE",
@@ -3436,7 +3458,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Telepathic link with beast. Beast gains advantage on attack rolls against creatures within 5 feet of caster."
+        "description": "Telepathic link with beast. Beast gains advantage on attack rolls against creatures within 5 feet of caster.",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "a telepathic link with the caster; advantage on attack rolls against any creature within 5 feet of the caster that the caster can see"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -3450,7 +3478,11 @@
       "Druid",
       "Ranger"
     ],
-    "notes": "Touch range. Only affects friendly/charmed beasts with INT 3 or lower. Grants advantage on attacks near caster."
+    "notes": "Touch range. Only affects friendly/charmed beasts with INT 3 or lower. Grants advantage on attacks near caster.",
+    "targetTypes": [
+      "beast"
+    ],
+    "reminder": "The beast must be friendly to you or charmed by you and have an Intelligence of 3 or lower, or the spell fails; its advantage against creatures within 5 feet of you is the DM's to give (XGE p.150)."
   },
   {
     "spellName": "Bless",
@@ -4135,7 +4167,7 @@
       "materialCostGp": null
     },
     "concentration": false,
-    "durationRounds": null,
+    "durationRounds": 600,
     "durationText": "1 hour",
     "deliveryMethod": "SELF",
     "spellAttackType": null,
@@ -4154,7 +4186,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Understand spoken and written languages for the duration"
+        "description": "Understand spoken and written languages for the duration",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "understands the literal meaning of any spoken language it hears, and of any written language it sees and touches"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -4318,7 +4356,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Detect aberrations, celestials, elementals, fey, fiends, undead, and consecrated/desecrated places within 30 feet"
+        "description": "Detect aberrations, celestials, elementals, fey, fiends, undead, and consecrated/desecrated places within 30 feet",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "senses aberrations, celestials, elementals, fey, fiends and undead within 30 feet, and places consecrated or desecrated"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -4367,7 +4411,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Sense presence of magic within 30 feet. Can use action to see aura and learn school of magic."
+        "description": "Sense presence of magic within 30 feet. Can use action to see aura and learn school of magic.",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "senses magic within 30 feet; an action shows a visible aura and its school"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -4422,7 +4472,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Sense poisons, poisonous creatures, and diseases within 30 feet and identify them"
+        "description": "Sense poisons, poisonous creatures, and diseases within 30 feet and identify them",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "senses poisons, poisonous creatures and diseases within 30 feet, and their kinds"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -4454,7 +4510,7 @@
       "materialCostGp": null
     },
     "concentration": false,
-    "durationRounds": null,
+    "durationRounds": 600,
     "durationText": "1 hour",
     "deliveryMethod": "SELF",
     "spellAttackType": null,
@@ -4473,7 +4529,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Change appearance including clothing, armor, weapons. Can appear up to 1 foot shorter or taller. Investigation check vs spell save DC to discern."
+        "description": "Change appearance including clothing, armor, weapons. Can appear up to 1 foot shorter or taller. Investigation check vs spell save DC to discern.",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "disguised; an Intelligence (Investigation) check against the caster's spell save DC sees through it"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -4907,7 +4969,12 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Can take Dash as bonus action on each turn for the duration (including when cast)"
+        "description": "Can take Dash as bonus action on each turn for the duration (including when cast)",
+        "modifiers": [
+          {
+            "kind": "BONUS_DASH"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -5076,7 +5143,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Falling rate slowed to 60 feet per round. No falling damage if landing before spell ends."
+        "description": "Falling rate slowed to 60 feet per round. No falling damage if landing before spell ends.",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "falls 60 feet a round, and takes no falling damage and lands on its feet if it lands before the spell ends"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -5093,7 +5166,8 @@
       "Wizard"
     ],
     "notes": "Reaction. Up to 5 falling creatures. Prevents fall damage.",
-    "reactionTrigger": "When you or a creature within 60 feet falls"
+    "reactionTrigger": "When you or a creature within 60 feet falls",
+    "reminder": "The spell ends for a creature once it lands; the DM ends it then (PHB p.239)."
   },
   {
     "spellName": "Find Familiar",
@@ -6162,7 +6236,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target's jump distance is tripled for the duration"
+        "description": "Target's jump distance is tripled for the duration",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "its jump distance is tripled"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -6399,7 +6479,13 @@
       },
       {
         "effectType": "DEBUFF",
-        "description": "On failed save, speed halved until end of target's next turn"
+        "description": "On failed save, speed halved until end of target's next turn",
+        "modifiers": [
+          {
+            "kind": "SPEED_HALVED",
+            "until": "TARGET_TURN_END"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -6412,7 +6498,8 @@
     "classes": [
       "Wizard"
     ],
-    "notes": "Explorer's Guide to Wildemount (Dunamancy). 10-foot-radius sphere. Half damage on save, no speed reduction on save."
+    "notes": "Explorer's Guide to Wildemount (Dunamancy). 10-foot-radius sphere. Half damage on save, no speed reduction on save.",
+    "reminder": "Until the start of your next turn, an object in the sphere that isn't worn or carried needs a successful Strength check against your spell save DC to pick up or move; the DM applies it (EGW p.188)."
   },
   {
     "spellName": "Protection from Evil and Good",
@@ -7143,7 +7230,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Comprehend and verbally communicate with beasts for the duration"
+        "description": "Comprehend and verbally communicate with beasts for the duration",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "comprehends and verbally communicates with beasts"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -7896,7 +7989,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Creates a globe of fresh air around the target's head, preventing suffocation"
+        "description": "Creates a globe of fresh air around the target's head, preventing suffocation",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "a globe of fresh air around its head"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -8394,7 +8493,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Gain proficiency in one skill you lack proficiency in for the duration"
+        "description": "Gain proficiency in one skill you lack proficiency in for the duration",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "proficiency in one skill it lacked"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -8410,7 +8515,8 @@
       "Warlock",
       "Wizard"
     ],
-    "notes": null
+    "notes": null,
+    "reminder": "Choose a skill you lack proficiency in; the DM adds your proficiency bonus to its checks (SCC p.37)."
   },
   {
     "spellName": "Branding Smite",
@@ -8858,7 +8964,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target gains darkvision out to 60 feet for the duration"
+        "description": "Target gains darkvision out to 60 feet for the duration",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "darkvision out to 60 feet"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -9160,7 +9272,55 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Choose one: Bear's Endurance (advantage CON checks + 2d6 temp HP), Bull's Strength (advantage STR checks + doubled carry), Cat's Grace (advantage DEX checks + no fall damage <=20ft), Eagle's Splendor (advantage CHA checks), Fox's Cunning (advantage INT checks), Owl's Wisdom (advantage WIS checks)"
+        "description": "Choose one: Bear's Endurance (advantage CON checks + 2d6 temp HP), Bull's Strength (advantage STR checks + doubled carry), Cat's Grace (advantage DEX checks + no fall damage <=20ft), Eagle's Splendor (advantage CHA checks), Fox's Cunning (advantage INT checks), Owl's Wisdom (advantage WIS checks)",
+        "modifiers": [
+          {
+            "kind": "CHECK_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "CON",
+            "option": "Bear's Endurance"
+          },
+          {
+            "kind": "CHECK_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "STR",
+            "option": "Bull's Strength"
+          },
+          {
+            "kind": "CHECK_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "DEX",
+            "option": "Cat's Grace"
+          },
+          {
+            "kind": "CHECK_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "CHA",
+            "option": "Eagle's Splendor"
+          },
+          {
+            "kind": "CHECK_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "INT",
+            "option": "Fox's Cunning"
+          },
+          {
+            "kind": "CHECK_MODE",
+            "mode": "ADVANTAGE",
+            "ability": "WIS",
+            "option": "Owl's Wisdom"
+          },
+          {
+            "kind": "NOTE",
+            "note": "its carrying capacity, and the weight it can push, drag or lift, doubled",
+            "option": "Bull's Strength"
+          },
+          {
+            "kind": "NOTE",
+            "note": "no damage from a fall of 20 feet or less unless it is incapacitated",
+            "option": "Cat's Grace"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -9177,7 +9337,21 @@
       "Druid",
       "Sorcerer"
     ],
-    "notes": "Bear's Endurance also grants 2d6 temporary hit points"
+    "notes": "Bear's Endurance also grants 2d6 temporary hit points",
+    "castOptions": [
+      "Bear's Endurance",
+      "Bull's Strength",
+      "Cat's Grace",
+      "Eagle's Splendor",
+      "Fox's Cunning",
+      "Owl's Wisdom"
+    ],
+    "tempHitPoints": {
+      "dice": "2d6",
+      "option": "Bear's Endurance"
+    },
+    "reminder": "With a higher slot each extra creature may take its own effect: the app gives every target the one chosen, and the DM changes it by hand (PHB p.237).",
+    "endReminder": "{target} loses any temporary hit points Bear's Endurance gave it, as Enhance Ability ends."
   },
   {
     "spellName": "Enlarge/Reduce",
@@ -9295,7 +9469,15 @@
     "effects": [
       {
         "effectType": "DEBUFF",
-        "description": "Target has disadvantage on Perception checks to perceive any creature other than you. Charm-immune creatures auto-succeed. Fighting creatures have advantage on save."
+        "description": "Target has disadvantage on Perception checks to perceive any creature other than you. Charm-immune creatures auto-succeed. Fighting creatures have advantage on save.",
+        "modifiers": [
+          {
+            "kind": "CHECK_MODE",
+            "mode": "DISADVANTAGE",
+            "ability": "WIS",
+            "skill": "Perception"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -9309,7 +9491,10 @@
       "Bard",
       "Warlock"
     ],
-    "notes": "No specific condition name; imposes disadvantage on Perception. Ends if caster is incapacitated or can't speak."
+    "notes": "No specific condition name; imposes disadvantage on Perception. Ends if caster is incapacitated or can't speak.",
+    "succeedsIfImmuneTo": "charmed",
+    "foesSaveWithAdvantage": true,
+    "reminder": "The disadvantage is only on checks to perceive creatures other than you. The spell ends for a creature that can no longer hear you, and wholly if you are incapacitated or can no longer speak; the DM ends it then (PHB p.238)."
   },
   {
     "spellName": "Find Steed",
@@ -9616,7 +9801,14 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target can dismiss the spell to roll an additional d20 on an attack roll, ability check, saving throw, or when attacked (choose which d20 to use). One-time use."
+        "description": "Target can dismiss the spell to roll an additional d20 on an attack roll, ability check, saving throw, or when attacked (choose which d20 to use). One-time use.",
+        "modifiers": [
+          {
+            "kind": "ATTACK_MODE",
+            "mode": "ADVANTAGE",
+            "oneShot": true
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -9629,7 +9821,8 @@
     "classes": [
       "Wizard"
     ],
-    "notes": "100gp white pearl consumed. 1 minute casting. Similar to Lucky feat but one-time use. Additional d20 rolled after advantage/disadvantage applied."
+    "notes": "100gp white pearl consumed. 1 minute casting. Similar to Lucky feat but one-time use. Additional d20 rolled after advantage/disadvantage applied.",
+    "reminder": "The creature may instead spend it on an ability check or a saving throw, or when an attack roll is made against it, rolling another d20 after any advantage or disadvantage and choosing which to use: the DM rolls it then and ends the spell (EGW p.186)."
   },
   {
     "spellName": "Gentle Repose",
@@ -9938,7 +10131,27 @@
     "notes": "Targets a metal object, not a creature. Damage is automatic (no save). CON save only to avoid dropping the object. Bonus action each turn to repeat damage. Concentration.",
     "repeatActionType": "BONUS_ACTION",
     "repeatEffect": true,
-    "reminder": "A creature holding or wearing the object that takes the damage makes a Constitution saving throw against your spell save DC or drops the object if it can; if it doesn't drop it, it has disadvantage on attack rolls and ability checks until the start of your next turn (PHB p.250); the DM rolls the save."
+    "reminder": "Choose held for a metal object the creature holds, which it drops on a failed Constitution saving throw, or worn for metal armour it wears and can't drop; a creature that keeps the object has disadvantage on attack rolls and ability checks until the start of your next turn. A creature that drops the object takes no more damage from it unless it takes hold of it again: aim the next use elsewhere (PHB p.250).",
+    "castOptions": [
+      "held",
+      "worn"
+    ],
+    "heldObjectSave": {
+      "ability": "CON",
+      "wornOption": "worn",
+      "modifiers": [
+        {
+          "kind": "ATTACK_MODE",
+          "mode": "DISADVANTAGE",
+          "until": "CASTER_TURN_START"
+        },
+        {
+          "kind": "CHECK_MODE",
+          "mode": "DISADVANTAGE",
+          "until": "CASTER_TURN_START"
+        }
+      ]
+    }
   },
   {
     "spellName": "Hold Person",
@@ -10156,7 +10369,21 @@
     "effects": [
       {
         "effectType": "DEBUFF",
-        "description": "Distracted for duration: disadvantage on Perception checks and initiative rolls"
+        "description": "Distracted for duration: disadvantage on Perception checks and initiative rolls",
+        "modifiers": [
+          {
+            "kind": "CHECK_MODE",
+            "mode": "DISADVANTAGE",
+            "ability": "WIS",
+            "skill": "Perception"
+          },
+          {
+            "kind": "CHECK_MODE",
+            "mode": "DISADVANTAGE",
+            "ability": "DEX",
+            "skill": "Initiative"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -10169,7 +10396,8 @@
     "classes": [
       "Wizard"
     ],
-    "notes": "Creatures within 30ft of thrown coin must WIS save. 1 minute duration, no concentration."
+    "notes": "Creatures within 30ft of thrown coin must WIS save. 1 minute duration, no concentration.",
+    "reminder": "The coin sheds light as the Light spell does, for the duration (Acquisitions Incorporated p.76)."
   },
   {
     "spellName": "Kinetic Jaunt",
@@ -10204,7 +10432,18 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "+10ft walking speed, don't provoke opportunity attacks, can move through other creatures' spaces (not difficult terrain, but shunted if ending turn there: 1d8 force damage)"
+        "description": "+10ft walking speed, don't provoke opportunity attacks, can move through other creatures' spaces (not difficult terrain, but shunted if ending turn there: 1d8 force damage)",
+        "modifiers": [
+          {
+            "kind": "SPEED",
+            "requires": "walk",
+            "flat": 10
+          },
+          {
+            "kind": "NOTE",
+            "note": "doesn't provoke opportunity attacks, and can move through other creatures' spaces"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -10220,7 +10459,8 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Bonus action to cast. Concentration. 1d8 force damage only if you end turn in another creature's space."
+    "notes": "Bonus action to cast. Concentration. 1d8 force damage only if you end turn in another creature's space.",
+    "reminder": "If you end your turn in another creature's space you are shunted to the last unoccupied space you occupied and take 1d8 force damage; the DM applies it (SCC p.37)."
   },
   {
     "spellName": "Knock",
@@ -11735,7 +11975,16 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "See invisible creatures and objects as if visible. See into the Ethereal Plane (ethereal creatures appear ghostly/translucent)."
+        "description": "See invisible creatures and objects as if visible. See into the Ethereal Plane (ethereal creatures appear ghostly/translucent).",
+        "modifiers": [
+          {
+            "kind": "SEE_INVISIBLE"
+          },
+          {
+            "kind": "NOTE",
+            "note": "sees into the Ethereal Plane, ethereal creatures and objects appearing ghostly and translucent"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -12059,7 +12308,18 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target can move on vertical surfaces and upside down on ceilings, hands free. Gains climbing speed equal to walking speed."
+        "description": "Target can move on vertical surfaces and upside down on ceilings, hands free. Gains climbing speed equal to walking speed.",
+        "modifiers": [
+          {
+            "kind": "GRANTED_SPEED",
+            "requires": "climb",
+            "flat": 0
+          },
+          {
+            "kind": "NOTE",
+            "note": "moves up, down and across vertical surfaces and upside down along ceilings, hands free"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -12415,7 +12675,18 @@
       },
       {
         "effectType": "DEBUFF",
-        "description": "On fail: can't take reaction until end of next turn. On next turn, must choose only one of: move, action, or bonus action."
+        "description": "On fail: can't take reaction until end of next turn. On next turn, must choose only one of: move, action, or bonus action.",
+        "modifiers": [
+          {
+            "kind": "NO_REACTIONS",
+            "until": "TARGET_TURN_END"
+          },
+          {
+            "kind": "NOTE",
+            "note": "on its next turn it gets only one of a move, an action or a bonus action",
+            "until": "TARGET_TURN_END"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -12429,7 +12700,8 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Half damage on save but no debuff effects. Duration is 1 round. Upcast adds targets, not damage. REVIEW: upcast does not increase damage, only target count."
+    "notes": "Half damage on save but no debuff effects. Duration is 1 round. Upcast adds targets, not damage. REVIEW: upcast does not increase damage, only target count.",
+    "reminder": "On its next turn the creature gets only one of a move, an action or a bonus action, its choice; the DM holds it to that. The extra creatures of a higher slot must be within 30 feet of each other (TCE p.115)."
   },
   {
     "spellName": "Vortex Warp",
@@ -14522,7 +14794,14 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target gains a flying speed of 60 feet for the duration. When the spell ends, the target falls if it is still aloft."
+        "description": "Target gains a flying speed of 60 feet for the duration. When the spell ends, the target falls if it is still aloft.",
+        "modifiers": [
+          {
+            "kind": "GRANTED_SPEED",
+            "requires": "fly",
+            "flat": 60
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -14538,7 +14817,8 @@
       "Warlock",
       "Wizard"
     ],
-    "notes": null
+    "notes": null,
+    "endReminder": "{target} falls if it is still aloft, unless it can stop the fall, as Fly ends."
   },
   {
     "spellName": "Galder's Tower",
@@ -15825,7 +16105,7 @@
     "concentration": false,
     "durationRounds": 4800,
     "durationText": "8 hours",
-    "deliveryMethod": "NONE",
+    "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
     "saveAbility": null,
     "halfOnSave": false,
@@ -15842,7 +16122,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target is hidden from divination magic and can't be perceived through magical scrying sensors for the duration."
+        "description": "Target is hidden from divination magic and can't be perceived through magical scrying sensors for the duration.",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "hidden from divination magic, and can't be perceived through magical scrying sensors"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -15857,7 +16143,8 @@
       "Ranger",
       "Wizard"
     ],
-    "notes": "Material component consumed. Primarily out-of-combat utility."
+    "notes": "Material component consumed. Primarily out-of-combat utility.",
+    "reminder": "Cast on a place or an object, it is the DM's to keep in mind (PHB p.263)."
   },
   {
     "spellName": "Phantom Steed",
@@ -17112,7 +17399,7 @@
     "concentration": false,
     "durationRounds": 600,
     "durationText": "1 hour",
-    "deliveryMethod": "NONE",
+    "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
     "saveAbility": null,
     "halfOnSave": false,
@@ -17129,7 +17416,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Target understands any spoken language it hears. When target speaks, any creature that knows at least one language and can hear it understands what it says."
+        "description": "Target understands any spoken language it hears. When target speaks, any creature that knows at least one language and can hear it understands what it says.",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "understands any spoken language it hears, and any creature that knows a language understands it"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -17348,7 +17641,7 @@
     "concentration": false,
     "durationRounds": 14400,
     "durationText": "24 hours",
-    "deliveryMethod": "NONE",
+    "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
     "saveAbility": null,
     "halfOnSave": false,
@@ -17365,7 +17658,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Up to ten willing creatures gain the ability to breathe underwater. Affected creatures retain their normal mode of respiration."
+        "description": "Up to ten willing creatures gain the ability to breathe underwater. Affected creatures retain their normal mode of respiration.",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "can breathe underwater, and keeps its normal mode of respiration"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -17400,7 +17699,7 @@
     "concentration": false,
     "durationRounds": 600,
     "durationText": "1 hour",
-    "deliveryMethod": "NONE",
+    "deliveryMethod": "AUTO_HIT",
     "spellAttackType": null,
     "saveAbility": null,
     "halfOnSave": false,
@@ -17417,7 +17716,13 @@
     "effects": [
       {
         "effectType": "BUFF",
-        "description": "Up to ten willing creatures can move across any liquid surface as if it were solid ground. Submerged targets carried to surface at 60 feet per round."
+        "description": "Up to ten willing creatures can move across any liquid surface as if it were solid ground. Submerged targets carried to surface at 60 feet per round.",
+        "modifiers": [
+          {
+            "kind": "NOTE",
+            "note": "moves across any liquid surface as if it were harmless solid ground; a submerged one rises 60 feet a round"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],

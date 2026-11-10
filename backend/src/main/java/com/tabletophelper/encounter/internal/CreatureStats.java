@@ -123,10 +123,15 @@ public class CreatureStats {
             own = participant.getMonster() != null ? AttackRules.Senses.of(participant.getMonster().getSenses())
                     : AttackRules.Senses.NONE;
         }
-        // Truesight a spell gives, as True Seeing's (PHB p.284, D188)
-        boolean granted = ActiveModifiers.modifiersOn(participant).stream()
+        // Truesight a spell gives, as True Seeing's (PHB p.284, D188), and See Invisibility's sight of invisible
+        // creatures (PHB p.274, D199)
+        List<OngoingModifier> modifiers = ActiveModifiers.modifiersOn(participant);
+        boolean truesight = own.truesight() || modifiers.stream()
                 .anyMatch(m -> m.kind() == OngoingModifier.Kind.TRUESIGHT);
-        return granted && !own.truesight() ? new AttackRules.Senses(own.blindsight(), true) : own;
+        boolean seesInvisible = own.seesInvisible() || modifiers.stream()
+                .anyMatch(m -> m.kind() == OngoingModifier.Kind.SEE_INVISIBLE);
+        return truesight == own.truesight() && seesInvisible == own.seesInvisible() ? own
+                : new AttackRules.Senses(own.blindsight(), truesight, seesInvisible);
     }
 
     // The conditions that include being incapacitated, which take Evasion away (PHB p.79, p.96)
@@ -437,6 +442,9 @@ public class CreatureStats {
                 attackerMods));
         sources.addAll(OngoingModifiers.targetSources(ActiveModifiers.labelled(ActiveModifiers.attacked(target)),
                 side(attacker), targetSide, attacker != null ? creatureType(attacker) : null));
+        if (packTactics(attacker, target)) {
+            sources.add(new AttackRules.Source(RollMode.ADVANTAGE, PACK_TACTICS));
+        }
         Set<UUID> oneShots = new HashSet<>();
         for (ActiveModifiers.Found found : attackers) {
             OngoingModifier modifier = found.modifier();
@@ -453,6 +461,114 @@ public class CreatureStats {
                 OngoingModifiers.hitDamage(attack.weapon(), attack.withinFiveFeet(), attackerMods), saveBonuses,
                 oneShots, revealed);
     }
+
+    /** The trait, and the source of advantage the attack rules name, of Pack Tactics (D199). */
+    public static final String PACK_TACTICS = "Pack Tactics";
+
+    // A trait entry named Pack Tactics in a stat block's or a race's traits as stored
+    private static final Pattern PACK_TACTICS_TRAIT = Pattern.compile("\"name\"\\s*:\\s*\"Pack Tactics\"",
+            Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Whether the attacker's Pack Tactics gives its attack roll against the target advantage (D199): "advantage on an
+     * attack roll against a creature if at least one of the [creature's] allies is within 5 feet of the creature and the
+     * ally isn't incapacitated", as the wolf's (MM p.341) and the kobold's (VGM p.119). The attacker has the trait from
+     * its stat block, its form's, its race's or a summoned spirit's own templates, as the Bestial Spirit's (TCE p.109), so
+     * a summoned creature has it as any monster does. There is no map, so where its allies stand can't be checked: any
+     * other ally of the attacker in the fight that isn't incapacitated or dead, and isn't the target, counts as within 5
+     * feet of the target, an approximation the DM overrides by hand when no ally is near it.
+     */
+    public static boolean packTactics(EncounterParticipant attacker, EncounterParticipant target) {
+        if (attacker == null || target == null || !hasPackTactics(attacker)) {
+            return false;
+        }
+        return ableAlly(attacker, target);
+    }
+
+    // Whether the participant has the Pack Tactics trait: its form's, its stat block's or race's, or its own templates'
+    static boolean hasPackTactics(EncounterParticipant participant) {
+        String traits = traitText(participant);
+        if (traits != null && PACK_TACTICS_TRAIT.matcher(traits).find()) {
+            return true;
+        }
+        if (WildShapeForm.of(participant).isEmpty() && participant.getActionTemplates() != null
+                && participant.getActionTemplates().traits().stream()
+                .anyMatch(trait -> PACK_TACTICS.equalsIgnoreCase(trait.name() != null ? trait.name().trim() : ""))) {
+            return true;
+        }
+        Race race = participant.getCharacter() != null ? participant.getCharacter().getRaceRef() : null;
+        boolean ownTraits = WildShapeForm.of(participant).map(WildShapeForm::keepsOwn).orElse(true);
+        return ownTraits && race != null && race.getTraits() != null
+                && PACK_TACTICS_TRAIT.matcher(race.getTraits()).find();
+    }
+
+    // Whether the attacker has an ally in the fight, other than the target, that isn't incapacitated or dead
+    private static boolean ableAlly(EncounterParticipant attacker, EncounterParticipant target) {
+        if (attacker.getEncounter() == null || attacker.getEncounter().getParticipants() == null) {
+            return false;
+        }
+        String side = allegiance(attacker);
+        return attacker.getEncounter().getParticipants().stream()
+                .filter(other -> other != null && !other.getId().equals(attacker.getId())
+                        && !other.getId().equals(target.getId()))
+                .filter(other -> !Boolean.TRUE.equals(other.getDismissed())
+                        && other.getLifeState() == com.tabletophelper.rules.combat.LifeState.ALIVE)
+                .filter(other -> conditionNames(other).stream()
+                        .noneMatch(name -> INCAPACITATED.contains(name.toLowerCase(Locale.ROOT))))
+                .anyMatch(other -> side.equals(allegiance(other)));
+    }
+
+    /**
+     * The side a participant fights on (D199): the party's for a player character and a companion, the DM's monsters'
+     * for a monster, and a summoned creature its summoner's, so a wizard's summoned wolves are the party's allies and a
+     * monster's summoned demons the monsters'. A creature out of its summoner's control fights alone: Conjure
+     * Elemental's elemental turned hostile (PHB p.225), a greater demon that broke free (XGE p.166), and Summon Lesser
+     * Demons' demons, hostile to all creatures (XGE p.167), which are each other's allies.
+     */
+    public static String allegiance(EncounterParticipant participant) {
+        SummonLink link = participant.getSummon();
+        if (link != null && link.kind() == SummonRules.Kind.LESSER_DEMONS) {
+            return "demons:" + link.effectId();
+        }
+        if (link != null && Boolean.TRUE.equals(link.uncontrolled())) {
+            return "alone:" + participant.getId();
+        }
+        UUID summoner = participant.getSummonedByParticipantId();
+        if (summoner != null && participant.getEncounter() != null && participant.getEncounter().getParticipants() != null) {
+            Optional<EncounterParticipant> caster = participant.getEncounter().getParticipants().stream()
+                    .filter(other -> other != null && summoner.equals(other.getId()) && other != participant)
+                    .findFirst();
+            if (caster.isPresent() && caster.get().getSummonedByParticipantId() == null) {
+                return allegiance(caster.get());
+            }
+        }
+        return participant.getParticipantType() == com.tabletophelper.encounter.ParticipantType.MONSTER
+                ? "monsters" : "party";
+    }
+
+    /**
+     * Whether the participant wears armour made of metal (D199), which gives Shocking Grasp's attack advantage (PHB
+     * p.275): a player character's equipped armour, by its name, or a monster's armour as its stat block's AC names it,
+     * such as "chain mail, shield". Chain, scale, ring, splint and plate armour, the breastplate and half plate are metal
+     * (PHB p.145); padded, leather, studded leather and hide aren't, nor is natural armour. A creature in another form
+     * wears none (PHB p.67).
+     */
+    public boolean wearsMetalArmour(EncounterParticipant participant) {
+        if (WildShapeForm.of(participant).isPresent()) {
+            return false;
+        }
+        if (participant.getCharacter() != null) {
+            EquippedArmour.Worn worn = armour(participant);
+            return worn.armour() != null && worn.armour().getName() != null
+                    && METAL_ARMOUR.matcher(worn.armour().getName()).find();
+        }
+        Monster monster = participant.getMonster();
+        return monster != null && monster.getAcType() != null && METAL_ARMOUR.matcher(monster.getAcType()).find();
+    }
+
+    // The names of the metal armours (PHB p.145), among them mithral, adamantine and elven chain
+    private static final Pattern METAL_ARMOUR = Pattern.compile(
+            "\\b(?:chain|scale mail|ring mail|splint|breastplate|plate)\\b", Pattern.CASE_INSENSITIVE);
 
     /**
      * What the Ongoing Modifiers on the participant add to a saving throw of the ability, a death save when it is null

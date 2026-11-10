@@ -158,6 +158,12 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             template.hpPool();
             template.revivesDead();
             template.spellPool();
+            // And the low-level spells' keys (D199)
+            template.heldObjectSave();
+            template.attackAdvantageVs();
+            if (json.path("tempHitPoints").path("dice").isString()) {
+                checkedDice(json.path("tempHitPoints").path("dice").asString());
+            }
             return template;
         } catch (IllegalArgumentException | JacksonException e) {
             return empty(json, e.getMessage() != null ? e.getMessage() : e.toString());
@@ -525,6 +531,92 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         }
         return rounds;
     }
+
+    /**
+     * The dice of temporary hit points the cast rolls for each creature it affects, for the option chosen when the
+     * template's {@code tempHitPoints} names one, as Enhance Ability's Bear's Endurance's 2d6 (PHB p.237, D199); null
+     * for none.
+     */
+    public String tempHitPointsDice(String option) {
+        JsonNode node = json != null ? json.get("tempHitPoints") : null;
+        if (node == null || !node.isObject() || !node.path("dice").isString()) {
+            return null;
+        }
+        String wanted = text(node, "option");
+        if (wanted != null && !wanted.equalsIgnoreCase(option)) {
+            return null;
+        }
+        return checkedDice(node.path("dice").asString());
+    }
+
+    // Dice the data gives, which must be rolled; an IllegalArgumentException for dice that can't, so the template is
+    // unreadable rather than failing a load
+    private static String checkedDice(String dice) {
+        try {
+            com.tabletophelper.rules.Dice.parse(dice);
+            return dice;
+        } catch (com.tabletophelper.shared.ValidationException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
+    }
+
+    /**
+     * The save a creature makes each time it takes the spell's damage while holding the object the spell heats, as
+     * Heat Metal's Constitution save (PHB p.250, D199): the template's {@code heldObjectSave}, with the cast option for
+     * an object it can't drop, as worn armour, and the Ongoing Modifiers it has while it keeps the object.
+     *
+     * @param ability    the save's ability
+     * @param wornOption the cast option for an object the creature can't drop, so no save keeps the modifiers off it
+     * @param modifiers  what it has while it keeps the object, as disadvantage on attack rolls and ability checks until
+     *                   the start of the caster's next turn
+     */
+    public record HeldObjectSave(String ability, String wornOption, List<ModifierDefinition> modifiers) {
+
+        public HeldObjectSave {
+            modifiers = listOf(modifiers);
+        }
+    }
+
+    private static final TypeReference<List<ModifierDefinition>> MODIFIERS = new TypeReference<>() {
+    };
+
+    /** The template's {@code heldObjectSave} (D199); null for none. */
+    public HeldObjectSave heldObjectSave() {
+        JsonNode node = json != null ? json.get("heldObjectSave") : null;
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        String ability = text(node, "ability");
+        if (ability == null) {
+            throw new IllegalArgumentException("heldObjectSave needs the save's ability");
+        }
+        return new HeldObjectSave(ability, text(node, "wornOption"),
+                READER.convertValue(node.get("modifiers"), MODIFIERS));
+    }
+
+    /**
+     * What gives the spell's attack advantage against a target (D199): "METAL_ARMOUR" for one wearing armour made of
+     * metal, as Shocking Grasp's (PHB p.275); null for nothing.
+     */
+    public String attackAdvantageVs() {
+        String against = json != null ? text(json, "attackAdvantageVs") : null;
+        if (against != null && !METAL_ARMOUR.equals(against)) {
+            throw new IllegalArgumentException("attackAdvantageVs can only be " + METAL_ARMOUR + ", not " + against);
+        }
+        return against;
+    }
+
+    /**
+     * Whether a creature the caster or its companions are fighting has advantage on the spell's save, as against Enthrall
+     * (PHB p.238, D199): the template's {@code foesSaveWithAdvantage}. In an encounter that is a creature of the other
+     * side from the caster's.
+     */
+    public boolean foesSaveWithAdvantage() {
+        return json != null && json.path("foesSaveWithAdvantage").asBoolean(false);
+    }
+
+    /** {@link #attackAdvantageVs()} against a target in metal armour (D199). */
+    public static final String METAL_ARMOUR = "METAL_ARMOUR";
 
     /**
      * The temporary hit points the cast gives each creature it affects, for the option chosen when the template's
@@ -1674,13 +1766,15 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      *                             (PHB p.250)
      * @param plusDex              its flat amount adds the creature's Dexterity modifier, as Mage Armor's 13 + DEX (PHB
      *                             p.256)
+     * @param note                 a NOTE's words, shown on the creature (D199)
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ModifierDefinition(OngoingModifier.Kind kind, OngoingModifier.Scope scope, String dice, Integer flat,
                                      RollMode mode, String ability, List<String> damageTypes, boolean weaponOnly,
                                      boolean meleeOnly, boolean oneShot, OngoingModifier.Until until, String requires,
                                      List<String> attackerTypes, String condition, String skill, String option,
-                                     ModifierUpcast upcast, boolean spellcastingModifier, boolean plusDex) {
+                                     ModifierUpcast upcast, boolean spellcastingModifier, boolean plusDex,
+                                     String note) {
 
         public ModifierDefinition {
             Objects.requireNonNull(kind, "A modifier needs a kind");

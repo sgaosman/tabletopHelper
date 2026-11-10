@@ -16,12 +16,14 @@ import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.Ability;
-import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.ActionEconomy;
+import com.tabletophelper.rules.combat.AttackRules;
 import com.tabletophelper.rules.combat.Charge;
+import com.tabletophelper.rules.combat.OngoingModifier;
 import com.tabletophelper.rules.combat.OngoingModifiers;
 import com.tabletophelper.rules.combat.Resolver;
+import com.tabletophelper.rules.combat.RollMode;
 import com.tabletophelper.rules.combat.RollModifiers;
 import com.tabletophelper.rules.combat.StandardActions;
 import com.tabletophelper.rules.combat.StandardActions.Action;
@@ -48,8 +50,9 @@ import java.util.UUID;
  * turn economy as the other commands are (ActionEconomyKeeper), then logged.
  * <ul>
  *   <li>An action costs the action, or the bonus action where Cunning Action (Dash, Disengage, Hide) or Nimble Escape
- *       (Disengage, Hide) grants it. A player asking for a bonus action without such a feature gets a 409 saying
- *       so; the DM is never refused, and a player character's is logged as over the action economy.</li>
+ *       (Disengage, Hide) grants it, or a spell does, as Expeditious Retreat's Dash (PHB p.238, D199). A player
+ *       asking for a bonus action without such a feature gets a 409 saying so; the DM is never refused, and a
+ *       player character's is logged as over the action economy.</li>
  *   <li>Dash and Disengage are shown in the economy; Dodge leaves a {@link StandardActions#DODGING} entry among the
  *       dodger's conditions, ending at the start of its next turn, which the rules read for attacks against it and
  *       its Dexterity saves; Help names its creature, whose advantage is declared on the roll it helps; Hide rolls
@@ -104,7 +107,8 @@ public class StandardActionService {
         String overReason = null;
         String grant = null;
         if (cost == ActionCost.BONUS_ACTION) {
-            Optional<String> granted = StandardActions.bonusActionGrant(action, featureNames(participant));
+            Optional<String> granted = StandardActions.bonusActionGrant(action, featureNames(participant))
+                    .or(() -> action == Action.DASH ? spellDash(participant) : Optional.empty());
             grant = granted.orElse(null);
             overReason = granted.isPresent() ? null : StandardActions.bonusActionRefusal(action);
         }
@@ -191,26 +195,16 @@ public class StandardActionService {
     // any exhaustion, which gives every ability check disadvantage (PHB p.291, D183)
     private void hide(Encounter encounter, EncounterParticipant participant, String taken) {
         int modifier = stats.skillModifier(participant, STEALTH, Ability.DEX);
-        String dice;
-        int d20;
-        int exhaustion = Exhaustion.clamp(participant.getExhaustionLevel());
-        List<String> reasons = new ArrayList<>();
+        // The Ongoing Modifiers' advantage or disadvantage on the check too, as Enhance Ability's Cat's Grace (PHB
+        // p.237, D199)
+        List<AttackRules.Source> sources = new ArrayList<>();
         if (stats.armour(participant).stealthDisadvantage()) {
-            reasons.add("armour");
+            sources.add(new AttackRules.Source(RollMode.DISADVANTAGE, "armour"));
         }
-        if (Exhaustion.abilityCheckDisadvantage(exhaustion)) {
-            reasons.add(Exhaustion.conditionName(exhaustion));
-        }
-        if (!reasons.isEmpty()) {
-            int first = resolver.d20();
-            int second = resolver.d20();
-            d20 = Math.min(first, second);
-            dice = "2d20(" + first + ", " + second + ") with disadvantage from " + String.join(" and ", reasons)
-                    + " → " + d20;
-        } else {
-            d20 = resolver.d20();
-            dice = "d20(" + d20 + ")";
-        }
+        sources.addAll(AbilityChecks.sources(participant, Ability.DEX, STEALTH));
+        AbilityChecks.Roll check = AbilityChecks.roll(resolver::d20, sources);
+        int d20 = check.d20();
+        String dice = check.dice();
         // The Ongoing Modifiers on the check, as Guidance's d4 (PHB p.248) or Pass without Trace's +10 (PHB p.264); a
         // one-shot one is spent (D184)
         List<RollModifiers.Bonus> bonuses = OngoingModifiers.checkBonuses(STEALTH,
@@ -223,6 +217,14 @@ public class StandardActionService {
         combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.STANDARD_ACTION,
                 description), participant, null).rollValue(d20).rollTotal(total));
         effectApplier.spendModifiers(encounter, EffectApplier.oneShotsOf(bonuses));
+    }
+
+    // A spell that lets its creature Dash as a bonus action, as Expeditious Retreat (PHB p.238, D199), by its name
+    private static Optional<String> spellDash(EncounterParticipant participant) {
+        return ActiveModifiers.on(participant).stream()
+                .filter(found -> found.modifier().kind() == OngoingModifier.Kind.BONUS_DASH)
+                .map(found -> ActiveModifiers.label(found.effect()))
+                .findFirst();
     }
 
     /**

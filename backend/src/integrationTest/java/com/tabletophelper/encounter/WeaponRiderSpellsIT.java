@@ -161,14 +161,18 @@ class WeaponRiderSpellsIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("Heat Metal's cast reminds the DM of the CON save to drop the object (PHB p.250)")
+    @DisplayName("Heat Metal on worn armour burns the ogre and reminds the DM of the Constitution save a held object "
+            + "makes (PHB p.250, D199)")
     void heatMetal() {
         String ogre = ogre();
         start();
         dice.script(4, 4);
-        cast("Heat Metal", 2, List.of(ogre));
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/cast-spell?actorId="
+                + ariaId, Map.of("spellName", "Heat Metal", "slotLevel", 2, "targetIds", List.of(ogre),
+                "option", "worn"), dm.accessToken()));
         assertThat(hp(ogre)).isEqualTo(60 - 8);
         assertThat(log()).anyMatch(line -> line.contains("Constitution saving throw"));
+        assertThat(log()).anyMatch(line -> line.contains("can't drop the armour it wears"));
     }
 
     @Test
