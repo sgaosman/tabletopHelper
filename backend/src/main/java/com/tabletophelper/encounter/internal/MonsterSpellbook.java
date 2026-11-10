@@ -21,8 +21,11 @@ import java.util.regex.Pattern;
  *   <li>{@code atWillSpells} lists the spells cast at will;</li>
  *   <li>{@code innateSpells} is a flag, except for a few monsters that keep their daily and at-will lists in it.</li>
  * </ul>
- * The flag doesn't say whether a monster has slots, so it has them exactly when the block lists them. A second
- * spellcasting block ({@code additionalSpellcasting}) isn't read.
+ * The flag doesn't say whether a monster has slots, so it has them exactly when the block lists them. A monster with
+ * a second block, such as an arcanaloth's innate spells beside its wizard spells, keeps it in
+ * {@code additionalSpellcasting} (D193), and the spellbook is the blocks merged: the spells of each, the main
+ * block's first; the main block's slots, with any level it lacks taken from the others; and the main block's
+ * ability, attack bonus and save DC, each taken from the first other block that gives it when the main one doesn't.
  *
  * @param ability     the spellcasting ability, such as "INT"; null when not given
  * @param attackBonus the spell attack bonus; null when not given
@@ -97,26 +100,39 @@ record MonsterSpellbook(String ability, Integer attackBonus, Integer saveDc, Map
         return this != NONE;
     }
 
-    /** Reads the spellcasting block of a monster's action templates. */
+    /** Reads the spellcasting blocks of a monster's action templates: the main one and any additional ones. */
     static MonsterSpellbook read(MonsterTemplates templates) {
-        MonsterTemplates.Spellcasting block = templates.spellcasting();
-        if (block == null) {
+        List<MonsterTemplates.Spellcasting> blocks = new ArrayList<>();
+        if (templates.spellcasting() != null) {
+            blocks.add(templates.spellcasting());
+        }
+        blocks.addAll(templates.additionalSpellcasting());
+        if (blocks.isEmpty()) {
             return NONE;
         }
         List<Entry> spells = new ArrayList<>();
-        block.spellsByLevel().forEach((group, names) -> {
-            String key = group.trim();
-            if (LEVEL_KEY.matcher(key).matches()) {
-                addAll(spells, names, Kind.LEVELLED, Integer.valueOf(key), 0);
-            } else {
-                addKeyed(spells, key, names);
-            }
-        });
-        block.dailySpells().forEach((key, names) -> addKeyed(spells, key, names));
-        addAll(spells, block.atWillSpells(), Kind.AT_WILL, null, 0);
-        block.innateLists().forEach((key, names) -> addKeyed(spells, key, names));
-        return new MonsterSpellbook(text(block.ability()), block.attackBonus(), block.saveDc(), slots(block.slots()),
-                spells);
+        Map<String, Integer> slots = new LinkedHashMap<>();
+        String ability = null;
+        Integer attackBonus = null;
+        Integer saveDc = null;
+        for (MonsterTemplates.Spellcasting block : blocks) {
+            block.spellsByLevel().forEach((group, names) -> {
+                String key = group.trim();
+                if (LEVEL_KEY.matcher(key).matches()) {
+                    addAll(spells, names, Kind.LEVELLED, Integer.valueOf(key), 0);
+                } else {
+                    addKeyed(spells, key, names);
+                }
+            });
+            block.dailySpells().forEach((key, names) -> addKeyed(spells, key, names));
+            addAll(spells, block.atWillSpells(), Kind.AT_WILL, null, 0);
+            block.innateLists().forEach((key, names) -> addKeyed(spells, key, names));
+            slots(block.slots()).forEach(slots::putIfAbsent);
+            ability = ability != null ? ability : text(block.ability());
+            attackBonus = attackBonus != null ? attackBonus : block.attackBonus();
+            saveDc = saveDc != null ? saveDc : block.saveDc();
+        }
+        return new MonsterSpellbook(ability, attackBonus, saveDc, slots(slots), spells);
     }
 
     /** The uses a daily key gives, such as 3 for "3e/day each"; empty for a key that isn't one. */

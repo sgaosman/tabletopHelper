@@ -1,15 +1,20 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.monster.MonsterTemplates;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * {@link MonsterSpellbook#canonicalName}, the name a monster's spell is looked up by in the spells table and so for
- * its effect template (D191). The lookup ignores case, so the case is kept as listed.
+ * its effect template (D191). The lookup ignores case, so the case is kept as listed. And the blocks a spellbook is
+ * read from: the main block and any additional ones, merged (D193).
  */
 class MonsterSpellbookTest {
 
@@ -59,5 +64,51 @@ class MonsterSpellbookTest {
                 MonsterSpellbook.Kind.DAILY, null, 1);
         assertEquals("invisibility", entry.lookupName());
         assertEquals("invisibility (self only)", entry.name());
+    }
+
+    @Test
+    @DisplayName("An additional block's spells, slots and missing numbers join the main block's, which come first")
+    void additionalBlocksMerge() {
+        // Nezznar's shape: an innate main block without numbers, and wizard spells with slots in a second block
+        MonsterSpellbook book = MonsterSpellbook.read(MonsterTemplates.parse("""
+                {"spellcasting": {"innateSpells": false, "atWillSpells": ["dancing lights"],
+                  "dailySpells": {"1e": ["darkness"]}},
+                 "additionalSpellcasting": [
+                  {"ability": "INT", "saveDC": 13, "attackBonus": 5, "innate": false, "slots": {"2": 3, "1": 4},
+                   "spellsByLevel": {"0": ["ray of frost"], "1": ["magic missile"]}},
+                  {"ability": "WIS", "saveDC": 99, "daily": {"3e": ["stone shape"]}, "slots": {"1": 9, "3": 1}}]}"""));
+
+        assertEquals("INT", book.ability());
+        assertEquals(5, book.attackBonus());
+        assertEquals(13, book.saveDc());
+        assertEquals(Map.of("1", 4, "2", 3, "3", 1), book.slots());
+        assertEquals(List.of("1", "2", "3"), List.copyOf(book.slots().keySet()));
+        assertEquals(List.of(
+                new MonsterSpellbook.Entry("darkness", MonsterSpellbook.Kind.DAILY, null, 1),
+                new MonsterSpellbook.Entry("dancing lights", MonsterSpellbook.Kind.AT_WILL, null, 0),
+                new MonsterSpellbook.Entry("ray of frost", MonsterSpellbook.Kind.LEVELLED, 0, 0),
+                new MonsterSpellbook.Entry("magic missile", MonsterSpellbook.Kind.LEVELLED, 1, 0),
+                new MonsterSpellbook.Entry("stone shape", MonsterSpellbook.Kind.DAILY, null, 3)), book.spells());
+    }
+
+    @Test
+    @DisplayName("The main block's numbers win over an additional block's, and additional blocks alone are read")
+    void mainBlockNumbersWin() {
+        MonsterSpellbook main = MonsterSpellbook.read(MonsterTemplates.parse("""
+                {"spellcasting": {"ability": "CHA", "saveDC": 15, "attackBonus": 7, "atWillSpells": ["darkness"]},
+                 "additionalSpellcasting": [{"ability": "INT", "saveDC": 17, "attackBonus": 9,
+                  "atWillSpells": ["darkness"], "dailySpells": {"1e": ["fireball"]}}]}"""));
+        MonsterSpellbook onlyAdditional = MonsterSpellbook.read(MonsterTemplates.parse("""
+                {"additionalSpellcasting": [{"ability": "WIS", "saveDC": 12, "dailySpells": {"1e": ["bless"]}}]}"""));
+
+        assertEquals("CHA", main.ability());
+        assertEquals(15, main.saveDc());
+        assertEquals(7, main.attackBonus());
+        assertEquals(2, main.spells().size());
+        assertTrue(onlyAdditional.present());
+        assertEquals(12, onlyAdditional.saveDc());
+        assertEquals(List.of(new MonsterSpellbook.Entry("bless", MonsterSpellbook.Kind.DAILY, null, 1)),
+                onlyAdditional.spells());
+        assertFalse(MonsterSpellbook.read(MonsterTemplates.parse("{\"actions\": []}")).present());
     }
 }

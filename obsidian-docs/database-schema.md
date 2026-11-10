@@ -268,7 +268,7 @@ What each content loader last loaded (V25, D169). One row per loader.
 | challenge_rating | VARCHAR | e.g. "1/2", "5", "30" |
 | experience_points | INTEGER | |
 | traits, actions, reactions, legendary_actions, lair_actions | JSONB | `@JsonRawValue` |
-| action_templates | JSONB | Structured monster action data: actions, legendary and lair actions, spellcasting, innate spellcasting. Seeded by `MonsterActionSeeder` from `monster-action-definitions.json` (V9, D139). Since R7 workstream F it maps to the typed `monster.MonsterTemplates`, keeping the whole stored JSON; a condition given on a hit may carry an `escapeDC`, and an action a `dmNote` for the DM (D165, D168). |
+| action_templates | JSONB | Structured monster action data: actions, legendary and lair actions, spellcasting, innate spellcasting. Seeded by `MonsterActionSeeder` from `monster-action-definitions.json` (V9, D139). Since R7 workstream F it maps to the typed `monster.MonsterTemplates`, keeping the whole stored JSON; a condition given on a hit may carry an `escapeDC`, and an action a `dmNote` for the DM (D165, D168). Since D193 an entry may carry `additionalSpellcasting`, a list of further blocks shaped like `spellcasting` (where `dailySpells` may be named `daily`), merged into one spellbook; 126 entries generated from stat blocks by `backend/scripts/generate_monster_spellcasting.py` hold spellcasting only. |
 | source | VARCHAR | e.g. "MM", "VGM" |
 | is_homebrew | BOOLEAN | |
 | created_at | TIMESTAMPTZ | |

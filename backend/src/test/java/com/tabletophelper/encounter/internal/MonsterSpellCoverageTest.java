@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -48,6 +49,11 @@ import static org.mockito.Mockito.when;
  * of monsters and spells, so empty data can't pass. Each run writes the report to
  * {@code build/reports/monster-spell-coverage.txt}: the counts, each name that doesn't resolve, and how the names as
  * listed, before {@link MonsterSpellbook#canonicalName} cleans them, would have failed an exact lookup.
+ * <p>
+ * And the other way round (D193): every monster the bestiary loads whose stat block has a spellcasting block with
+ * spell lists ({@code spells}, {@code will} or {@code daily}) has a definition whose spellbook gives it at least one
+ * spell it can cast, one the spells data lists. The definitions for the 126 that had none are written by
+ * {@code backend/scripts/generate_monster_spellcasting.py} from the stat blocks.
  */
 class MonsterSpellCoverageTest {
 
@@ -63,6 +69,10 @@ class MonsterSpellCoverageTest {
     // The data had 765 monsters with spells, listing 6407 spells, when the sweep was written
     private static final int MINIMUM_MONSTERS = 700;
     private static final int MINIMUM_SPELL_ENTRIES = 6000;
+    // The baseline after D193: every stat-block spellcaster can cast; there were 126 that couldn't before
+    private static final int SPELLCASTERS_WITHOUT_SPELLS_BASELINE = 0;
+    // The bestiary had 891 loaded monsters with spell lists in their stat blocks when D193 was written
+    private static final int MINIMUM_STAT_BLOCK_SPELLCASTERS = 850;
 
     private final ObjectMapper objectMapper = JacksonDefaults.mapper();
 
@@ -166,6 +176,61 @@ class MonsterSpellCoverageTest {
                 "monster spells without an effect template: " + unresolvedTemplates);
     }
 
+    @Test
+    @DisplayName("Every bestiary monster with spell lists in its stat block can cast at least one spell")
+    void everyStatBlockSpellcasterCasts() throws IOException {
+        Map<String, Spell> spellsByName = spells();
+        SpellRepository spellRepository = mock(SpellRepository.class);
+        when(spellRepository.findByNameIgnoreCase(anyString())).thenAnswer(call -> Optional.ofNullable(
+                spellsByName.get(call.<String>getArgument(0).toLowerCase(Locale.ROOT))));
+        MonsterPools monsterPools = new MonsterPools(mock(MonsterPoolTriggerRepository.class), spellRepository,
+                objectMapper);
+
+        // The first definition of each name and source, as MonsterActionLoader stores them
+        Map<String, JsonNode> definitions = new HashMap<>();
+        for (JsonNode definition : read(new ClassPathResource(DEFINITIONS))) {
+            definitions.putIfAbsent(key(definition.path("monsterName").asString(""),
+                    definition.path("source").asString("")), definition);
+        }
+
+        int spellcasters = 0;
+        List<String> withoutSpells = new ArrayList<>();
+        for (JsonNode monster : loadedStatBlocks().values()) {
+            if (!hasSpellLists(monster.path("spellcasting"))) {
+                continue;
+            }
+            spellcasters++;
+            String name = monster.path("name").asString("");
+            String source = monster.path("source").asString("");
+            JsonNode definition = definitions.get(key(name, source));
+            long castable = definition == null ? 0 : monsterPools.spells(Monster.builder().name(name).source(source)
+                            .actionTemplates(MonsterTemplates.of(definition)).build()).stream()
+                    .filter(spell -> spell.castingTime() != null)
+                    .count();
+            if (castable == 0) {
+                withoutSpells.add(name + " (" + source + ")");
+            }
+        }
+        System.out.println("Stat-block spellcasters: " + spellcasters + ", " + withoutSpells.size()
+                + " without a castable spell");
+
+        assertTrue(spellcasters >= MINIMUM_STAT_BLOCK_SPELLCASTERS, "only " + spellcasters + " spellcasters walked");
+        assertTrue(withoutSpells.size() <= SPELLCASTERS_WITHOUT_SPELLS_BASELINE,
+                "stat-block spellcasters without a castable spell: " + withoutSpells);
+    }
+
+    // Whether any of a stat block's spellcasting blocks lists spells to cast
+    private static boolean hasSpellLists(JsonNode blocks) {
+        for (JsonNode block : blocks) {
+            for (String list : List.of("spells", "will", "daily")) {
+                if (!block.path(list).isMissingNode() && !block.path(list).isEmpty()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     // Why a name as listed misses an exact lookup: the part canonicalName removes, or that it isn't in the data
     private static String category(String listed, Map<String, Spell> spellsByName) {
         String canonical = MonsterSpellbook.canonicalName(listed);
@@ -223,7 +288,12 @@ class MonsterSpellCoverageTest {
     // The name and source of each monster the bestiary loads, as MonsterLoader reads it: _copy monsters, fluff and
     // index files aside
     private Set<String> loadedMonsters() throws IOException {
-        Set<String> keys = new LinkedHashSet<>();
+        return new LinkedHashSet<>(loadedStatBlocks().keySet());
+    }
+
+    // The stat block of each monster the bestiary loads, by name and source, the first of each
+    private Map<String, JsonNode> loadedStatBlocks() throws IOException {
+        Map<String, JsonNode> monsters = new LinkedHashMap<>();
         for (Resource resource : new PathMatchingResourcePatternResolver().getResources(BESTIARY)) {
             String file = resource.getFilename() != null ? resource.getFilename() : "";
             if (file.contains("fluff") || file.contains("index")) {
@@ -231,12 +301,13 @@ class MonsterSpellCoverageTest {
             }
             for (JsonNode monster : read(resource).path("monster")) {
                 if (!monster.has("_copy")) {
-                    keys.add(key(monster.path("name").asString(""), monster.path("source").asString("")));
+                    monsters.putIfAbsent(key(monster.path("name").asString(""),
+                            monster.path("source").asString("")), monster);
                 }
             }
         }
-        assertFalse(keys.isEmpty());
-        return keys;
+        assertFalse(monsters.isEmpty());
+        return monsters;
     }
 
     private static String key(String name, String source) {

@@ -1,5 +1,6 @@
 package com.tabletophelper.monster;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -41,7 +42,8 @@ import java.util.stream.Stream;
 public record MonsterTemplates(List<Action> actions, List<Action> legendaryActions, List<Action> lairActions,
                                List<Action> bonusActions, List<Action> reactions, List<Action> traits,
                                Integer legendaryActionCount, Integer legendaryResistanceCount,
-                               Spellcasting spellcasting, JsonNode json, String unreadable) {
+                               Spellcasting spellcasting, List<Spellcasting> additionalSpellcasting, JsonNode json,
+                               String unreadable) {
 
     private static final Logger log = LoggerFactory.getLogger(MonsterTemplates.class);
 
@@ -52,13 +54,15 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
             .build();
     private static final TypeReference<List<Action>> ACTIONS = new TypeReference<>() {
     };
+    private static final TypeReference<List<Spellcasting>> SPELLCASTING_BLOCKS = new TypeReference<>() {
+    };
 
     // A legendary action's cost as a whole number
     private static final Pattern WHOLE = Pattern.compile("^\\s*(\\d{1,2})\\s*$");
 
     /** A monster without templates: no actions, no counts and no spellcasting. */
     public static final MonsterTemplates NONE =
-            new MonsterTemplates(null, null, null, null, null, null, null, null, null, null, null);
+            new MonsterTemplates(null, null, null, null, null, null, null, null, null, null, null, null);
 
     public MonsterTemplates {
         actions = listOf(actions);
@@ -67,6 +71,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
         bonusActions = listOf(bonusActions);
         reactions = listOf(reactions);
         traits = listOf(traits);
+        additionalSpellcasting = listOf(additionalSpellcasting);
     }
 
     /**
@@ -78,16 +83,17 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
     public static MonsterTemplates of(JsonNode json) {
         JsonNode root = json != null && json.isArray() ? json.path(0) : json;
         if (root == null || !root.isObject()) {
-            return new MonsterTemplates(null, null, null, null, null, null, null, null, null, json, null);
+            return new MonsterTemplates(null, null, null, null, null, null, null, null, null, null, json, null);
         }
         try {
             return new MonsterTemplates(actions(root, "actions"), actions(root, "legendaryActions"),
                     actions(root, "lairActions"), actions(root, "bonusActions"), actions(root, "reactions"),
                     actions(root, "traits"), READER.convertValue(root.get("legendaryActionCount"), Integer.class),
                     READER.convertValue(root.get("legendaryResistanceCount"), Integer.class),
-                    READER.convertValue(root.get("spellcasting"), Spellcasting.class), json, null);
+                    READER.convertValue(root.get("spellcasting"), Spellcasting.class),
+                    READER.convertValue(root.get("additionalSpellcasting"), SPELLCASTING_BLOCKS), json, null);
         } catch (IllegalArgumentException | JacksonException e) {
-            return new MonsterTemplates(null, null, null, null, null, null, null, null, null, json,
+            return new MonsterTemplates(null, null, null, null, null, null, null, null, null, null, json,
                     e.getMessage() != null ? e.getMessage() : e.toString());
         }
     }
@@ -281,13 +287,14 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      *
      * @param slots         slots by spell level, keyed "1" to "9"
      * @param spellsByLevel spells under their level, "0" for cantrips, or under a daily or at-will key
-     * @param dailySpells   spells under daily keys such as "1e/day" or "3/day each"
+     * @param dailySpells   spells under daily keys such as "1e/day" or "3/day each"; a second block may name them
+     *                      "daily", as the stat block does (D193)
      * @param innateSpells  a flag, except for the few monsters that keep their daily and at-will lists in it
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Spellcasting(String ability, Integer attackBonus, @JsonProperty("saveDC") Integer saveDc,
                                Map<String, Integer> slots, Map<String, List<String>> spellsByLevel,
-                               Map<String, List<String>> dailySpells, List<String> atWillSpells,
+                               @JsonAlias("daily") Map<String, List<String>> dailySpells, List<String> atWillSpells,
                                JsonNode innateSpells) {
 
         public Spellcasting {

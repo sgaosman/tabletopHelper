@@ -199801,5 +199801,4195 @@
         "dmNote": "The DM might rule that an object's slam deals slashing or piercing damage instead, by its form"
       }
     ]
+  },
+  {
+    "monsterName": "Exul",
+    "source": "AitFR-ISF",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 15,
+      "attackBonus": 7,
+      "innateSpells": true,
+      "atWillSpells": [
+        "detect magic"
+      ],
+      "dailySpells": {
+        "3e": [
+          "comprehend languages",
+          "tongues"
+        ],
+        "1e": [
+          "conjure elemental (earth or fire elemental only)",
+          "invisibility",
+          "major image",
+          "plane shift",
+          "wall of fire"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Arkhan the Cruel",
+    "source": "BGDIA",
+    "challengeRating": "16",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "dailySpells": {
+        "3e": [
+          "animate dead",
+          "branding smite (at 4th level)",
+          "revivify"
+        ],
+        "1e": [
+          "geas",
+          "raise dead"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Mahadi the Rakshasa",
+    "source": "BGDIA",
+    "challengeRating": "14",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 18,
+      "attackBonus": 9,
+      "innateSpells": true,
+      "atWillSpells": [
+        "detect thoughts",
+        "disguise self",
+        "mage hand",
+        "minor illusion"
+      ],
+      "dailySpells": {
+        "3e": [
+          "charm person",
+          "detect magic",
+          "dispel magic",
+          "hellish rebuke",
+          "invisibility",
+          "major image",
+          "speak with dead",
+          "suggestion"
+        ],
+        "1e": [
+          "banishment",
+          "demiplane",
+          "dominate person",
+          "fly",
+          "forcecage",
+          "geas",
+          "plane shift",
+          "true seeing"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Cloud Giant Destiny Gambler",
+    "source": "BGG",
+    "challengeRating": "19",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 20,
+      "attackBonus": 12,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect magic",
+        "fog cloud",
+        "light",
+        "minor illusion"
+      ],
+      "dailySpells": {
+        "1e": [
+          "dream (as an action)",
+          "gaseous form",
+          "major image"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Cloud Giant of Evil Air",
+    "source": "BGG",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect magic",
+        "fog cloud",
+        "light"
+      ],
+      "dailySpells": {
+        "1": [
+          "gaseous form"
+        ],
+        "2": [
+          "telekinesis"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Death Giant Shrouded One",
+    "source": "BGG",
+    "challengeRating": "15",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 19,
+      "_dcComputed": true,
+      "attackBonus": 11,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect magic",
+        "mage armor"
+      ],
+      "dailySpells": {
+        "3e": [
+          "speak with dead",
+          "Tenser's floating disk"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Fomorian Noble",
+    "source": "BGG",
+    "challengeRating": "15",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "mage armor (self only)",
+        "mage hand",
+        "prestidigitation"
+      ],
+      "dailySpells": {
+        "1e": [
+          "chain lightning",
+          "cone of cold (6th-level version)",
+          "fireball (6th-level version)",
+          "fly",
+          "plane shift (self only)"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Stalker of Baphomet",
+    "source": "BGG",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "WIS",
+      "saveDC": 15,
+      "attackBonus": 7,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "dailySpells": {
+        "1e": [
+          "meld into stone",
+          "stone shape",
+          "wall of stone"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Storm Herald",
+    "source": "BGG",
+    "challengeRating": "17",
+    "spellcasting": {
+      "name": "Spellcasting (Psionics)",
+      "ability": "INT",
+      "saveDC": 21,
+      "attackBonus": 13,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect magic",
+        "detect thoughts",
+        "mage hand (the hand is invisible)"
+      ],
+      "dailySpells": {
+        "1e": [
+          "control water",
+          "control weather (as an action)",
+          "sending"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Hierophant of the Comet",
+    "source": "BMT",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "Detect Thoughts",
+        "Mage Hand",
+        "Thaumaturgy"
+      ],
+      "dailySpells": {
+        "1e": [
+          "Dimension Door",
+          "Mass Suggestion"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Arrant Quill",
+    "source": "CM",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "light",
+        "mage hand",
+        "prestidigitation"
+      ],
+      "dailySpells": {
+        "3e": [
+          "detect magic",
+          "dispel magic",
+          "faerie fire",
+          "hold monster"
+        ],
+        "1e": [
+          "mind blank",
+          "teleport"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Corruption Devil (Paeliryon)",
+    "source": "CoA",
+    "challengeRating": "14",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "Bestow Curse",
+        "Command",
+        "Darkness",
+        "Hold Monster",
+        "Major Image"
+      ],
+      "dailySpells": {
+        "1e": [
+          "Antilife Shell",
+          "Incendiary Cloud",
+          "Scrying",
+          "Weird"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Ekengarik",
+    "source": "CoA",
+    "challengeRating": "16",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "Detect Magic",
+        "Dispel Magic",
+        "Heroism",
+        "Magic Missile"
+      ],
+      "dailySpells": {
+        "1e": [
+          "Evard's Black Tentacles",
+          "Cone of Cold",
+          "Confusion",
+          "Dimension Door",
+          "Geas",
+          "Invisibility",
+          "Prismatic Wall",
+          "Slow"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Jenevere",
+    "source": "CoA",
+    "challengeRating": "17",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 21,
+      "attackBonus": 13,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "Bless",
+        "Detect Evil and Good"
+      ],
+      "dailySpells": {
+        "1": [
+          "Foresight"
+        ],
+        "2e": [
+          "Commune",
+          "Heal",
+          "Legend Lore",
+          "Raise Dead",
+          "Scrying"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Ramius",
+    "source": "CoA",
+    "challengeRating": "14",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "dailySpells": {
+        "1e": [
+          "Aura of Purity",
+          "Compelled Duel",
+          "Crusader's Mantle",
+          "Death Ward",
+          "Dispel Evil and Good",
+          "Find Steed",
+          "Lesser Restoration",
+          "Remove Curse",
+          "Revivify",
+          "Shield of Faith"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Zythan",
+    "source": "CoA",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "Arcane Eye",
+        "Detect Magic",
+        "Detect Thoughts",
+        "Fly",
+        "Light",
+        "Locate Object",
+        "Mage Armor",
+        "Mage Hand",
+        "Message",
+        "Prestidigitation"
+      ],
+      "dailySpells": {
+        "1": [
+          "Cone of Cold",
+          "Foresight",
+          "Stoneskin",
+          "Rary's telepathic bond",
+          "True Seeing"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Baba Lysaga",
+    "source": "CoS",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 2,
+        "6": 1,
+        "7": 1,
+        "8": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "acid splash",
+          "fire bolt",
+          "light",
+          "mage hand",
+          "prestidigitation"
+        ],
+        "1": [
+          "detect magic",
+          "magic missile",
+          "sleep",
+          "witch bolt"
+        ],
+        "2": [
+          "crown of madness",
+          "enlarge/reduce",
+          "misty step"
+        ],
+        "3": [
+          "dispel magic",
+          "fireball",
+          "lightning bolt"
+        ],
+        "4": [
+          "blight",
+          "Evard's black tentacles",
+          "polymorph"
+        ],
+        "5": [
+          "cloudkill",
+          "geas",
+          "scrying"
+        ],
+        "6": [
+          "programmed illusion",
+          "true seeing"
+        ],
+        "7": [
+          "finger of death",
+          "mirage arcane"
+        ],
+        "8": [
+          "power word stun"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Spellcaster (Healer)",
+    "source": "DC",
+    "challengeRating": null,
+    "spellcasting": {
+      "name": "Spellcasting (Healer)",
+      "ability": "WIS",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 2,
+        "6": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "guidance",
+          "light",
+          "resistance",
+          "sacred flame",
+          "spare the dying"
+        ],
+        "1": [
+          "bless",
+          "cure wounds",
+          "shield of faith"
+        ],
+        "2": [
+          "aid",
+          "lesser restoration"
+        ],
+        "3": [
+          "protection from energy",
+          "revivify"
+        ],
+        "4": [
+          "banishment",
+          "death ward"
+        ],
+        "5": [
+          "greater restoration",
+          "mass cure wounds"
+        ],
+        "6": [
+          "heal"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Spellcaster (Mage)",
+    "source": "DC",
+    "challengeRating": null,
+    "spellcasting": {
+      "name": "Spellcasting (Mage)",
+      "ability": "INT",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 2,
+        "6": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "fire bolt",
+          "light",
+          "mage hand",
+          "minor illusion",
+          "shocking grasp"
+        ],
+        "1": [
+          "burning hands",
+          "shield",
+          "sleep"
+        ],
+        "2": [
+          "flaming sphere",
+          "invisibility"
+        ],
+        "3": [
+          "fireball",
+          "fly"
+        ],
+        "4": [
+          "polymorph",
+          "wall of fire"
+        ],
+        "5": [
+          "cone of cold",
+          "hold monster"
+        ],
+        "6": [
+          "chain lightning"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Andir Valmakos",
+    "source": "DSotDQ",
+    "challengeRating": null,
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 12,
+      "attackBonus": 4,
+      "innateSpells": false,
+      "atWillSpells": [
+        "light",
+        "ray of frost"
+      ],
+      "slots": {
+        "1": 2
+      },
+      "spellsByLevel": {
+        "1": [
+          "thunderwave"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Hrigg Roundrook",
+    "source": "DSotDQ",
+    "challengeRating": null,
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "WIS",
+      "saveDC": 12,
+      "attackBonus": 4,
+      "innateSpells": false,
+      "atWillSpells": [
+        "guidance",
+        "sacred flame"
+      ],
+      "slots": {
+        "1": 2
+      },
+      "spellsByLevel": {
+        "1": [
+          "cure wounds"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Kansaldi Fire-Eyes",
+    "source": "DSotDQ",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "WIS",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "light",
+        "spare the dying",
+        "thaumaturgy"
+      ],
+      "dailySpells": {
+        "1e": [
+          "blade barrier",
+          "dispel magic",
+          "flame strike",
+          "lesser restoration",
+          "revivify"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Lohezet",
+    "source": "DSotDQ",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect magic",
+        "light",
+        "prestidigitation"
+      ],
+      "dailySpells": {
+        "2e": [
+          "dimension door",
+          "mage armor"
+        ],
+        "1e": [
+          "arcane eye",
+          "dominate person",
+          "wall of force"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Tem Temble",
+    "source": "DSotDQ",
+    "challengeRating": null,
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "WIS",
+      "saveDC": 12,
+      "attackBonus": 4,
+      "innateSpells": false,
+      "atWillSpells": [
+        "druidcraft",
+        "poison spray"
+      ],
+      "slots": {
+        "1": 2
+      },
+      "spellsByLevel": {
+        "1": [
+          "healing word"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Wersten Kern",
+    "source": "DSotDQ",
+    "challengeRating": "14",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "dailySpells": {
+        "1e": [
+          "dispel magic",
+          "wall of stone"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Aeorian Nullifier",
+    "source": "EGW",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "counterspell (see \"Reactions\" below)",
+        "detect magic",
+        "dispel magic",
+        "see invisibility"
+      ],
+      "dailySpells": {
+        "1": [
+          "antimagic field"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Kalaraq Quori",
+    "source": "ERLW",
+    "challengeRating": "19",
+    "spellcasting": {
+      "name": "Innate Spellcasting (Psionics)",
+      "ability": "CHA",
+      "saveDC": 21,
+      "attackBonus": 13,
+      "innateSpells": true,
+      "atWillSpells": [
+        "arcane eye"
+      ],
+      "dailySpells": {
+        "3e": [
+          "clairvoyance",
+          "confusion",
+          "dream",
+          "eyebite"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Radiant Idol",
+    "source": "ERLW",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "charm person",
+        "cure wounds",
+        "disguise self",
+        "thaumaturgy"
+      ],
+      "dailySpells": {
+        "1e": [
+          "commune",
+          "dominate person",
+          "insect plague",
+          "mass suggestion",
+          "raise dead"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Spellcaster",
+    "source": "ESK",
+    "challengeRating": null,
+    "spellcasting": {
+      "name": "Spellcasting (Healer)",
+      "ability": "WIS",
+      "saveDC": 12,
+      "attackBonus": 4,
+      "innateSpells": false,
+      "slots": {
+        "1": 2
+      },
+      "spellsByLevel": {
+        "0": [
+          "guidance",
+          "sacred flame"
+        ],
+        "1": [
+          "cure wounds"
+        ]
+      },
+      "notes": "Spellcasting (Mage) uses INT, spell save DC 12."
+    },
+    "additionalSpellcasting": [
+      {
+        "name": "Spellcasting (Mage)",
+        "ability": "INT",
+        "saveDC": 12,
+        "attackBonus": 4,
+        "innateSpells": false,
+        "slots": {
+          "1": 2
+        },
+        "spellsByLevel": {
+          "0": [
+            "fire bolt",
+            "light"
+          ],
+          "1": [
+            "sleep"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "monsterName": "Deathpact Angel",
+    "source": "GGR",
+    "challengeRating": "14",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 19,
+      "attackBonus": 11,
+      "innateSpells": true,
+      "atWillSpells": [
+        "command (as a 2nd-level spell)",
+        "detect evil and good"
+      ],
+      "dailySpells": {
+        "1": [
+          "raise dead"
+        ],
+        "3e": [
+          "charm person (as a 5th-level spell)",
+          "darkness",
+          "suggestion"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Firemane Angel",
+    "source": "GGR",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "innateSpells": true,
+      "dailySpells": {
+        "3e": [
+          "compelled duel",
+          "guiding bolt (as a 5th-level spell)"
+        ],
+        "1e": [
+          "daylight",
+          "fireball (as a 6th-level spell)"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Sire of Insanity",
+    "source": "GGR",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "innateSpells": true,
+      "atWillSpells": [
+        "clairvoyance",
+        "crown of madness",
+        "major image",
+        "suggestion"
+      ],
+      "dailySpells": {
+        "1e": [
+          "confusion",
+          "mass suggestion"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Sofina",
+    "source": "HAT-TG",
+    "challengeRating": "15",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "mage hand",
+        "message",
+        "prestidigitation"
+      ],
+      "dailySpells": {
+        "2e": [
+          "bestow curse",
+          "Bigby's hand",
+          "dimension door",
+          "mage armor",
+          "Otiluke's resilient sphere",
+          "thunderwave"
+        ],
+        "1e": [
+          "Evard's black tentacles",
+          "finger of death",
+          "time stop"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Apprentice",
+    "source": "HoL",
+    "challengeRating": null,
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 11,
+      "attackBonus": 3,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "minor illusion",
+        "Fire Bolt"
+      ],
+      "dailySpells": {
+        "2": [
+          "grease"
+        ],
+        "2e": [
+          "Burning Hands"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Disciple",
+    "source": "HoL",
+    "challengeRating": null,
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "WIS",
+      "saveDC": 11,
+      "attackBonus": 3,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "guidance",
+        "Sacred Flame"
+      ],
+      "dailySpells": {
+        "2": [
+          "cure wounds"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Moghadam",
+    "source": "IMR",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "dancing lights",
+          "light",
+          "message",
+          "shocking grasp"
+        ],
+        "1": [
+          "comprehend languages",
+          "cure wounds",
+          "grease",
+          "identify"
+        ],
+        "2": [
+          "detect thoughts",
+          "invisibility",
+          "heat metal"
+        ],
+        "3": [
+          "dispel magic",
+          "flame arrows",
+          "hypnotic pattern"
+        ],
+        "4": [
+          "fabricate",
+          "stone shape",
+          "stoneskin"
+        ],
+        "5": [
+          "creation"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Thessalar",
+    "source": "IMR",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "light",
+          "mending",
+          "message",
+          "shocking grasp"
+        ],
+        "1": [
+          "alarm",
+          "cure wounds",
+          "identify",
+          "ray of sickness"
+        ],
+        "2": [
+          "invisibility",
+          "Melf's acid arrow",
+          "web"
+        ],
+        "3": [
+          "dispel magic",
+          "haste",
+          "stinking cloud"
+        ],
+        "4": [
+          "blight",
+          "Mordenkainen's faithful hound",
+          "Otiluke's resilient sphere"
+        ],
+        "5": [
+          "cloudkill"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Pari",
+    "source": "JttRC",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 19,
+      "attackBonus": 11,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect evil and good"
+      ],
+      "dailySpells": {
+        "2e": [
+          "cure wounds (as a 6th-level spell)",
+          "lesser restoration"
+        ],
+        "1e": [
+          "commune (as an action)",
+          "dispel evil and good"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Cornelius Watson",
+    "source": "MaBJoV",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect magic",
+        "identify",
+        "mage armor",
+        "Rary's telepathic bond"
+      ],
+      "dailySpells": {
+        "2e": [
+          "clairvoyance",
+          "locate object",
+          "scrying"
+        ],
+        "1e": [
+          "foresight",
+          "true seeing"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Edwin Odesseiron",
+    "source": "MaBJoV",
+    "challengeRating": "15",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "mage armor",
+        "mirror image",
+        "shield",
+        "unseen servant"
+      ],
+      "dailySpells": {
+        "2e": [
+          "contingency",
+          "counterspell",
+          "dispel magic",
+          "fireball",
+          "simulacrum",
+          "scrying"
+        ],
+        "1e": [
+          "clone",
+          "maze",
+          "meteor swarm",
+          "teleport"
+        ]
+      },
+      "notes": "Staff Spellcasting has no spell lists to cast from; see the stat block."
+    }
+  },
+  {
+    "monsterName": "Eo Ashmajiir",
+    "source": "MaBJoV",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect magic",
+        "detect thoughts",
+        "light",
+        "mage hand",
+        "magic missile",
+        "prestidigitation",
+        "shield",
+        "shocking grasp"
+      ],
+      "dailySpells": {
+        "2e": [
+          "banishment",
+          "counterspell",
+          "dominate person",
+          "fireball",
+          "lightning bolt",
+          "mirror image",
+          "misty step"
+        ],
+        "1e": [
+          "chain lightning",
+          "finger of death",
+          "power word stun",
+          "teleport",
+          "wish*"
+        ]
+      },
+      "notes": "* Eo uses wish to ensure she has a simulacrum of herself at all times."
+    }
+  },
+  {
+    "monsterName": "Faldorn",
+    "source": "MaBJoV",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "WIS",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "druidcraft",
+        "poison spray",
+        "shillelagh"
+      ],
+      "dailySpells": {
+        "2e": [
+          "entangle",
+          "locate creature",
+          "speak with animals",
+          "stoneskin",
+          "tree stride",
+          "water breathing"
+        ],
+        "1e": [
+          "foresight",
+          "heal"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Jaheira",
+    "source": "MaBJoV",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "WIS",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "barkskin",
+        "druidcraft",
+        "poison spray",
+        "produce flame",
+        "shillelagh"
+      ],
+      "dailySpells": {
+        "2e": [
+          "animal messenger",
+          "commune with nature (as an action)",
+          "entangle",
+          "speak with animals"
+        ],
+        "1e": [
+          "heal",
+          "heroes' feast",
+          "stoneskin"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Kelubar Consul",
+    "source": "MaBJoV",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "clairvoyance",
+        "detect magic",
+        "fear",
+        "invisibility (self only)",
+        "spider climb",
+        "tongues"
+      ],
+      "dailySpells": {
+        "2e": [
+          "dispel magic",
+          "fog cloud"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Naes Inuus",
+    "source": "MaBJoV",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "WIS",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "lesser restoration",
+        "light",
+        "sanctuary"
+      ],
+      "dailySpells": {
+        "2e": [
+          "antilife shell",
+          "blade barrier"
+        ],
+        "1e": [
+          "divine word",
+          "mass heal"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Phaerimm",
+    "source": "MaBJoV",
+    "challengeRating": "15",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 19,
+      "attackBonus": 11,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "mage hand",
+        "minor illusion",
+        "telekinesis"
+      ],
+      "dailySpells": {
+        "2e": [
+          "crown of madness",
+          "detect thoughts",
+          "dominate person",
+          "fear",
+          "fireball",
+          "phantasmal force",
+          "magic missile",
+          "shield"
+        ],
+        "1e": [
+          "chain lightning",
+          "confusion",
+          "dominate monster",
+          "greater invisibility",
+          "hold monster",
+          "mass suggestion",
+          "prismatic spray",
+          "reverse gravity"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Shator Warden",
+    "source": "MaBJoV",
+    "challengeRating": "14",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "clairvoyance",
+        "detect magic",
+        "fear",
+        "invisibility (self only)",
+        "spider climb",
+        "tongues"
+      ],
+      "dailySpells": {
+        "2e": [
+          "cloudkill",
+          "dispel magic",
+          "plane shift",
+          "Tasha's hideous laughter"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Viconia DeVir",
+    "source": "MaBJoV",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "WIS",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "dancing lights",
+        "light",
+        "sanctuary",
+        "thaumaturgy"
+      ],
+      "dailySpells": {
+        "2e": [
+          "cure wounds",
+          "death ward",
+          "lesser restoration"
+        ],
+        "1e": [
+          "darkness",
+          "divine word",
+          "faerie fire",
+          "holy aura"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Xzar the Chaos Clone",
+    "source": "MaBJoV",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "innateSpells": false,
+      "atWillSpells": [
+        "acid splash",
+        "fire bolt",
+        "mage hand"
+      ],
+      "dailySpells": {
+        "2e": [
+          "animate dead*",
+          "blight*",
+          "false life*",
+          "mage armor",
+          "ray of enfeeblement*",
+          "ray of sickness*",
+          "scrying",
+          "vampiric touch*"
+        ],
+        "1e": [
+          "abi-dalzim's horrid wilting*",
+          "finger of death*"
+        ]
+      },
+      "notes": "*Necromancy spell of 1st level or higher"
+    }
+  },
+  {
+    "monsterName": "High Fae Impostor",
+    "source": "MCV4EC",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "friends",
+        "minor illusion"
+      ],
+      "dailySpells": {
+        "1e": [
+          "enthrall",
+          "Nystul's magic aura"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "High Fae Mage",
+    "source": "MCV4EC",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 19,
+      "attackBonus": 11,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "dancing lights",
+        "detect magic",
+        "druidcraft",
+        "mage armor (self only)"
+      ],
+      "dailySpells": {
+        "2e": [
+          "faerie fire",
+          "gust of wind",
+          "mirror image"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Treefolk",
+    "source": "MCV4EC",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "WIS",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect poison and disease",
+        "druidcraft"
+      ],
+      "dailySpells": {
+        "1": [
+          "commune with nature (as an action)"
+        ],
+        "2e": [
+          "enlarge/reduce",
+          "speak with plants"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Fog Giant",
+    "source": "MFF",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 15,
+      "_dcComputed": true,
+      "attackBonus": 7,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "detect magic",
+        "fog cloud",
+        "light"
+      ],
+      "dailySpells": {
+        "3e": [
+          "feather fall",
+          "misty step"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Arcanaloth",
+    "source": "MM",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 2,
+        "6": 1,
+        "7": 1,
+        "8": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "fire bolt",
+          "mage hand",
+          "minor illusion",
+          "prestidigitation"
+        ],
+        "1": [
+          "detect magic",
+          "identify",
+          "shield",
+          "Tenser's floating disk"
+        ],
+        "2": [
+          "detect thoughts",
+          "mirror image",
+          "phantasmal force",
+          "suggestion"
+        ],
+        "3": [
+          "counterspell",
+          "fear",
+          "fireball"
+        ],
+        "4": [
+          "banishment",
+          "dimension door"
+        ],
+        "5": [
+          "contact other plane",
+          "hold monster"
+        ],
+        "6": [
+          "chain lightning"
+        ],
+        "7": [
+          "finger of death"
+        ],
+        "8": [
+          "mind blank"
+        ]
+      },
+      "notes": "Innate Spellcasting uses CHA, spell save DC 15."
+    },
+    "additionalSpellcasting": [
+      {
+        "name": "Innate Spellcasting",
+        "ability": "CHA",
+        "saveDC": 15,
+        "attackBonus": 7,
+        "_attackBonusComputed": true,
+        "innateSpells": true,
+        "atWillSpells": [
+          "alter self",
+          "darkness",
+          "heat metal",
+          "invisibility (self only)",
+          "magic missile"
+        ]
+      }
+    ]
+  },
+  {
+    "monsterName": "Archmage",
+    "source": "MM",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "innateSpells": false,
+      "atWillSpells": [
+        "disguise self",
+        "invisibility"
+      ],
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 3,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "fire bolt",
+          "light",
+          "mage hand",
+          "prestidigitation",
+          "shocking grasp"
+        ],
+        "1": [
+          "detect magic",
+          "identify",
+          "mage armor*",
+          "magic missile"
+        ],
+        "2": [
+          "detect thoughts",
+          "mirror image",
+          "misty step"
+        ],
+        "3": [
+          "counterspell",
+          "fly",
+          "lightning bolt"
+        ],
+        "4": [
+          "banishment",
+          "fire shield",
+          "stoneskin*"
+        ],
+        "5": [
+          "cone of cold",
+          "scrying",
+          "wall of force"
+        ],
+        "6": [
+          "globe of invulnerability"
+        ],
+        "7": [
+          "teleport"
+        ],
+        "8": [
+          "mind blank*"
+        ],
+        "9": [
+          "time stop"
+        ]
+      },
+      "notes": "*The archmage casts these spells on itself before combat."
+    }
+  },
+  {
+    "monsterName": "Dao",
+    "source": "MM",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 14,
+      "attackBonus": 6,
+      "innateSpells": true,
+      "atWillSpells": [
+        "detect evil and good",
+        "detect magic",
+        "stone shape"
+      ],
+      "dailySpells": {
+        "3e": [
+          "passwall",
+          "move earth",
+          "tongues"
+        ],
+        "1e": [
+          "conjure elemental (earth elemental only)",
+          "gaseous form",
+          "invisibility",
+          "phantasmal killer",
+          "plane shift",
+          "wall of stone"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Death Knight",
+    "source": "MM",
+    "challengeRating": "17",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 2
+      },
+      "spellsByLevel": {
+        "1": [
+          "command",
+          "compelled duel",
+          "searing smite"
+        ],
+        "2": [
+          "hold person",
+          "magic weapon"
+        ],
+        "3": [
+          "dispel magic",
+          "elemental weapon"
+        ],
+        "4": [
+          "banishment",
+          "staggering smite"
+        ],
+        "5": [
+          "destructive wave (necrotic)"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Djinni",
+    "source": "MM",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "innateSpells": true,
+      "atWillSpells": [
+        "detect evil and good",
+        "detect magic",
+        "thunderwave"
+      ],
+      "dailySpells": {
+        "3e": [
+          "create food and water (can create wine instead of water)",
+          "tongues",
+          "wind walk"
+        ],
+        "1e": [
+          "conjure elemental (air elemental only)",
+          "creation",
+          "gaseous form",
+          "invisibility",
+          "major image",
+          "plane shift"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Efreeti",
+    "source": "MM",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 15,
+      "attackBonus": 7,
+      "innateSpells": true,
+      "atWillSpells": [
+        "detect magic"
+      ],
+      "dailySpells": {
+        "3e": [
+          "enlarge/reduce",
+          "tongues"
+        ],
+        "1e": [
+          "conjure elemental (fire elemental only)",
+          "gaseous form",
+          "invisibility",
+          "major image",
+          "plane shift",
+          "wall of fire"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Marid",
+    "source": "MM",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "innateSpells": true,
+      "atWillSpells": [
+        "create or destroy water",
+        "detect evil and good",
+        "detect magic",
+        "fog cloud",
+        "purify food and drink"
+      ],
+      "dailySpells": {
+        "3e": [
+          "tongues",
+          "water breathing",
+          "water walk"
+        ],
+        "1e": [
+          "conjure elemental (water elemental only)",
+          "control water",
+          "gaseous form",
+          "invisibility",
+          "plane shift"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Pit Fiend",
+    "source": "MM",
+    "challengeRating": "20",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 21,
+      "attackBonus": 13,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "detect magic",
+        "fireball"
+      ],
+      "dailySpells": {
+        "3e": [
+          "hold monster",
+          "wall of fire"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Planetar",
+    "source": "MM",
+    "challengeRating": "16",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 20,
+      "attackBonus": 12,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "detect evil and good",
+        "invisibility (self only)"
+      ],
+      "dailySpells": {
+        "3e": [
+          "blade barrier",
+          "dispel evil and good",
+          "flame strike",
+          "raise dead"
+        ],
+        "1e": [
+          "commune",
+          "control weather",
+          "insect plague"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Rakshasa",
+    "source": "MM",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "innateSpells": true,
+      "atWillSpells": [
+        "detect thoughts",
+        "disguise self",
+        "mage hand",
+        "minor illusion"
+      ],
+      "dailySpells": {
+        "3e": [
+          "charm person",
+          "detect magic",
+          "invisibility",
+          "major image",
+          "suggestion"
+        ],
+        "1e": [
+          "dominate person",
+          "fly",
+          "plane shift",
+          "true seeing"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Storm Giant",
+    "source": "MM",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "detect magic",
+        "feather fall",
+        "levitate",
+        "light"
+      ],
+      "dailySpells": {
+        "3e": [
+          "control weather",
+          "water breathing"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Ultroloth",
+    "source": "MM",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "alter self",
+        "clairvoyance",
+        "darkness",
+        "detect magic",
+        "detect thoughts",
+        "dispel magic",
+        "invisibility (self only)",
+        "suggestion"
+      ],
+      "dailySpells": {
+        "3e": [
+          "dimension door",
+          "fear",
+          "wall of fire"
+        ],
+        "1e": [
+          "fire storm",
+          "mass suggestion"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Nightmare Shepherd",
+    "source": "MOT",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "dailySpells": {
+        "1e": [
+          "confusion",
+          "dispel magic",
+          "hold person",
+          "suggestion"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Amnizu",
+    "source": "MPMM",
+    "challengeRating": "18",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 19,
+      "attackBonus": 11,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "command"
+      ],
+      "dailySpells": {
+        "1": [
+          "feeblemind"
+        ],
+        "3": [
+          "dominate monster"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Archdruid",
+    "source": "MPMM",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "WIS",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "beast sense",
+        "entangle",
+        "speak with animals"
+      ],
+      "dailySpells": {
+        "3e": [
+          "animal messenger",
+          "dominate beast",
+          "faerie fire",
+          "tree stride"
+        ],
+        "1e": [
+          "commune with nature (as an action)",
+          "mass cure wounds"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Blue Abishai",
+    "source": "MPMM",
+    "challengeRating": "17",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 20,
+      "attackBonus": 12,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "disguise self",
+        "mage hand",
+        "minor illusion"
+      ],
+      "dailySpells": {
+        "2e": [
+          "charm person",
+          "dispel magic",
+          "greater invisibility",
+          "wall of force"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Cloud Giant Smiling One",
+    "source": "MPMM",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 15,
+      "attackBonus": 7,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect magic",
+        "fog cloud",
+        "light",
+        "minor illusion"
+      ],
+      "dailySpells": {
+        "3e": [
+          "invisibility",
+          "silent image",
+          "suggestion",
+          "tongues"
+        ],
+        "1e": [
+          "gaseous form",
+          "major image"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Drow Arachnomancer",
+    "source": "MPMM",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "dancing lights",
+        "mage hand"
+      ],
+      "dailySpells": {
+        "1e": [
+          "darkness",
+          "dispel magic",
+          "etherealness",
+          "faerie fire",
+          "fly",
+          "insect plague",
+          "invisibility"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Drow Favored Consort",
+    "source": "MPMM",
+    "challengeRating": "18",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "dancing lights",
+        "mage armor",
+        "mage hand",
+        "message"
+      ],
+      "dailySpells": {
+        "3e": [
+          "dimension door",
+          "fireball",
+          "invisibility"
+        ],
+        "1e": [
+          "darkness",
+          "faerie fire",
+          "levitate (self only)"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Drow Inquisitor",
+    "source": "MPMM",
+    "challengeRating": "14",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "dancing lights",
+        "detect magic",
+        "message",
+        "thaumaturgy"
+      ],
+      "dailySpells": {
+        "1e": [
+          "clairvoyance",
+          "darkness",
+          "detect thoughts",
+          "dispel magic",
+          "faerie fire",
+          "levitate (self only)",
+          "silence",
+          "suggestion",
+          "true seeing"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Drow Shadowblade",
+    "source": "MPMM",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 13,
+      "attackBonus": 5,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "dancing lights",
+        "darkness"
+      ],
+      "dailySpells": {
+        "1e": [
+          "faerie fire",
+          "levitate (self only)"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Duergar Despot",
+    "source": "MPMM",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting (Psionics)",
+      "ability": "INT",
+      "saveDC": 12,
+      "attackBonus": 4,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "mage hand",
+        "minor illusion"
+      ],
+      "dailySpells": {
+        "1": [
+          "stinking cloud"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Githyanki Kith'rak",
+    "source": "MPMM",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting (Psionics)",
+      "ability": "INT",
+      "saveDC": 15,
+      "attackBonus": 7,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "mage hand (the hand is invisible)"
+      ],
+      "dailySpells": {
+        "3e": [
+          "blur",
+          "nondetection (self only)"
+        ],
+        "1e": [
+          "plane shift",
+          "telekinesis"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Green Abishai",
+    "source": "MPMM",
+    "challengeRating": "15",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "alter self",
+        "major image"
+      ],
+      "dailySpells": {
+        "3e": [
+          "charm person",
+          "detect thoughts",
+          "fear"
+        ],
+        "1e": [
+          "confusion",
+          "dominate person",
+          "mass suggestion"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Nagpa",
+    "source": "MPMM",
+    "challengeRating": "17",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 20,
+      "attackBonus": 12,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect magic",
+        "mage hand",
+        "message",
+        "minor illusion"
+      ],
+      "dailySpells": {
+        "2e": [
+          "fireball",
+          "fly",
+          "hold person",
+          "suggestion",
+          "wall of fire"
+        ],
+        "1e": [
+          "dominate person",
+          "etherealness",
+          "feeblemind"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Neothelid",
+    "source": "MPMM",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Spellcasting (Psionics)",
+      "ability": "WIS",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "levitate"
+      ],
+      "dailySpells": {
+        "1e": [
+          "confusion",
+          "feeblemind",
+          "telekinesis"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Oinoloth",
+    "source": "MPMM",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "darkness",
+        "detect magic",
+        "dispel magic",
+        "hold monster",
+        "invisibility (self only)"
+      ],
+      "dailySpells": {
+        "1e": [
+          "feeblemind",
+          "globe of invulnerability"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Retriever",
+    "source": "MPMM",
+    "challengeRating": "14",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "WIS",
+      "saveDC": 13,
+      "attackBonus": 5,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "dailySpells": {
+        "3e": [
+          "plane shift (only self and up to one incapacitated creature, which is considered willing for the spell)",
+          "web"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Shadar-kai Soul Monger",
+    "source": "MPMM",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "dailySpells": {
+        "1e": [
+          "bestow curse",
+          "finger of death",
+          "gaseous form",
+          "seeming"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Steel Predator",
+    "source": "MPMM",
+    "challengeRating": "16",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "WIS",
+      "saveDC": 15,
+      "_dcComputed": true,
+      "attackBonus": 7,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "dailySpells": {
+        "3e": [
+          "dimension door (self only)",
+          "plane shift (self only)"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Yagnoloth",
+    "source": "MPMM",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "darkness",
+        "detect magic",
+        "dispel magic",
+        "invisibility (self only)",
+        "suggestion"
+      ],
+      "dailySpells": {
+        "3": [
+          "lightning bolt"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Yuan-ti Anathema",
+    "source": "MPMM",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting (Anathema Form Only)",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "animal friendship (snakes only)"
+      ],
+      "dailySpells": {
+        "3e": [
+          "darkness",
+          "entangle",
+          "fear",
+          "polymorph",
+          "suggestion"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Aurumach Rilmani",
+    "source": "MPP",
+    "challengeRating": "17",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 19,
+      "attackBonus": 11,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect magic",
+        "detect thoughts"
+      ],
+      "dailySpells": {
+        "1e": [
+          "fly",
+          "geas (as an action)",
+          "slow",
+          "suggestion"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Cuprilach Rilmani",
+    "source": "MPP",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 15,
+      "attackBonus": 7,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect magic",
+        "disguise self"
+      ],
+      "dailySpells": {
+        "1e": [
+          "alter self",
+          "fog cloud",
+          "silence"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Farastu Demodand",
+    "source": "MPP",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 15,
+      "_dcComputed": true,
+      "attackBonus": 7,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "invisibility (self only)"
+      ],
+      "dailySpells": {
+        "1e": [
+          "dispel magic",
+          "fog cloud"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Kelubar Demodand",
+    "source": "MPP",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "invisibility (self only)"
+      ],
+      "dailySpells": {
+        "1e": [
+          "dispel magic",
+          "scrying (as an action)"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Octon Modron",
+    "source": "MPP",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 15,
+      "attackBonus": 7,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect magic",
+        "dispel magic",
+        "mending (as an action)"
+      ],
+      "dailySpells": {
+        "1e": [
+          "plane shift (self only)",
+          "protection from evil and good"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Septon Modron",
+    "source": "MPP",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect magic",
+        "dispel magic",
+        "mending (as an action)"
+      ],
+      "dailySpells": {
+        "1e": [
+          "plane shift (self only)",
+          "protection from evil and good",
+          "sending"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Shator Demodand",
+    "source": "MPP",
+    "challengeRating": "16",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "innateSpells": false,
+      "atWillSpells": [
+        "invisibility (self only)",
+        "suggestion"
+      ],
+      "dailySpells": {
+        "1e": [
+          "dispel magic",
+          "plane shift (to Carceri only)",
+          "scrying (as an action)"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Amnizu",
+    "source": "MTF",
+    "challengeRating": "18",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "INT",
+      "saveDC": 19,
+      "attackBonus": 11,
+      "innateSpells": true,
+      "atWillSpells": [
+        "charm person",
+        "command"
+      ],
+      "dailySpells": {
+        "3e": [
+          "dominate person",
+          "fireball"
+        ],
+        "1e": [
+          "dominate monster",
+          "feeblemind"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Blue Abishai",
+    "source": "MTF",
+    "challengeRating": "17",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 20,
+      "attackBonus": 12,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 2,
+        "6": 1,
+        "7": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "friends",
+          "mage hand",
+          "message",
+          "minor illusion",
+          "shocking grasp"
+        ],
+        "1": [
+          "chromatic orb",
+          "disguise self",
+          "expeditious retreat",
+          "magic missile",
+          "charm person",
+          "thunderwave"
+        ],
+        "2": [
+          "darkness",
+          "mirror image",
+          "misty step"
+        ],
+        "3": [
+          "dispel magic",
+          "fear",
+          "lightning bolt"
+        ],
+        "4": [
+          "dimension door",
+          "greater invisibility",
+          "ice storm"
+        ],
+        "5": [
+          "cone of cold",
+          "wall of force"
+        ],
+        "6": [
+          "chain lightning"
+        ],
+        "7": [
+          "teleport"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Drow Arachnomancer",
+    "source": "MTF",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "innateSpells": false,
+      "dailySpells": {
+        "1": [
+          "eyebite",
+          "etherealness",
+          "dominate monster"
+        ]
+      },
+      "slots": {
+        "5": 3
+      },
+      "spellsByLevel": {
+        "0": [
+          "chill touch",
+          "eldritch blast",
+          "mage hand",
+          "poison spray"
+        ],
+        "5": [
+          "conjure animals (spiders only)",
+          "crown of madness",
+          "dimension door",
+          "dispel magic",
+          "fear",
+          "fly",
+          "giant insect",
+          "hold monster",
+          "insect plague",
+          "invisibility",
+          "vampiric touch",
+          "web",
+          "witch bolt"
+        ]
+      }
+    },
+    "additionalSpellcasting": [
+      {
+        "name": "Innate Spellcasting",
+        "ability": "CHA",
+        "saveDC": 16,
+        "attackBonus": 8,
+        "_attackBonusComputed": true,
+        "innateSpells": true,
+        "atWillSpells": [
+          "dancing lights"
+        ],
+        "dailySpells": {
+          "1e": [
+            "darkness",
+            "faerie fire",
+            "levitate (self only)"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "monsterName": "Drow Favored Consort",
+    "source": "MTF",
+    "challengeRating": "18",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 2,
+        "6": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "mage hand",
+          "message",
+          "poison spray",
+          "shocking grasp",
+          "ray of frost"
+        ],
+        "1": [
+          "burning hands",
+          "mage armor",
+          "magic missile",
+          "shield"
+        ],
+        "2": [
+          "gust of wind",
+          "invisibility",
+          "misty step",
+          "shatter"
+        ],
+        "3": [
+          "counterspell",
+          "fireball",
+          "haste"
+        ],
+        "4": [
+          "dimension door",
+          "Otiluke's resilient sphere"
+        ],
+        "5": [
+          "cone of cold"
+        ],
+        "6": [
+          "chain lightning"
+        ]
+      },
+      "notes": "Innate Spellcasting uses CHA, spell save DC 18."
+    },
+    "additionalSpellcasting": [
+      {
+        "name": "Innate Spellcasting",
+        "ability": "CHA",
+        "saveDC": 18,
+        "attackBonus": 10,
+        "_attackBonusComputed": true,
+        "innateSpells": true,
+        "atWillSpells": [
+          "dancing lights"
+        ],
+        "dailySpells": {
+          "1e": [
+            "darkness",
+            "faerie fire",
+            "levitate (self only)"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "monsterName": "Drow Inquisitor",
+    "source": "MTF",
+    "challengeRating": "14",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "WIS",
+      "saveDC": 18,
+      "attackBonus": 10,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 2,
+        "6": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "guidance",
+          "message",
+          "poison spray",
+          "resistance",
+          "thaumaturgy"
+        ],
+        "1": [
+          "bane",
+          "cure wounds",
+          "inflict wounds"
+        ],
+        "2": [
+          "blindness/deafness",
+          "silence",
+          "spiritual weapon"
+        ],
+        "3": [
+          "bestow curse",
+          "dispel magic",
+          "magic circle"
+        ],
+        "4": [
+          "banishment",
+          "divination",
+          "freedom of movement"
+        ],
+        "5": [
+          "contagion",
+          "dispel evil and good",
+          "insect plague"
+        ],
+        "6": [
+          "harm",
+          "true seeing"
+        ]
+      },
+      "notes": "Innate Spellcasting uses CHA, spell save DC 18."
+    },
+    "additionalSpellcasting": [
+      {
+        "name": "Innate Spellcasting",
+        "ability": "CHA",
+        "saveDC": 18,
+        "attackBonus": 10,
+        "_attackBonusComputed": true,
+        "innateSpells": true,
+        "atWillSpells": [
+          "dancing lights",
+          "detect magic"
+        ],
+        "dailySpells": {
+          "1e": [
+            "clairvoyance",
+            "darkness",
+            "detect thoughts",
+            "dispel magic",
+            "faerie fire",
+            "levitate (self only)",
+            "suggestion"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "monsterName": "Drow Shadowblade",
+    "source": "MTF",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 13,
+      "attackBonus": 5,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "dancing lights"
+      ],
+      "dailySpells": {
+        "1e": [
+          "darkness",
+          "faerie fire",
+          "levitate (self only)"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Duergar Despot",
+    "source": "MTF",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Innate Spellcasting (Psionics)",
+      "ability": "INT",
+      "saveDC": 12,
+      "attackBonus": 4,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "mage hand",
+        "minor illusion"
+      ],
+      "dailySpells": {
+        "1e": [
+          "counterspell",
+          "misty step",
+          "stinking cloud"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Githyanki Kith'rak",
+    "source": "MTF",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Innate Spellcasting (Psionics)",
+      "ability": "INT",
+      "saveDC": 15,
+      "attackBonus": 7,
+      "innateSpells": true,
+      "atWillSpells": [
+        "mage hand (the hand is invisible)"
+      ],
+      "dailySpells": {
+        "3e": [
+          "blur",
+          "jump",
+          "misty step",
+          "nondetection (self only)"
+        ],
+        "1e": [
+          "plane shift",
+          "telekinesis"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Green Abishai",
+    "source": "MTF",
+    "challengeRating": "15",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "alter self",
+        "major image"
+      ],
+      "dailySpells": {
+        "3e": [
+          "charm person",
+          "detect thoughts",
+          "fear"
+        ],
+        "1e": [
+          "confusion",
+          "dominate person",
+          "mass suggestion"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Nagpa",
+    "source": "MTF",
+    "challengeRating": "17",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 20,
+      "attackBonus": 12,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 2,
+        "6": 1,
+        "7": 1,
+        "8": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "chill touch",
+          "fire bolt",
+          "mage hand",
+          "message",
+          "minor illusion"
+        ],
+        "1": [
+          "charm person",
+          "detect magic",
+          "protection from evil and good",
+          "witch bolt"
+        ],
+        "2": [
+          "hold person",
+          "ray of enfeeblement",
+          "suggestion"
+        ],
+        "3": [
+          "counterspell",
+          "fireball",
+          "fly"
+        ],
+        "4": [
+          "confusion",
+          "hallucinatory terrain",
+          "wall of fire"
+        ],
+        "5": [
+          "dominate person",
+          "dream",
+          "geas"
+        ],
+        "6": [
+          "circle of death",
+          "disintegrate"
+        ],
+        "7": [
+          "etherealness",
+          "prismatic spray"
+        ],
+        "8": [
+          "feeblemind"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Oinoloth",
+    "source": "MTF",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "darkness",
+        "detect magic",
+        "dispel magic",
+        "invisibility (self only)"
+      ],
+      "dailySpells": {
+        "1e": [
+          "feeblemind",
+          "globe of invulnerability",
+          "wall of fire",
+          "wall of ice"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Retriever",
+    "source": "MTF",
+    "challengeRating": "14",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "WIS",
+      "saveDC": 13,
+      "attackBonus": 5,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "dailySpells": {
+        "3e": [
+          "plane shift (only self and up to one incapacitated creature which is considered willing for the spell)",
+          "web"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Soul Monger",
+    "source": "MTF",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "INT",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "innateSpells": true,
+      "atWillSpells": [
+        "chill touch",
+        "poison spray"
+      ],
+      "dailySpells": {
+        "1e": [
+          "bestow curse",
+          "chain lightning",
+          "finger of death",
+          "gaseous form",
+          "phantasmal killer",
+          "seeming"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Steel Predator",
+    "source": "MTF",
+    "challengeRating": "16",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "WIS",
+      "saveDC": 15,
+      "_dcComputed": true,
+      "attackBonus": 7,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "dailySpells": {
+        "3e": [
+          "dimension door (self only)",
+          "plane shift (self only)"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Yagnoloth",
+    "source": "MTF",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "darkness",
+        "detect magic",
+        "dispel magic",
+        "invisibility (self only)",
+        "suggestion"
+      ],
+      "dailySpells": {
+        "3": [
+          "lightning bolt"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Infected Elder Brain",
+    "source": "PaBTSO",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting (Psionics)",
+      "ability": "INT",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "detect thoughts",
+        "levitate"
+      ]
+    }
+  },
+  {
+    "monsterName": "Kraken",
+    "source": "PSZ",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "dailySpells": {
+        "3e": [
+          "control weather",
+          "water breathing"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Spellcaster (Healer)",
+    "source": "SDW",
+    "challengeRating": null,
+    "spellcasting": {
+      "name": "Spellcasting (Healer)",
+      "ability": "WIS",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "guidance",
+          "light",
+          "resistance",
+          "sacred flame"
+        ],
+        "1": [
+          "bless",
+          "cure wounds",
+          "shield of faith"
+        ],
+        "2": [
+          "aid",
+          "lesser restoration"
+        ],
+        "3": [
+          "protection from energy",
+          "revivify"
+        ],
+        "4": [
+          "banishment",
+          "death ward"
+        ],
+        "5": [
+          "greater restoration"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Spellcaster (Mage)",
+    "source": "SDW",
+    "challengeRating": null,
+    "spellcasting": {
+      "name": "Spellcasting (Mage)",
+      "ability": "INT",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "fire bolt",
+          "light",
+          "mage hand",
+          "minor illusion"
+        ],
+        "1": [
+          "burning hands",
+          "shield",
+          "sleep"
+        ],
+        "2": [
+          "flaming sphere",
+          "invisibility"
+        ],
+        "3": [
+          "fireball",
+          "fly"
+        ],
+        "4": [
+          "polymorph",
+          "wall of fire"
+        ],
+        "5": [
+          "cone of cold"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "King Hekaton",
+    "source": "SKT",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "detect magic",
+        "feather fall",
+        "levitate",
+        "light"
+      ],
+      "dailySpells": {
+        "3e": [
+          "control weather",
+          "water breathing"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Naxene Drathkala",
+    "source": "SKT",
+    "challengeRating": null,
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 13,
+      "attackBonus": 5,
+      "innateSpells": false,
+      "atWillSpells": [
+        "fire bolt (1d10 fire damage)",
+        "light",
+        "mage hand"
+      ],
+      "dailySpells": {
+        "1e": [
+          "mage armor",
+          "magic missile",
+          "suggestion"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Othovir",
+    "source": "SKT",
+    "challengeRating": null,
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 13,
+      "attackBonus": 5,
+      "innateSpells": false,
+      "atWillSpells": [
+        "fire bolt (1d10 fire damage)",
+        "prestidigitation"
+      ],
+      "dailySpells": {
+        "1e": [
+          "mage armor",
+          "thunderwave",
+          "witch bolt"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Zephyros",
+    "source": "SKT",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Innate Spellcasting",
+      "ability": "CHA",
+      "saveDC": 16,
+      "_dcComputed": true,
+      "attackBonus": 8,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "detect magic",
+        "fog cloud",
+        "light"
+      ],
+      "dailySpells": {
+        "3e": [
+          "feather fall",
+          "fly",
+          "misty step",
+          "telekinesis"
+        ],
+        "1e": [
+          "control weather",
+          "gaseous form"
+        ]
+      },
+      "notes": "Spellcasting uses INT, spell save DC 17."
+    },
+    "additionalSpellcasting": [
+      {
+        "name": "Spellcasting",
+        "ability": "INT",
+        "saveDC": 17,
+        "attackBonus": 11,
+        "innateSpells": false,
+        "atWillSpells": [
+          "message",
+          "prestidigitation",
+          "ray of frost"
+        ],
+        "dailySpells": {
+          "2e": [
+            "gust of wind",
+            "levitate",
+            "magic missile"
+          ],
+          "1e": [
+            "cone of cold",
+            "contact other plane (cast as 1 action)",
+            "greater invisibility",
+            "mass suggestion",
+            "nondetection",
+            "Otiluke's resilient sphere",
+            "protection from energy",
+            "tongues"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "monsterName": "Spellcaster (Healer)",
+    "source": "SLW",
+    "challengeRating": null,
+    "spellcasting": {
+      "name": "Spellcasting (Healer)",
+      "ability": "WIS",
+      "saveDC": 14,
+      "attackBonus": 6,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "guidance",
+          "light",
+          "resistance",
+          "sacred flame"
+        ],
+        "1": [
+          "bless",
+          "cure wounds",
+          "shield of faith"
+        ],
+        "2": [
+          "aid",
+          "lesser restoration"
+        ],
+        "3": [
+          "protection from energy",
+          "revivify"
+        ],
+        "4": [
+          "death ward"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Spellcaster (Mage)",
+    "source": "SLW",
+    "challengeRating": null,
+    "spellcasting": {
+      "name": "Spellcasting (Mage)",
+      "ability": "INT",
+      "saveDC": 14,
+      "attackBonus": 6,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "fire bolt",
+          "light",
+          "mage hand",
+          "minor illusion"
+        ],
+        "1": [
+          "burning hands",
+          "shield",
+          "sleep"
+        ],
+        "2": [
+          "flaming sphere",
+          "invisibility"
+        ],
+        "3": [
+          "fireball",
+          "fly"
+        ],
+        "4": [
+          "wall of fire"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Deadbark Dryad",
+    "source": "VEoR",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "Druidcraft"
+      ],
+      "dailySpells": {
+        "1": [
+          "Dispel Magic"
+        ],
+        "2e": [
+          "Pass without Trace",
+          "Spike Growth"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Raklupis Spyder-Fiend",
+    "source": "VEoR",
+    "challengeRating": "19",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 20,
+      "attackBonus": 12,
+      "_attackBonusComputed": true,
+      "innateSpells": false,
+      "atWillSpells": [
+        "Disguise Self",
+        "Invisibility (self only)",
+        "Mage Hand",
+        "Minor Illusion"
+      ],
+      "dailySpells": {
+        "2e": [
+          "Darkness",
+          "Dominate Monster",
+          "Mass Suggestion",
+          "Telekinesis",
+          "Teleport"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Archdruid",
+    "source": "VGM",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "WIS",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 3,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "druidcraft",
+          "mending",
+          "poison spray",
+          "produce flame"
+        ],
+        "1": [
+          "cure wounds",
+          "entangle",
+          "faerie fire",
+          "speak with animals"
+        ],
+        "2": [
+          "animal messenger",
+          "beast sense",
+          "hold person"
+        ],
+        "3": [
+          "conjure animals",
+          "meld into stone",
+          "water breathing"
+        ],
+        "4": [
+          "dominate beast",
+          "locate creature",
+          "stoneskin",
+          "wall of fire"
+        ],
+        "5": [
+          "commune with nature",
+          "mass cure wounds",
+          "tree stride"
+        ],
+        "6": [
+          "heal",
+          "heroes' feast",
+          "sunbeam"
+        ],
+        "7": [
+          "fire storm"
+        ],
+        "8": [
+          "animal shapes"
+        ],
+        "9": [
+          "foresight"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Cloud Giant Smiling One",
+    "source": "VGM",
+    "challengeRating": "11",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "CHA",
+      "saveDC": 15,
+      "attackBonus": 7,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 2
+      },
+      "spellsByLevel": {
+        "0": [
+          "minor illusion",
+          "prestidigitation",
+          "vicious mockery"
+        ],
+        "1": [
+          "cure wounds",
+          "disguise self",
+          "silent image",
+          "Tasha's hideous laughter"
+        ],
+        "2": [
+          "invisibility",
+          "suggestion"
+        ],
+        "3": [
+          "major image",
+          "tongues"
+        ]
+      }
+    },
+    "additionalSpellcasting": [
+      {
+        "name": "Innate Spellcasting",
+        "ability": "CHA",
+        "saveDC": 15,
+        "attackBonus": 7,
+        "_attackBonusComputed": true,
+        "innateSpells": true,
+        "atWillSpells": [
+          "detect magic",
+          "fog cloud",
+          "light"
+        ],
+        "dailySpells": {
+          "3e": [
+            "feather fall",
+            "fly",
+            "misty step",
+            "telekinesis"
+          ],
+          "1e": [
+            "control weather",
+            "gaseous form"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "monsterName": "Neothelid",
+    "source": "VGM",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Innate Spellcasting (Psionics)",
+      "ability": "WIS",
+      "saveDC": 16,
+      "attackBonus": 8,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "levitate"
+      ],
+      "dailySpells": {
+        "1e": [
+          "confusion",
+          "feeblemind",
+          "telekinesis"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Yuan-ti Anathema",
+    "source": "VGM",
+    "challengeRating": "12",
+    "spellcasting": {
+      "name": "Innate Spellcasting (Anathema Form Only)",
+      "ability": "CHA",
+      "saveDC": 17,
+      "attackBonus": 9,
+      "_attackBonusComputed": true,
+      "innateSpells": true,
+      "atWillSpells": [
+        "animal friendship (snakes only)"
+      ],
+      "dailySpells": {
+        "1": [
+          "divine word"
+        ],
+        "3e": [
+          "darkness",
+          "entangle",
+          "fear",
+          "haste",
+          "suggestion",
+          "polymorph"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Laeral Silverhand",
+    "source": "WDH",
+    "challengeRating": "17",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 21,
+      "attackBonus": 13,
+      "innateSpells": false,
+      "slots": {
+        "3": 3,
+        "4": 3,
+        "5": 3,
+        "6": 2,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "light",
+          "mage hand",
+          "minor illusion",
+          "prestidigitation",
+          "ray of frost"
+        ],
+        "1": [
+          "detect magic",
+          "disguise self",
+          "magic missile",
+          "shield"
+        ],
+        "2": [
+          "detect thoughts",
+          "invisibility",
+          "misty step"
+        ],
+        "3": [
+          "counterspell",
+          "fly",
+          "sending",
+          "tongues"
+        ],
+        "4": [
+          "banishment",
+          "greater invisibility",
+          "Otiluke's resilient sphere"
+        ],
+        "5": [
+          "cone of cold",
+          "geas",
+          "Rary's telepathic bond"
+        ],
+        "6": [
+          "globe of invulnerability",
+          "mass suggestion"
+        ],
+        "7": [
+          "prismatic spray",
+          "teleport"
+        ],
+        "8": [
+          "feeblemind",
+          "power word stun"
+        ],
+        "9": [
+          "time stop"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Manshoon",
+    "source": "WDH",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 21,
+      "attackBonus": 15,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 3,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "fire bolt",
+          "light",
+          "mage hand",
+          "prestidigitation",
+          "shocking grasp"
+        ],
+        "1": [
+          "detect magic",
+          "mage armor",
+          "magic missile",
+          "shield"
+        ],
+        "2": [
+          "detect thoughts",
+          "mirror image",
+          "misty step"
+        ],
+        "3": [
+          "counterspell",
+          "lightning bolt",
+          "sending"
+        ],
+        "4": [
+          "fire shield",
+          "greater invisibility",
+          "polymorph"
+        ],
+        "5": [
+          "Bigby's hand",
+          "scrying",
+          "wall of force"
+        ],
+        "6": [
+          "flesh to stone",
+          "globe of invulnerability"
+        ],
+        "7": [
+          "finger of death",
+          "simulacrum"
+        ],
+        "8": [
+          "feeblemind",
+          "mind blank"
+        ],
+        "9": [
+          "imprisonment",
+          "power word kill"
+        ]
+      }
+    }
+  },
+  {
+    "monsterName": "Vajra Safahr",
+    "source": "WDH",
+    "challengeRating": "13",
+    "spellcasting": {
+      "name": "Spellcasting",
+      "ability": "INT",
+      "saveDC": 18,
+      "attackBonus": 12,
+      "innateSpells": false,
+      "slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 3,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "spellsByLevel": {
+        "0": [
+          "fire bolt",
+          "light",
+          "mage hand",
+          "message",
+          "prestidigitation"
+        ],
+        "1": [
+          "detect magic",
+          "identify",
+          "mage armor",
+          "thunderwave"
+        ],
+        "2": [
+          "invisibility",
+          "misty step",
+          "web"
+        ],
+        "3": [
+          "counterspell",
+          "fly",
+          "sending"
+        ],
+        "4": [
+          "banishment",
+          "fire shield",
+          "stoneskin"
+        ],
+        "5": [
+          "Bigby's hand",
+          "geas",
+          "telekinesis"
+        ],
+        "6": [
+          "chain lightning",
+          "globe of invulnerability"
+        ],
+        "7": [
+          "forcecage",
+          "prismatic spray"
+        ],
+        "8": [
+          "antimagic field",
+          "power word stun"
+        ],
+        "9": [
+          "imprisonment"
+        ]
+      }
+    }
   }
 ]

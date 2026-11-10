@@ -3602,3 +3602,26 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D161, D184, D185, D187, D188, D189, D190, [[Magic Resistance]], [[Limited Magic Immunity]]
 
 **Tests:** new `SpellTraitsTest` (12), `MonsterSpellbookTest` (18), `MonsterSpellCoverageTest`, `SpellTraitsIT` (3); 3,091 backend unit, 413 integration and 1,148 frontend.
+
+
+## D193: Monster Spellcasting From Stat Blocks
+
+**Date:** 2026-11-10
+**Status:** Accepted — implemented (no migration). D192 (Polymorph forms) was built in parallel and lands after it.
+
+**Context:** [[#D191]]'s coverage sweep found 126 bestiary monsters (Archmage, Pit Fiend, Djinni, Rakshasa, Arkhan the Cruel, Baba Lysaga among them) whose stat blocks have spellcasting but which had no entry at all in `monster-action-definitions.json`, the hand-built file since Milestone 7, so in an encounter they had no spells and no actions. Five entries also had an `additionalSpellcasting` block that nothing read.
+
+**Decision:**
+- `backend/scripts/generate_monster_spellcasting.py` (deterministic; `--check` exits 1 if anything is missing) appends spellcasting entries in the existing format from the 5etools `spellcasting` arrays: spell names with tags stripped and notes kept, slots, at-will and daily spells, the ability, and DC and attack bonus from the header's `{@dc}` and `{@hit}`; when missing, the DC is 8 + proficiency + ability modifier (PHB p.205) and the attack bonus DC − 8, flagged `_dcComputed` and `_attackBonusComputed` as existing entries do; footers become notes. With several blocks, the one with slots is `spellcasting` and the rest `additionalSpellcasting`.
+- `MonsterTemplates` reads `additionalSpellcasting` (and `daily` as a name for `dailySpells`), and `MonsterSpellbook.read` merges every block: spells from all, slots from the main block filled from the others, ability, attack bonus and DC from the main block (matching existing merged entries such as the Drow Mage). Hidden lists (the Archmage's at-will spells) stay castable.
+- `MonsterSpellCoverageTest.everyStatBlockSpellcasterCasts` holds stat-block spellcasters that can't cast at 0. Now 891 monsters with spells and 7,678 spell entries (from 765 and 6,407), all resolving to a template ([[#D191]]).
+
+**Rationale:** derive from the stat block once, with a script that can be rerun, rather than hand-editing 126 entries.
+
+**Trade-offs:** the 126 still have no attack or other action templates (their panel shows spells only); Edwin Odesseiron's staff-charge spellcasting is a note; a shared daily total ("3/day each" read per spell) and "(at 4th level)" cast levels aren't applied, as before; a merged monster has one DC (an Arcanaloth's innate spells use its wizard DC 17 instead of 15, with a note, and the DM can override the DC); the ESK sidekick's alternative Healer and Mage lists are both offered. Not checked in a browser.
+
+**Key files:** `backend/scripts/generate_monster_spellcasting.py`, `data/monster-actions/monster-action-definitions.json`, `monster/MonsterTemplates.java`, `encounter/internal/MonsterSpellbook.java`
+
+**Related:** D165, D191, [[Additional Spellcasting]]
+
+**Tests:** `MonsterSpellCoverageTest.everyStatBlockSpellcasterCasts`, two new `MonsterSpellbookTest` cases, new `StatBlockSpellcastingIT` (2: Baba Lysaga casts Fireball with a slot; Arkhan spends an innate daily use); 3,094 backend unit, 415 integration and 1,148 frontend.
