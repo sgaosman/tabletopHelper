@@ -13118,6 +13118,9 @@
         "when": [
           "ENTER",
           "START_OF_TURN"
+        ],
+        "conditionsInflicted": [
+          "restrained"
         ]
       }
     ],

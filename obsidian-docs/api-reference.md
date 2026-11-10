@@ -1874,3 +1874,12 @@ Spell options gain `duplicatesUpTo` (Wish: the highest spell level it can duplic
 ### Spell Consent (D198)
 
 `PUT /encounters/{id}/combat/spell-consent {participantId, consent}` sets which spells a creature with an "unless it wishes to be" trait lets through: `NEVER`, `HELPFUL` or `ALWAYS`. The DM may set it, or the player who controls the creature; Preparing or Active only. 400 for a creature without such a trait, 403 for anyone else. Cast requests take `spellConsents` (participant id to true or false), this cast's choice for such a target, made only by whoever controls it. Participants carry `spellConsentTrait` and `spellConsent`, null for a creature without the trait; the Player View keeps them only on a creature a player controls.
+
+### Spells at 3rd level or lower (D199)
+
+No endpoint or DTO changed; what requests mean did:
+- Spirit Guardians (`radiant` or `necrotic`) and Heat Metal (`held` or `worn`) require `option`; a cast without one answers 400. Booming Blade and Green-Flame Blade take the weapon's name as `option` (else the first melee weapon).
+- `targetIds` order matters: Magic Missile gives one dart per entry, repeats allowed; for Hail of Thorns, Lightning Arrow, Ice Knife, Green-Flame Blade and Chaos Bolt the first target is the spell's own and the rest are the creatures the caster picks.
+- `POST /combat/repeat-spell-effect` `uses` (1–10) multiplies a repeatable trigger's damage, as Spike Growth's 2d4 per 5 feet moved. Dragon's Breath's `actorId` may be the creature it touched, which is charged its action.
+- `POST /combat/action-save` may roll an ability check instead of a save (Wrathful Smite, Ensnaring Strike, Phantasmal Force's Investigation).
+- 409 for Revivify on a living target, for attacks and casts under Gaseous Form, and for more Cordon of Arrows targets than pieces left. A player can't take a reaction under `NO_REACTIONS`.

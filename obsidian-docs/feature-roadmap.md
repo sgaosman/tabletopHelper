@@ -992,6 +992,12 @@ These are documented for future reference and explicitly **not in scope** for th
 - Non-combat encounter support (skill challenges, social encounters)
 - Multi-system support (Pathfinder 2e, Lancer, Shadowrun rule modules)
 - Map/grid integration (simple grid overlay for tactical movement)
+  - **Needs a map (D199):** rules the DM applies today because the app has no positions or distances.
+    - Who is in an area at the cast, and who enters, starts or ends a turn in it or leaves it (every area spell, as Moonbeam, Spirit Guardians, Stinking Cloud, Hunger of Hadar, Fog Cloud, Magic Circle); moving an area (Moonbeam, Gust of Wind, Healing Spirit, Nathair's Mischief, Spirit Guardians with its caster); area shapes (cones, lines, walls, spheres: Sleep, Color Spray, Dragon's Breath, Pulse Wave, Wither and Bloom, Wind Wall, Caustic Brew, Magnify Gravity, Arms of Hadar); heavily obscured areas and difficult terrain; Stinking Cloud's "completely within".
+    - Distance moved (Spike Growth's 5-foot moves, Booming Blade's willing move) and forced movement (Thunderous Smite, Gust of Wind, Pulse Wave, Thunder Step's teleport, Kinetic Jaunt, Command's Approach and Flee).
+    - Creatures within a distance of another: Hail of Thorns, Ice Knife and Green-Flame Blade (5 ft), Lightning Arrow (10 ft), Chaos Bolt's leap (30 ft), Cordon of Arrows (30 ft), Crusader's Mantle (30 ft), Phantasmal Force (5 ft), Beast Bond (5 ft), Jim's Glowing Coin (30 ft), Mind Whip's upcast targets (30 ft), the Detect spells (30 ft), helpers within reach (Searing Smite, Ensnaring Strike), Crown of Madness's and Antagonize's forced attacks, Enemies Abound's random target.
+    - Monsters: Pack Tactics' ally within 5 ft of the target (approximated by any conscious ally), every monster and summon aura (Whispering, Festering, Weight of Sorrow, Stony Lethargy, Heated Body, Death Throes, fire elementals), Turn Defiance (Ghast, ghouls within 30 ft), the Atropal's aura, Lord Soth's Marshal Undead (60 ft), the hollyphant's Aura of Invulnerability for others.
+    - Sight and hearing: Frightened's source in sight, Wrathful Smite's fear, Enthrall's hearing; telepathy ranges of familiars and steeds; Feather Fall and Heat Metal's dropped object.
 - Ambient sound/music integration
 - Dice rolling animations (3D dice)
 - Session history (view past encounters and combat logs)

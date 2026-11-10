@@ -231,6 +231,25 @@ class WeaponRiderSpellsIT extends IntegrationTest {
         assertThat(log()).anyMatch(line -> line.contains("Strength check against your spell save DC"));
     }
 
+    @Test
+    @DisplayName("Web: an ogre that saves at the cast is restrained when it fails the save starting its turn in the webs "
+            + "(PHB p.287, D199)")
+    void webTrigger() {
+        String ogre = ogre();
+        start();
+        // 20 - 1 = 19 succeeds against DC 14
+        dice.script(20);
+        cast("Web", 2, List.of(ogre));
+        assertThat(conditionNames(ogre)).doesNotContain("restrained");
+
+        // 2 - 1 = 1 fails
+        dice.script(2);
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/repeat-spell-effect?actorId=" + ariaId,
+                Map.of("targetIds", List.of(ogre), "trigger", "START_OF_TURN"), dm.accessToken()));
+        assertThat(conditionNames(ogre)).contains("restrained");
+    }
+
     private List<String> conditionNames(String participantId) {
         List<String> names = new ArrayList<>();
         JsonNode conditions = participant(dmState(), participantId).get("activeConditions");
