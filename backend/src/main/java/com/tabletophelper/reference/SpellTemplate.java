@@ -164,6 +164,12 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             if (json.path("tempHitPoints").path("dice").isString()) {
                 checkedDice(json.path("tempHitPoints").path("dice").asString());
             }
+            // And the low-level spells' keys (D199)
+            template.primaryTargets();
+            template.darts();
+            template.backfireOnOne();
+            template.typeDice();
+            template.selfDamageHeals();
             return template;
         } catch (IllegalArgumentException | JacksonException e) {
             return empty(json, e.getMessage() != null ? e.getMessage() : e.toString());
@@ -1087,11 +1093,54 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      * A second roll after a hit, as Plane Shift's Charisma save after its melee spell attack (PHB p.266): the creature
      * hit makes the save against the caster's spell save DC, and on a failure gets the conditions.
      *
+     * @param ability the save's ability; null when what follows needs no save, as Searing Smite's burning (PHB p.274,
+     *               D199)
      * @param option the cast option it belongs to, or null for every cast
      * @param on     what brings it: HIT, as Plane Shift's, or FAILED_SAVE, as Whirlwind's Strength save after a failed
-     *               Dexterity save (XGE p.171)
+     *               Dexterity save (XGE p.171), or ATTACK, hit or miss, as Ice Knife's burst (XGE p.157, D199)
+     * @param untilSpellEnds  for a one-shot weapon rider (D199): the conditions last until the spell ends, held by its
+     *                        concentration, so the spell goes on while a creature has them, as Wrathful Smite's
+     *                        frightened (PHB p.289); otherwise they stand alone and the spell ends once its hit is
+     *                        resolved, as Thunderous Smite's prone (PHB p.282)
+     * @param damageDice      damage the follow-up deals, as Hail of Thorns' 1d10 piercing (PHB p.249), or null for none;
+     *                        "0 + MOD" deals the caster's spellcasting modifier, as Green-Flame Blade's leaping fire (TCE
+     *                        p.107)
+     * @param damageType      its type
+     * @param halfOnSave      whether a successful save halves it; otherwise a success prevents it
+     * @param upcastScaling   what each slot level above the spell's own adds to it
+     * @param cantripScaling  a cantrip's damage dice from the caster level of each key: "5", "11" and "17"
+     * @param includesTarget  whether the creature hit, or attacked, makes it; false for Lightning Arrow's burst, which
+     *                        strikes only the others (PHB p.255)
+     * @param alsoPicked      whether the creatures the caster picked at the cast make it too, there being no map, as
+     *                        those within 5 feet of Hail of Thorns' target (PHB p.249)
+     * @param advantageSizes  the sizes that make the save with advantage, as a Large or larger creature against Ensnaring
+     *                        Strike (PHB p.237); empty for none
      */
-    public record FollowUpSave(String ability, List<ConditionInflicted> conditions, String option, String on) {
+    public record FollowUpSave(String ability, List<ConditionInflicted> conditions, String option, String on,
+                               boolean untilSpellEnds, String damageDice, String damageType, boolean halfOnSave,
+                               Upcast upcastScaling, Map<String, String> cantripScaling, boolean includesTarget,
+                               boolean alsoPicked, List<String> advantageSizes) {
+
+        public FollowUpSave {
+            conditions = listOf(conditions);
+            cantripScaling = cantripScaling != null ? Map.copyOf(cantripScaling) : Map.of();
+            advantageSizes = listOf(advantageSizes);
+        }
+
+        /** A save after a hit that only gives conditions, as Plane Shift's (D189). */
+        public FollowUpSave(String ability, List<ConditionInflicted> conditions, String option, String on) {
+            this(ability, conditions, option, on, false, null, null, false, null, Map.of(), true, false, List.of());
+        }
+
+        /** Whether a weapon attack's hit or miss brings it: ATTACK, as Lightning Arrow's burst (D199). */
+        public boolean onAttack() {
+            return "ATTACK".equalsIgnoreCase(on);
+        }
+
+        /** Whether a hit brings it: HIT, or ATTACK, which a hit is too. */
+        public boolean onHit() {
+            return "HIT".equalsIgnoreCase(on) || onAttack();
+        }
     }
 
     /** The template's {@code followUpSave}, or null for none (D189). */
@@ -1100,13 +1149,158 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         if (node == null || !node.isObject()) {
             return null;
         }
-        if (text(node, "ability") == null) {
-            throw new IllegalArgumentException("followUpSave needs an ability");
-        }
         List<ConditionInflicted> conditions = node.path("conditionsInflicted").isArray()
                 ? READER.convertValue(node.get("conditionsInflicted"), CONDITIONS) : List.of();
+        String dice = text(node, "damageDice");
+        if (text(node, "ability") == null && conditions.isEmpty() && dice == null) {
+            throw new IllegalArgumentException("followUpSave needs an ability, conditions or damage");
+        }
+        if (dice != null) {
+            checkDice(dice.replaceAll("(?i)\\+\\s*(SPELL_)?MOD", "").trim());
+        }
+        Map<String, String> cantrip = strings(node.path("cantripScaling"));
+        List<String> sizes = new java.util.ArrayList<>();
+        node.path("advantageSizes").forEach(each -> {
+            if (each.isString()) sizes.add(each.asString("").toLowerCase(java.util.Locale.ROOT));
+        });
         return new FollowUpSave(text(node, "ability"), listOf(conditions), text(node, "option"),
-                text(node, "on") != null ? text(node, "on") : "HIT");
+                text(node, "on") != null ? text(node, "on") : "HIT", node.path("untilSpellEnds").asBoolean(false),
+                dice, text(node, "damageType"), node.path("halfOnSave").asBoolean(false),
+                read(node, "upcastScaling", Upcast.class), cantrip, node.path("includesTarget").asBoolean(true),
+                node.path("alsoPicked").asBoolean(false), sizes);
+    }
+
+    // ── Keys the low-level spells added (D199), read from the stored JSON ──
+
+    /**
+     * How many of a cast's targets the spell itself is aimed at, one more with Twinned Spell: the targets after them
+     * are creatures the caster picks for what follows, there being no map, as those Ice Knife's shard bursts over (XGE
+     * p.157), or those Chaos Bolt may leap to (XGE p.151). On a spell its caster casts on itself, as Hail of Thorns,
+     * every target is picked so. The template's {@code primaryTargets}; null when every target is the spell's own.
+     */
+    public Integer primaryTargets() {
+        JsonNode node = json != null ? json.get("primaryTargets") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isInt() || node.asInt(0) < 0) {
+            throw new IllegalArgumentException("primaryTargets is not a whole number");
+        }
+        return node.asInt(0);
+    }
+
+    /**
+     * Darts that each strike on their own, as Magic Missile's three (PHB p.257) or Jim's Magic Missile's (AcqInc p.75): one
+     * more for each slot level above the spell's own, each a separate roll and a separate damage, the caster sharing
+     * them among the targets.
+     *
+     * @param count        how many at the spell's own level
+     * @param perSlotLevel how many more for each slot level above it
+     */
+    public record Darts(int count, int perSlotLevel) {
+
+        /** How many a cast with a slot of slotLevel fires. */
+        public int at(int spellLevel, int slotLevel) {
+            return count + perSlotLevel * Math.max(0, slotLevel - spellLevel);
+        }
+    }
+
+    /** The template's {@code darts}, or null for none (D199). */
+    public Darts darts() {
+        JsonNode node = json != null ? json.get("darts") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isObject() || !node.path("count").isInt() || node.path("count").asInt(0) < 1) {
+            throw new IllegalArgumentException("darts needs a count of 1 or more");
+        }
+        return new Darts(node.path("count").asInt(1), node.path("perSlotLevel").asInt(0));
+    }
+
+    /**
+     * The damage each dart deals its caster when any dart's attack roll is a natural 1, all of them then missing, as
+     * Jim's Magic Missile's 1 force each (AcqInc p.75): the template's {@code backfireOnOne}; null for none (D199).
+     *
+     * @param damage     the damage each dart deals
+     * @param damageType its type
+     */
+    public record Backfire(int damage, String damageType) {
+    }
+
+    /** The template's {@code backfireOnOne}, or null for none (D199). */
+    public Backfire backfireOnOne() {
+        JsonNode node = json != null ? json.get("backfireOnOne") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isObject() || !node.path("damage").isInt()) {
+            throw new IllegalArgumentException("backfireOnOne needs damage");
+        }
+        return new Backfire(node.path("damage").asInt(0), text(node, "damageType"));
+    }
+
+    /**
+     * Dice of a spell's damage whose faces pick its type, as Chaos Bolt's two d8s (XGE p.151): the first die's face
+     * gives the type, and two dice showing the same face make the spell leap to another creature, with a new attack and
+     * damage roll. The template's {@code typeDice}; null for none (D199).
+     *
+     * @param count         how many dice pick the type
+     * @param sides         their sides
+     * @param types         the damage type of each face, from 1
+     * @param leapsOnDouble whether matching faces make the spell leap
+     */
+    public record TypeDice(int count, int sides, List<String> types, boolean leapsOnDouble) {
+    }
+
+    /** The template's {@code typeDice}, or null for none (D199). */
+    public TypeDice typeDice() {
+        JsonNode node = json != null ? json.get("typeDice") : null;
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        List<String> types = new java.util.ArrayList<>();
+        node.path("types").forEach(each -> {
+            if (each.isString()) types.add(each.asString("").toLowerCase(java.util.Locale.ROOT));
+        });
+        if (!node.path("count").isInt() || !node.path("sides").isInt() || types.size() != node.path("sides").asInt(0)) {
+            throw new IllegalArgumentException("typeDice needs a count, sides and a type for each face");
+        }
+        return new TypeDice(node.path("count").asInt(2), node.path("sides").asInt(8), List.copyOf(types),
+                node.path("leapsOnDouble").asBoolean(false));
+    }
+
+    /**
+     * How many times over its targets regain the damage the spell deals its own caster, as Life Transference's twice
+     * (XGE p.160): the caster takes the spell's damage, which can't be reduced in any way, and each target regains this
+     * many times what was dealt. The template's {@code selfDamageHeals}; 0 for none (D199).
+     */
+    public int selfDamageHeals() {
+        JsonNode node = json != null ? json.get("selfDamageHeals") : null;
+        if (node == null || node.isNull()) {
+            return 0;
+        }
+        if (!node.isInt() || node.asInt(0) < 1) {
+            throw new IllegalArgumentException("selfDamageHeals is not a whole number above 0");
+        }
+        return node.asInt(0);
+    }
+
+    /**
+     * Whether casting it makes a melee weapon attack with a weapon the caster holds, as Booming Blade and Green-Flame
+     * Blade do (TCE p.106-107): the attack is the caster's own weapon attack, its numbers, Ongoing Modifiers and riders
+     * included, the template's first damage effect adding to its hit; the cast option names the weapon. The template's
+     * {@code weaponAttack} (D199).
+     */
+    public boolean weaponAttack() {
+        return json != null && json.path("weaponAttack").asBoolean(false);
+    }
+
+    /**
+     * Whether a creature under the Shield spell takes none of its damage, as of Magic Missile's darts (PHB p.275): the
+     * template's {@code blockedByShield} (D199).
+     */
+    public boolean blockedByShield() {
+        return json != null && json.path("blockedByShield").asBoolean(false);
     }
 
     // ── Keys the 6th-level spells added (D188), read from the stored JSON ──
@@ -1228,12 +1422,15 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      * @param ability   the save's ability, such as "WIS"
      * @param skill     the skill of an ability check made in place of the save, as Phantasmal Force's Intelligence
      *                  (Investigation) check against the spell save DC (PHB p.264, D199); null for a saving throw
+     * @param check     the creature makes an ability check against the spell save DC instead of a save, as against
+     *                  Wrathful Smite's fear (PHB p.289) and Ensnaring Strike's vines (PHB p.237), so no save
+     *                  proficiency or save bonus counts (D199)
      */
-    public record ActionSave(String condition, String ability, String skill) {
+    public record ActionSave(String condition, String ability, String skill, boolean check) {
 
         /** An action spent on a saving throw (D188). */
         public ActionSave(String condition, String ability) {
-            this(condition, ability, null);
+            this(condition, ability, null, false);
         }
     }
 
@@ -1243,7 +1440,8 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         if (node == null || !node.isObject() || text(node, "condition") == null || text(node, "ability") == null) {
             return null;
         }
-        return new ActionSave(text(node, "condition"), text(node, "ability"), text(node, "skill"));
+        return new ActionSave(text(node, "condition"), text(node, "ability"), text(node, "skill"),
+                node.path("check").asBoolean(false));
     }
 
     // ── Keys the 8th- and 9th-level spells added (D190), read from the stored JSON ──
@@ -1848,10 +2046,24 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      * @param replaces          false for the spell's own effect again, true when the fields below replace its own
      * @param usesUpcastScaling whether the slot the spell was cast with adds its upcast dice
      * @param upcastScaling     the upcast dice it adds, in place of the spell's first damage effect's
+     * @param cantripScaling    a cantrip's dice for it from the caster level of each key, "5", "11" and "17", as
+     *                          Booming Blade's thunder for moving: 2d8, 3d8 and 4d8 (TCE p.106, D199); empty for none
      */
     public record RepeatEffect(boolean replaces, String deliveryMethod, String spellAttackType, String saveAbility,
                                Boolean halfOnSave, String damageDice, String damageType, String healingDice,
-                               boolean usesUpcastScaling, Upcast upcastScaling) {
+                               boolean usesUpcastScaling, Upcast upcastScaling, Map<String, String> cantripScaling) {
+
+        public RepeatEffect {
+            cantripScaling = cantripScaling != null ? Map.copyOf(cantripScaling) : Map.of();
+        }
+
+        /** A repeat effect whose dice don't grow with its caster's level. */
+        public RepeatEffect(boolean replaces, String deliveryMethod, String spellAttackType, String saveAbility,
+                            Boolean halfOnSave, String damageDice, String damageType, String healingDice,
+                            boolean usesUpcastScaling, Upcast upcastScaling) {
+            this(replaces, deliveryMethod, spellAttackType, saveAbility, halfOnSave, damageDice, damageType,
+                    healingDice, usesUpcastScaling, upcastScaling, Map.of());
+        }
 
         /**
          * The repeat effect the data gives: true for the spell's own effect, an object for one of its own; null for
@@ -1872,7 +2084,8 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             return new RepeatEffect(true, text(node, "deliveryMethod"), text(node, "spellAttackType"),
                     text(node, "saveAbility"), read(node, "halfOnSave", Boolean.class), text(node, "damageDice"),
                     text(node, "damageType"), text(node, "healingDice"),
-                    node.path("usesUpcastScaling").asBoolean(false), read(node, "upcastScaling", Upcast.class));
+                    node.path("usesUpcastScaling").asBoolean(false), read(node, "upcastScaling", Upcast.class),
+                    strings(node.path("cantripScaling")));
         }
     }
 
@@ -1938,15 +2151,27 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      * @param effect          what it does: the spell's own effect when it doesn't replace it
      * @param endsSpellOnSave whether a successful save against it ends the spell, as Searing Smite's does (PHB p.274);
      *                        the data's {@code endsSpellOnSave}, false when left out
+     * @param onConditioned   the condition whose creatures the engine applies the trigger to itself at its moment, the
+     *                        DM picking nobody, as Searing Smite's burning at the start of the burning creature's turns
+     *                        (PHB p.274) and Ensnaring Strike's thorns at the start of the restrained creature's (PHB
+     *                        p.237): each creature with that condition from the spell's caster; null for a trigger the
+     *                        DM applies (D199)
      */
     public record EffectTrigger(List<SpellTrigger> when, RepeatEffect effect, boolean endsSpellOnSave,
                                 List<ConditionInflicted> conditions, String whenConditioned, int exhaustion,
-                                boolean addsAffected) {
+                                boolean addsAffected, String onConditioned) {
 
         public EffectTrigger {
             when = listOf(when);
             conditions = listOf(conditions);
             exhaustion = Math.max(0, exhaustion);
+        }
+
+        /** A trigger the DM applies (D185). */
+        public EffectTrigger(List<SpellTrigger> when, RepeatEffect effect, boolean endsSpellOnSave,
+                             List<ConditionInflicted> conditions, String whenConditioned, int exhaustion,
+                             boolean addsAffected) {
+            this(when, effect, endsSpellOnSave, conditions, whenConditioned, exhaustion, addsAffected, null);
         }
 
         /** A trigger whose save, if any, leaves the spell going. */
@@ -2041,8 +2266,10 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             if (!exhaustion.isMissingNode() && !exhaustion.isNull() && !exhaustion.isInt()) {
                 throw new IllegalArgumentException("A trigger's exhaustion is not a whole number");
             }
+            String onConditioned = text(trigger, "onConditioned");
             triggers.add(new EffectTrigger(when, effect, ends.asBoolean(false), conditions,
-                    text(trigger, "whenConditioned"), exhaustion.asInt(0), trigger.path("addsAffected").asBoolean(false)));
+                    text(trigger, "whenConditioned"), exhaustion.asInt(0), trigger.path("addsAffected").asBoolean(false),
+                    onConditioned != null ? onConditioned.toLowerCase(java.util.Locale.ROOT) : null));
         }
         return triggers;
     }
@@ -2069,6 +2296,19 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
 
     private static <T> T read(JsonNode node, String key, Class<T> type) {
         return READER.convertValue(node.get(key), type);
+    }
+
+    // An object's text values by key, in order; empty for anything else
+    private static Map<String, String> strings(JsonNode node) {
+        Map<String, String> values = new LinkedHashMap<>();
+        if (node != null && node.isObject()) {
+            for (Map.Entry<String, JsonNode> entry : node.properties()) {
+                if (entry.getValue().isString()) {
+                    values.put(entry.getKey(), entry.getValue().asString(""));
+                }
+            }
+        }
+        return values;
     }
 
     // The key's text, or null when it isn't text

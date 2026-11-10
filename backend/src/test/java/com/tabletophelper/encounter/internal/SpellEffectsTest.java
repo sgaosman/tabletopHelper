@@ -365,7 +365,7 @@ class SpellEffectsTest {
         }
 
         @Test
-        @DisplayName("The bundled data's 77 lasting spells each leave a Spell Effect its caster directs at the cost "
+        @DisplayName("The bundled data's 78 lasting spells each leave a Spell Effect its caster directs at the cost "
                 + "the spell's text gives, or whose area acts by itself at the moments it gives, or both (M15)")
         void bundledLastingSpells() throws IOException {
             Map<String, ActionCost> costs = new LinkedHashMap<>();
@@ -461,11 +461,14 @@ class SpellEffectsTest {
             expected.put("Nathair's Mischief", ActionCost.NONE);
             // Dragon's Breath's exhalation takes the touched creature's action (XGE p.154, D199)
             expected.put("Dragon's Breath", ActionCost.ACTION);
+            // Booming Blade's thunder for a sheathed creature that moves is the DM's use of it, costing its caster
+            // nothing (TCE p.106, D199)
+            expected.put("Booming Blade", ActionCost.NONE);
             // Web's webs repeat its DEX save for a creature entering them or starting its turn there (PHB p.287, D197);
             // Stinking Cloud, Sleet Storm, Spike Growth, Healing Spirit, Cordon of Arrows, Gust of Wind and Nathair's
             // Mischief join, Tasha's Caustic Brew's acid becomes a condition's damage at the start of each turn, and
-            // Fog Cloud blinds a creature entering it (PHB p.243); with Dragon's Breath, 77 lasting spells (D199)
-            assertEquals(77, triggers.size());
+            // Fog Cloud blinds a creature entering it (PHB p.243); with Dragon's Breath and Booming Blade, 78 lasting spells (D199)
+            assertEquals(78, triggers.size());
             assertEquals(List.of(SpellTrigger.ENTER), triggers.get("Fog Cloud"));
             assertEquals(List.of(SpellTrigger.ENTER, SpellTrigger.START_OF_TURN), triggers.get("Web"));
             assertEquals(List.of(SpellTrigger.END_OF_TURN), triggers.get("Weird"));

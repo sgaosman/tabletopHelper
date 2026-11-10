@@ -851,7 +851,10 @@ public class SpellEffects {
             SpellTemplate.Upcast upcastScaling = repeat.upcastScaling() != null ? repeat.upcastScaling()
                     : template.firstDamageEffect().map(SpellTemplate.Part::upcastScaling).orElse(null);
             int levelsAbove = repeat.usesUpcastScaling() && spellLevel > 0 ? slotLevel - spellLevel : 0;
-            damage = damageParts(repeat.damageDice(), repeat.damageType(), upcastScaling, levelsAbove, modifier);
+            // A cantrip's own dice for it at its caster's level, as Booming Blade's thunder for moving (TCE p.106, D199)
+            String scaled = spellLevel == 0 ? cantripDice(repeat.cantripScaling(), stats.level(caster)) : null;
+            damage = damageParts(scaled != null ? scaled : repeat.damageDice(), repeat.damageType(), upcastScaling,
+                    levelsAbove, modifier);
             // Healing that grows with the slot, as Healing Spirit's 1d6 for each level above 2nd (XGE p.157, D199): the
             // effect's own upcast, else the spell's healing's
             SpellTemplate.Upcast healingUpcast = repeat.upcastScaling() != null ? repeat.upcastScaling()
@@ -967,6 +970,10 @@ public class SpellEffects {
      * @throws ValidationException a missing or unknown option, or one for a spell that has none
      */
     public String option(String spellName, String requested) {
+        // A spell that makes a weapon attack takes the weapon's name, as Booming Blade's (TCE p.106, D199)
+        if (weaponAttack(spellName)) {
+            return requested != null && !requested.isBlank() ? requested.trim() : null;
+        }
         List<String> options = castOptions(spellName);
         if (options.isEmpty()) {
             if (requested != null && !requested.isBlank()) {
@@ -1181,9 +1188,11 @@ public class SpellEffects {
         if (template.repeatEffect() != null) {
             cost = template.repeatActionType() != null ? template.repeatActionType() : ActionCost.ACTION;
         }
+        // A trigger the engine applies itself to the creatures with its condition isn't the DM's to apply (D199)
         return new EffectUse(cost, template.repeatEffect() != null && template.resolvesWhenDirected(),
                 template.effectUses() != null ? template.effectUses().maxEachUse() : null,
-                template.effectTriggers().stream().flatMap(trigger -> trigger.when().stream()).distinct().toList());
+                template.effectTriggers().stream().filter(trigger -> trigger.onConditioned() == null)
+                        .flatMap(trigger -> trigger.when().stream()).distinct().toList());
     }
 
     /**
@@ -1268,6 +1277,135 @@ public class SpellEffects {
     static RollMode rollMode(Boolean advantage) {
         if (advantage == null) return RollMode.NORMAL;
         return advantage ? RollMode.ADVANTAGE : RollMode.DISADVANTAGE;
+    }
+
+    // ── The low-level spells' keys (D199) ────────────────────────
+
+    /**
+     * What follows a hit, or an attack, of the spell (D199): its follow-up save as an Effect, at the slot it was cast
+     * with, against the DC given, its damage with the caster's spellcasting modifier for MOD and its cantrip dice for the
+     * caster's level, and its conditions with how they end, as Wrathful Smite's Wisdom save or frightened until the spell
+     * ends, ended by a Wisdom check made with an action (PHB p.289).
+     *
+     * @param effect the Effect each creature it reaches gets: a save, or no roll for a follow-up without one
+     * @param save   the template's follow-up, which says who it reaches and how long its conditions last
+     */
+    public record FollowUp(Effect effect, SpellTemplate.FollowUpSave save) {
+    }
+
+    /** The spell's follow-up as cast with a slot of slotLevel, or empty for none or dice that can't be rolled. */
+    public Optional<FollowUp> followUp(String spellName, int slotLevel, EncounterParticipant caster,
+                                       String castingAbility, int attackBonus, int saveDc) {
+        Optional<SpellTemplate> found = template(spellName);
+        SpellTemplate.FollowUpSave save = found.map(SpellTemplate::followUpSave).orElse(null);
+        if (save == null) {
+            return Optional.empty();
+        }
+        SpellTemplate template = found.get();
+        int spellLevel = template.level();
+        int modifier = stats.spellcastingModifier(caster, castingAbility, attackBonus);
+        String dice = save.damageDice();
+        if (spellLevel == 0 && caster != null) {
+            String scaled = cantripDice(save.cantripScaling(), stats.level(caster));
+            dice = scaled != null ? scaled : dice;
+        }
+        Optional<List<Effect.DamagePart>> damage = damageParts(dice, save.damageType(), save.upcastScaling(),
+                spellLevel > 0 ? slotLevel - spellLevel : 0, modifier);
+        if (damage.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<Ability> ability = Ability.parse(save.ability());
+        Effect.Delivery delivery = ability.isPresent()
+                ? new Effect.Save(ability.get(), saveDc, save.halfOnSave()) : new Effect.Automatic();
+        Effect effect = new Effect(spellName, delivery, damage.get(), null, names(save.conditions()), false, null,
+                conditionEnds(save.conditions(), template, saveDc));
+        return Optional.of(new FollowUp(effect, save));
+    }
+
+    /**
+     * Whether the spell is a one-shot weapon rider with a follow-up, as the smites (PHB p.219, p.274, p.282, p.289,
+     * p.216): Ongoing Modifiers, and a follow-up save on its hit, so its Spell Effect outlives the spent rider until the
+     * follow-up decides whether the spell goes on (D199).
+     */
+    public boolean hitRider(String spellName) {
+        return template(spellName)
+                .filter(template -> !template.modifiers().isEmpty() && template.followUpSave() != null
+                        && template.followUpSave().onHit())
+                .isPresent();
+    }
+
+    /**
+     * The triggers the engine applies itself at the moment, each to the creatures with its condition from the caster
+     * (D199), as Searing Smite's burning at the start of the burning creature's turn (PHB p.274); empty for none.
+     */
+    public List<SpellTemplate.EffectTrigger> conditionedTriggers(String spellName, SpellTrigger when) {
+        return template(spellName)
+                .map(template -> template.effectTriggers().stream()
+                        .filter(trigger -> trigger.onConditioned() != null && trigger.when().contains(when))
+                        .toList())
+                .orElse(List.of());
+    }
+
+    /** The condition its creature ends with its action, and how (D188, D199); null for none or no spell. */
+    public SpellTemplate.ActionSave actionSave(String spellName) {
+        return spellName == null ? null : template(spellName).map(SpellTemplate::actionSave).orElse(null);
+    }
+
+    /** The template's primaryTargets (D199), or null when every target is the spell's own. */
+    public Integer primaryTargets(String spellName) {
+        return template(spellName).map(SpellTemplate::primaryTargets).orElse(null);
+    }
+
+    /** Whether a creature under Shield takes none of the spell's damage, as of Magic Missile's (PHB p.275, D199). */
+    public boolean blockedByShield(String spellName) {
+        return template(spellName).map(SpellTemplate::blockedByShield).orElse(false);
+    }
+
+    /** The template's darts (D199), or null for none. */
+    public SpellTemplate.Darts darts(String spellName) {
+        return template(spellName).map(SpellTemplate::darts).orElse(null);
+    }
+
+    /** The template's backfire on a natural 1 (D199), or null for none. */
+    public SpellTemplate.Backfire backfireOnOne(String spellName) {
+        return template(spellName).map(SpellTemplate::backfireOnOne).orElse(null);
+    }
+
+    /** The template's type dice (D199), or null for none. */
+    public SpellTemplate.TypeDice typeDice(String spellName) {
+        return template(spellName).map(SpellTemplate::typeDice).orElse(null);
+    }
+
+    /** The template's selfDamageHeals (D199), 0 for none. */
+    public int selfDamageHeals(String spellName) {
+        return template(spellName).map(SpellTemplate::selfDamageHeals).orElse(0);
+    }
+
+    /** Whether casting the spell makes a melee weapon attack (D199), as Booming Blade's (TCE p.106). */
+    public boolean weaponAttack(String spellName) {
+        return template(spellName).map(SpellTemplate::weaponAttack).orElse(false);
+    }
+
+    /**
+     * The damage a weapon-attack cantrip adds to its hit at its caster's level, as Green-Flame Blade's 1d8 fire from 5th
+     * level (TCE p.107, D199): the template's first effect's cantrip dice, empty below the first step.
+     */
+    public List<Effect.DamagePart> weaponAttackDamage(String spellName, EncounterParticipant caster) {
+        Optional<SpellTemplate> found = template(spellName);
+        if (found.isEmpty() || found.get().effects().isEmpty()) {
+            return List.of();
+        }
+        SpellTemplate.Part first = found.get().effects().getFirst();
+        String dice = cantripDice(first.cantripScaling(), stats.level(caster));
+        if (dice == null) {
+            dice = first.damageDice();
+        }
+        return damageParts(dice, first.damageType(), null, 0, 0).orElse(List.of());
+    }
+
+    /** How many rounds a spell's Spell Effect lasts as its template gives them (D199), or null when it doesn't say. */
+    public Integer templateRounds(String spellName) {
+        return template(spellName).map(SpellTemplate::durationRounds).orElse(null);
     }
 
     // ── Template reading ─────────────────────────────────────────

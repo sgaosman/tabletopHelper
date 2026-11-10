@@ -498,9 +498,9 @@
     "conditionsInflicted": null,
     "healing": null,
     "upcastDescription": null,
-    "specialMechanics": "Requires making a melee weapon attack as part of the spell. On hit, target suffers normal weapon damage. The on-hit thunder damage is 0 at level 1 and only begins scaling at level 5. The movement-triggered damage is conditional on the target willingly moving 5+ feet.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Involves a melee weapon attack (not a standard spell attack), with conditional movement-triggered secondary damage that needs tracking.",
+    "specialMechanics": "Casting makes a melee weapon attack with the weapon the cast option names; a hit adds the thunder dice from 5th level and sheathes the target until the start of the caster's next turn, a Spell Effect the DM uses on it if it willingly moves (D199).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Artificer",
@@ -514,7 +514,22 @@
       "alternateDice": "1d8",
       "defaultDice": "0",
       "note": "Additional thunder damage if target moves. Scales at 5th/11th/17th level."
-    }
+    },
+    "weaponAttack": true,
+    "primaryTargets": 1,
+    "repeatEffect": {
+      "deliveryMethod": "AUTO_HIT",
+      "damageDice": "1d8",
+      "damageType": "thunder",
+      "cantripScaling": {
+        "5": "2d8",
+        "11": "3d8",
+        "17": "4d8"
+      }
+    },
+    "repeatActionType": "NONE",
+    "repeatEndsSpell": true,
+    "reminder": "if it willingly moves 5 feet or more before then, the DM uses Booming Blade's effect on it for its thunder damage, and the spell ends."
   },
   {
     "spellName": "Chill Touch",
@@ -1178,9 +1193,9 @@
     "conditionsInflicted": null,
     "healing": null,
     "upcastDescription": null,
-    "specialMechanics": "Requires making a melee weapon attack as part of the spell. On hit, primary target takes normal weapon damage (plus extra fire at level 5+). A second creature within 5 feet of the primary target takes fire damage equal to spellcasting ability modifier (plus dice at level 5+). The secondary target takes no damage if no second creature is within 5 feet or if caster chooses not to target one.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Involves a melee weapon attack (not standard spell attack), secondary target selection within 5 feet of primary, and damage that includes spellcasting ability modifier.",
+    "specialMechanics": "Casting makes a melee weapon attack with the weapon the cast option names against the first target; a hit adds the fire dice from 5th level, and the fire leaps to the second target for the spellcasting modifier, plus dice from 5th level (D199).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Artificer",
@@ -1194,6 +1209,20 @@
       "alternateDice": "SPELL_MOD",
       "defaultDice": "0",
       "note": "Fire damage to adjacent creature. Scales at 5th/11th/17th level."
+    },
+    "weaponAttack": true,
+    "primaryTargets": 1,
+    "followUpSave": {
+      "on": "HIT",
+      "damageDice": "0 + MOD",
+      "damageType": "fire",
+      "cantripScaling": {
+        "5": "1d8 + MOD",
+        "11": "2d8 + MOD",
+        "17": "3d8 + MOD"
+      },
+      "includesTarget": false,
+      "alsoPicked": true
     }
   },
   {
@@ -3794,7 +3823,7 @@
     "halfOnSave": false,
     "autoHit": false,
     "targetType": "SINGLE_TARGET",
-    "targetCount": 1,
+    "targetCount": null,
     "targetCountUpcastScaling": null,
     "aoeShape": null,
     "aoeSize": null,
@@ -3806,7 +3835,7 @@
       {
         "effectType": "DAMAGE",
         "damageDice": "2d8+1d6",
-        "damageType": "varies (determined by d8 roll: acid, cold, fire, force, lightning, poison, psychic, thunder)",
+        "damageType": "varies",
         "upcastScaling": {
           "additionalDicePerLevel": "1d6",
           "additionalFlatPerLevel": 0
@@ -3817,14 +3846,31 @@
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "Each target takes 1d6 extra damage per slot level above 1st",
-    "specialMechanics": "If both d8s show the same number, the bolt leaps to a new target within 30 feet (new attack roll and damage roll).",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Damage type determined by d8 roll. Matching d8s cause bolt to leap to new target with new attack and damage rolls.",
+    "specialMechanics": "Ranged spell attack; on a hit 2d8 + 1d6, the first d8 giving the type; matching d8s make it leap to the next creature listed after the target, with a new attack and damage roll (D199).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "ATTACK_DAMAGE",
     "classes": [
       "Sorcerer"
     ],
-    "notes": "REVIEW: Damage type is random based on d8 roll. Leaping mechanic on matching d8s makes full automation complex."
+    "notes": "REVIEW: Damage type is random based on d8 roll. Leaping mechanic on matching d8s makes full automation complex.",
+    "typeDice": {
+      "count": 2,
+      "sides": 8,
+      "leapsOnDouble": true,
+      "types": [
+        "acid",
+        "cold",
+        "fire",
+        "force",
+        "lightning",
+        "poison",
+        "psychic",
+        "thunder"
+      ]
+    },
+    "primaryTargets": 1,
+    "reminder": "The caster may choose either d8 for the damage type (the app uses the first), and the bolt can strike each creature only once."
   },
   {
     "spellName": "Charm Person",
@@ -4807,55 +4853,40 @@
     "concentration": true,
     "durationRounds": 10,
     "durationText": "1 minute",
-    "deliveryMethod": "SAVING_THROW",
+    "deliveryMethod": "SELF",
     "spellAttackType": null,
-    "saveAbility": "STR",
+    "saveAbility": null,
     "halfOnSave": false,
     "autoHit": false,
-    "targetType": "SINGLE_TARGET",
-    "targetCount": 1,
+    "targetType": "SELF",
+    "targetCount": null,
     "targetCountUpcastScaling": null,
     "aoeShape": null,
     "aoeSize": null,
-    "selfOnly": false,
-    "canTargetSelf": false,
+    "selfOnly": true,
+    "canTargetSelf": true,
     "canTargetAllies": false,
-    "canTargetEnemies": true,
+    "canTargetEnemies": false,
     "effects": [
       {
-        "effectType": "CONDITION",
-        "condition": "restrained",
-        "saveToAvoid": true,
-        "durationRounds": 10,
-        "durationText": "Until spell ends (concentration, 1 minute)"
-      },
-      {
-        "effectType": "DAMAGE",
-        "damageDice": "1d6",
-        "damageType": "piercing",
-        "upcastScaling": {
-          "additionalDicePerLevel": "1d6",
-          "additionalFlatPerLevel": 0
-        },
-        "cantripScaling": null
+        "effectType": "BUFF",
+        "description": "Your next weapon hit makes the target save on STR or be restrained by thorny vines until the spell ends",
+        "modifiers": [
+          {
+            "kind": "HIT_DAMAGE",
+            "weaponOnly": true,
+            "oneShot": true
+          }
+        ]
       }
     ],
-    "conditionsInflicted": [
-      {
-        "condition": "restrained",
-        "saveToAvoid": "STR",
-        "durationRounds": 10,
-        "durationText": "Until spell ends",
-        "escapeAction": "STR_CHECK",
-        "escapeDC": "SPELL_DC"
-      }
-    ],
+    "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "Damage increases by 1d6 for each slot level above 1st",
-    "specialMechanics": "Applied on next weapon hit. If restrained, target takes piercing damage at start of each turn. Large+ creatures have advantage on save. STR check (action) to free.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Smite-style spell: triggers on next weapon hit, then requires STR save. Ongoing damage at start of restrained target's turns.",
-    "patternCategory": "SAVE_DAMAGE_AND_CONDITION",
+    "specialMechanics": "The next weapon hit makes the target save on STR (advantage for Large or larger) or be restrained until the spell ends, taking 1d6 piercing at the start of each of its turns; it can use its action on a STR check against the DC to break free (D199).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "SELF_BUFF",
     "classes": [
       "Ranger"
     ],
@@ -4868,9 +4899,35 @@
         "deliveryMethod": "AUTO_HIT",
         "damageDice": "1d6",
         "damageType": "piercing",
-        "usesUpcastScaling": true
+        "usesUpcastScaling": true,
+        "upcastScaling": {
+          "additionalDicePerLevel": "1d6",
+          "additionalFlatPerLevel": 0
+        },
+        "onConditioned": "restrained"
       }
-    ]
+    ],
+    "followUpSave": {
+      "ability": "STR",
+      "on": "HIT",
+      "untilSpellEnds": true,
+      "conditionsInflicted": [
+        {
+          "condition": "restrained"
+        }
+      ],
+      "advantageSizes": [
+        "Large",
+        "Huge",
+        "Gargantuan"
+      ]
+    },
+    "actionSave": {
+      "condition": "restrained",
+      "ability": "STR",
+      "check": true
+    },
+    "reminder": "A creature that can touch the restrained creature can also use its action on the Strength check against the spell save DC to free it (the DM rolls it and ends the spell)."
   },
   {
     "spellName": "Entangle",
@@ -5589,43 +5646,59 @@
     "concentration": true,
     "durationRounds": 10,
     "durationText": "1 minute",
-    "deliveryMethod": "SAVING_THROW",
+    "deliveryMethod": "SELF",
     "spellAttackType": null,
-    "saveAbility": "DEX",
-    "halfOnSave": true,
+    "saveAbility": null,
+    "halfOnSave": false,
     "autoHit": false,
-    "targetType": "AOE_SPHERE",
+    "targetType": "MULTI_TARGET",
     "targetCount": null,
     "targetCountUpcastScaling": null,
-    "aoeShape": "sphere",
-    "aoeSize": 5,
+    "aoeShape": null,
+    "aoeSize": null,
     "selfOnly": false,
     "canTargetSelf": false,
     "canTargetAllies": true,
     "canTargetEnemies": true,
     "effects": [
       {
-        "effectType": "DAMAGE",
-        "damageDice": "1d10",
-        "damageType": "piercing",
-        "upcastScaling": {
-          "additionalDicePerLevel": "1d10",
-          "additionalFlatPerLevel": 0
-        },
-        "cantripScaling": null
+        "effectType": "BUFF",
+        "description": "Your next ranged weapon hit makes thorns rain on the target and the creatures picked within 5 feet of it",
+        "modifiers": [
+          {
+            "kind": "HIT_DAMAGE",
+            "weaponOnly": true,
+            "oneShot": true,
+            "requires": "RANGED"
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "Damage increases by 1d10 per slot level above 1st (max 6d10)",
-    "specialMechanics": "Triggers on next ranged weapon hit. Target and each creature within 5 feet make DEX save. Half damage on success.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Smite-style: triggers on next ranged weapon hit. AOE burst affects target and creatures within 5 feet of target.",
-    "patternCategory": "SAVE_DAMAGE",
+    "specialMechanics": "The next ranged weapon hit makes its target and the creatures picked at the cast save on DEX against 1d10 piercing, half on a success (D199).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "SELF_BUFF",
     "classes": [
       "Ranger"
     ],
-    "notes": "Bonus action. Concentration. Triggers on ranged weapon hit. Target and nearby creatures take piercing damage (DEX half). Max 6d10 at 6th level."
+    "notes": "Bonus action. Concentration. Triggers on ranged weapon hit. Target and nearby creatures take piercing damage (DEX half). Max 6d10 at 6th level.",
+    "primaryTargets": 0,
+    "followUpSave": {
+      "ability": "DEX",
+      "on": "HIT",
+      "damageDice": "1d10",
+      "damageType": "piercing",
+      "halfOnSave": true,
+      "upcastScaling": {
+        "additionalDicePerLevel": "1d10",
+        "additionalFlatPerLevel": 0
+      },
+      "alsoPicked": true
+    },
+    "reminder": "Pick the creatures within 5 feet of the creature the next ranged hit will strike when casting, there being no map."
   },
   {
     "spellName": "Healing Word",
@@ -5955,7 +6028,7 @@
     "halfOnSave": false,
     "autoHit": false,
     "targetType": "SINGLE_TARGET",
-    "targetCount": 1,
+    "targetCount": null,
     "targetCountUpcastScaling": null,
     "aoeShape": null,
     "aoeSize": null,
@@ -5985,16 +6058,28 @@
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "Cold damage increases by 1d6 for each slot level above 1st",
-    "specialMechanics": "Two-phase: 1d10 piercing on spell attack hit, then shard explodes (hit or miss) for 2d6 cold (DEX save, target and creatures within 5 ft). Only cold damage scales with upcasting.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Two delivery methods: ranged spell attack for piercing damage, then DEX save for cold explosion (hit or miss). Explosion hits target and creatures within 5 feet.",
+    "specialMechanics": "Ranged spell attack for 1d10 piercing; hit or miss, the target and the creatures listed after it save on DEX or take 2d6 cold (D199).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "ATTACK_DAMAGE",
     "classes": [
       "Druid",
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Spell attack for 1d10 piercing. Whether hit or miss, explosion: DEX save for 2d6 cold (no half on save) to target and 5-ft radius. Only cold scales."
+    "notes": "Spell attack for 1d10 piercing. Whether hit or miss, explosion: DEX save for 2d6 cold (no half on save) to target and 5-ft radius. Only cold scales.",
+    "primaryTargets": 1,
+    "followUpSave": {
+      "ability": "DEX",
+      "on": "ATTACK",
+      "damageDice": "2d6",
+      "damageType": "cold",
+      "upcastScaling": {
+        "additionalDicePerLevel": "1d6",
+        "additionalFlatPerLevel": 0
+      },
+      "alsoPicked": true
+    }
   },
   {
     "spellName": "Identify",
@@ -6195,13 +6280,22 @@
     "healing": null,
     "upcastDescription": "One more dart per slot level above 1st (royalty cost +1 gp per level)",
     "specialMechanics": "Separate ranged spell attack per dart. Crit deals 5d4 (not double dice). If any attack roll is a 1, ALL missiles miss and deal 1 force damage per missile to caster.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Multiple attack rolls. Special crit rules (5d4 instead of doubled). Natural 1 on any dart causes all to backfire on caster.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "ATTACK_DAMAGE",
     "classes": [
       "Wizard"
     ],
-    "notes": "REVIEW: Acquisitions Incorporated source. Unlike regular Magic Missile, requires attack rolls. Has royalty component (not standard material)."
+    "notes": "REVIEW: Acquisitions Incorporated source. Unlike regular Magic Missile, requires attack rolls. Has royalty component (not standard material).",
+    "darts": {
+      "count": 3,
+      "perSlotLevel": 1
+    },
+    "critDamageDice": "5d4",
+    "backfireOnOne": {
+      "damage": 1,
+      "damageType": "force"
+    }
   },
   {
     "spellName": "Jump",
@@ -6421,9 +6515,9 @@
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "One additional dart per slot level above 1st",
-    "specialMechanics": "3 darts at base, each dealing 1d4+1 force. Each dart can target the same or different creatures. Darts strike simultaneously. Auto-hit (no attack roll or save). Blocked by Shield spell.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Multiple darts that can be freely distributed among targets. Each dart is a separate instance of damage (relevant for concentration checks). Upcast adds more darts, not more damage per dart.",
+    "specialMechanics": "One dart per target listed, a target listed more than once taking more and the darts left over going round the targets; each dart rolls its own 1d4 + 1 force and is its own damage for concentration; a creature under Shield takes none (D199).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "AUTO_DAMAGE",
     "classes": [
       "Sorcerer",
@@ -6434,7 +6528,12 @@
       "baseCount": 3,
       "upcastAdditionalPerLevel": 1,
       "cantripScaling": null
-    }
+    },
+    "darts": {
+      "count": 3,
+      "perSlotLevel": 1
+    },
+    "blockedByShield": true
   },
   {
     "spellName": "Magnify Gravity",
@@ -6759,47 +6858,53 @@
     "concentration": true,
     "durationRounds": 10,
     "durationText": "1 minute",
-    "deliveryMethod": "SAVING_THROW",
+    "deliveryMethod": "SELF",
     "spellAttackType": null,
-    "saveAbility": "CON",
+    "saveAbility": null,
     "halfOnSave": false,
     "autoHit": false,
-    "targetType": "SINGLE_TARGET",
-    "targetCount": 1,
+    "targetType": "SELF",
+    "targetCount": null,
     "targetCountUpcastScaling": null,
     "aoeShape": null,
     "aoeSize": null,
-    "selfOnly": false,
-    "canTargetSelf": false,
+    "selfOnly": true,
+    "canTargetSelf": true,
     "canTargetAllies": false,
-    "canTargetEnemies": true,
+    "canTargetEnemies": false,
     "effects": [
       {
-        "effectType": "DAMAGE",
-        "damageDice": "1d6",
-        "damageType": "fire",
-        "upcastScaling": {
-          "additionalDicePerLevel": "1d6",
-          "additionalFlatPerLevel": 0
-        },
-        "cantripScaling": null
-      },
-      {
-        "effectType": "OTHER",
-        "description": "Target ignites. At start of each turn, CON save or take 1d6 fire damage. Success ends spell. Can be put out with action (within 5 ft)."
+        "effectType": "BUFF",
+        "description": "Your next melee weapon hit deals an extra 1d6 fire damage and sets the target ablaze",
+        "modifiers": [
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "1d6",
+            "damageTypes": [
+              "fire"
+            ],
+            "weaponOnly": true,
+            "meleeOnly": true,
+            "oneShot": true,
+            "upcast": {
+              "every": 1,
+              "dice": "1d6"
+            }
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "Initial extra damage increases by 1d6 per slot level above 1st",
-    "specialMechanics": "Smite-style: bonus action, triggers on next melee weapon hit. Sets target on fire (1d6 fire per turn, CON save to end). Only initial damage scales with upcasting.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Smite-style delivery on next weapon hit. Ongoing fire damage with per-turn CON saves. Can be manually extinguished.",
-    "patternCategory": "SAVE_DAMAGE",
+    "specialMechanics": "The 1d6 fire is added to the next melee weapon hit, which ignites the target; at the start of each of its turns it makes a CON save, taking 1d6 fire on a failure and ending the spell on a success (D199).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "SELF_BUFF",
     "classes": [
       "Paladin"
     ],
-    "notes": "Bonus action. Concentration. Smite-style. Ongoing 1d6 fire/turn (CON save to end). Only initial damage upscales.",
+    "notes": "Only the initial damage upcasts (PHB p.274).",
     "effectTriggers": [
       {
         "when": [
@@ -6811,9 +6916,20 @@
         "damageDice": "1d6",
         "damageType": "fire",
         "usesUpcastScaling": false,
-        "endsSpellOnSave": true
+        "endsSpellOnSave": true,
+        "onConditioned": "ignited"
       }
-    ]
+    ],
+    "followUpSave": {
+      "on": "HIT",
+      "conditionsInflicted": [
+        {
+          "condition": "ignited"
+        }
+      ],
+      "untilSpellEnds": true
+    },
+    "reminder": "If the burning creature, or a creature within 5 feet of it, uses an action to put out the flames, or water or another effect douses them, the DM ends the spell."
   },
   {
     "spellName": "Shield",
@@ -7471,58 +7587,59 @@
     "concentration": true,
     "durationRounds": 10,
     "durationText": "1 minute",
-    "deliveryMethod": "SAVING_THROW",
+    "deliveryMethod": "SELF",
     "spellAttackType": null,
-    "saveAbility": "STR",
+    "saveAbility": null,
     "halfOnSave": false,
     "autoHit": false,
-    "targetType": "SINGLE_TARGET",
-    "targetCount": 1,
+    "targetType": "SELF",
+    "targetCount": null,
     "targetCountUpcastScaling": null,
     "aoeShape": null,
     "aoeSize": null,
-    "selfOnly": false,
-    "canTargetSelf": false,
+    "selfOnly": true,
+    "canTargetSelf": true,
     "canTargetAllies": false,
-    "canTargetEnemies": true,
+    "canTargetEnemies": false,
     "effects": [
       {
-        "effectType": "DAMAGE",
-        "damageDice": "2d6",
-        "damageType": "thunder",
-        "upcastScaling": null,
-        "cantripScaling": null
-      },
-      {
-        "effectType": "CONDITION",
-        "condition": "prone",
-        "saveToAvoid": true,
-        "durationRounds": null,
-        "durationText": "Knocked prone (instantaneous)"
-      },
-      {
-        "effectType": "OTHER",
-        "description": "Target pushed 10 feet away from caster on failed STR save"
+        "effectType": "BUFF",
+        "description": "Your next melee weapon hit deals an extra 2d6 thunder damage, and the target makes a STR save or is pushed 10 feet and knocked prone",
+        "modifiers": [
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "2d6",
+            "damageTypes": [
+              "thunder"
+            ],
+            "weaponOnly": true,
+            "meleeOnly": true,
+            "oneShot": true
+          }
+        ]
       }
     ],
-    "conditionsInflicted": [
-      {
-        "condition": "prone",
-        "saveToAvoid": "STR",
-        "durationRounds": null,
-        "durationText": "Knocked prone"
-      }
-    ],
+    "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": null,
-    "specialMechanics": "Smite-style: bonus action, triggers on next melee weapon hit. On hit: 2d6 thunder extra damage + STR save or pushed 10 ft and prone. Audible 300 ft.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Smite-style delivery on next weapon hit. Forced movement (10 ft push) on failed save.",
-    "patternCategory": "SAVE_DAMAGE_AND_CONDITION",
+    "specialMechanics": "The 2d6 thunder is added to the next melee weapon hit, then the target makes a STR save or is knocked prone; the push is the DM's (D199).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "SELF_BUFF",
     "classes": [
       "Paladin"
     ],
-    "notes": "Bonus action. Concentration. Smite-style. Extra 2d6 thunder (always on hit). STR save for push + prone. No upcast scaling."
+    "notes": "Bonus action. Concentration. Smite-style. Extra 2d6 thunder (always on hit). STR save for push + prone. No upcast scaling.",
+    "followUpSave": {
+      "ability": "STR",
+      "on": "HIT",
+      "conditionsInflicted": [
+        {
+          "condition": "prone"
+        }
+      ]
+    },
+    "reminder": "On a failed save the target is also pushed 10 feet away from the caster (the DM moves it), and the thunder is audible within 300 feet."
   },
   {
     "spellName": "Thunderwave",
@@ -7718,56 +7835,64 @@
     "concentration": true,
     "durationRounds": 10,
     "durationText": "1 minute",
-    "deliveryMethod": "SAVING_THROW",
+    "deliveryMethod": "SELF",
     "spellAttackType": null,
-    "saveAbility": "WIS",
+    "saveAbility": null,
     "halfOnSave": false,
     "autoHit": false,
-    "targetType": "SINGLE_TARGET",
-    "targetCount": 1,
+    "targetType": "SELF",
+    "targetCount": null,
     "targetCountUpcastScaling": null,
     "aoeShape": null,
     "aoeSize": null,
-    "selfOnly": false,
-    "canTargetSelf": false,
+    "selfOnly": true,
+    "canTargetSelf": true,
     "canTargetAllies": false,
-    "canTargetEnemies": true,
+    "canTargetEnemies": false,
     "effects": [
       {
-        "effectType": "DAMAGE",
-        "damageDice": "1d6",
-        "damageType": "psychic",
-        "upcastScaling": null,
-        "cantripScaling": null
-      },
-      {
-        "effectType": "CONDITION",
-        "condition": "frightened",
-        "saveToAvoid": true,
-        "durationRounds": 10,
-        "durationText": "Until spell ends (concentration, 1 minute)"
+        "effectType": "BUFF",
+        "description": "Your next melee weapon hit deals an extra 1d6 psychic damage, and the target makes a WIS save or is frightened of you until the spell ends",
+        "modifiers": [
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "1d6",
+            "damageTypes": [
+              "psychic"
+            ],
+            "weaponOnly": true,
+            "meleeOnly": true,
+            "oneShot": true
+          }
+        ]
       }
     ],
-    "conditionsInflicted": [
-      {
-        "condition": "frightened",
-        "saveToAvoid": "WIS",
-        "durationRounds": 10,
-        "durationText": "Until spell ends",
-        "saveToEndEachTurn": true,
-        "saveToEndAbility": "WIS"
-      }
-    ],
+    "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": null,
-    "specialMechanics": "Smite-style: bonus action, triggers on next melee weapon hit. On hit: 1d6 psychic extra. WIS save or frightened. Frightened creature can use action to make WIS check (not save) vs spell DC to end.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Smite-style delivery. To end frightened, creature must use action for WIS ability check (not save) vs spell DC - important distinction.",
-    "patternCategory": "SAVE_DAMAGE_AND_CONDITION",
+    "specialMechanics": "The 1d6 psychic is added to the next melee weapon hit, then the target makes a WIS save or is frightened until the spell ends; it can use its action on a WIS check (not a save) against the DC to end the spell (D199).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "SELF_BUFF",
     "classes": [
       "Paladin"
     ],
-    "notes": "Bonus action. Concentration. Smite-style. 1d6 psychic (no upcast scaling). Frightened ended by WIS CHECK (not save) - avoids proficiency bonus. No upcast scaling."
+    "notes": "Bonus action. Concentration. Smite-style. 1d6 psychic (no upcast scaling). Frightened ended by WIS CHECK (not save) - avoids proficiency bonus. No upcast scaling.",
+    "followUpSave": {
+      "ability": "WIS",
+      "on": "HIT",
+      "untilSpellEnds": true,
+      "conditionsInflicted": [
+        {
+          "condition": "frightened"
+        }
+      ]
+    },
+    "actionSave": {
+      "condition": "frightened",
+      "ability": "WIS",
+      "check": true
+    }
   },
   {
     "spellName": "Zephyr Strike",
@@ -13049,15 +13174,16 @@
     "healing": null,
     "upcastDescription": "Damage increases by 1d6 per slot above 2nd. Additional Hit Dice that can be spent increases by 1 per slot above 2nd.",
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Combines damage (CON save, half on success) with healing (one creature spends a Hit Die to heal). Two distinct effects.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Druid",
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Instantaneous. Selective damage targeting. One creature heals by spending a Hit Die. Nonmagical vegetation in area withers."
+    "notes": "Instantaneous. Selective damage targeting. One creature heals by spending a Hit Die. Nonmagical vegetation in area withers.",
+    "reminder": "One creature of the caster's choice in the area can spend and roll one of its unspent Hit Dice, one more for each slot level above 2nd, regaining the roll plus the caster's spellcasting modifier: the DM applies it with Heal."
   },
   {
     "spellName": "Wristpocket",
@@ -13261,8 +13387,8 @@
     "healing": null,
     "upcastDescription": "Damage increases by 1d4 for each slot level above 3rd",
     "specialMechanics": "Forces reaction melee attack against chosen creature on failed save, or disadvantage on next attack if unable",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Requires choosing a second target for the forced reaction attack and determining if target can make the attack",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Bard",
@@ -13270,7 +13396,8 @@
       "Warlock",
       "Wizard"
     ],
-    "notes": "REVIEW: No classes listed in source data; may be from Book of Many Things supplement. On successful save, half damage only (no forced attack)."
+    "notes": "REVIEW: No classes listed in source data; may be from Book of Many Things supplement. On successful save, half damage only (no forced attack).",
+    "reminder": "On a failed save the target must use its reaction, if it can, to make one melee attack against another creature of the caster's choice that the caster can see (the DM makes it), or else it has disadvantage on its next attack roll before the start of the caster's next turn."
   },
   {
     "spellName": "Ashardalon's Stride",
@@ -13594,56 +13721,61 @@
     "concentration": true,
     "durationRounds": 10,
     "durationText": "Concentration, up to 1 minute",
-    "deliveryMethod": "SAVING_THROW",
+    "deliveryMethod": "SELF",
     "spellAttackType": null,
-    "saveAbility": "CON",
+    "saveAbility": null,
     "halfOnSave": false,
     "autoHit": false,
-    "targetType": "SINGLE_TARGET",
-    "targetCount": 1,
+    "targetType": "SELF",
+    "targetCount": null,
     "targetCountUpcastScaling": null,
     "aoeShape": null,
     "aoeSize": null,
-    "selfOnly": false,
-    "canTargetSelf": false,
+    "selfOnly": true,
+    "canTargetSelf": true,
     "canTargetAllies": false,
-    "canTargetEnemies": true,
+    "canTargetEnemies": false,
     "effects": [
       {
-        "effectType": "DAMAGE",
-        "damageDice": "3d8",
-        "damageType": "radiant",
-        "upcastScaling": null,
-        "cantripScaling": null
-      },
-      {
-        "effectType": "CONDITION",
-        "condition": "blinded",
-        "saveToAvoid": true,
-        "durationRounds": 10,
-        "durationText": "Until spell ends"
+        "effectType": "BUFF",
+        "description": "Your next melee weapon hit deals an extra 3d8 radiant damage, and the target makes a CON save or is blinded until the spell ends",
+        "modifiers": [
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "3d8",
+            "damageTypes": [
+              "radiant"
+            ],
+            "weaponOnly": true,
+            "meleeOnly": true,
+            "oneShot": true
+          }
+        ]
       }
     ],
-    "conditionsInflicted": [
-      {
-        "condition": "blinded",
-        "saveToAvoid": "CON",
-        "durationRounds": 10,
-        "durationText": "Until spell ends; save at end of each turn to end",
-        "saveToEndEachTurn": true,
-        "saveToEndAbility": "CON"
-      }
-    ],
+    "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": null,
-    "specialMechanics": "Applied on next melee weapon hit. Target saves CON or is blinded until spell ends. Blinded creature repeats CON save at end of each turn to end blindness.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Triggered on next melee weapon hit (smite spell pattern); requires tracking pending smite and repeated saves",
-    "patternCategory": "COMPLEX",
+    "specialMechanics": "The 3d8 radiant is added to the next melee weapon hit, then the target makes a CON save or is blinded until the spell ends, repeating the save at the end of each of its turns (D199).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "SELF_BUFF",
     "classes": [
       "Paladin"
     ],
-    "notes": "Cast as bonus action, damage applied on next melee hit. The 3d8 radiant is extra damage on the hit, not a separate roll."
+    "notes": "Cast as bonus action, damage applied on next melee hit. The 3d8 radiant is extra damage on the hit, not a separate roll.",
+    "followUpSave": {
+      "ability": "CON",
+      "on": "HIT",
+      "untilSpellEnds": true,
+      "conditionsInflicted": [
+        {
+          "condition": "blinded",
+          "saveToEndEachTurn": true,
+          "saveToEndAbility": "CON"
+        }
+      ]
+    }
   },
   {
     "spellName": "Blink",
@@ -15515,14 +15647,15 @@
     },
     "upcastDescription": "The damage increases by 1d8 for each slot level above 3rd (healing also increases proportionally since it is 2x damage)",
     "specialMechanics": "Caster takes 4d8 necrotic damage (cannot be reduced in any way). Target heals for twice the necrotic damage dealt to the caster.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Self-damage that cannot be reduced feeds into healing calculation (2x damage = healing). Requires rolling damage, applying to caster, then calculating and applying double as healing to target.",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Cleric",
       "Wizard"
     ],
-    "notes": "Source: XGE. classesFromMap was empty; classes from general 5e knowledge. The necrotic damage to self can't be reduced in any way (ignores resistance, etc.)."
+    "notes": "Source: XGE. classesFromMap was empty; classes from general 5e knowledge. The necrotic damage to self can't be reduced in any way (ignores resistance, etc.).",
+    "selfDamageHeals": 2
   },
   {
     "spellName": "Lightning Arrow",
@@ -15540,53 +15673,68 @@
     "concentration": true,
     "durationRounds": 10,
     "durationText": "Concentration, up to 1 minute",
-    "deliveryMethod": "SAVING_THROW",
+    "deliveryMethod": "SELF",
     "spellAttackType": null,
-    "saveAbility": "DEX",
-    "halfOnSave": true,
+    "saveAbility": null,
+    "halfOnSave": false,
     "autoHit": false,
-    "targetType": "SINGLE_TARGET",
-    "targetCount": 1,
+    "targetType": "MULTI_TARGET",
+    "targetCount": null,
     "targetCountUpcastScaling": null,
-    "aoeShape": "sphere",
-    "aoeSize": 10,
+    "aoeShape": null,
+    "aoeSize": null,
     "selfOnly": false,
     "canTargetSelf": false,
-    "canTargetAllies": false,
+    "canTargetAllies": true,
     "canTargetEnemies": true,
     "effects": [
       {
-        "effectType": "DAMAGE",
-        "damageDice": "4d8",
-        "damageType": "lightning",
-        "upcastScaling": {
-          "additionalDicePerLevel": "1d8",
-          "additionalFlatPerLevel": 0
-        },
-        "cantripScaling": null
-      },
-      {
-        "effectType": "DAMAGE",
-        "damageDice": "2d8",
-        "damageType": "lightning",
-        "upcastScaling": {
-          "additionalDicePerLevel": "1d8",
-          "additionalFlatPerLevel": 0
-        },
-        "cantripScaling": null
+        "effectType": "BUFF",
+        "description": "Your next ranged weapon attack deals 4d8 lightning damage instead of the weapon's on a hit, half on a miss, and the creatures picked within 10 feet of the target save on DEX against 2d8 lightning",
+        "modifiers": [
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "4d8",
+            "damageTypes": [
+              "lightning"
+            ],
+            "weaponOnly": true,
+            "oneShot": true,
+            "requires": "REPLACES_RANGED",
+            "upcast": {
+              "every": 1,
+              "dice": "1d8"
+            }
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "The damage for both effects increases by 1d8 for each slot level above 3rd",
-    "specialMechanics": "Next ranged weapon attack transforms into lightning bolt. Primary target: 4d8 lightning on hit, half on miss (replaces weapon damage). Secondary: each creature within 10 feet of target makes DEX save, 2d8 lightning on fail, half on success.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Two-phase attack: ranged weapon attack roll for primary target (full on hit, half on miss), then DEX save for AOE secondary damage to nearby creatures",
-    "patternCategory": "COMPLEX",
+    "specialMechanics": "The next ranged weapon attack deals 4d8 lightning in place of the weapon's damage on a hit and half on a miss; hit or miss, the creatures picked at the cast save on DEX against 2d8 lightning, half on a success (D199).",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "SELF_BUFF",
     "classes": [
       "Ranger"
     ],
-    "notes": "Primary target takes full damage on hit or half on miss (not a save). Secondary AOE targets make DEX save for half. Both damage amounts increase with upcast."
+    "notes": "Primary target takes full damage on hit or half on miss (not a save). Secondary AOE targets make DEX save for half. Both damage amounts increase with upcast.",
+    "primaryTargets": 0,
+    "followUpSave": {
+      "ability": "DEX",
+      "on": "ATTACK",
+      "damageDice": "2d8",
+      "damageType": "lightning",
+      "halfOnSave": true,
+      "upcastScaling": {
+        "additionalDicePerLevel": "1d8",
+        "additionalFlatPerLevel": 0
+      },
+      "includesTarget": false,
+      "alsoPicked": true
+    },
+    "reminder": "Pick the creatures within 10 feet of the creature the next ranged attack is against when casting, there being no map; the ammunition then returns to its normal form."
   },
   {
     "spellName": "Lightning Bolt",
@@ -16364,13 +16512,14 @@
     "healing": null,
     "upcastDescription": "Damage increases by 1d6 and push/pull distance increases by 5 feet for each slot level above 3rd",
     "specialMechanics": "Caster chooses pull or push direction when casting. Forced movement only on failed save.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Forced movement (pull/push) requires positional tracking and caster choice of direction",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Wizard"
     ],
-    "notes": "REVIEW: Dunamancy spell from Explorer's Guide to Wildemount. Half damage on success but NO forced movement on success."
+    "notes": "REVIEW: Dunamancy spell from Explorer's Guide to Wildemount. Half damage on success but NO forced movement on success.",
+    "reminder": "Each creature that fails is pulled 15 feet toward the caster or pushed 15 feet away, the caster's choice, 5 feet more for each slot level above 3rd: the DM moves it."
   },
   {
     "spellName": "Remove Curse",
@@ -17254,15 +17403,16 @@
     "healing": null,
     "upcastDescription": "Damage increases by 1d10 for each slot level above 3rd",
     "specialMechanics": "Caster teleports, then 10-foot radius damage at departure point. Can bring one willing creature within 5 feet (must have unoccupied space at destination). Thunder audible from 300 feet.",
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Teleportation combined with AOE damage at departure point; positional tracking required for both caster movement and damage area",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
     "patternCategory": "COMPLEX",
     "classes": [
       "Sorcerer",
       "Warlock",
       "Wizard"
     ],
-    "notes": null
+    "notes": null,
+    "reminder": "The caster teleports to an unoccupied space within 90 feet it can see, and can bring one willing creature of its size or smaller within 5 feet; the targets are the creatures within 10 feet of the space it left, and the thunder is audible 300 feet away."
   },
   {
     "spellName": "Tidal Wave",

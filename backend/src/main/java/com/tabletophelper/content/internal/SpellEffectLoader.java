@@ -31,8 +31,8 @@ import java.util.Map;
  * the 8th- and 9th-level spells' (D190), such as escapeCheck, healingPool, castsSpell and critRange, and since version
  * 8 the keys that close the high-level gaps (D195), such as layers, concentrationSave and a retaliation's save, and
  * since version 9 the low-level spells D196 automates, and since version 10 those D197 automates, and since version
- * 11 Branding Smite's rider, and since version 13 the low-level spells D199 automates, with the Ongoing Modifier
- * kinds and keys they add, such as heldObjectSave and attackAdvantageVs.
+ * 11 Branding Smite's rider, and since version 13 the spells D199 automates, with the Ongoing Modifier
+ * kinds and keys they add, such as heldObjectSave, hpPool, followUpSave's damage and picked creatures, and darts.
  */
 @Component
 @RequiredArgsConstructor

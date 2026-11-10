@@ -263,8 +263,15 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
             case AC -> "AC " + signed(flat);
             case AC_FLOOR -> "AC at least " + flat;
             case AC_BASE -> "base AC " + flat;
-            case HIT_DAMAGE -> amount + (damageTypes.isEmpty() ? "" : " " + damageTypes.getFirst()) + " damage on "
-                    + (oneShot ? "its next " : "") + (meleeOnly ? "melee " : weaponOnly ? "weapon " : "") + "hit"
+            // Lightning Arrow's dice in place of the weapon's (PHB p.255), and a rider with no damage of its own, as
+            // Hail of Thorns' (PHB p.249) (D199)
+            case HIT_DAMAGE -> "REPLACES_RANGED".equalsIgnoreCase(requires)
+                    ? amount + (damageTypes.isEmpty() ? "" : " " + damageTypes.getFirst())
+                    + " damage in place of the weapon's on its next ranged weapon attack (half on a miss)"
+                    : (dice == null && flat == 0 ? "takes effect" : amount + (damageTypes.isEmpty() ? ""
+                    : " " + damageTypes.getFirst()) + " damage") + " on "
+                    + (oneShot ? "its next " : "") + ("RANGED".equalsIgnoreCase(requires) ? "ranged weapon "
+                    : meleeOnly ? "melee " : weaponOnly ? "weapon " : "") + "hit"
                     + (oneShot ? "" : "s") + (scope == Scope.CASTER_VS_AFFECTED ? " by the caster against it" : "");
             case SPEED -> (requires == null || requires.isBlank() ? ""
                     : WALK.equalsIgnoreCase(requires) ? "walking " : requires.toLowerCase(Locale.ROOT) + " ")

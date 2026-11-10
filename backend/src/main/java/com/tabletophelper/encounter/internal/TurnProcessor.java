@@ -67,6 +67,15 @@ public class TurnProcessor {
         this.defensiveSpells = defensiveSpells;
     }
 
+    // The triggers the engine applies itself to creatures with their spell's condition, as Searing Smite's flames
+    // (D199); set by Spring like the summoner
+    private SpellCaster spellCaster;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setSpellCaster(SpellCaster spellCaster) {
+        this.spellCaster = spellCaster;
+    }
+
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     void setSummoner(Summoner summoner) {
         this.summoner = summoner;
@@ -286,6 +295,11 @@ public class TurnProcessor {
         effectApplier.modifiersAtTurnStart(encounter, creature);
         // Delayed damage armed, Aura of Life's hit point, and the creature's Spell Effects' reminders (D185)
         effectApplier.effectsAtTurnStart(encounter, creature);
+        // What a spell does to the creature itself at the start of its turn, as Searing Smite's flames and Ensnaring
+        // Strike's thorns (PHB p.274, p.237, D199)
+        if (spellCaster != null) {
+            spellCaster.conditionedTriggersAtTurnStart(encounter, creature);
+        }
         // The creatures its spells killed rise now, as Finger of Death's zombies (PHB p.241, D189)
         raise(encounter, creature);
         effectApplier.refreshTurn(encounter, creature);

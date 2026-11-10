@@ -176,6 +176,10 @@ class CombatFixture {
     CombatFixture() {
         effectApplier.setDefensiveSpells(defensiveSpells);
         turnProcessor.setDefensiveSpells(defensiveSpells);
+        // Weapon riders' follow-ups, triggers on conditioned creatures and weapon-attack cantrips (D199)
+        effectApplier.setSpellEffects(spellEffects);
+        turnProcessor.setSpellCaster(spellCaster);
+        spellcasting.setAttackService(attacks);
         User dm =User.builder().id(dmUserId).username("dm").email("dm@test.com").passwordHash("hash").build();
         campaign = Campaign.builder().id(UUID.randomUUID()).name("Test Campaign").dm(dm).inviteCode("ABC123").build();
         encounter = Encounter.builder()
