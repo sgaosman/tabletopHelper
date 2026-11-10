@@ -10,6 +10,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -56,4 +57,9 @@ public class CastSpellRequest {
     // the DM; any other spell refuses it with a 400
     @Valid
     private SummonChoice summon;
+
+    // The form each creature takes, by its participant ID, for Polymorph, Mass Polymorph, True Polymorph, Shapechange
+    // (the caster's) and Animal Shapes (D192): the monster row of the creature it becomes, checked before anything is
+    // spent; any other spell refuses it with a 400
+    private Map<UUID, UUID> forms;
 }

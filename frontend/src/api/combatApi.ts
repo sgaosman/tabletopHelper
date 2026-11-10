@@ -16,9 +16,11 @@ import type {
   MonsterActionTemplate,
   MultiattackOption,
   BardicInspirationRequest,
+  ChangeFormRequest,
   DeftStrikeRequest,
   DivineSmiteRequest,
   FontOfMagicUseRequest,
+  FormOptions,
   ObjectInteractionRequest,
   ProtectionRequest,
   SpellOption,
@@ -213,6 +215,20 @@ export const combatApi = {
   // per level (PHB p.69)
   wildShapeHeal(encounterId: string, request: WildShapeHealRequest) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/wild-shape-heal`, request);
+  },
+
+  // The creatures a form spell can turn the target into (D192), within the spell's limits for it; for Shapechange the
+  // target is the caster and may be left out
+  getFormOptions(encounterId: string, participantId: string, spell: string, targetId?: string) {
+    return api.get<FormOptions>(`/encounters/${encounterId}/combat/form-options`, {
+      params: { participantId, spell, ...(targetId ? { targetId } : {}) },
+    });
+  },
+
+  // A new form during Shapechange (the caster's own) or Animal Shapes (a creature the caster transformed), the
+  // caster's action (D192)
+  changeForm(encounterId: string, request: ChangeFormRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/change-form`, request);
   },
 
   // A sorcerer's Flexible Casting, a bonus action on their turn: a slot for sorcery points, or points for a slot

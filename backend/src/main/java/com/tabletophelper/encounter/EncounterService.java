@@ -293,7 +293,8 @@ public class EncounterService {
                 .findFirst()
                 .orElseThrow(() -> new NotFoundException("Participant not found"));
 
-        Monster monster = druid.isPresent()
+        // A creature in another form, a druid's Wild Shape or a polymorphed monster, takes the form's actions (D192)
+        Monster monster = WildShapeForm.of(participant).isPresent()
                 ? monsterRepository.findById(WildShapeForm.of(participant).orElseThrow().monsterId()).orElse(null)
                 : participant.getMonster();
         // A Tasha's spirit's own templates, made for it at the cast, come before its monster row's (D182)
@@ -756,7 +757,9 @@ public class EncounterService {
                         .spellcastingAbility(p.getSpellcastingAbility())
                         .spellsKnown(p.getSpellsKnown())
                         .resourcePoolsCurrent(p.getResourcePoolsCurrent())
-                        .wildShape(WildShapeForm.of(p).orElse(null))
+                        .wildShape(WildShapeForm.of(p).filter(WildShapeForm::wildShape).orElse(null))
+                        .form(WildShapeForm.of(p).orElse(null))
+                        .formName(WildShapeForm.of(p).map(WildShapeForm::beastName).orElse(null))
                         .turnEconomy(p.getTurnEconomy())
                         .attacksPerAction(TurnEconomies.attacksPerAction(p))
                         .speed(TurnEconomies.speed(p, objectMapper))

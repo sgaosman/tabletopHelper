@@ -35,6 +35,8 @@ interface Props {
   submitIcon: LucideIcon;
   submitting: boolean;
   onSubmit: () => void;
+  /** Keeps the submit button disabled, as while a form spell's creature has no form yet (D192). */
+  submitDisabled?: boolean;
   /** Back to the step before; without it there is no Back button. */
   onBack?: () => void;
   /** The options a cast of the spell chooses between, such as Enlarge or Reduce (D184); none for most spells. */
@@ -58,7 +60,7 @@ const ADVANTAGE_MODES = [
 export default function ConfirmStep({
   spellName, levelLabel, cost, castingTime, reactionTrigger, economyWarning, caster, targets, warnConcentration = false, advantage, onAdvantageChange,
   allowManualModifiers, overrideAttackBonus, overrideSaveDC, onOverrideAttackBonus, onOverrideSaveDC,
-  submitLabel, busyLabel, submitIcon: SubmitIcon, submitting, onSubmit, onBack, castOptions, option, onOptionChange,
+  submitLabel, busyLabel, submitIcon: SubmitIcon, submitting, onSubmit, submitDisabled = false, onBack, castOptions, option, onOptionChange,
   duplicatesUpTo,
 }: Props) {
   return (
@@ -159,7 +161,7 @@ export default function ConfirmStep({
         </div>
       )}
 
-      <Button size="lg" className="w-full" onClick={onSubmit} loading={submitting}>
+      <Button size="lg" className="w-full" onClick={onSubmit} loading={submitting} disabled={submitDisabled}>
         <SubmitIcon className="w-4 h-4" />
         {submitting ? busyLabel : submitLabel}
       </Button>

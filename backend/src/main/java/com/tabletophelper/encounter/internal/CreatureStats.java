@@ -144,6 +144,10 @@ public class CreatureStats {
         if (ActiveModifiers.modifiersOn(participant).stream().anyMatch(m -> m.kind() == OngoingModifier.Kind.EVASION)) {
             return true;
         }
+        // A form that replaces every statistic leaves the creature's own Evasion behind (PHB p.266, D192)
+        if (WildShapeForm.of(participant).filter(form -> !form.keepsOwn()).isPresent()) {
+            return false;
+        }
         PlayerCharacter character = participant.getCharacter();
         if (character != null) {
             return FeatureEffects.classLevel(character, "Rogue") >= EVASION_LEVEL
@@ -186,6 +190,20 @@ public class CreatureStats {
      * character's race's, which a druid keeps in beast form (PHB p.67); none when its data has none.
      */
     public List<Trait> traits(EncounterParticipant participant) {
+        // In another form the form's stat block traits apply, such as a beast's Magic Resistance, and the creature's own
+        // monster traits don't (PHB p.266, p.67, p.274, D192): a polymorphed rakshasa loses Limited Magic Immunity. A
+        // player character keeps its race's traits, as Gnome Cunning, only in Wild Shape and Shapechange, which keep its
+        // features; Polymorph, True Polymorph, Mass Polymorph and Animal Shapes replace them
+        Optional<WildShapeForm> form = WildShapeForm.of(participant);
+        if (form.isPresent()) {
+            List<Trait> traits = new ArrayList<>(readTraits(form.get().traits(), form.get().beastName()
+                    + "'s traits"));
+            Race race = participant.getCharacter() != null ? participant.getCharacter().getRaceRef() : null;
+            if (form.get().keepsOwn() && race != null) {
+                traits.addAll(readTraits(race.getTraits(), race.getName() + "'s traits"));
+            }
+            return traits;
+        }
         String json = null;
         String what = null;
         if (participant.getMonster() != null) {
@@ -196,6 +214,11 @@ public class CreatureStats {
             json = race.getTraits();
             what = race.getName() + "'s traits";
         }
+        return readTraits(json, what);
+    }
+
+    // Traits as stored, a list of named entries
+    private List<Trait> readTraits(String json, String what) {
         // The loaders write a list of named entries; anything else has no traits to read, rather than failing a cast
         if (json == null || !json.trim().startsWith("[")) {
             return List.of();
@@ -436,6 +459,22 @@ public class CreatureStats {
                 case CON -> {
                     return form.get().constitution();
                 }
+                // A spell's form may replace the mental scores too, as Polymorph's does (PHB p.266, D192)
+                case INT -> {
+                    if (form.get().intelligence() != null) {
+                        return form.get().intelligence();
+                    }
+                }
+                case WIS -> {
+                    if (form.get().wisdom() != null) {
+                        return form.get().wisdom();
+                    }
+                }
+                case CHA -> {
+                    if (form.get().charisma() != null) {
+                        return form.get().charisma();
+                    }
+                }
                 default -> {
                     // Its own mental scores
                 }
@@ -472,6 +511,11 @@ public class CreatureStats {
      * or fiend (PHB p.240), or else its stat block's; null for a creature without one, such as a player character.
      */
     public static String creatureType(EncounterParticipant participant) {
+        // A spell's form gives its creature type, as a polymorphed creature is a beast (PHB p.266, D192)
+        Optional<WildShapeForm> form = WildShapeForm.of(participant);
+        if (form.isPresent() && !form.get().wildShape()) {
+            return form.get().creatureType() != null ? form.get().creatureType() : "beast";
+        }
         if (participant.getSummon() != null && participant.getSummon().creatureType() != null) {
             return participant.getSummon().creatureType();
         }
@@ -484,8 +528,10 @@ public class CreatureStats {
      * block's, or a player character's race's, humanoid when its data gives none (PHB p.17-18 races are humanoid).
      */
     public static String typeForSpells(EncounterParticipant participant) {
-        if (WildShapeForm.of(participant).isPresent()) {
-            return "beast";
+        Optional<WildShapeForm> form = WildShapeForm.of(participant);
+        if (form.isPresent()) {
+            String formType = form.get().creatureType();
+            return formType != null ? formType.trim().toLowerCase(Locale.ROOT) : "beast";
         }
         String type = creatureType(participant);
         if (type != null) {
@@ -513,6 +559,12 @@ public class CreatureStats {
         if (ability == null) {
             return 0;
         }
+        // A form that replaces every statistic, as Polymorph's, saves with the form's bonuses alone (PHB p.266, D192)
+        Optional<WildShapeForm> form = WildShapeForm.of(participant);
+        if (form.isPresent() && !form.get().keepsOwn()) {
+            Integer listed = form.get().saves().get(ability.name().toLowerCase(Locale.ROOT));
+            return listed != null ? listed : Ability.modifier(abilityScore(participant, ability));
+        }
         if (participant.getCharacter() != null) {
             PlayerCharacter character = participant.getCharacter();
             int modifier = Ability.modifier(abilityScore(participant, ability));
@@ -520,7 +572,7 @@ public class CreatureStats {
                     : modifier + (character.getProficiencyBonus() != null ? character.getProficiencyBonus() : 2);
             // In beast form, the beast's listed save bonus when it is higher (PHB p.67)
             return WildShapeForm.of(participant)
-                    .map(form -> BeastShapes.bonus(own, form.saves().get(ability.name().toLowerCase(Locale.ROOT))))
+                    .map(f -> BeastShapes.bonus(own, f.saves().get(ability.name().toLowerCase(Locale.ROOT))))
                     .orElse(own);
         }
         if (participant.getMonster() != null) {
@@ -528,7 +580,10 @@ public class CreatureStats {
             JsonNode saves = StoredJson.read(objectMapper, monster.getSavingThrows(),
                     monster.getName() + "'s saving throws");
             Integer listed = bonus(saves.path(ability.name().toLowerCase()));
-            return listed != null ? listed : Ability.modifier(abilityScore(participant, ability));
+            int own = listed != null ? listed : Ability.modifier(abilityScore(participant, ability));
+            // A monster in a form that keeps its own proficiencies, as Shapechange's, takes the higher bonus (PHB p.274)
+            return form.map(f -> BeastShapes.bonus(own, f.saves().get(ability.name().toLowerCase(Locale.ROOT))))
+                    .orElse(own);
         }
         return 0;
     }
@@ -543,6 +598,12 @@ public class CreatureStats {
      */
     public int skillModifier(EncounterParticipant participant, String skill, Ability ability) {
         int modifier = Ability.modifier(abilityScore(participant, ability));
+        // A form that replaces every statistic uses the form's skill bonuses alone (PHB p.266, D192)
+        Optional<WildShapeForm> form = WildShapeForm.of(participant);
+        if (form.isPresent() && !form.get().keepsOwn()) {
+            Integer listed = form.get().skills().get(skill.toLowerCase(Locale.ROOT));
+            return listed != null ? listed : modifier;
+        }
         if (participant.getCharacter() != null) {
             PlayerCharacter character = participant.getCharacter();
             int proficiency = character.getProficiencyBonus() != null ? character.getProficiencyBonus() : 2;
@@ -554,7 +615,7 @@ public class CreatureStats {
             }
             // In beast form, the beast's listed skill bonus when it is higher (PHB p.67)
             return WildShapeForm.of(participant)
-                    .map(form -> BeastShapes.bonus(own, form.skills().get(skill.toLowerCase(Locale.ROOT))))
+                    .map(f -> BeastShapes.bonus(own, f.skills().get(skill.toLowerCase(Locale.ROOT))))
                     .orElse(own);
         }
         if (participant.getMonster() != null) {
@@ -593,7 +654,24 @@ public class CreatureStats {
         }
         String type = damageType.trim();
         Set<Defence> defences = EnumSet.noneOf(Defence.class);
-        if (participant.getMonster() != null) {
+        // A form's defences: alongside the creature's own in Wild Shape and Shapechange (PHB p.67, p.274), in place of
+        // them for Polymorph (PHB p.266, D192)
+        Optional<WildShapeForm> form = WildShapeForm.of(participant);
+        form.ifPresent(f -> {
+            if (names(f.damageResistances(), type)) {
+                defences.add(Defence.RESISTANCE);
+            }
+            if (names(f.damageImmunities(), type)) {
+                defences.add(Defence.IMMUNITY);
+            }
+            if (names(f.damageVulnerabilities(), type)) {
+                defences.add(Defence.VULNERABILITY);
+            }
+        });
+        boolean own = form.isEmpty() || form.get().keepsOwn();
+        if (!own) {
+            // Only the form's
+        } else if (participant.getMonster() != null) {
             Monster monster = participant.getMonster();
             String name = monster.getName();
             if (lists(monster.getDamageResistances(), name + "'s damage resistances", type)) {
@@ -615,19 +693,8 @@ public class CreatureStats {
                 defences.add(Defence.IMMUNITY);
             }
         } else if (participant.getCharacter() != null) {
+            // A druid in beast form keeps the defences its own race and features give (PHB p.67)
             defences.addAll(DmAdjustments.defences(participant.getCharacter(), type));
-            // A druid in beast form has the beast's defences, and keeps those its own race and features give (PHB p.67)
-            WildShapeForm.of(participant).ifPresent(form -> {
-                if (names(form.damageResistances(), type)) {
-                    defences.add(Defence.RESISTANCE);
-                }
-                if (names(form.damageImmunities(), type)) {
-                    defences.add(Defence.IMMUNITY);
-                }
-                if (names(form.damageVulnerabilities(), type)) {
-                    defences.add(Defence.VULNERABILITY);
-                }
-            });
         }
         // Resistance an Ongoing Modifier gives, such as Warding Bond's to all damage (PHB p.287, D184)
         List<OngoingModifier> modifiers = ActiveModifiers.modifiersOn(participant);
@@ -674,15 +741,20 @@ public class CreatureStats {
         if (OngoingModifiers.immuneTo(name, ActiveModifiers.modifiersOn(participant), magical)) {
             return true;
         }
+        // A form's condition immunities, in place of the creature's own for Polymorph (PHB p.266, D192)
+        Optional<WildShapeForm> form = WildShapeForm.of(participant);
+        if (form.filter(f -> names(f.conditionImmunities(), name)).isPresent()) {
+            return true;
+        }
+        if (form.isPresent() && !form.get().keepsOwn()) {
+            return false;
+        }
         if (participant.getMonster() != null) {
             Monster monster = participant.getMonster();
             return lists(monster.getConditionImmunities(), monster.getName() + "'s condition immunities", name);
         }
         if (participant.getCharacter() != null) {
             PlayerCharacter character = participant.getCharacter();
-            if (WildShapeForm.of(participant).filter(form -> names(form.conditionImmunities(), name)).isPresent()) {
-                return true;
-            }
             List<String> listed = character.getConditionImmunities();
             if (listed != null && listed.stream().anyMatch(c -> c != null && c.trim().equalsIgnoreCase(name))) {
                 return true;

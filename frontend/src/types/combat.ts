@@ -213,3 +213,12 @@ export type WildShapeBeast = Schemas['Beast'];
 
 /** A Circle of the Moon druid's Combat Wild Shape healing: a spell slot for 1d8 HP per level (PHB p.69). */
 export type WildShapeHealRequest = Schemas['WildShapeHealRequest'];
+
+/**
+ * The creatures a creature can become through a form spell (D192): Polymorph, Mass Polymorph, True Polymorph,
+ * Shapechange or Animal Shapes, filtered by the spell's limits for that target and sorted by challenge rating, then name.
+ */
+export type FormOptions = Schemas['FormOptions'];
+
+/** A new form for a creature already transformed by Shapechange or Animal Shapes, the caster's action (D192). */
+export type ChangeFormRequest = Schemas['ChangeFormRequest'];

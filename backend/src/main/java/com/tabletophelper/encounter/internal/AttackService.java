@@ -547,8 +547,12 @@ public class AttackService {
         }
         // A druid in beast form fights with the beast's attacks; its weapons merge into the form (PHB p.67)
         WildShapeForm.of(actor).ifPresent(form -> {
-            throw new ConflictException(actor.getDisplayName() + " is in Wild Shape as a " + form.beastName()
-                    + ": attack with the beast's actions");
+            throw new ConflictException(form.wildShape()
+                    ? actor.getDisplayName() + " is in Wild Shape as a " + form.beastName()
+                            + ": attack with the beast's actions"
+                    // As is a creature in a spell's form, as Polymorph's (PHB p.266, D192)
+                    : actor.getDisplayName() + " is in " + form.beastName() + " form (" + form.spell()
+                            + "): attack with its actions");
         });
         PlayerCharacter character = actor.getCharacter();
         CharacterWeapons.Held held = characterWeapons.find(character, request.getWeapon())

@@ -697,6 +697,23 @@ describe('Player EncounterSessionPage in Wild Shape (PHB p.66–67)', () => {
       { participantId: 'part-gimli', poolId: 'class:druid-wild-shape', option: 'end' },
     ]));
   });
+
+  it("offers a polymorphed character its form's actions, with no Wild Shape to end (D192)", async () => {
+    const ape = { ...wolf, monsterId: 'monster-giant-ape', beastName: 'Giant Ape', spell: 'Polymorph', druidLevel: 0 };
+    server.use(
+      http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+        participants: [goblin(), gimli({ isCurrentTurn: true, form: ape, formName: 'Giant Ape' })],
+      }))),
+    );
+    renderPage();
+    const user = userEvent.setup();
+
+    expect(await screen.findByText('(as Giant Ape)')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: "Gimli's Polymorph" })).toHaveTextContent('Own HP 30/30, AC 16');
+    expect(screen.queryByRole('button', { name: "End Gimli's Wild Shape" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Giant Ape actions' }));
+    expect(await screen.findByRole('button', { name: /Scimitar/ })).toBeInTheDocument();
+  });
 });
 
 describe('Player EncounterSessionPage with summoned creatures (D182)', () => {

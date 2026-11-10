@@ -20,6 +20,8 @@ import SummonStep from './spellflow/SummonStep';
 import useSummonDraft from './spellflow/useSummonDraft';
 import { draftProblem, isSummoningSpell, summonSummary, toSummonChoice } from '../../utils/summons';
 import { mysticArcanumTitle } from '../../utils/mysticArcanum';
+import FormStep, { type FormChoice } from './spellflow/FormStep';
+import { formSubjects, isFormSpell } from '../../utils/formSpells';
 
 interface Props {
   caster: EncounterParticipant;
@@ -61,14 +63,15 @@ interface ChoiceRow extends CastChoice {
  * it after how to pay, each option showing its cost and why it can't change the spell; Quickened Spell makes the cast a
  * bonus action, Twinned Spell allows a second target, and Careful and Heightened Spell choose their creatures among the
  * targets on the confirm step. A summoning spell (D182) chooses its creatures in the summon step after how to pay, from
- * the options the server lists at that slot level, and the cast carries the choice.
+ * the options the server lists at that slot level, and the cast carries the choice. A form spell (D192) chooses each
+ * creature's form in the form step after the targets (the caster's own for Shapechange), and the cast carries them.
  */
 export default function SpellCastModal({
   caster, participants, onClose, allowManualModifiers = false, asDm = false, castingTimes,
 }: Props) {
   const actions = useEncounterAction();
   const spellOptions = useSpellOptions(caster.id);
-  const flow = useSpellFlow<'spell' | 'slot' | 'metamagic' | 'summon'>('spell', { allowManualModifiers });
+  const flow = useSpellFlow<'spell' | 'slot' | 'metamagic' | 'summon' | 'form'>('spell', { allowManualModifiers });
   const { encounterId } = useLiveEncounter();
   const [search, setSearch] = useState('');
   const [selectedSpell, setSelectedSpell] = useState<SpellOption | null>(null);
@@ -88,6 +91,12 @@ export default function SpellCastModal({
   const summonOptions = useSummonOptions(encounterId, caster.id, summoning ? selectedSpell?.name : undefined,
     choice?.level ?? null);
   const [summonDraft, setSummonDraft] = useSummonDraft(summoning ? summonOptions.data : undefined);
+  // A form spell's creatures and the form each takes, by participant ID (D192)
+  const formSpell = isFormSpell(selectedSpell?.name);
+  const [forms, setForms] = useState<Record<string, FormChoice>>({});
+  const subjects = formSpell && selectedSpell
+    ? formSubjects(selectedSpell.name, caster, flow.selectedTargets, participants) : [];
+  const formsMissing = subjects.some(s => !forms[s.id]);
 
   const filteredSpells = useMemo(() => {
     const q = search.toLowerCase();
@@ -169,6 +178,7 @@ export default function SpellCastModal({
   function selectSpell(spell: SpellOption) {
     setSelectedSpell(spell);
     setCastOption(spell.castOptions?.[0] ?? null);
+    setForms({});
     flow.setError('');
     const available = rowsFor(spell, caster.spellSlotsCurrent ?? {}).filter(row => row.available);
     if (nothingToChoose(available)) {
@@ -179,7 +189,7 @@ export default function SpellCastModal({
   }
 
   function cast() {
-    if (!selectedSpell || !choice) return;
+    if (!selectedSpell || !choice || formsMissing) return;
     // Player characters and monsters cast through the one endpoint, which spends the chosen source (D165)
     flow.submit(() => actions.castSpell({
       spellName: selectedSpell.name,
@@ -191,6 +201,8 @@ export default function SpellCastModal({
       option: castOption ?? undefined,
       summon: summoning && summonOptions.data && summonDraft
         ? toSummonChoice(summonOptions.data, summonDraft) : undefined,
+      forms: formSpell
+        ? Object.fromEntries(subjects.map(s => [s.id, forms[s.id].monsterId])) : undefined,
       ...flow.overrides(),
     }, caster.id));
   }
@@ -293,8 +305,23 @@ export default function SpellCastModal({
             onToggle={flow.toggleTarget}
             targetingInfo={flow.targetingInfo}
             targetingLoading={flow.targetingLoading}
-            onProceed={() => flow.setStep('confirm')}
+            onProceed={() => flow.setStep(formSpell ? 'form' : 'confirm')}
             onBack={backToSource}
+          />
+        ) : flow.step === 'form' ? (
+          <FormStep
+            spellName={selectedSpell!.name}
+            caster={caster}
+            subjects={subjects}
+            forms={forms}
+            onChoose={(id, form) => setForms(chosen => {
+              const next = { ...chosen };
+              if (form) next[id] = form;
+              else delete next[id];
+              return next;
+            })}
+            onContinue={() => flow.setStep('confirm')}
+            onBack={() => (flow.takesNoTargets ? backToSource() : flow.setStep('target'))}
           />
         ) : (
           <>
@@ -309,6 +336,11 @@ export default function SpellCastModal({
           {summoning && summonOptions.data && summonDraft && (
             <p className="font-body text-[15px] font-semibold text-ink">
               Summons: {summonSummary(summonOptions.data, summonDraft)}
+            </p>
+          )}
+          {formSpell && subjects.length > 0 && (
+            <p className="font-body text-[15px] font-semibold text-ink">
+              Forms: {subjects.map(s => `${s.displayName} as ${forms[s.id]?.name ?? '?'}`).join(', ')}
             </p>
           )}
           <ConfirmStep
@@ -334,7 +366,9 @@ export default function SpellCastModal({
             submitIcon={Sparkles}
             submitting={flow.submitting}
             onSubmit={cast}
-            onBack={() => (flow.takesNoTargets ? backToSource() : flow.setStep('target'))}
+            submitDisabled={formsMissing}
+            onBack={() => (formSpell ? flow.setStep('form')
+              : flow.takesNoTargets ? backToSource() : flow.setStep('target'))}
             castOptions={selectedSpell!.castOptions}
             option={castOption}
             onOptionChange={setCastOption}

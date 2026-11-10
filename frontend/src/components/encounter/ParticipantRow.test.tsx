@@ -14,6 +14,29 @@ const legolas = (overrides: Parameters<typeof makeMockParticipant>[3] = {}) =>
   makeMockParticipant('p', 'Legolas', 'PLAYER', { initiative: 19, characterClass: 'Ranger', ...overrides });
 
 describe('ParticipantRow', () => {
+  it('names the form a spell gave the creature, with the form\'s and its own HP (D192)', () => {
+    const form = {
+      monsterId: 'monster-giant-ape', beastName: 'Giant Ape', spell: 'Polymorph', armourClass: 12, hpMax: 157,
+      strength: 23, dexterity: 14, constitution: 18, druidLevel: 0, normalHpCurrent: 25, normalHpMax: 40,
+      normalArmourClass: 16,
+    } satisfies NonNullable<EncounterParticipant['form']>;
+    render(<ParticipantRow participant={legolas({ formName: 'Giant Ape', form, hpCurrent: 150, hpMax: 157, armourClass: 12 })}
+      current={false} />);
+    expect(screen.getByText('(as Giant Ape)')).toBeInTheDocument();
+    expect(screen.getByText('Legolas', { exact: false })).toHaveTextContent('Legolas (as Giant Ape)');
+    const status = screen.getByRole('status', { name: "Legolas's Polymorph" });
+    expect(status).toHaveTextContent('Polymorph: Giant Ape');
+    expect(status).toHaveTextContent('Form HP 150/157, AC 12');
+    expect(status).toHaveTextContent('Own HP 25/40, AC 16');
+  });
+
+  it('names a monster\'s form in the Player View, where the form itself is left out (D192)', () => {
+    render(<ParticipantRow participant={makeMockParticipant('m', 'Ogre', 'MONSTER', { formName: 'Snail', form: null })}
+      current={false} />);
+    expect(screen.getByText('(as Snail)')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
   it('marks and dims a banished creature (PHB p.217, D185)', () => {
     const ogre = makeMockParticipant('m', 'Ogre', 'MONSTER', { activeConditions: [makeMockCondition('banished')] });
     render(<ParticipantRow participant={ogre} current={false} />);

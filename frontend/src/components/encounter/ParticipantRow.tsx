@@ -11,7 +11,8 @@ import SpellModifierChips from './SpellModifierChips';
  * A participant's row in the initiative list: the left edge in its class colour (or the monster colour), the turn
  * marker, its initiative and name, with slots for what each page adds. `highlighted` rings the row, as the DM's
  * chosen target or the player's own character. A participant that is down is dimmed, and the dead are struck through.
- * A druid in Wild Shape shows the beast it has become, with the beast's and its own HP and AC (PHB p.66).
+ * A druid in Wild Shape shows the beast it has become, with the beast's and its own HP and AC (PHB p.66), and a
+ * creature in another form, by Wild Shape or a form spell such as Polymorph (D192), shows it after its name.
  *
  * @param leading after the initiative, such as the DM's tie arrows
  * @param badges after the name, on the same line
@@ -69,6 +70,7 @@ export default function ParticipantRow({
           <div className="flex flex-wrap items-center gap-2">
             <span className={`font-heading text-[15px] font-semibold tracking-[0.01em] text-ink ${p.lifeState === 'DEAD' ? 'line-through' : ''}`}>
               {p.displayName}
+              {p.formName && <span className="font-body text-[13px] font-semibold text-muted"> (as {p.formName})</span>}
             </span>
             {badges}
             {p.summon && (

@@ -41,6 +41,8 @@ import AddCompanionModal from '../../components/encounter/AddCompanionModal';
 import { FIELD_INPUT, FIELD_LABEL, SUBMIT_BUTTON } from '../../components/encounter/formStyles';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import { wildShapePoolId } from '../../utils/classFeatures';
+import { formOf, reshapingSpell } from '../../utils/formSpells';
+import ChangeFormControl from '../../components/encounter/ChangeFormControl';
 import Button from '../../components/ui/Button';
 import IconButton from '../../components/ui/IconButton';
 import Modal from '../../components/ui/Modal';
@@ -635,6 +637,8 @@ function DmSessionView() {
             // Alive, Dying, Stable or Dead (D161): the dead can only be revived with Set HP
             const isUp = p.lifeState === 'ALIVE';
             const isDead = p.lifeState === 'DEAD';
+            // A player character in another form acts with its form's monster actions (PHB p.67, D192)
+            const inForm = formOf(p) !== null;
 
             return (
               <Fragment key={p.id}>
@@ -684,10 +688,12 @@ function DmSessionView() {
                       {/* Quick action buttons */}
                       {isActive && (
                         <div className="flex flex-wrap items-center gap-1 flex-shrink-0 sm:ml-2">
-                          {/* Monster actions toggle (M12), and a druid in Wild Shape's beast actions (PHB p.67) */}
-                          {(hasStatBlock || p.wildShape) && (
+                          {/* Monster actions toggle (M12), a druid in Wild Shape's beast actions (PHB p.67), and a
+                              form spell's form's actions (D192) */}
+                          {(hasStatBlock || inForm) && (
                             <IconButton
-                              label={isMonster ? 'Monster actions' : hasStatBlock ? 'Creature actions' : 'Beast actions'}
+                              label={isMonster ? 'Monster actions' : hasStatBlock ? 'Creature actions'
+                                : p.wildShape ? 'Beast actions' : 'Form actions'}
                               onClick={() => toggleMonsterActions(p.id)}
                               aria-expanded={expandedMonsterId === p.id}
                               className={`${QUICK_ACTION} ${expandedMonsterId === p.id ? 'bg-monster/20 text-monster' : 'bg-monster/10 hover:bg-monster/20 text-monster'}`}
@@ -819,10 +825,16 @@ function DmSessionView() {
                     onWildShapeHeal={isActive
                       ? (slotLevel, pactSlot) => actions.wildShapeHeal({ participantId: p.id, slotLevel, pactSlot })
                       : undefined} />
+
+                  {/* Shapechange's or Animal Shapes' new form, with the caster's action (D192) */}
+                  {isActive && isUp && reshapingSpell(p) && (
+                    <ChangeFormControl caster={p} participants={encounter.participants}
+                      onChange={(targetId, creatureId) => actions.changeForm({ participantId: p.id, targetId, creatureId })} />
+                  )}
                 </ParticipantRow>
 
                 {/* M12 Inline monster action panel */}
-                {isActive && expandedMonsterId === p.id && (hasStatBlock || p.wildShape) && (
+                {isActive && expandedMonsterId === p.id && (hasStatBlock || inForm) && (
                   <InlineMonsterActions
                     key={monsterTab}
                     initialTab={monsterTab}

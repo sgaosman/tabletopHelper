@@ -298,6 +298,12 @@ public final class EncounterViews {
                 .resourcePoolsCurrent(null)
                 .turnEconomy(null)
                 .attacksPerAction(null)
+                // A polymorphed monster's form shows by name only: its numbers and the monster's own hit points kept on
+                // it are the DM's (D157, D192)
+                .form(null)
+                .activeConditions(monster.getActiveConditions() == null ? null : monster.getActiveConditions().stream()
+                        .map(entry -> entry.wildShape() != null ? entry.withForm(null) : entry)
+                        .toList())
                 .activeEffects(monster.getActiveEffects() == null ? null : monster.getActiveEffects().stream()
                         .map(effect -> effect.toBuilder().slotLevel(null).build())
                         .toList());

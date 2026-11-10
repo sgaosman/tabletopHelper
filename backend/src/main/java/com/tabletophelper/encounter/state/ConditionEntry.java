@@ -26,8 +26,9 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  *                                    null when there is none (D162)
  * @param heldDie                     the die the entry gives its creature to roll, as Bardic Inspiration's does
  *                                    (M17); null for any other entry
- * @param wildShape                   the beast a druid has become, on its {@code wild shape} entry (PHB p.66); null
- *                                    for any other entry
+ * @param wildShape                   the beast a druid has become, on its {@code wild shape} entry (PHB p.66), or
+ *                                    the form a spell gives, on its entry, as Polymorph's {@code polymorphed}
+ *                                    (D192); null for any other entry
  * @param weapon                      the one weapon the entry's feature imbues, as Sacred Weapon's (PHB p.86), by the
  *                                    name the attack options give it, such as "Longsword"; null for any other entry
  * @param endsOnAttackOrCast          true when it also ends as soon as its creature attacks or casts a spell, once
@@ -161,6 +162,13 @@ public record ConditionEntry(
     public ConditionEntry withRepeatSave(RepeatSave save) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
                 sourceRequiresConcentration, concentrationInstanceId, endRule, save, heldDie, wildShape, weapon,
+                endsOnAttackOrCast, bonus, endsOnDamage, saveOnDamage);
+    }
+
+    /** This entry carrying a creature's form, as Polymorph's {@code polymorphed} entry does (D192); null for none. */
+    public ConditionEntry withForm(WildShapeForm form) {
+        return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
+                sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, heldDie, form, weapon,
                 endsOnAttackOrCast, bonus, endsOnDamage, saveOnDamage);
     }
 

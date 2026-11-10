@@ -267,7 +267,9 @@ public class MonsterActionService {
             } else {
                 accessPolicy.requireDm(campaignId, userId);
             }
-            monsterEntity = participant.getMonster();
+            // A polymorphed monster attacks with its form's actions (PHB p.266, D192)
+            monsterEntity = WildShapeForm.of(participant).isPresent() ? beastOf(participant)
+                    : participant.getMonster();
             templates = templatesOf(participant, monsterEntity);
         }
         if (templates == null) {
@@ -386,16 +388,23 @@ public class MonsterActionService {
      * (PHB p.67), which has no legendary or lair actions to take. Any other participant has none, a 400.
      */
     private Monster actingForm(EncounterParticipant participant, String source) {
-        if (participant.getMonster() != null) {
+        Optional<WildShapeForm> form = WildShapeForm.of(participant);
+        if (form.isEmpty() && participant.getMonster() != null) {
             return participant.getMonster();
         }
-        if (WildShapeForm.of(participant).isEmpty()) {
+        if (form.isEmpty()) {
             throw new ValidationException(participant.getDisplayName() + " has no monster actions: only a monster, or "
                     + "a druid in Wild Shape, takes them");
         }
-        if ("LEGENDARY".equals(source) || "LAIR".equals(source)) {
+        // A creature in another form takes the form's actions, never its legendary or lair actions (PHB p.67, p.274,
+        // D192)
+        if (("LEGENDARY".equals(source) || "LAIR".equals(source)) && form.get().wildShape()) {
             throw new ValidationException("A druid in Wild Shape takes the beast's actions, bonus actions and "
                     + "reactions, not legendary or lair actions");
+        }
+        if ("LEGENDARY".equals(source) || "LAIR".equals(source)) {
+            throw new ValidationException(participant.getDisplayName() + " is in " + form.get().beastName()
+                    + " form and takes its actions, bonus actions and reactions, not legendary or lair actions");
         }
         return beastOf(participant);
     }

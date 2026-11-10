@@ -77,7 +77,8 @@ public class WildShapeService {
             throw new ConflictException(druid.getDisplayName() + " isn't a Circle of the Moon druid, whose Combat "
                     + "Wild Shape this is");
         }
-        WildShapeForm form = WildShapeForm.of(druid).orElseThrow(() -> new ConflictException(
+        WildShapeForm form = WildShapeForm.of(druid).filter(WildShapeForm::wildShape)
+                .orElseThrow(() -> new ConflictException(
                 druid.getDisplayName() + " can heal with Combat Wild Shape only while in Wild Shape"));
         int level = request.slotLevel();
         Map<String, SpellSlot> slots = druid.getSpellSlotsCurrent() != null

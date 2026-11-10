@@ -128,9 +128,12 @@ class CombatFixture {
     final AttackService attacks = new AttackService(access, accessPolicy, characterWeapons, resolver, stats,
             effectApplier, economy, manualModifiers, combatLog, encounterRepository, encounterService);
     final MetamagicCasting metamagicCasting = new MetamagicCasting(spellEffects, stats);
+    final WildShapeEffects wildShapeEffects = new WildShapeEffects(monsterRepository, objectMapper, effectApplier);
+    final FormSpells formSpells = new FormSpells(access, accessPolicy, economy, effectApplier, wildShapeEffects,
+            combatLog, monsterRepository, encounterRepository, encounterService);
     final SpellcastingService spellcasting = new SpellcastingService(access, accessPolicy, casterSpells, spellCaster,
             spellEffects, effectApplier, economy, manualModifiers, combatLog, encounterRepository, encounterService,
-            characterService, stats, metamagicCasting, summoner);
+            characterService, stats, metamagicCasting, summoner, formSpells);
     final FontOfMagicService fontOfMagic = new FontOfMagicService(access, economy, combatLog, encounterRepository,
             encounterService);
     final MonsterActionService monsterActions = new MonsterActionService(access, accessPolicy, monsterEffects, resolver,
@@ -141,7 +144,6 @@ class CombatFixture {
             encounterService);
     final ChannelDivinityEffects channelDivinity = new ChannelDivinityEffects(effectApplier, stats, resolver,
             characterWeapons);
-    final WildShapeEffects wildShapeEffects = new WildShapeEffects(monsterRepository, objectMapper, effectApplier);
     final FeatureEffects featureEffects = new FeatureEffects(effectApplier, stats, dice, channelDivinity,
             wildShapeEffects, characterWeapons);
     final WildShapeService wildShape = new WildShapeService(access, accessPolicy, economy, effectApplier,

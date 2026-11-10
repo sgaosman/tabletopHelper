@@ -201,6 +201,15 @@ public class EncounterResponse {
         // while hpCurrent, hpMax and armourClass are the beast's; null when it isn't transformed
         private WildShapeForm wildShape;
 
+        // The form the creature is in, Wild Shape's or a spell's such as Polymorph's (D192), with its own hit points,
+        // maximum and AC kept while hpCurrent, hpMax and armourClass are the form's; null when it is in its own form.
+        // Left out of the Player View for a monster, which shows formName only (D157)
+        private WildShapeForm form;
+
+        // The name of the creature it has become, such as "Giant Ape", shown as "Name (as Giant Ape)"; null in its own
+        // form (D192)
+        private String formName;
+
         // What it has spent of its turn (D174); null in the Player View for a monster (D157)
         private TurnEconomy turnEconomy;
 

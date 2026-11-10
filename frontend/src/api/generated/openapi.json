@@ -1813,6 +1813,47 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/change-form": {
+      "post": {
+        "operationId": "changeForm",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeFormRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/concentration": {
       "post": {
         "operationId": "setConcentration",
@@ -2180,6 +2221,63 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/form-options": {
+      "get": {
+        "operationId": "getFormOptions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "participantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "spell",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "targetId",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormOptions"
                 }
               }
             },
@@ -6282,6 +6380,14 @@
             "type": "boolean",
             "nullable": true
           },
+          "forms": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "nullable": true
+          },
           "metamagic": {
             "maxItems": 2,
             "minItems": 0,
@@ -6392,6 +6498,28 @@
             "items": {
               "$ref": "#/components/schemas/TargetOutcome"
             }
+          }
+        }
+      },
+      "ChangeFormRequest": {
+        "required": [
+          "creatureId",
+          "participantId",
+          "targetId"
+        ],
+        "type": "object",
+        "properties": {
+          "creatureId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -9335,6 +9463,41 @@
           }
         }
       },
+      "FormOptions": {
+        "required": [
+          "beastsOnly",
+          "creatures",
+          "maxChallengeRating",
+          "spell",
+          "targetId"
+        ],
+        "type": "object",
+        "properties": {
+          "beastsOnly": {
+            "type": "boolean"
+          },
+          "creatures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Beast"
+            }
+          },
+          "largestSize": {
+            "type": "string",
+            "nullable": true
+          },
+          "maxChallengeRating": {
+            "type": "string"
+          },
+          "spell": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "GlossaryEntry": {
         "required": [
           "aliases",
@@ -10867,6 +11030,18 @@
             "items": {
               "type": "string"
             }
+          },
+          "form": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WildShapeForm"
+              }
+            ]
+          },
+          "formName": {
+            "type": "string",
+            "nullable": true
           },
           "hasLairActions": {
             "type": "boolean",
@@ -13587,8 +13762,17 @@
           "beastName": {
             "type": "string"
           },
+          "canCast": {
+            "type": "boolean",
+            "nullable": true
+          },
           "challengeRating": {
             "type": "string",
+            "nullable": true
+          },
+          "charisma": {
+            "type": "integer",
+            "format": "int32",
             "nullable": true
           },
           "conditionImmunities": {
@@ -13601,6 +13785,10 @@
           "constitution": {
             "type": "integer",
             "format": "int32"
+          },
+          "creatureType": {
+            "type": "string",
+            "nullable": true
           },
           "damageImmunities": {
             "type": "array",
@@ -13634,6 +13822,15 @@
           "hpMax": {
             "type": "integer",
             "format": "int32"
+          },
+          "intelligence": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "keepsOwnTraits": {
+            "type": "boolean",
+            "nullable": true
           },
           "monsterId": {
             "type": "string",
@@ -13679,9 +13876,22 @@
             },
             "nullable": true
           },
+          "spell": {
+            "type": "string",
+            "nullable": true
+          },
           "strength": {
             "type": "integer",
             "format": "int32"
+          },
+          "traits": {
+            "type": "string",
+            "nullable": true
+          },
+          "wisdom": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         }
       },

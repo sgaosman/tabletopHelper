@@ -331,6 +331,20 @@ export function useWildShapeOptions(participantId: string, enabled: boolean) {
 }
 
 /**
+ * The creatures a form spell (D192) can turn the target into when the participant casts it, loaded while the spell is
+ * known; the target is left out for Shapechange, which the caster casts on itself.
+ */
+export function useFormOptions(participantId: string, spell: string | undefined, targetId: string | undefined) {
+  const { encounterId, view } = useLiveEncounter();
+  return useQuery({
+    queryKey: queryKeys.encounters.formOptions(encounterId, view, participantId, spell ?? '', targetId ?? ''),
+    queryFn: spell
+      ? async () => (await combatApi.getFormOptions(encounterId, participantId, spell, targetId)).data
+      : skipToken,
+  });
+}
+
+/**
  * What a summoning spell can bring when the participant casts it at this slot level (D182), loaded while all three are
  * known. It reads the campaign's setting and the caster's familiar, so it loads again each time it is shown.
  */
@@ -428,6 +442,8 @@ export function useEncounterAction() {
       fontOfMagic: change(combatApi.fontOfMagic),
       // A Circle of the Moon druid's Combat Wild Shape healing, a bonus action (PHB p.69)
       wildShapeHeal: change(combatApi.wildShapeHeal),
+      // A new form during Shapechange or Animal Shapes, the caster's action (D192)
+      changeForm: change(combatApi.changeForm),
       standardAction: change(combatApi.standardAction),
       objectInteraction: change(combatApi.objectInteraction),
       // What follows a melee weapon hit, and the Protection reaction (M17)

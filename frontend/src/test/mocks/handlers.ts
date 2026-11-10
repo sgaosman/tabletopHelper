@@ -8,7 +8,7 @@ import type {
 } from '../../types/character';
 import type {
   AttackOption, AttackRollPreview, CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate, MultiattackOption,
-  SpellOption, WildShapeOptions,
+  FormOptions, SpellOption, WildShapeOptions,
 } from '../../types/combat';
 import type {
   CombatResultPreview, ConditionEntry, Encounter, EncounterParticipant, ParticipantType, ResourcePoolEntry, SpellEffect,
@@ -345,6 +345,9 @@ export const combatHandlers = [
   // A Druid 2's Wild Shape options (PHB p.66): a wolf, up to CR 1/4 with no flying or swimming speed
   http.get(`${BASE}/encounters/:id/combat/wild-shape-options`, async () => HttpResponse.json(makeMockWildShapeOptions())),
   http.post(`${BASE}/encounters/:id/combat/wild-shape-heal`, async () => HttpResponse.json(makeMockEncounter())),
+  // Form spells (D192): the creatures a target can become, and a new form during Shapechange or Animal Shapes
+  http.get(`${BASE}/encounters/:id/combat/form-options`, async () => HttpResponse.json(makeMockFormOptions())),
+  http.post(`${BASE}/encounters/:id/combat/change-form`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/standard-action`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/object-interaction`, async () => HttpResponse.json(makeMockEncounter())),
   http.put(`${BASE}/encounters/:id/combat/turn-economy`, async () => HttpResponse.json(makeMockEncounter())),
@@ -606,6 +609,25 @@ export function makeMockWildShapeOptions(overrides: Partial<WildShapeOptions> = 
       speed: { walk: 40 }, size: 'M', source: 'MM',
     }],
     elementals: [],
+    ...overrides,
+  };
+}
+
+/**
+ * Polymorph's options for a CR 7 target (PHB p.266, D192): beasts of CR 7 or lower, any size, sorted by challenge
+ * rating then name.
+ */
+export function makeMockFormOptions(overrides: Partial<FormOptions> = {}): FormOptions {
+  return {
+    spell: 'Polymorph', targetId: 'part-002', maxChallengeRating: '7', beastsOnly: true, largestSize: null,
+    creatures: [
+      { monsterId: 'monster-wolf', name: 'Wolf', challengeRating: '1/4', hitPoints: 11, armourClass: 13,
+        speed: { walk: 40 }, size: 'M', source: 'MM' },
+      { monsterId: 'monster-brown-bear', name: 'Brown Bear', challengeRating: '1', hitPoints: 34, armourClass: 11,
+        speed: { walk: 40, climb: 30 }, size: 'L', source: 'MM' },
+      { monsterId: 'monster-giant-ape', name: 'Giant Ape', challengeRating: '7', hitPoints: 157, armourClass: 12,
+        speed: { walk: 40, climb: 40 }, size: 'H', source: 'MM' },
+    ],
     ...overrides,
   };
 }

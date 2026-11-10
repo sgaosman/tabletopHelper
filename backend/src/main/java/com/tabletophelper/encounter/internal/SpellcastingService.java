@@ -83,6 +83,7 @@ public class SpellcastingService {
     private final CreatureStats stats;
     private final MetamagicCasting metamagicCasting;
     private final Summoner summoner;
+    private final FormSpells formSpells;
 
     /**
      * Casts a spell for a player character or a monster: everything is checked, and the cast charged to the
@@ -139,6 +140,9 @@ public class SpellcastingService {
                     + option + "; choose one of " + String.join(", ", summon.plan().variant().damageResistances()));
         }
 
+        // A Polymorph-family spell's forms are checked before anything is spent (D192)
+        FormSpells.Prepared forms = formSpells.prepare(caster, casting.spellName(), targets, request.getForms());
+
         String costNote = quickened ? costNote(CastingTime.BONUS_ACTION) : costNote(payment.castingTime());
         Charge.SpellKind kind = payment.spellLevel() == 0 ? Charge.SpellKind.CANTRIP : Charge.SpellKind.LEVELLED;
         String tooLong = payment.castingTime() == CastingTime.LONGER
@@ -164,6 +168,7 @@ public class SpellcastingService {
                     attackBonus(own, request.getOverrideSpellAttackBonus()),
                     saveDc(own, request.getOverrideSpellSaveDC()), "");
         }
+        formSpells.afterCast(encounter, caster, forms);
         effectApplier.endOnAttackOrCast(encounter, caster, ending, "it casts a spell");
         return response(encounter, result, payment.castLevel(), payment.source());
     }
@@ -180,8 +185,14 @@ public class SpellcastingService {
     // Why the caster can't cast spells at all, or null: it rages (PHB p.48), or wears armour or a shield without
     // proficiency (PHB p.144), or it is in Wild Shape, where concentration on a spell it cast before continues (PHB p.67)
     private String castingBan(EncounterParticipant caster) {
-        if (WildShapeForm.of(caster).isPresent()) {
+        Optional<WildShapeForm> form = WildShapeForm.of(caster);
+        if (form.filter(WildShapeForm::wildShape).isPresent()) {
             return caster.getDisplayName() + " can't cast spells in Wild Shape";
+        }
+        // A polymorphed creature can't cast spells; Shapechange's caster can, in a form able to (PHB p.266, p.274, D192)
+        if (form.isPresent() && !Boolean.TRUE.equals(form.get().canCast())) {
+            return caster.getDisplayName() + " can't cast spells in " + form.get().beastName() + " form ("
+                    + form.get().spell() + ")";
         }
         if (ClassFeatures.raging(CreatureStats.conditionNames(caster))) {
             return caster.getDisplayName() + " can't cast spells while raging";

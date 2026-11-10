@@ -253,7 +253,10 @@ public class EffectApplier {
         }
         boolean enchantedWeapon = ActiveModifiers.modifiersOn(actor).stream()
                 .anyMatch(m -> m.kind() == OngoingModifier.Kind.ATTACK_ROLL && m.weaponOnly());
-        String traits = actor.getMonster() != null ? actor.getMonster().getTraits() : null;
+        // The traits of the form it is in, if any, as a polymorphed creature's are its beast's (D192)
+        Optional<WildShapeForm> form = WildShapeForm.of(actor);
+        String traits = form.isPresent() ? form.get().traits()
+                : actor.getMonster() != null ? actor.getMonster().getTraits() : null;
         return enchantedWeapon || traits != null && traits.toLowerCase(java.util.Locale.ROOT)
                 .contains("weapon attacks are magical");
     }
@@ -727,7 +730,11 @@ public class EffectApplier {
         }
         if (UNCONSCIOUS.equals(name)) {
             endRage(encounter, target, UNCONSCIOUS);
-            endWildShape(encounter, target, "falls unconscious");
+            // Wild Shape ends when the druid falls unconscious (PHB p.67); a spell's form only at 0 hit points or death
+            // (PHB p.266, D192)
+            if (WildShapeForm.of(target).filter(WildShapeForm::wildShape).isPresent()) {
+                endWildShape(encounter, target, "falls unconscious");
+            }
         }
     }
 
@@ -737,8 +744,9 @@ public class EffectApplier {
      */
     public void removeCondition(Encounter encounter, EncounterParticipant target, String condition) {
         String name = condition.trim().toLowerCase();
-        // Removing a Wild Shape's entry ends the Wild Shape, with the druid's own hit points and AC back
-        if (BeastShapes.ENTRY.equals(name) && WildShapeForm.of(target).isPresent()) {
+        // Removing the entry that carries a form, Wild Shape's or a spell's such as Polymorph's, ends the form, with the
+        // creature's own hit points and AC back (D192)
+        if (WildShapeForm.entry(conditions(target)).filter(c -> c.name().equalsIgnoreCase(name)).isPresent()) {
             endWildShape(encounter, target, "removed by hand");
             return;
         }
@@ -767,6 +775,7 @@ public class EffectApplier {
         }
         conditions.remove(ended.get());
         participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
+        restoreForms(encounter, participant, List.of(ended.get()), why);
         combatLog.write(encounter, CombatActionType.CONDITION_REMOVE,
                 ended.get().name() + " ends on " + participant.getDisplayName() + " (" + why + ")", null, participant);
     }
@@ -952,6 +961,7 @@ public class EffectApplier {
             }
             conditions.removeAll(ended);
             participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
+            restoreForms(encounter, participant, ended, instance.spell() + " ends");
             for (ConditionEntry condition : ended) {
                 // Banishment that lasts its full minute leaves a creature native to another plane there (PHB p.217)
                 String note = BANISHED.equalsIgnoreCase(condition.name()) && "its duration ends".equals(why)
@@ -1189,10 +1199,12 @@ public class EffectApplier {
                                        String condition, String spell) {
         String name = condition.trim().toLowerCase(Locale.ROOT);
         List<ConditionEntry> conditions = conditions(target);
+        List<ConditionEntry> removed = conditions.stream().filter(c -> c.name().equalsIgnoreCase(name)).toList();
         if (!conditions.removeIf(c -> c.name().equalsIgnoreCase(name))) {
             return false;
         }
         target.setActiveConditions(conditions.isEmpty() ? null : conditions);
+        restoreForms(encounter, target, removed, spell);
         combatLog.write(encounter, CombatActionType.CONDITION_REMOVE, actor.getDisplayName() + "'s " + spell
                 + " ends " + name + " on " + target.getDisplayName(), actor, target);
         releaseFreed(encounter);
@@ -1511,9 +1523,13 @@ public class EffectApplier {
         if (ended.isEmpty()) {
             return false;
         }
-        conditions.removeIf(c -> spell.equalsIgnoreCase(c.sourceSpellName())
-                && caster.getId().equals(c.sourceParticipantId()));
+        List<ConditionEntry> removed = conditions.stream()
+                .filter(c -> spell.equalsIgnoreCase(c.sourceSpellName())
+                        && caster.getId().equals(c.sourceParticipantId()))
+                .toList();
+        conditions.removeAll(removed);
         creature.setActiveConditions(conditions.isEmpty() ? null : conditions);
+        restoreForms(encounter, creature, removed, why);
         combatLog.write(encounter, CombatActionType.CONDITION_REMOVE, caster.getDisplayName() + "'s " + spell
                 + " ends for " + creature.getDisplayName() + " (" + String.join(", ", ended) + "): " + why, caster,
                 creature);
@@ -2415,6 +2431,7 @@ public class EffectApplier {
     public void startWildShape(Encounter encounter, EncounterParticipant druid, WildShapeForm form) {
         List<ConditionEntry> conditions = conditions(druid);
         conditions.removeIf(c -> BeastShapes.ENTRY.equalsIgnoreCase(c.name()));
+        conditions.replaceAll(c -> c.wildShape() != null ? c.withForm(null) : c);
         conditions.add(new ConditionEntry(UUID.randomUUID(), BeastShapes.ENTRY, null, encounter.getRoundNumber(),
                 "Wild Shape", druid.getId(), null, null, EndRule.MANUAL, null, null, form));
         druid.setActiveConditions(conditions);
@@ -2436,21 +2453,72 @@ public class EffectApplier {
         return form;
     }
 
-    // The druid's own form back, without a log entry
+    // The creature's own form back, without a log entry: the entry carrying the form goes, Wild Shape's or a spell's,
+    // as Polymorph's at 0 hit points (PHB p.266, D192)
     private static Optional<WildShapeForm> revert(EncounterParticipant druid) {
         Optional<WildShapeForm> form = WildShapeForm.of(druid);
         if (form.isEmpty()) {
             return form;
         }
         List<ConditionEntry> conditions = conditions(druid);
-        conditions.removeIf(c -> BeastShapes.ENTRY.equalsIgnoreCase(c.name()));
+        conditions.removeIf(c -> c.wildShape() != null);
         druid.setActiveConditions(conditions.isEmpty() ? null : conditions);
-        WildShapeForm beast = form.get();
-        druid.setHpMax(beast.normalHpMax());
-        // Within the maximum exhaustion leaves the druid, should it have reached level 4 in beast form (D183)
-        druid.setHpCurrent(Math.min(beast.normalHpCurrent(), CreatureStats.hpMax(druid)));
-        druid.setArmourClass(beast.normalArmourClass());
+        restoreNormal(druid, form.get());
         return form;
+    }
+
+    // The hit points, maximum and AC the creature had when it took the form
+    private static void restoreNormal(EncounterParticipant creature, WildShapeForm beast) {
+        creature.setHpMax(beast.normalHpMax());
+        // Within the maximum exhaustion leaves the druid, should it have reached level 4 in beast form (D183)
+        creature.setHpCurrent(Math.min(beast.normalHpCurrent(), CreatureStats.hpMax(creature)));
+        creature.setArmourClass(beast.normalArmourClass());
+    }
+
+    /*
+     * Entries just removed some other way, as by their spell's concentration ending (D192): one that carried a form
+     * gives the creature back its own hit points, maximum and AC, as Polymorph's ending does (PHB p.266).
+     */
+    private void restoreForms(Encounter encounter, EncounterParticipant creature, List<ConditionEntry> removed,
+                              String why) {
+        for (ConditionEntry entry : removed) {
+            if (entry.wildShape() != null && WildShapeForm.of(creature).isEmpty()) {
+                restoreNormal(creature, entry.wildShape());
+                writeReverted(encounter, creature, entry.wildShape(), why);
+            }
+        }
+    }
+
+    /**
+     * A spell's form (D192): the entry the spell gave the creature, such as Polymorph's {@code polymorphed} (PHB
+     * p.266), now carries the form, with the creature's own hit points, maximum and AC, and the creature takes the
+     * form's. A form it already has, as from Shapechange's earlier change (PHB p.274), gives way, the creature's own hit
+     * points kept; with keepCurrentHp, a new form with more hit points than the current ones keeps the current ones, as
+     * Shapechange's does. The caller logs it.
+     */
+    public void startForm(EncounterParticipant creature, UUID entryId, WildShapeForm form, boolean keepCurrentHp) {
+        List<ConditionEntry> conditions = conditions(creature);
+        Optional<WildShapeForm> earlier = WildShapeForm.of(conditions);
+        WildShapeForm taken = earlier.map(old -> form.withNormal(old.normalHpCurrent(), old.normalHpMax(),
+                old.normalArmourClass())).orElse(form);
+        int current = creature.getHpCurrent() != null ? creature.getHpCurrent() : taken.hpMax();
+        List<ConditionEntry> updated = new ArrayList<>();
+        for (ConditionEntry c : conditions) {
+            if (c.id().equals(entryId)) {
+                updated.add(c.withForm(taken));
+            } else if (c.wildShape() != null) {
+                // An earlier form gives way to the new one: a Wild Shape ends, a spell's entry stays without its form
+                if (!BeastShapes.ENTRY.equalsIgnoreCase(c.name())) {
+                    updated.add(c.withForm(null));
+                }
+            } else {
+                updated.add(c);
+            }
+        }
+        creature.setActiveConditions(updated);
+        creature.setHpMax(taken.hpMax());
+        creature.setHpCurrent(keepCurrentHp && earlier.isPresent() ? Math.min(current, taken.hpMax()) : taken.hpMax());
+        creature.setArmourClass(taken.armourClass());
     }
 
     private void writeReverted(Encounter encounter, EncounterParticipant druid, WildShapeForm beast, String why) {

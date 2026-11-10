@@ -724,6 +724,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/change-form": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["changeForm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/concentration": {
         parameters: {
             query?: never;
@@ -862,6 +878,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["fontOfMagic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/combat/form-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getFormOptions"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2454,6 +2486,9 @@ export interface components {
         };
         CastSpellRequest: {
             advantage?: boolean | null;
+            forms?: {
+                [key: string]: string;
+            } | null;
             metamagic?: components["schemas"]["MetamagicChoice"][] | null;
             option?: string | null;
             /** Format: int32 */
@@ -2479,6 +2514,14 @@ export interface components {
             /** @enum {string} */
             spellSource: "SLOT" | "PACT_SLOT" | "INNATE" | "MYSTIC_ARCANUM" | "NONE";
             targets: components["schemas"]["TargetOutcome"][];
+        };
+        ChangeFormRequest: {
+            /** Format: uuid */
+            creatureId: string;
+            /** Format: uuid */
+            participantId: string;
+            /** Format: uuid */
+            targetId: string;
         };
         CharacterCampaignRequest: {
             /** Format: uuid */
@@ -3271,6 +3314,15 @@ export interface components {
             /** Format: int32 */
             slotLevel: number;
         };
+        FormOptions: {
+            beastsOnly: boolean;
+            creatures: components["schemas"]["Beast"][];
+            largestSize?: string | null;
+            maxChallengeRating: string;
+            spell: string;
+            /** Format: uuid */
+            targetId: string;
+        };
         GlossaryEntry: {
             aliases: string[];
             body?: string | null;
@@ -3693,6 +3745,8 @@ export interface components {
             /** Format: int32 */
             exhaustionLevel: number;
             fightingStyles?: string[] | null;
+            form?: components["schemas"]["WildShapeForm"] | null;
+            formName?: string | null;
             hasLairActions?: boolean | null;
             /** @enum {string|null} */
             healthStatus?: "UNHARMED" | "INJURED" | "BLOODIED" | "DOWN" | null;
@@ -4407,10 +4461,14 @@ export interface components {
             /** Format: int32 */
             armourClass: number;
             beastName: string;
+            canCast?: boolean | null;
             challengeRating?: string | null;
+            /** Format: int32 */
+            charisma?: number | null;
             conditionImmunities?: string[] | null;
             /** Format: int32 */
             constitution: number;
+            creatureType?: string | null;
             damageImmunities?: string[] | null;
             damageResistances?: string[] | null;
             damageVulnerabilities?: string[] | null;
@@ -4420,6 +4478,9 @@ export interface components {
             druidLevel: number;
             /** Format: int32 */
             hpMax: number;
+            /** Format: int32 */
+            intelligence?: number | null;
+            keepsOwnTraits?: boolean | null;
             /** Format: uuid */
             monsterId: string;
             /** Format: int32 */
@@ -4438,8 +4499,12 @@ export interface components {
             speed?: {
                 [key: string]: number;
             } | null;
+            spell?: string | null;
             /** Format: int32 */
             strength: number;
+            traits?: string | null;
+            /** Format: int32 */
+            wisdom?: number | null;
         };
         WildShapeHealRequest: {
             pactSlot?: boolean | null;
@@ -5674,6 +5739,32 @@ export interface operations {
             };
         };
     };
+    changeForm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeFormRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
     setConcentration: {
         parameters: {
             query?: never;
@@ -5906,6 +5997,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    getFormOptions: {
+        parameters: {
+            query: {
+                participantId: string;
+                spell: string;
+                targetId?: string;
+            };
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormOptions"];
                 };
             };
         };

@@ -19171,7 +19171,7 @@
       },
       {
         "effectType": "OTHER",
-        "description": "Transforms into a beast of challenge rating no higher than its own (or its level)"
+        "description": "Transforms into a beast of challenge rating no higher than its own (or its level); the caster picks the beast"
       }
     ],
     "conditionsInflicted": [
@@ -19194,7 +19194,7 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "The save, the willing choice and concentration are automated; the transformation is the DM's. No effect on a shapechanger or a creature at 0 hit points. (PHB p.266)",
+    "notes": "The caster picks the beast with the cast; a willing creature or one that fails the save takes its form: AC, hit points, ability scores, speeds, saves, defences and actions are the beast's until the spell ends or the form drops to 0 hit points, when it reverts with the excess damage carried over. No effect on a shapechanger or a creature at 0 hit points. (PHB p.266)",
     "castOptions": [
       "unwilling",
       "willing"
@@ -19205,7 +19205,7 @@
     "noEffectOn": [
       "shapechanger"
     ],
-    "reminder": "The DM applies the beast form: the target takes the beast's statistics and hit points, reverts at 0 hit points with excess damage carried over, and can't speak, cast spells or use its hands."
+    "reminder": "The polymorphed creature can't speak or cast spells, and is limited in its actions by its new form; its gear melds into it or is worn as the DM rules."
   },
   {
     "spellName": "Raulothim's Psychic Lance",
@@ -27889,21 +27889,34 @@
     "canTargetEnemies": false,
     "effects": [
       {
+        "effectType": "CONDITION",
+        "condition": "animal shape",
+        "saveToAvoid": false,
+        "durationRounds": 14400
+      },
+      {
         "effectType": "OTHER",
         "description": "Each willing target becomes a Large or smaller beast of CR 4 or lower"
       }
     ],
-    "conditionsInflicted": [],
+    "conditionsInflicted": [
+      {
+        "condition": "animal shape",
+        "durationRounds": 14400,
+        "durationText": "Until the spell ends"
+      }
+    ],
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Stat-block replacement with a second hit point pool for several creatures (gap 77)",
-    "patternCategory": "UTILITY",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "COMPLEX",
     "classes": [
       "Druid"
     ],
-    "notes": "(PHB p.212)"
+    "notes": "Willing creatures only; the caster picks each one's beast, CR 4 or lower and Large or smaller. Each keeps its Intelligence, Wisdom and Charisma, takes the beast's other statistics, reverts at 0 hit points of the form with the excess carried over, and the caster can give them new forms with an action. (PHB p.212)",
+    "reminder": "The transformed creatures can't speak or cast spells, and their gear melds into the new form."
   },
   {
     "spellName": "Antimagic Field",
@@ -29542,20 +29555,49 @@
     "canTargetSelf": false,
     "canTargetAllies": true,
     "canTargetEnemies": true,
-    "effects": [],
-    "conditionsInflicted": [],
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "condition": "polymorphed",
+        "saveToAvoid": true,
+        "durationRounds": 600
+      },
+      {
+        "effectType": "OTHER",
+        "description": "Each target becomes a beast of challenge rating no higher than its own (or half its level); the caster picks each beast"
+      }
+    ],
+    "conditionsInflicted": [
+      {
+        "condition": "polymorphed",
+        "saveToAvoid": "WIS",
+        "durationRounds": 600,
+        "durationText": "Until the spell ends"
+      }
+    ],
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Beast forms with temporary hit points for up to ten creatures (gap 77)",
-    "patternCategory": "UTILITY",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "COMPLEX",
     "classes": [
       "Bard",
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "(XGE p.160)"
+    "notes": "Up to ten creatures; the caster picks each one's beast with the cast. The willing option makes every target willing; a group of willing and unwilling creatures is cast as two groups or the DM adjusts. No effect on a shapechanger or a creature at 0 hit points. (XGE p.160)",
+    "castOptions": [
+      "unwilling",
+      "willing"
+    ],
+    "noSaveOptions": [
+      "willing"
+    ],
+    "noEffectOn": [
+      "shapechanger"
+    ],
+    "reminder": "Each polymorphed creature can't speak or cast spells, and is limited in its actions by its new form."
   },
   {
     "spellName": "Meteor Swarm",
@@ -29966,19 +30008,37 @@
     "canTargetSelf": true,
     "canTargetAllies": true,
     "canTargetEnemies": true,
-    "effects": [],
-    "conditionsInflicted": [],
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "condition": "shapechanged",
+        "saveToAvoid": false,
+        "durationRounds": 600
+      },
+      {
+        "effectType": "OTHER",
+        "description": "The caster becomes a creature of challenge rating no higher than its level, keeping its mental scores, features and proficiencies"
+      }
+    ],
+    "conditionsInflicted": [
+      {
+        "condition": "shapechanged",
+        "durationRounds": 600,
+        "durationText": "Until the spell ends"
+      }
+    ],
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Stat-block replacement (any creature of CR up to your level) keeping class features and mental scores, with a second hit point pool (gap 77)",
-    "patternCategory": "UTILITY",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "COMPLEX",
     "classes": [
       "Druid",
       "Wizard"
     ],
-    "notes": "(PHB p.274)"
+    "notes": "The caster picks a creature it has seen, not a construct or an undead, of challenge rating no higher than its level. It keeps its Intelligence, Wisdom and Charisma, class features and proficiencies (the higher save and skill bonus), can cast spells in a form able to, and takes a new form with an action, keeping its current hit points if the new form has more. It reverts at 0 hit points of the form, with the excess carried over. (PHB p.274)",
+    "reminder": "No legendary or lair actions of the form; the caster's own senses only if the form has them; it speaks only if the form can."
   },
   {
     "spellName": "Storm of Vengeance",
@@ -30196,20 +30256,49 @@
     "canTargetSelf": true,
     "canTargetAllies": true,
     "canTargetEnemies": true,
-    "effects": [],
-    "conditionsInflicted": [],
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "condition": "polymorphed",
+        "saveToAvoid": true,
+        "durationRounds": 600
+      },
+      {
+        "effectType": "OTHER",
+        "description": "Transforms a creature into another creature of challenge rating no higher than its own (or its level)"
+      }
+    ],
+    "conditionsInflicted": [
+      {
+        "condition": "polymorphed",
+        "saveToAvoid": "WIS",
+        "durationRounds": 600,
+        "durationText": "Until the spell ends"
+      }
+    ],
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
-    "manualResolutionReason": "Stat-block replacement, object and creature swaps, and permanence after a full hour of concentration (gaps 77, 92)",
-    "patternCategory": "UTILITY",
+    "requiresManualResolution": false,
+    "manualResolutionReason": null,
+    "patternCategory": "COMPLEX",
     "classes": [
       "Bard",
       "Warlock",
       "Wizard"
     ],
-    "notes": "(PHB p.283)"
+    "notes": "Creature into creature is automated as Polymorph's form, the caster picking any kind of creature of challenge rating no higher than the target's (or its level). Creature into object and object into creature are the DM's. Kept up for the full hour, the transformation lasts until dispelled; the DM notes that after the encounter. No effect on a shapechanger or a creature at 0 hit points. (PHB p.283)",
+    "castOptions": [
+      "unwilling",
+      "willing"
+    ],
+    "noSaveOptions": [
+      "willing"
+    ],
+    "noEffectOn": [
+      "shapechanger"
+    ],
+    "reminder": "If the caster concentrates for the full hour, the transformation lasts until dispelled. Turning a creature into an object, or an object into a creature, is the DM's."
   },
   {
     "spellName": "True Resurrection",

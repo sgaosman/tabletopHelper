@@ -17,6 +17,9 @@ import com.tabletophelper.encounter.internal.TurnEconomyEditService;
 import com.tabletophelper.encounter.internal.TurnService;
 import com.tabletophelper.encounter.internal.UndoService;
 import com.tabletophelper.encounter.internal.WildShapeService;
+import com.tabletophelper.encounter.internal.FormSpells;
+import com.tabletophelper.encounter.dto.FormOptions;
+import com.tabletophelper.encounter.dto.ChangeFormRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +50,7 @@ public class CombatController {
     private final BardicInspirationService bardicInspirationService;
     private final FontOfMagicService fontOfMagicService;
     private final WildShapeService wildShapeService;
+    private final FormSpells formSpells;
     private final SummonService summonService;
     private final UndoService undoService;
     private final EncounterService encounterService;
@@ -497,6 +501,31 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = wildShapeService.heal(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // The creatures a Polymorph-family spell can turn a creature into, for the cast's picker (D192): the DM for anyone,
+    // a player for their own caster. targetId is the creature that would take the form; Shapechange's is its caster
+    @GetMapping("/form-options")
+    public ResponseEntity<FormOptions> getFormOptions(
+            @PathVariable UUID encounterId,
+            @RequestParam UUID participantId,
+            @RequestParam String spell,
+            @RequestParam(required = false) UUID targetId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(formSpells.options(encounterId, participantId, spell, targetId, userId));
+    }
+
+    // A new form with the caster's action during Shapechange or Animal Shapes (PHB p.274, p.212, D192): the DM for
+    // anyone, a player for their own caster on its turn
+    @PostMapping("/change-form")
+    public ResponseEntity<EncounterResponse> changeForm(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody ChangeFormRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = formSpells.changeForm(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 

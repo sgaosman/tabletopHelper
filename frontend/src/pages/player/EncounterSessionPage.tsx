@@ -31,6 +31,8 @@ import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import InlineMonsterActions from '../../components/encounter/InlineMonsterActions';
 import FamiliarAttack from '../../components/encounter/FamiliarAttack';
 import { wildShapePoolId } from '../../utils/classFeatures';
+import { formOf, reshapingSpell } from '../../utils/formSpells';
+import ChangeFormControl from '../../components/encounter/ChangeFormControl';
 import IconButton from '../../components/ui/IconButton';
 import { healthLabel } from '../../utils/healthStatus';
 import { ArrowLeft, Sparkles, Crosshair, Zap, Swords, X, Footprints, ShieldAlert, Megaphone } from 'lucide-react';
@@ -310,11 +312,12 @@ function PlayerSessionView() {
               className={`${SELF_ACTION} bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock border-cls-warlock/30`}>
               <Swords className="w-3.5 h-3.5" /> {myCharacter.concentrationSpell ? 'Change' : 'Set'} Concentration
             </button>
-            {/* A druid in Wild Shape attacks with the beast's actions (PHB p.67) */}
-            {myCharacter.wildShape && (
+            {/* A druid in Wild Shape attacks with the beast's actions (PHB p.67), and a creature a form spell
+                transformed with its form's (D192) */}
+            {formOf(myCharacter) && (
               <button onClick={() => setShowBeastActions(shown => !shown)} aria-expanded={showBeastActions}
                 className={`${SELF_ACTION} bg-monster/10 hover:bg-monster/20 text-monster border-monster/30`}>
-                <Swords className="w-3.5 h-3.5" /> {myCharacter.wildShape.beastName} actions
+                <Swords className="w-3.5 h-3.5" /> {formOf(myCharacter)!.beastName} actions
               </button>
             )}
             {/* Animate Dead's undead and a tiny servant act only when commanded, with the caster's bonus action on its
@@ -335,8 +338,15 @@ function PlayerSessionView() {
           </div>
         )}
 
-        {/* The beast's actions, bonus actions and reactions of the player's character in Wild Shape (PHB p.67) */}
-        {isActive && showBeastActions && myCharacter?.wildShape && myCharacter.lifeState === 'ALIVE' && (
+        {/* Shapechange's or Animal Shapes' new form, with the caster's action (D192) */}
+        {isActive && myCharacter && myCharacter.lifeState === 'ALIVE' && reshapingSpell(myCharacter) && (
+          <ChangeFormControl caster={myCharacter} participants={encounter.participants}
+            onChange={(targetId, creatureId) => actions.changeForm({ participantId: myCharacter.id, targetId, creatureId })} />
+        )}
+
+        {/* The beast's actions, bonus actions and reactions of the player's character in Wild Shape (PHB p.67), or of
+            the form a spell gave it (D192) */}
+        {isActive && showBeastActions && myCharacter && formOf(myCharacter) && myCharacter.lifeState === 'ALIVE' && (
           <div className="mb-4 border border-rule bg-card">
             <InlineMonsterActions participant={myCharacter} participants={encounter.participants} isLairTurn={false}
               inLair={false} />

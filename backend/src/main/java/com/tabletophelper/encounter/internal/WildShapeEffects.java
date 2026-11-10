@@ -12,6 +12,7 @@ import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.BeastShapes;
 import com.tabletophelper.rules.combat.LifeState;
+import com.tabletophelper.rules.combat.ShapeSpells;
 import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
@@ -76,7 +77,8 @@ public class WildShapeEffects {
         if (uses != 1 && (uses != BeastShapes.ELEMENTAL_USES || option != null)) {
             throw new ValidationException(pool.displayName() + " can be used only once at a time");
         }
-        Optional<WildShapeForm> current = WildShapeForm.of(druid);
+        // Only a Wild Shape: a spell's form, as Polymorph's, is ended through its spell (D192)
+        Optional<WildShapeForm> current = WildShapeForm.of(druid).filter(WildShapeForm::wildShape);
         if (FeatureEffects.END.equals(option)) {
             if (current.isEmpty()) {
                 throw new ConflictException(druid.getDisplayName() + " isn't in Wild Shape");
@@ -192,6 +194,48 @@ public class WildShapeEffects {
                 BeastShapes.durationHours(level), beasts, elementals);
     }
 
+    /**
+     * The creatures among these that a picker offers, each once (a reprint replaces the older printing), from the
+     * rulebooks and with hit points, in challenge rating then name order: those the refusal passes, empty for none.
+     */
+    List<WildShapeOptions.Beast> offered(Iterable<Monster> monsters,
+                                         java.util.function.Function<Monster, Optional<String>> refusal) {
+        Map<String, WildShapeOptions.Beast> byName = new LinkedHashMap<>();
+        for (Monster monster : monsters) {
+            if (BeastShapes.offered(monster.getSource(), monster.getHitPoints()) && refusal.apply(monster).isEmpty()) {
+                byName.merge(monster.getName().trim().toLowerCase(Locale.ROOT),
+                        option(monster, TurnEconomies.speed(monster, objectMapper)),
+                        (kept, other) -> SummonRules.reprints(other.source(), kept.source()) ? other : kept);
+            }
+        }
+        List<WildShapeOptions.Beast> forms = new ArrayList<>(byName.values());
+        forms.sort(Comparator.comparingDouble((WildShapeOptions.Beast beast) ->
+                        BeastShapes.challengeRating(beast.challengeRating()).orElse(0))
+                .thenComparing(WildShapeOptions.Beast::name, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(beast -> beast.source() != null ? beast.source() : ""));
+        return forms;
+    }
+
+    /**
+     * A spell's form (D192): the creature's statistics as the target takes them on, with its own hit points, maximum
+     * and AC kept. Polymorph's and True Polymorph's take the form's mental scores too (PHB p.266, p.283); Shapechange's
+     * and Animal Shapes' keep the target's own (PHB p.274, p.212), and Shapechange's keep its proficiencies and features
+     * and let it cast.
+     */
+    WildShapeForm spellForm(Monster creature, EncounterParticipant target, ShapeSpells.Rules rules) {
+        WildShapeForm base = form(creature, target);
+        boolean mind = rules.keepsMind();
+        return new WildShapeForm(base.monsterId(), base.beastName(), base.challengeRating(), base.hpMax(),
+                base.armourClass(), base.strength(), base.dexterity(), base.constitution(), base.saves(), base.skills(),
+                base.speed(), base.senses(), base.damageResistances(), base.damageImmunities(),
+                base.damageVulnerabilities(), base.conditionImmunities(), base.normalHpCurrent(), base.normalHpMax(),
+                base.normalArmourClass(), 0, rules.spell(),
+                creature.getType() != null ? creature.getType().trim().toLowerCase(Locale.ROOT) : null,
+                mind ? null : orTen(creature.getIntelligence()), mind ? null : orTen(creature.getWisdom()),
+                mind ? null : orTen(creature.getCharisma()), rules.keepsOwnTraits(), rules.canCast() ? Boolean.TRUE
+                        : null, base.traits());
+    }
+
     private static WildShapeOptions.Beast option(Monster beast, Map<String, Integer> speed) {
         return new WildShapeOptions.Beast(beast.getId(), beast.getName(), beast.getChallengeRating(),
                 orZero(beast.getHitPoints()), orZero(beast.getArmourClass()), speed, beast.getSize(), beast.getSource());
@@ -211,7 +255,7 @@ public class WildShapeEffects {
                 plainNames(beast.getDamageVulnerabilities(), name + "'s damage vulnerabilities"),
                 plainNames(beast.getConditionImmunities(), name + "'s condition immunities"),
                 orZero(druid.getHpCurrent()), Math.max(1, orZero(druid.getHpMax())), orZero(druid.getArmourClass()),
-                druidLevel(druid.getCharacter()));
+                druidLevel(druid.getCharacter())).withTraits(beast.getTraits());
     }
 
     // ── What the sheet says ──────────────────────────────────────
