@@ -3755,3 +3755,5 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D176, D184, D196
 
 **Tests:** new `WeaponRiderSpellsTest` (13), `WeaponRiderSpellsIT` (9); 3,158 backend unit, 451 integration and 1,159 frontend.
+
+**Update to D197 (2026-11-10, Branding Smite):** the check D197 asked for found a real bug: Branding Smite's template was a SELF spell with a plain 2d6 damage part, so casting it dealt the radiant damage to its own caster (the D193 test cast Arkhan's and he took it). It is now a one-shot weapon-hit Ongoing Modifier like Staggering Smite's ([[#D184]], [[#D185]]): 2d6 radiant on the caster's next weapon hit, +1d6 per slot above 2nd (PHB p.219), with the invisibility and light effect as a reminder. Spell templates v11; Empowered Spell's golden count goes from 147 to 146; `StatBlockSpellcastingIT` now checks the caster's HP is untouched by the cast.

@@ -110,6 +110,9 @@ class StatBlockSpellcastingIT extends IntegrationTest {
                 "spellSource", "INNATE", "slotLevel", 0, "targetIds", List.of(arkhanId))));
 
         assertThat(cast.get("spellSource").asString()).isEqualTo("INNATE");
+        // Branding Smite's 2d6 waits for Arkhan's next weapon hit; the cast doesn't burn its caster (PHB p.219)
+        assertThat(participant(cast.get("encounterState"), arkhanId).get("hpCurrent").asInt())
+                .isEqualTo(arkhan.get("hpCurrent").asInt());
         assertThat(pool(participant(cast.get("encounterState"), arkhanId), "innate:branding-smite")
                 .get("currentUses").asInt()).isEqualTo(2);
         assertThat(descriptions(dmLog()))

@@ -8365,14 +8365,23 @@
     "canTargetEnemies": false,
     "effects": [
       {
-        "effectType": "DAMAGE",
-        "damageDice": "2d6",
-        "damageType": "radiant",
-        "upcastScaling": {
-          "additionalDicePerLevel": "1d6",
-          "additionalFlatPerLevel": 0
-        },
-        "description": "Extra damage on next weapon hit. Target becomes visible if invisible and sheds dim light in 5ft radius."
+        "effectType": "BUFF",
+        "description": "Your next weapon hit deals an extra 2d6 radiant damage",
+        "modifiers": [
+          {
+            "kind": "HIT_DAMAGE",
+            "dice": "2d6",
+            "damageTypes": [
+              "radiant"
+            ],
+            "weaponOnly": true,
+            "oneShot": true,
+            "upcast": {
+              "every": 1,
+              "dice": "1d6"
+            }
+          }
+        ]
       }
     ],
     "conditionsInflicted": [],
@@ -8385,7 +8394,8 @@
     "classes": [
       "Paladin"
     ],
-    "notes": "Applied on next weapon hit before spell ends. Ends invisibility and prevents target from becoming invisible."
+    "notes": "Applied on next weapon hit before spell ends. Ends invisibility and prevents target from becoming invisible.",
+    "reminder": "On that hit an invisible target becomes visible and sheds dim light in a 5-foot radius, and can't become invisible until the spell ends (the DM applies it)."
   },
   {
     "spellName": "Calm Emotions",
