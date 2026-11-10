@@ -1840,3 +1840,8 @@ HTTP status codes used (D155, R3). Services throw the domain exceptions in `shar
 - `500` — Anything unexpected. Outside the dev profile the body is always `{"error": "Something went wrong. Please try again."}`; only dev returns the real message (`server.error.include-message: always`)
 
 Before R3, "not found" and "not allowed" both returned 400 (`IllegalArgumentException`), an expired token returned 403, and optimistic-lock conflicts returned 500 (superseded in R3, D155).
+
+
+### 4th-level spells (D185)
+
+`SpellEffectResponse` gains `delayed`, `damageLeft` and `retaliation`; the Player View hides delayed damage aimed at hidden creatures. `SummonOptions.Option` gains a required `forms`, and the summon kind gains CONJURE, GIANT_INSECT and GREATER_DEMON. Attacks or spells against a banished or enclosed creature answer 409.

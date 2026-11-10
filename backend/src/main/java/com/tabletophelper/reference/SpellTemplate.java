@@ -104,7 +104,8 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             return empty(json, null);
         }
         try {
-            return new SpellTemplate(read(json, "spellLevel", Integer.class), read(json, "concentration", Boolean.class),
+            SpellTemplate template = new SpellTemplate(read(json, "spellLevel", Integer.class),
+                    read(json, "concentration", Boolean.class),
                     read(json, "durationRounds", Integer.class), read(json, "components", Components.class),
                     read(json, "requiresManualResolution", Boolean.class),
                     read(json, "manualResolutionReason", String.class), read(json, "deliveryMethod", String.class),
@@ -118,6 +119,11 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
                     repeatActionType(json.get("repeatActionType")), READER.convertValue(json.get("conditionsInflicted"), CONDITIONS),
                     effectTriggers(json.get("effectTriggers")), read(json, "directedResolves", Boolean.class),
                     read(json, "effectUses", EffectUses.class), json, null);
+            // The 4th-level spells' keys (D185) are read when used; reading them now makes a bad one unreadable here
+            template.delayedDamage();
+            template.retaliation();
+            template.durationRounds(Integer.MAX_VALUE);
+            return template;
         } catch (IllegalArgumentException | JacksonException e) {
             return empty(json, e.getMessage() != null ? e.getMessage() : e.toString());
         }
@@ -255,6 +261,160 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         return effects.stream().filter(effect -> effect.damageDice() != null).findFirst();
     }
 
+    /**
+     * The damage the spell deals in one roll (D185): its first effect with damage dice, and every later one marked
+     * {@code combined}, each of its own type, as Ice Storm's 2d8 bludgeoning and 4d6 cold (PHB p.252). Empty when it
+     * deals none.
+     */
+    public List<Part> damageEffects() {
+        Optional<Part> first = firstDamageEffect();
+        if (first.isEmpty()) {
+            return List.of();
+        }
+        List<Part> parts = new java.util.ArrayList<>(List.of(first.get()));
+        effects.stream().filter(effect -> effect != first.get() && effect.damageDice() != null && effect.combined())
+                .forEach(parts::add);
+        return List.copyOf(parts);
+    }
+
+    // ── Keys the 4th-level spells added (D185), read from the stored JSON ──
+
+    /**
+     * Damage a creature takes later, as Vitriolic Sphere's 5d4 acid at the end of its next turn after a failed save (XGE
+     * p.170) or Melf's Acid Arrow's 2d4 after a hit (PHB p.259): the template's {@code delayedDamage}; null for none.
+     *
+     * @param on            the outcome that brings it: FAILED_SAVE or HIT
+     * @param upcastScaling what each slot level above the spell's own adds, or null
+     */
+    public record DelayedDamage(String damageDice, String damageType, String on, Upcast upcastScaling) {
+    }
+
+    /** The template's delayed damage, or null when it has none. */
+    public DelayedDamage delayedDamage() {
+        JsonNode node = json != null ? json.get("delayedDamage") : null;
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        return new DelayedDamage(text(node, "damageDice"), text(node, "damageType"),
+                text(node, "on") != null ? text(node, "on") : "FAILED_SAVE", read(node, "upcastScaling", Upcast.class));
+    }
+
+    /**
+     * The total damage its Spell Effect deals before it ends, as Guardian of Faith's 60 (PHB p.246); null for no limit.
+     */
+    public Integer damageBudget() {
+        JsonNode node = json != null ? json.get("damageBudget") : null;
+        return node != null && node.isInt() && node.asInt(0) > 0 ? node.asInt(0) : null;
+    }
+
+    /**
+     * Damage its Spell Effect deals back to a creature that hits the creature it protects with a melee attack, as Fire
+     * Shield's 2d8 (PHB p.242) or Shadow of Moil's (XGE p.164).
+     *
+     * @param damageDice     the dice
+     * @param damageType     its type, or null when the cast option names it
+     * @param typeByOption   the type for each cast option, as Fire Shield's warm (fire) and chill (cold)
+     */
+    public record Retaliation(String damageDice, String damageType, Map<String, String> typeByOption) {
+
+        /** The type the option gives, or the fixed one. */
+        public String typeFor(String option) {
+            if (option != null && typeByOption != null) {
+                for (Map.Entry<String, String> entry : typeByOption.entrySet()) {
+                    if (entry.getKey().equalsIgnoreCase(option)) {
+                        return entry.getValue();
+                    }
+                }
+            }
+            return damageType;
+        }
+    }
+
+    /** The template's retaliation, or null when it has none. */
+    public Retaliation retaliation() {
+        JsonNode node = json != null ? json.get("retaliation") : null;
+        if (node == null || !node.isObject() || text(node, "damageDice") == null) {
+            return null;
+        }
+        Map<String, String> byOption = new LinkedHashMap<>();
+        JsonNode types = node.path("damageTypeByOption");
+        if (types.isObject()) {
+            for (Map.Entry<String, JsonNode> entry : types.properties()) {
+                if (entry.getValue().isString()) {
+                    byOption.put(entry.getKey(), entry.getValue().asString(""));
+                }
+            }
+        }
+        return new Retaliation(text(node, "damageDice"), text(node, "damageType"), Map.copyOf(byOption));
+    }
+
+    /**
+     * How many rounds it lasts when cast with a slot of slotLevel: the template's {@code durationBySlot} entry for the
+     * highest slot level it names at or below slotLevel, as Dominate Beast's 10 minutes at 5th, an hour at 6th and 8
+     * hours at 7th (PHB p.234); else its durationRounds.
+     */
+    public Integer durationRounds(int slotLevel) {
+        JsonNode node = json != null ? json.get("durationBySlot") : null;
+        Integer rounds = durationRounds;
+        if (node != null && node.isObject()) {
+            int best = -1;
+            for (Map.Entry<String, JsonNode> entry : node.properties()) {
+                try {
+                    int level = Integer.parseInt(entry.getKey().trim());
+                    if (level <= slotLevel && level > best && entry.getValue().isInt()) {
+                        best = level;
+                        rounds = entry.getValue().asInt(0);
+                    }
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("durationBySlot needs slot levels as keys, not " + entry.getKey());
+                }
+            }
+        }
+        return rounds;
+    }
+
+    /**
+     * The temporary hit points the cast gives each creature it affects, for the option chosen when the template's
+     * {@code tempHitPoints} names one, as Guardian of Nature's Great Tree's 10 (XGE p.157); null for none.
+     */
+    public Integer tempHitPoints(String option) {
+        JsonNode node = json != null ? json.get("tempHitPoints") : null;
+        if (node == null || !node.isObject() || !node.path("flat").isInt()) {
+            return null;
+        }
+        String wanted = text(node, "option");
+        if (wanted != null && !wanted.equalsIgnoreCase(option)) {
+            return null;
+        }
+        return node.path("flat").asInt(0);
+    }
+
+    /** The creature types it can target alone, as Dominate Beast's beast (PHB p.234); empty for any. */
+    public List<String> targetTypes() {
+        return texts("targetTypes");
+    }
+
+    /** The creature types it has no effect on, as Blight's undead and constructs (PHB p.219); empty for none. */
+    public List<String> noEffectOn() {
+        return texts("noEffectOn");
+    }
+
+    /**
+     * The creature types that save with disadvantage and take the most damage its dice can deal, as a plant creature
+     * against Blight (PHB p.219); empty for none.
+     */
+    public List<String> maximumDamageTo() {
+        return texts("maximumDamageTo");
+    }
+
+    /**
+     * A reminder logged at the start of each of its caster's turns while its Spell Effect lasts, as Mordenkainen's
+     * Faithful Hound's bite (PHB p.261); null for none.
+     */
+    public String turnReminder() {
+        return json != null ? text(json, "turnReminder") : null;
+    }
+
     /** Its components; combat reads only whether it has a verbal one. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Components(Boolean verbal) {
@@ -274,12 +434,18 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Part(String damageDice, String damageType, Map<String, String> cantripScaling,
-                       Upcast upcastScaling, List<ModifierDefinition> modifiers) {
+                       Upcast upcastScaling, List<ModifierDefinition> modifiers, boolean combined) {
 
         public Part {
             cantripScaling = cantripScaling == null ? Map.of()
                     : Collections.unmodifiableMap(new LinkedHashMap<>(cantripScaling));
             modifiers = listOf(modifiers);
+        }
+
+        /** A part not dealt together with the first (D185). */
+        public Part(String damageDice, String damageType, Map<String, String> cantripScaling, Upcast upcastScaling,
+                    List<ModifierDefinition> modifiers) {
+            this(damageDice, damageType, cantripScaling, upcastScaling, modifiers, false);
         }
 
         /** A part with no Ongoing Modifiers. */
@@ -419,9 +585,21 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      *                          caster, which leaves it to the DM
      * @param endsOnAttackOrCast whether it ends for a creature that attacks or casts a spell, as Invisibility's does
      *                          (PHB p.254)
+     * @param endsOnDamage      whether it ends for a creature that takes damage, as Hypnotic Pattern's does (PHB p.252)
+     * @param saveToEndOnDamage whether a creature that takes damage repeats the save, a success ending the spell, as
+     *                          Dominate Beast's target does (PHB p.234)
+     * @param damageSaveAdvantage whether that save has advantage, as Tasha's Hideous Laughter's (PHB p.280)
      */
     public record ConditionInflicted(String condition, Integer durationRounds, boolean saveToEndEachTurn,
-                                     String saveToEndAbility, boolean conditionalSave, boolean endsOnAttackOrCast) {
+                                     String saveToEndAbility, boolean conditionalSave, boolean endsOnAttackOrCast,
+                                     boolean endsOnDamage, boolean saveToEndOnDamage, boolean damageSaveAdvantage) {
+
+        /** A condition that taking damage doesn't end. */
+        public ConditionInflicted(String condition, Integer durationRounds, boolean saveToEndEachTurn,
+                                  String saveToEndAbility, boolean conditionalSave, boolean endsOnAttackOrCast) {
+            this(condition, durationRounds, saveToEndEachTurn, saveToEndAbility, conditionalSave, endsOnAttackOrCast,
+                    false, false, false);
+        }
 
         /** A condition as the data lists it: its name, or an object naming it. */
         @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
@@ -434,7 +612,9 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             return new ConditionInflicted(text(node, "condition"),
                     duration.isInt() && duration.asInt(0) > 0 ? duration.asInt(0) : null,
                     node.path("saveToEndEachTurn").asBoolean(false), text(node, "saveToEndAbility"),
-                    !node.path("saveToEndCondition").isMissingNode(), node.path("endsOnAttackOrCast").asBoolean(false));
+                    !node.path("saveToEndCondition").isMissingNode(), node.path("endsOnAttackOrCast").asBoolean(false),
+                    node.path("endsOnDamage").asBoolean(false), node.path("saveToEndOnDamage").asBoolean(false),
+                    node.path("saveToEndOnDamageAdvantage").asBoolean(false));
         }
 
         /** Its name in lower case, or null when it gives none. */
@@ -453,15 +633,24 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      * @param endsSpellOnSave whether a successful save against it ends the spell, as Searing Smite's does (PHB p.274);
      *                        the data's {@code endsSpellOnSave}, false when left out
      */
-    public record EffectTrigger(List<SpellTrigger> when, RepeatEffect effect, boolean endsSpellOnSave) {
+    public record EffectTrigger(List<SpellTrigger> when, RepeatEffect effect, boolean endsSpellOnSave,
+                                List<ConditionInflicted> conditions, String whenConditioned, int exhaustion,
+                                boolean addsAffected) {
 
         public EffectTrigger {
             when = listOf(when);
+            conditions = listOf(conditions);
+            exhaustion = Math.max(0, exhaustion);
         }
 
         /** A trigger whose save, if any, leaves the spell going. */
         public EffectTrigger(List<SpellTrigger> when, RepeatEffect effect) {
             this(when, effect, false);
+        }
+
+        /** A trigger that gives no conditions or exhaustion (D185). */
+        public EffectTrigger(List<SpellTrigger> when, RepeatEffect effect, boolean endsSpellOnSave) {
+            this(when, effect, endsSpellOnSave, List.of(), null, 0, false);
         }
     }
 
@@ -520,7 +709,15 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
             if (!ends.isMissingNode() && !ends.isNull() && !ends.isBoolean()) {
                 throw new IllegalArgumentException("endsSpellOnSave is not true or false");
             }
-            triggers.add(new EffectTrigger(when, effect, ends.asBoolean(false)));
+            // The conditions a creature it reaches gets, as Evard's Black Tentacles' restrained (PHB p.238, D185)
+            List<ConditionInflicted> conditions = trigger.path("conditionsInflicted").isArray()
+                    ? READER.convertValue(trigger.get("conditionsInflicted"), CONDITIONS) : List.of();
+            JsonNode exhaustion = trigger.path("exhaustion");
+            if (!exhaustion.isMissingNode() && !exhaustion.isNull() && !exhaustion.isInt()) {
+                throw new IllegalArgumentException("A trigger's exhaustion is not a whole number");
+            }
+            triggers.add(new EffectTrigger(when, effect, ends.asBoolean(false), conditions,
+                    text(trigger, "whenConditioned"), exhaustion.asInt(0), trigger.path("addsAffected").asBoolean(false)));
         }
         return triggers;
     }

@@ -30,6 +30,7 @@ public final class EncounterTurns {
     public static List<Turn> order(Encounter encounter) {
         return TurnOrder.order(encounter.getParticipants().stream()
                         .filter(p -> !dismissed(p) || isCurrentTurn(encounter, p.getId()))
+                        // A banished creature keeps its place, skipped, so it returns to it (PHB p.217, D185)
                         .map(EncounterTurns::combatant).toList(),
                 lairPresent(encounter) || isLairTurn(encounter));
     }
@@ -123,7 +124,8 @@ public final class EncounterTurns {
      * (D182).
      */
     public static TurnOrder.Combatant combatant(EncounterParticipant participant) {
-        boolean dismissed = dismissed(participant);
+        // A banished creature, PC or monster, has no turns until it returns (PHB p.217, D185)
+        boolean dismissed = dismissed(participant) || CombatAccess.banished(participant);
         UUID follows = participant.getSummon() != null && participant.getSummon().followsCaster()
                 ? participant.getSummonedByParticipantId() : null;
         return new TurnOrder.Combatant(participant.getId(), participant.getInitiative(),

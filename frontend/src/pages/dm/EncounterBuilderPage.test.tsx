@@ -296,7 +296,7 @@ describe('EncounterBuilderPage', () => {
         asked.push([params.get('participantId'), params.get('spellName'), params.get('slotLevel')]);
         return HttpResponse.json(makeMockSummonOptions({
           spellName: 'Find Familiar', kind: 'FAMILIAR', slotLevel: 1, spellLevel: 1, concentration: false,
-          options: [{ id: '1', count: 1, maxCr: null, label: '1 familiar' }], initiativeModes: ['INDIVIDUAL'],
+          options: [{ id: '1', count: 1, maxCr: null, label: '1 familiar', forms: [] }], initiativeModes: ['INDIVIDUAL'],
           defaultInitiativeMode: 'INDIVIDUAL', houseRuleModes: [], creatureTypes: ['celestial', 'fey', 'fiend'],
           creatureType: null, cannotAttack: true,
           candidates: [

@@ -365,7 +365,7 @@ class SpellEffectsTest {
         }
 
         @Test
-        @DisplayName("The bundled data's 20 lasting spells each leave a Spell Effect its caster directs at the cost "
+        @DisplayName("The bundled data's 29 lasting spells each leave a Spell Effect its caster directs at the cost "
                 + "the spell's text gives, or whose area acts by itself at the moments it gives, or both (M15)")
         void bundledLastingSpells() throws IOException {
             Map<String, ActionCost> costs = new LinkedHashMap<>();
@@ -393,9 +393,9 @@ class SpellEffectsTest {
                     }
                 }
             }
-            // Only Searing Smite's text ends the spell on a successful save (PHB p.274); Ensnaring Strike's creature
-            // escapes with a Strength check as an action instead (PHB p.237)
-            assertEquals(Set.of("Searing Smite"), endOnSave);
+            // Only Searing Smite's and Phantasmal Killer's texts end the spell on a successful save (PHB p.274, p.265);
+            // Ensnaring Strike's creature escapes with a Strength check as an action instead (PHB p.237)
+            assertEquals(Set.of("Searing Smite", "Phantasmal Killer"), endOnSave);
 
             Map<String, ActionCost> expected = new LinkedHashMap<>();
             // PHB p.289, p.220, p.261, p.285, p.242; XGE p.161
@@ -410,7 +410,13 @@ class SpellEffectsTest {
             }
             // The phantasm deals its damage on the caster's turn, needing no action (PHB p.264)
             expected.put("Phantasmal Force", ActionCost.NONE);
-            assertEquals(20, triggers.size());
+            // 4th level (D185): Grasping Vine's lash and Storm Sphere's bolt are bonus actions (PHB p.246, XGE p.166),
+            // Watery Sphere moves with an action (XGE p.170), and the Faithful Hound bites on its own (PHB p.261)
+            expected.put("Grasping Vine", ActionCost.BONUS_ACTION);
+            expected.put("Storm Sphere", ActionCost.BONUS_ACTION);
+            expected.put("Watery Sphere", ActionCost.ACTION);
+            expected.put("Mordenkainen's Faithful Hound", ActionCost.NONE);
+            assertEquals(29, triggers.size());
             assertEquals(expected, Map.copyOf(costs));
             // Only Moonbeam's and Dust Devil's uses move them without resolving anything (PHB p.261, XGE p.154)
             assertEquals(Set.of("Moonbeam", "Dust Devil"), moves.entrySet().stream()
@@ -427,6 +433,11 @@ class SpellEffectsTest {
             for (String spell : List.of("Searing Smite", "Ensnaring Strike", "Tasha's Caustic Brew")) {
                 assertEquals(List.of(SpellTrigger.START_OF_TURN), triggers.get(spell), spell);
             }
+            assertEquals(List.of(SpellTrigger.ENTER, SpellTrigger.END_OF_TURN), triggers.get("Wall of Fire"));
+            assertEquals(enterOrStart, triggers.get("Evard's Black Tentacles"));
+            assertEquals(enterOrStart, triggers.get("Sickening Radiance"));
+            assertEquals(List.of(SpellTrigger.ENTER), triggers.get("Guardian of Faith"));
+            assertEquals(List.of(SpellTrigger.END_OF_TURN), triggers.get("Phantasmal Killer"));
             // Each lasting spell can be used somehow
             triggers.forEach((spell, moments) -> assertTrue(costs.containsKey(spell) || !moments.isEmpty(), spell));
         }

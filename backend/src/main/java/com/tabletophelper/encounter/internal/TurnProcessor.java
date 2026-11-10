@@ -28,7 +28,8 @@ import java.util.UUID;
  * redoing and undoing nothing. The Lair's turn has no processing at either end.
  *
  * <p>The turn that ends: conditions that end at the end of that creature's turn end, on whoever has them; its
- * rage ends if it neither attacked nor took damage since its last turn (PHB p.48, M17); and the creature repeats
+ * rage ends if it neither attacked nor took damage since its last turn (PHB p.48, M17); Summon Greater Demon's demon
+ * makes its Charisma save to break free (XGE p.166, D182); and the creature repeats
  * the save of each of its conditions that has one. The server rolls it, unless the creature is a PC and the campaign prompts players, when the condition waits for the player's roll.
  *
  * <p>The turn that starts: the creature's Concentration Instance ends if its duration has run out, taking
@@ -152,6 +153,8 @@ public class TurnProcessor {
         }
         // Ongoing Modifiers that last until the end of this turn end, and Slow's creature repeats its save (D184)
         effectApplier.modifiersAtTurnEnd(encounter, creature);
+        // Damage due at the end of this turn, as Vitriolic Sphere's (XGE p.170, D185)
+        effectApplier.effectsAtTurnEnd(encounter, creature);
         // A rage ends with a turn in which the barbarian neither attacked nor took damage since its last (PHB p.48)
         effectApplier.endTurnForRage(encounter, creature);
         // A command its caster gave lasts for the creature's next turn (PHB p.212, XGE p.168, D182)
@@ -161,6 +164,10 @@ public class TurnProcessor {
 
         if (creature.getLifeState() == LifeState.DEAD) {
             return;
+        }
+        // Summon Greater Demon's demon tries to break free at the end of each of its turns (XGE p.166, D182)
+        if (!EncounterTurns.dismissed(creature)) {
+            effectApplier.summonControlSave(encounter, creature);
         }
         boolean playerRolls = creature.getParticipantType() == ParticipantType.PLAYER
                 && Boolean.TRUE.equals(encounter.getCampaign().getPromptPlayerRepeatSaves());
@@ -215,6 +222,8 @@ public class TurnProcessor {
 
         // Ongoing Modifiers that last until the start of this turn end, and Heroism's temporary hit points (D184)
         effectApplier.modifiersAtTurnStart(encounter, creature);
+        // Delayed damage armed, Aura of Life's hit point, and the creature's Spell Effects' reminders (D185)
+        effectApplier.effectsAtTurnStart(encounter, creature);
         effectApplier.refreshTurn(encounter, creature);
         effectApplier.deathSaveDue(creature);
     }
@@ -273,8 +282,9 @@ public class TurnProcessor {
 
     /** Whether the creature still takes turns: anyone but a dead monster, whose turns are skipped (D163). */
     private static boolean takesTurns(EncounterParticipant participant) {
-        if (EncounterTurns.dismissed(participant)) {
-            // A summoned creature that has disappeared takes no more turns (D182)
+        if (EncounterTurns.dismissed(participant) || CombatAccess.banished(participant)) {
+            // A summoned creature that has disappeared takes no more turns (D182), nor does a banished one until it
+            // returns (PHB p.217, D185)
             return false;
         }
         return participant.getLifeState() != LifeState.DEAD

@@ -99,7 +99,8 @@ public class SpellEffects {
         SpellTemplate template = found.get();
         int spellLevel = template.level();
         boolean concentration = Boolean.TRUE.equals(template.concentration());
-        Integer durationRounds = template.durationRounds();
+        // A duration that grows with the slot, as Dominate Beast's (PHB p.234, D185)
+        Integer durationRounds = template.durationRounds(slotLevel);
         boolean verbal = template.verbal();
 
         if (Boolean.TRUE.equals(template.requiresManualResolution())) {
@@ -126,7 +127,7 @@ public class SpellEffects {
         // A spell on its caster heals or gives conditions; any damage in its template is for others to take
         Optional<List<Effect.DamagePart>> damage = delivery instanceof Effect.Self
                 ? Optional.of(List.of())
-                : damage(template.firstDamageEffect(), spellLevel, slotLevel, caster, modifier);
+                : damage(template.damageEffects(), spellLevel, slotLevel, caster, modifier);
         SpellTemplate.Healing healingData = template.healing();
         Optional<Healing> healing = healing(healingData != null ? healingData.anyDice() : null,
                 healingData != null ? healingData.upcastScaling() : null,
@@ -136,9 +137,22 @@ public class SpellEffects {
                     concentration, durationRounds, verbal);
         }
 
+        Map<String, Effect.ConditionEnd> ends = conditionEnds(template.conditionsInflicted(), template, saveDc);
+        if (!java.util.Objects.equals(durationRounds, template.durationRounds())) {
+            ends = scaled(ends, template.durationRounds(), durationRounds);
+        }
         Effect effect = new Effect(spellName, delivery, damage.get(), healing.get().dice(), conditions(template),
-                concentration, durationRounds, conditionEnds(template, saveDc));
+                concentration, durationRounds, ends);
         return new SpellPlan(spellName, spellLevel, effect, null, concentration, durationRounds, verbal);
+    }
+
+    // The conditions that lasted as long as the spell's own duration, lasting as long as the slot's (D185)
+    private static Map<String, Effect.ConditionEnd> scaled(Map<String, Effect.ConditionEnd> ends, Integer base,
+                                                          Integer rounds) {
+        Map<String, Effect.ConditionEnd> changed = new LinkedHashMap<>();
+        ends.forEach((name, end) -> changed.put(name, base != null && base.equals(end.durationRounds())
+                ? end.lasting(rounds) : end));
+        return changed;
     }
 
     /**
@@ -157,14 +171,15 @@ public class SpellEffects {
         if (template.repeatEffect() == null) {
             return manual(spellName, template.level(), "Spell has no repeatable effect", false, null, false);
         }
-        return planFor(template, spellName, template.repeatEffect(), true, slotLevel, caster, castingAbility,
-                attackBonus, saveDc, advantage);
+        return planFor(template, spellName, template.repeatEffect(), true, List.of(), slotLevel, caster,
+                castingAbility, attackBonus, saveDc, advantage);
     }
 
     /**
      * What a lasting spell's area does by itself at a moment of a creature's turn (M15), such as Moonbeam's save
      * against its damage when a creature starts its turn in the beam (PHB p.261): the trigger's own effect, or the
-     * spell's. It gives no conditions and starts no concentration.
+     * spell's. It starts no concentration, and gives only the conditions the trigger lists, as Evard's Black Tentacles'
+     * restrained on a failed save (PHB p.238, D185).
      */
     public SpellPlan forTrigger(String spellName, SpellTrigger when, int slotLevel, EncounterParticipant caster,
                                 String castingAbility, int attackBonus, int saveDc) {
@@ -178,8 +193,109 @@ public class SpellEffects {
             return manual(spellName, template.level(), spellName + " does nothing by itself at that moment",
                     false, null, false);
         }
-        return planFor(template, spellName, trigger.get().effect(), false, slotLevel, caster, castingAbility,
-                attackBonus, saveDc, null);
+        return planFor(template, spellName, trigger.get().effect(), false, trigger.get().conditions(), slotLevel,
+                caster, castingAbility, attackBonus, saveDc, null);
+    }
+
+    /**
+     * What a trigger does to a creature that already has the condition the trigger names from this spell, as Evard's
+     * Black Tentacles' 3d6 bludgeoning to a creature already restrained by them, with no save (PHB p.238, D185): the
+     * trigger's damage, automatically, with no conditions. Empty when the trigger names no condition.
+     */
+    public Optional<SpellPlan> forConditionedTrigger(String spellName, SpellTrigger when, int slotLevel,
+                                                     EncounterParticipant caster, String castingAbility,
+                                                     int attackBonus, int saveDc) {
+        Optional<SpellTemplate> found = template(spellName);
+        Optional<SpellTemplate.EffectTrigger> trigger = found.flatMap(template -> template.trigger(when))
+                .filter(each -> each.whenConditioned() != null);
+        if (trigger.isEmpty()) {
+            return Optional.empty();
+        }
+        SpellPlan plan = planFor(found.get(), spellName, trigger.get().effect(), false, List.of(), slotLevel, caster,
+                castingAbility, attackBonus, saveDc, null);
+        if (!plan.automated()) {
+            return Optional.of(plan);
+        }
+        Effect effect = plan.effect();
+        return Optional.of(new SpellPlan(spellName, plan.spellLevel(), new Effect(spellName, new Effect.Automatic(),
+                effect.damage(), effect.healing(), List.of(), false, null), null, false, null, false));
+    }
+
+    /**
+     * The trigger at that moment, if the spell has one (D185): the condition that makes it automatic, the exhaustion
+     * it gives and whether a creature it reaches comes under the spell's Ongoing Modifiers.
+     */
+    public Optional<SpellTemplate.EffectTrigger> trigger(String spellName, SpellTrigger when) {
+        return template(spellName).flatMap(template -> template.trigger(when));
+    }
+
+    /**
+     * What a cast of the spell with a slot of slotLevel leaves for later (D185): its delayed damage with the upcast
+     * dice added, its damage budget, its retaliation for the option chosen, and its turn reminder.
+     *
+     * @param delayedDice the dice of the delayed damage, or null for none
+     * @param delayedOn   the outcome that brings it: FAILED_SAVE or HIT
+     * @param retaliationDice the retaliation's dice, or null for none
+     */
+    public record Later(String delayedDice, String delayedType, String delayedOn, Integer damageBudget,
+                        String retaliationDice, String retaliationType, String turnReminder) {
+
+        public static final Later NONE = new Later(null, null, null, null, null, null, null);
+
+        public boolean any() {
+            return delayedDice != null || damageBudget != null || retaliationDice != null || turnReminder != null;
+        }
+    }
+
+    /** What a cast of the spell leaves for later (D185); nothing for a spell without a template. */
+    public Later later(String spellName, int slotLevel, String option) {
+        Optional<SpellTemplate> found = template(spellName);
+        if (found.isEmpty()) {
+            return Later.NONE;
+        }
+        SpellTemplate template = found.get();
+        String delayedDice = null;
+        String delayedType = null;
+        String delayedOn = null;
+        SpellTemplate.DelayedDamage delayed = template.delayedDamage();
+        if (delayed != null && delayed.damageDice() != null) {
+            int levelsAbove = template.level() > 0 ? slotLevel - template.level() : 0;
+            Optional<List<Dice>> dice = TemplateDice.read(delayed.damageDice())
+                    .flatMap(groups -> upcast(groups, delayed.upcastScaling(), levelsAbove));
+            if (dice.isPresent() && dice.get().size() == 1) {
+                delayedDice = dice.get().getFirst().toString();
+                delayedType = delayed.damageType();
+                delayedOn = delayed.on();
+            }
+        }
+        SpellTemplate.Retaliation retaliation = template.retaliation();
+        return new Later(delayedDice, delayedType, delayedOn, template.damageBudget(),
+                retaliation != null ? retaliation.damageDice() : null,
+                retaliation != null ? retaliation.typeFor(option) : null, template.turnReminder());
+    }
+
+    /**
+     * The spell's creature-type rules (D185): the types it can target alone, those it has no effect on and those that
+     * save with disadvantage and take its most damage, as Blight's (PHB p.219).
+     */
+    public record TypeRules(List<String> targetTypes, List<String> noEffectOn, List<String> maximumDamageTo) {
+
+        public static final TypeRules NONE = new TypeRules(List.of(), List.of(), List.of());
+
+        public boolean any() {
+            return !targetTypes.isEmpty() || !noEffectOn.isEmpty() || !maximumDamageTo.isEmpty();
+        }
+    }
+
+    /** The temporary hit points a cast with the option gives each creature it affects (D185); null for none. */
+    public Integer tempHitPoints(String spellName, String option) {
+        return template(spellName).map(template -> template.tempHitPoints(option)).orElse(null);
+    }
+
+    /** The spell's creature-type rules; none for a spell without a template. */
+    public TypeRules typeRules(String spellName) {
+        return template(spellName).map(template -> new TypeRules(template.targetTypes(), template.noEffectOn(),
+                template.maximumDamageTo())).orElse(TypeRules.NONE);
     }
 
     /**
@@ -192,9 +308,11 @@ public class SpellEffects {
                 .orElse(false);
     }
 
-    // A repeat effect or a trigger as an Effect: the spell's own effect unless it replaces it
+    // A repeat effect or a trigger as an Effect: the spell's own effect unless it replaces it, with the trigger's own
+    // conditions when it lists them (D185)
     private SpellPlan planFor(SpellTemplate template, String spellName, SpellTemplate.RepeatEffect repeat,
-                              boolean ownConditions, int slotLevel, EncounterParticipant caster, String castingAbility,
+                              boolean ownConditions, List<SpellTemplate.ConditionInflicted> triggerConditions,
+                              int slotLevel, EncounterParticipant caster, String castingAbility,
                               int attackBonus, int saveDc, Boolean advantage) {
         int spellLevel = template.level();
         int modifier = stats.spellcastingModifier(caster, castingAbility, attackBonus);
@@ -222,7 +340,7 @@ public class SpellEffects {
             spellAttackType = template.spellAttackType();
             saveAbility = template.saveAbility();
             halfOnSave = template.halfOnSave();
-            damage = damage(template.firstDamageEffect(), spellLevel, slotLevel, caster, modifier);
+            damage = damage(template.damageEffects(), spellLevel, slotLevel, caster, modifier);
             healing = healing(template.healing() != null ? template.healing().anyDice() : null, null, 0, modifier);
         }
         if (damage.isEmpty() || healing.isEmpty()) {
@@ -247,9 +365,9 @@ public class SpellEffects {
             }
         }
         boolean spellsOwn = ownConditions && !repeat.replaces();
+        List<SpellTemplate.ConditionInflicted> given = spellsOwn ? template.conditionsInflicted() : triggerConditions;
         Effect effect = new Effect(spellName, delivery, damage.get(), healing.get().dice(),
-                spellsOwn ? conditions(template) : List.of(), false, null,
-                spellsOwn ? conditionEnds(template, saveDc) : Map.of());
+                names(given), false, null, conditionEnds(given, template, saveDc));
         return new SpellPlan(spellName, spellLevel, effect, null, false, null, false);
     }
 
@@ -390,7 +508,7 @@ public class SpellEffects {
                     definition.attackerTypes(), definition.condition(), definition.skill()));
         }
         return new ModifierPlan(modifiers, option, template.modifierRepeatSave(), template.reminder(),
-                template.endReminder(), template.durationRounds(), notes);
+                template.endReminder(), template.durationRounds(slotLevel), notes);
     }
 
     /** The spell's name as the spells data has it, found in any case; empty for no such spell. */
@@ -460,7 +578,7 @@ public class SpellEffects {
     /** What casting the spell with a slot of slotLevel leaves behind, if it leaves a Spell Effect. */
     public Optional<Lasting> lasting(String spellName, int slotLevel) {
         return template(spellName).filter(SpellTemplate::lasting).map(template -> new Lasting(
-                template.durationRounds(),
+                template.durationRounds(slotLevel),
                 template.effectUses() != null ? template.effectUses().at(template.level(), slotLevel) : null));
     }
 
@@ -605,19 +723,26 @@ public class SpellEffects {
         };
     }
 
-    // The damage effect's parts at this slot level: none without a damage effect, empty when unreadable
-    private Optional<List<Effect.DamagePart>> damage(Optional<SpellTemplate.Part> damageEffect, int spellLevel,
+    // The damage effects' parts at this slot level, each part's own upcast added to it (D185): none without a damage
+    // effect, empty when any is unreadable
+    private Optional<List<Effect.DamagePart>> damage(List<SpellTemplate.Part> damageEffects, int spellLevel,
                                                      int slotLevel, EncounterParticipant caster, int modifier) {
-        if (damageEffect.isEmpty()) {
-            return Optional.of(List.of());
+        List<Effect.DamagePart> all = new ArrayList<>();
+        for (SpellTemplate.Part part : damageEffects) {
+            Optional<List<Effect.DamagePart>> parts;
+            if (spellLevel == 0) {
+                String scaled = cantripDice(part.cantripScaling(), stats.level(caster));
+                parts = damageParts(scaled != null ? scaled : part.damageDice(), part.damageType(), null, 0, modifier);
+            } else {
+                parts = damageParts(part.damageDice(), part.damageType(), part.upcastScaling(),
+                        slotLevel - spellLevel, modifier);
+            }
+            if (parts.isEmpty()) {
+                return Optional.empty();
+            }
+            all.addAll(parts.get());
         }
-        SpellTemplate.Part part = damageEffect.get();
-        if (spellLevel == 0) {
-            String scaled = cantripDice(part.cantripScaling(), stats.level(caster));
-            return damageParts(scaled != null ? scaled : part.damageDice(), part.damageType(), null, 0, modifier);
-        }
-        return damageParts(part.damageDice(), part.damageType(), part.upcastScaling(), slotLevel - spellLevel,
-                modifier);
+        return Optional.of(all);
     }
 
     private static Optional<List<Effect.DamagePart>> damageParts(String dice, String damageType,
@@ -676,7 +801,11 @@ public class SpellEffects {
 
     // Each condition the spell inflicts, listed by name or as an object naming it
     private static List<String> conditions(SpellTemplate template) {
-        return template.conditionsInflicted().stream()
+        return names(template.conditionsInflicted());
+    }
+
+    private static List<String> names(List<SpellTemplate.ConditionInflicted> conditions) {
+        return conditions.stream()
                 .map(SpellTemplate.ConditionInflicted::name)
                 .filter(Objects::nonNull)
                 .toList();
@@ -687,11 +816,13 @@ public class SpellEffects {
      * the end of each of its creature's turns against the caster's spell save DC, in the entry's ability or
      * else the spell's. A repeat save the entry makes conditional, such as Fear's on losing sight of the
      * caster, is left to the DM. One the entry ends when its creature attacks or casts a spell, as Invisibility's
-     * (PHB p.254), says so.
+     * (PHB p.254), says so. One that ends when its creature takes damage, as Hypnotic Pattern's (PHB p.252), or makes
+     * it save again then, as Dominate Beast's (PHB p.234), says so too (D185).
      */
-    private static Map<String, Effect.ConditionEnd> conditionEnds(SpellTemplate template, int saveDc) {
+    private static Map<String, Effect.ConditionEnd> conditionEnds(List<SpellTemplate.ConditionInflicted> conditions,
+                                                                  SpellTemplate template, int saveDc) {
         Map<String, Effect.ConditionEnd> ends = new LinkedHashMap<>();
-        for (SpellTemplate.ConditionInflicted condition : template.conditionsInflicted()) {
+        for (SpellTemplate.ConditionInflicted condition : conditions) {
             String name = condition.name();
             if (name == null) {
                 continue;
@@ -703,9 +834,16 @@ public class SpellEffects {
                         .map(ability -> new Effect.RepeatSave(ability, saveDc))
                         .orElse(null);
             }
-            if (condition.durationRounds() != null || repeatSave != null || condition.endsOnAttackOrCast()) {
-                Effect.ConditionEnd end = new Effect.ConditionEnd(condition.durationRounds(), repeatSave);
-                ends.put(name, condition.endsOnAttackOrCast() ? end.endingOnAttackOrCast() : end);
+            Effect.DamageSave onDamage = condition.saveToEndOnDamage()
+                    ? Ability.parse(condition.saveToEndAbility()).or(() -> Ability.parse(template.saveAbility()))
+                            .map(ability -> new Effect.DamageSave(ability, saveDc, condition.damageSaveAdvantage()))
+                            .orElse(null)
+                    : null;
+            if (condition.durationRounds() != null || repeatSave != null || condition.endsOnAttackOrCast()
+                    || condition.endsOnDamage() || onDamage != null) {
+                Effect.ConditionEnd end = new Effect.ConditionEnd(condition.durationRounds(), repeatSave, null, false,
+                        condition.endsOnDamage(), condition.endsOnAttackOrCast(), onDamage);
+                ends.put(name, end);
             }
         }
         return ends;

@@ -57,6 +57,7 @@ export default function ActiveSpells({
             .filter(other => other.lifeState !== 'DEAD' && !(effect.affectedIds ?? []).includes(other.id))
             .map(other => ({ id: other.id, name: other.displayName }))}
           onMove={onMove ? targetId => onMove(effect, targetId) : undefined}
+          nameOf={id => participants.find(other => other.id === id)?.displayName}
           affectedNames={(effect.affectedIds ?? [])
             .map(id => participants.find(other => other.id === id)?.displayName)
             .filter((name): name is string => !!name)}

@@ -5,6 +5,19 @@ import { makeMockSpellEffect } from '../../test/mocks/handlers';
 import SpellEffectCard from './SpellEffectCard';
 
 describe('SpellEffectCard', () => {
+  it('lists what Guardian of Faith and Vitriolic Sphere keep for later (D185)', () => {
+    const guardian = makeMockSpellEffect('Guardian of Faith', { damageLeft: 40, directedCost: null, triggers: ['ENTER'] });
+    const { unmount } = render(<SpellEffectCard effect={guardian} roundNumber={1} />);
+    expect(screen.getByText('40 damage left')).toBeInTheDocument();
+    unmount();
+
+    const sphere = makeMockSpellEffect('Vitriolic Sphere', {
+      directedCost: null, delayed: [{ target: 'ogre', dice: '5d4', type: 'acid', armed: true }],
+    });
+    render(<SpellEffectCard effect={sphere} roundNumber={1} nameOf={() => 'Ogre'} />);
+    expect(screen.getByText('5d4 acid to Ogre at the end of its next turn')).toBeInTheDocument();
+  });
+
   it('shows Spiritual Weapon\'s slot level and the rounds it has left, with no concentration link', () => {
     render(<SpellEffectCard effect={makeMockSpellEffect('Spiritual Weapon', { startedRound: 2 })} roundNumber={5} />);
 

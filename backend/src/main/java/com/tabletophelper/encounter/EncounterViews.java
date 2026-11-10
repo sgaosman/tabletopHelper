@@ -277,6 +277,9 @@ public final class EncounterViews {
                         .map(effect -> effect.getAffectedIds() == null ? effect : effect.toBuilder()
                                 .affectedIds(effect.getAffectedIds().stream().filter(id -> !hidden.contains(id))
                                         .toList())
+                                // Damage still to come names its creature, so a hidden one's is left out (D157, D185)
+                                .delayed(effect.getDelayed() == null ? null : effect.getDelayed().stream()
+                                        .filter(delayed -> !hidden.contains(delayed.target())).toList())
                                 .build())
                         .toList())
                 .build();

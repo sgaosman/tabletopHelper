@@ -36,6 +36,10 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param bonus                       the number the entry's feature adds: Agile Parry's to AC (XGE p.34), Sharpen the
  *                                    Blade's to attack and damage rolls with its weapon (XGE p.35); null for any other
  *                                    entry
+ * @param endsOnDamage                true when it ends as soon as its creature takes damage, as Hypnotic Pattern's
+ *                                    charm does (PHB p.252, D185), whatever else ends it; null otherwise
+ * @param saveOnDamage                the save its creature makes each time it takes damage, a success ending the
+ *                                    spell, as Dominate Beast's (PHB p.234, D185); null for none
  */
 public record ConditionEntry(
         @Schema(requiredMode = REQUIRED) UUID id,
@@ -52,8 +56,20 @@ public record ConditionEntry(
         WildShapeForm wildShape,
         String weapon,
         Boolean endsOnAttackOrCast,
-        @JsonInclude(JsonInclude.Include.NON_NULL) Integer bonus
+        @JsonInclude(JsonInclude.Include.NON_NULL) Integer bonus,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean endsOnDamage,
+        @JsonInclude(JsonInclude.Include.NON_NULL) DamageSave saveOnDamage
 ) {
+
+    /** An entry that taking damage neither ends nor tests (D185). */
+    public ConditionEntry(UUID id, String name, Integer duration, int appliedRound, String sourceSpellName,
+                          UUID sourceParticipantId, Boolean sourceRequiresConcentration, UUID concentrationInstanceId,
+                          EndRule endRule, RepeatSave repeatSave, HeldDie heldDie, WildShapeForm wildShape,
+                          String weapon, Boolean endsOnAttackOrCast, Integer bonus) {
+        this(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId, sourceRequiresConcentration,
+                concentrationInstanceId, endRule, repeatSave, heldDie, wildShape, weapon, endsOnAttackOrCast, bonus,
+                null, null);
+    }
 
     /** An entry that adds no number. */
     public ConditionEntry(UUID id, String name, Integer duration, int appliedRound, String sourceSpellName,
@@ -145,20 +161,30 @@ public record ConditionEntry(
     public ConditionEntry withRepeatSave(RepeatSave save) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
                 sourceRequiresConcentration, concentrationInstanceId, endRule, save, heldDie, wildShape, weapon,
-                endsOnAttackOrCast, bonus);
+                endsOnAttackOrCast, bonus, endsOnDamage, saveOnDamage);
     }
 
     public ConditionEntry withHeldDie(HeldDie die) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
                 sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, die, wildShape, weapon,
-                endsOnAttackOrCast, bonus);
+                endsOnAttackOrCast, bonus, endsOnDamage, saveOnDamage);
     }
 
     /** This entry, ending too when its creature attacks or casts a spell. */
     public ConditionEntry endingOnAttackOrCast() {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
                 sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, heldDie, wildShape, weapon,
-                true, bonus);
+                true, bonus, endsOnDamage, saveOnDamage);
+    }
+
+    /**
+     * This entry, ending too when its creature takes damage, or with a save its creature makes then (D185); null for
+     * either leaves it as it is.
+     */
+    public ConditionEntry onDamage(boolean ends, DamageSave save) {
+        return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
+                sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, heldDie, wildShape, weapon,
+                endsOnAttackOrCast, bonus, ends ? Boolean.TRUE : endsOnDamage, save != null ? save : saveOnDamage);
     }
 
     /** Whether it ends when its creature attacks or casts a spell. */

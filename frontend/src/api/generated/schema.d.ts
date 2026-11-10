@@ -2860,11 +2860,13 @@ export interface components {
             duration?: number | null;
             endRule: components["schemas"]["EndRule"];
             endsOnAttackOrCast?: boolean | null;
+            endsOnDamage?: boolean | null;
             heldDie?: components["schemas"]["HeldDie"] | null;
             /** Format: uuid */
             id: string;
             name: string;
             repeatSave?: components["schemas"]["RepeatSave"] | null;
+            saveOnDamage?: components["schemas"]["DamageSave"] | null;
             /** Format: uuid */
             sourceParticipantId?: string | null;
             sourceRequiresConcentration?: boolean | null;
@@ -2898,6 +2900,13 @@ export interface components {
             /** Format: uuid */
             targetId: string;
         };
+        DamageSave: {
+            /** @enum {string} */
+            ability: "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
+            advantage: boolean;
+            /** Format: int32 */
+            dc: number;
+        };
         DeathSaveRequest: {
             /** Format: uuid */
             participantId: string;
@@ -2907,6 +2916,13 @@ export interface components {
             attackLogId?: string | null;
             /** Format: uuid */
             participantId: string;
+        };
+        DelayedDamage: {
+            armed: boolean;
+            dice: string;
+            /** Format: uuid */
+            target: string;
+            type: string;
         };
         DismissSummonsRequest: {
             participantIds: string[];
@@ -3538,6 +3554,7 @@ export interface components {
         Option: {
             /** Format: int32 */
             count: number;
+            forms: string[];
             id: string;
             label: string;
             /** Format: double */
@@ -3953,6 +3970,9 @@ export interface components {
         SpellEffectResponse: {
             affectedIds: string[];
             concentration: boolean;
+            /** Format: int32 */
+            damageLeft?: number | null;
+            delayed: components["schemas"]["DelayedDamage"][];
             /** @enum {string|null} */
             directedCost?: "ACTION" | "BONUS_ACTION" | "NONE" | null;
             directedResolves: boolean;
@@ -3964,6 +3984,7 @@ export interface components {
             maxUsesEachTurn?: number | null;
             modifiers: string[];
             option?: string | null;
+            retaliation?: string | null;
             retargetable: boolean;
             /** Format: int32 */
             slotLevel?: number | null;
@@ -4137,7 +4158,11 @@ export interface components {
             cannotAttack?: boolean | null;
             /** Format: int32 */
             commandedRound?: number | null;
+            /** Format: int32 */
+            controlSaveDc?: number | null;
             creatureType?: string | null;
+            damageImmunities?: string[] | null;
+            damageResistances?: string[] | null;
             /** Format: uuid */
             effectId?: string | null;
             /** Format: uuid */
@@ -4145,11 +4170,12 @@ export interface components {
             /** @enum {string|null} */
             initiativeMode?: "FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL" | null;
             /** @enum {string|null} */
-            kind?: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | null;
+            kind?: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | "CONJURE" | "GIANT_INSECT" | "GREATER_DEMON" | null;
             needsCommand?: boolean | null;
             /** Format: int32 */
             slotLevel?: number | null;
             spell?: string | null;
+            uncontrolled?: boolean | null;
             vanishesAtZero?: boolean | null;
             variant?: string | null;
         };
@@ -4169,7 +4195,7 @@ export interface components {
             houseRuleModes: ("FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL")[];
             initiativeModes: ("FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL")[];
             /** @enum {string} */
-            kind: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT";
+            kind: "CONJURE_ANIMALS" | "LESSER_DEMONS" | "SPIRIT" | "FAMILIAR" | "FLOCK_OF_FAMILIARS" | "STEED" | "ANIMATE_DEAD" | "TINY_SERVANT" | "CONJURE" | "GIANT_INSECT" | "GREATER_DEMON";
             /** Format: int32 */
             multiplier: number;
             needsCommand: boolean;

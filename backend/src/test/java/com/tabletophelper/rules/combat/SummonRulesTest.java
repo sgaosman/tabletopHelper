@@ -20,7 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The summoning spells' numbers, typed out from the books (D182): Conjure Animals (PHB p.225), Summon Lesser Demons
  * (XGE p.167), Flock of Familiars (LLK p.57), Animate Dead (PHB p.212), Tiny Servant (XGE p.168), Find Familiar and
- * Find Steed (PHB p.240) and the Tasha's spirits (TCE p.109–114).
+ * Find Steed (PHB p.240) and the Tasha's spirits (TCE p.109–114); and the 4th-level ones: Conjure Minor Elementals and
+ * Conjure Woodland Beings (PHB p.226), Giant Insect (PHB p.245), Find Greater Steed (XGE p.156), Summon Greater Demon
+ * (XGE p.166), Summon Aberration, Construct and Elemental (TCE p.109–111) and Spirit of Death (BMT p.50).
  */
 class SummonRulesTest {
 
@@ -215,7 +217,230 @@ class SummonRulesTest {
         void spell_lookup() {
             assertTrue(SummonRules.spell("conjure animals").isPresent());
             assertTrue(SummonRules.spell("Fireball").isEmpty());
-            assertEquals(11, SummonRules.spells().size());
+            assertEquals(20, SummonRules.spells().size());
+        }
+    }
+
+    @Nested
+    @DisplayName("Conjure Minor Elementals and Conjure Woodland Beings (PHB p.226)")
+    class FourthLevelConjurings {
+
+        @ParameterizedTest(name = "{0} at level {1}: {2}, {3}, {4} or {5}")
+        @CsvSource({"Conjure Minor Elementals,4,1,2,4,8", "Conjure Minor Elementals,5,1,2,4,8",
+                "Conjure Minor Elementals,6,2,4,8,16", "Conjure Minor Elementals,7,2,4,8,16",
+                "Conjure Minor Elementals,8,3,6,12,24", "Conjure Minor Elementals,9,3,6,12,24",
+                "Conjure Woodland Beings,4,1,2,4,8", "Conjure Woodland Beings,6,2,4,8,16",
+                "Conjure Woodland Beings,8,3,6,12,24"})
+        @DisplayName("Conjure Animals' tiers, twice as many at 6th and three times at 8th")
+        void counts_byLevel(String name, int slot, int one, int two, int four, int eight) {
+            assertEquals(List.of(one, two, four, eight), counts(name, slot));
+            assertEquals(List.of(2.0, 1.0, 0.5, 0.25), SummonRules.options(spell(name), slot, false).stream()
+                    .map(Option::maxCr).toList());
+        }
+
+        @Test
+        @DisplayName("Elementals only, not swarms; a fire elemental (CR 5) is above the CR 2 option")
+        void elementals() {
+            Spell spell = spell("Conjure Minor Elementals");
+            Option one = SummonRules.options(spell, 4, false).getFirst();
+            assertTrue(SummonRules.refusal(spell, one, "Mud Mephit", "1/4", "elemental", null, false).isEmpty());
+            assertEquals("Wolf isn't an elemental Conjure Minor Elementals can summon",
+                    SummonRules.refusal(spell, one, "Wolf", "1/4", "beast", null, false).orElseThrow());
+            assertEquals("Fire Elemental (CR 5) is above challenge rating 2",
+                    SummonRules.refusal(spell, one, "Fire Elemental", "5", "elemental", null, false).orElseThrow());
+            Option eight = SummonRules.options(spell, 4, false).get(3);
+            assertTrue(SummonRules.refusal(spell, eight, "Magma Mephit", "1/2", "elemental", null, false)
+                    .isPresent());
+        }
+
+        @Test
+        @DisplayName("Fey only: a pixie fits, a wolf doesn't")
+        void fey() {
+            Spell spell = spell("Conjure Woodland Beings");
+            Option eight = SummonRules.options(spell, 4, false).get(3);
+            assertTrue(SummonRules.refusal(spell, eight, "Pixie", "1/4", "fey", null, false).isEmpty());
+            assertEquals("Wolf isn't a fey creature Conjure Woodland Beings can summon",
+                    SummonRules.refusal(spell, eight, "Wolf", "1/4", "beast", null, false).orElseThrow());
+        }
+
+        @Test
+        @DisplayName("Minor Elementals takes a minute so the DM places them; Woodland Beings is cast in a turn; both "
+                + "roll as a group, concentrate, vanish at 0 HP, and keep their own type")
+        void facts() {
+            Spell elementals = spell("Conjure Minor Elementals");
+            Spell fey = spell("Conjure Woodland Beings");
+            assertFalse(elementals.castInCombat());
+            assertTrue(fey.castInCombat());
+            for (Spell spell : List.of(elementals, fey)) {
+                assertEquals(Kind.CONJURE, spell.kind());
+                assertEquals(4, spell.level());
+                assertTrue(spell.concentration());
+                assertTrue(spell.vanishesAtZero());
+                assertTrue(spell.tiered());
+                assertEquals(InitiativeMode.GROUP, spell.defaultInitiativeMode());
+                assertEquals(List.of(InitiativeMode.FOLLOWS_CASTER), spell.houseRuleModes());
+                assertEquals(SummonRules.Controller.CASTER, spell.controller());
+                assertEquals(null, spell.creatureType());
+                assertEquals("PHB", spell.source());
+                assertEquals(226, spell.page());
+            }
+            assertEquals(List.of("1 elemental of challenge rating 2 or lower", "2 elementals of challenge rating 1 or "
+                            + "lower", "4 elementals of challenge rating 1/2 or lower",
+                    "8 elementals of challenge rating 1/4 or lower"),
+                    SummonRules.options(elementals, 4, false).stream().map(Option::label).toList());
+            assertEquals("2 fey creatures of challenge rating 2 or lower",
+                    SummonRules.options(fey, 6, false).getFirst().label());
+        }
+    }
+
+    @Nested
+    @DisplayName("Giant Insect (PHB p.245)")
+    class GiantInsect {
+
+        @Test
+        @DisplayName("Up to ten centipedes, three spiders, five wasps or one scorpion, each option its own form")
+        void options() {
+            Spell spell = spell("Giant Insect");
+            List<Option> options = SummonRules.options(spell, 4, false);
+            assertEquals(List.of(10, 3, 5, 1), options.stream().map(Option::count).toList());
+            assertEquals(List.of("10xGiant Centipede", "3xGiant Spider", "5xGiant Wasp", "1xGiant Scorpion"),
+                    options.stream().map(Option::id).toList());
+            assertEquals(List.of("Up to 10 giant centipedes", "Up to 3 giant spiders", "Up to 5 giant wasps",
+                    "Up to 1 giant scorpion"), options.stream().map(Option::label).toList());
+            // No higher-level effect
+            assertEquals(List.of(10, 3, 5, 1), counts("Giant Insect", 9));
+        }
+
+        @Test
+        @DisplayName("A spider fits the spider option only; a giant wolf spider is no option's form")
+        void forms() {
+            Spell spell = spell("Giant Insect");
+            Option spiders = SummonRules.options(spell, 4, false).get(1);
+            Option wasps = SummonRules.options(spell, 4, false).get(2);
+            assertTrue(SummonRules.refusal(spell, spiders, "Giant Spider", "1", "beast", null, false).isEmpty());
+            assertEquals("That option of Giant Insect makes Giant Wasp, not Giant Spider",
+                    SummonRules.refusal(spell, wasps, "Giant Spider", "1", "beast", null, false).orElseThrow());
+            assertTrue(SummonRules.refusal(spell, spiders, "Giant Wolf Spider", "1/4", "beast", null, false)
+                    .isPresent());
+        }
+
+        @Test
+        @DisplayName("Fewer are allowed; they follow the caster, the DM resolves them, and they revert at 0 HP")
+        void facts() {
+            Spell spell = spell("Giant Insect");
+            Option centipedes = SummonRules.options(spell, 4, false).getFirst();
+            assertTrue(SummonRules.countRefusal(spell, centipedes, 4).isEmpty());
+            assertTrue(SummonRules.countRefusal(spell, centipedes, 11).isPresent());
+            assertEquals(List.of(InitiativeMode.FOLLOWS_CASTER), spell.initiativeModes());
+            assertEquals(SummonRules.Controller.DM, spell.controller());
+            assertTrue(spell.concentration());
+            assertEquals(100, spell.durationRounds());
+            assertTrue(spell.vanishesAtZero());
+            assertFalse(spell.dmChooses());
+        }
+    }
+
+    @Nested
+    @DisplayName("Find Greater Steed (XGE p.156)")
+    class GreaterSteed {
+
+        @Test
+        @DisplayName("Six forms, a celestial, fey or fiend, its own initiative or the rider's, placed by the DM")
+        void forms() {
+            Spell spell = spell("Find Greater Steed");
+            Option one = SummonRules.options(spell, 4, false).getFirst();
+            assertEquals(Kind.STEED, spell.kind());
+            for (String form : List.of("Griffon", "Pegasus", "Peryton", "Dire Wolf", "Rhinoceros",
+                    "Saber-Toothed Tiger")) {
+                assertTrue(SummonRules.refusal(spell, one, form, "2", "beast", null, false).isEmpty(), form);
+            }
+            assertEquals("Warhorse isn't one of Find Greater Steed's forms",
+                    SummonRules.refusal(spell, one, "Warhorse", "1/2", "beast", null, false).orElseThrow());
+            assertTrue(SummonRules.refusal(spell("Find Steed"), one, "Griffon", "2", "monstrosity", null, false)
+                    .isPresent());
+            assertEquals(List.of("celestial", "fey", "fiend"), spell.typeChoices());
+            assertEquals(List.of(InitiativeMode.INDIVIDUAL, InitiativeMode.FOLLOWS_CASTER), spell.initiativeModes());
+            assertFalse(spell.castInCombat());
+            assertFalse(spell.concentration());
+            assertEquals("XGE", spell.source());
+        }
+
+        @Test
+        @DisplayName("One mount at a time, shared with Find Steed; familiars share only with familiars")
+        void sharedBond() {
+            Spell steed = spell("Find Steed");
+            Spell greater = spell("Find Greater Steed");
+            assertTrue(SummonRules.sharesBond(steed, greater));
+            assertTrue(SummonRules.sharesBond(greater, steed));
+            assertTrue(SummonRules.sharesBond(greater, greater));
+            assertFalse(SummonRules.sharesBond(greater, spell("Find Familiar")));
+            assertFalse(SummonRules.sharesBond(spell("Find Familiar"), spell("Flock of Familiars")));
+            assertFalse(SummonRules.sharesBond(spell("Conjure Animals"), spell("Conjure Animals")));
+        }
+    }
+
+    @Nested
+    @DisplayName("Summon Greater Demon (XGE p.166)")
+    class GreaterDemon {
+
+        @ParameterizedTest(name = "level {0}: one demon of CR {1} or lower")
+        @CsvSource({"4,5,1xCR5", "5,6,1xCR6", "6,7,1xCR7", "9,10,1xCR10"})
+        @DisplayName("One demon of challenge rating 5, one higher for each slot level above 4th")
+        void crCap(int slot, double cap, String id) {
+            List<Option> options = SummonRules.options(spell("Summon Greater Demon"), slot, false);
+            assertEquals(1, options.size());
+            assertEquals(cap, options.getFirst().maxCr());
+            assertEquals(id, options.getFirst().id());
+            assertEquals(1, options.getFirst().count());
+        }
+
+        @Test
+        @DisplayName("Demons only: a barlgura (CR 5) at 4th, not a vrock (CR 6) until 5th, nor a bearded devil")
+        void demons() {
+            Spell spell = spell("Summon Greater Demon");
+            Option fourth = SummonRules.options(spell, 4, false).getFirst();
+            Option fifth = SummonRules.options(spell, 5, false).getFirst();
+            assertTrue(SummonRules.refusal(spell, fourth, "Barlgura", "5", "fiend", "demon", false).isEmpty());
+            assertEquals("Vrock (CR 6) is above challenge rating 5",
+                    SummonRules.refusal(spell, fourth, "Vrock", "6", "fiend", "demon", false).orElseThrow());
+            assertTrue(SummonRules.refusal(spell, fifth, "Vrock", "6", "fiend", "demon", false).isEmpty());
+            assertEquals("Bearded Devil isn't a demon",
+                    SummonRules.refusal(spell, fourth, "Bearded Devil", "3", "fiend", "devil", false).orElseThrow());
+        }
+
+        @Test
+        @DisplayName("Its own initiative, the caster's to choose and control until it saves to break free")
+        void facts() {
+            Spell spell = spell("Summon Greater Demon");
+            assertEquals(Kind.GREATER_DEMON, spell.kind());
+            assertEquals(List.of(InitiativeMode.INDIVIDUAL), spell.initiativeModes());
+            assertEquals(SummonRules.Controller.CASTER, spell.controller());
+            assertFalse(spell.dmChooses());
+            assertTrue(spell.savesToBreakControl());
+            assertFalse(spell("Summon Lesser Demons").savesToBreakControl());
+            assertTrue(spell.concentration());
+            assertTrue(spell.vanishesAtZero());
+            assertEquals(1, SummonRules.multiplier(spell, 9));
+        }
+    }
+
+    @Nested
+    @DisplayName("The 4th-level spirits (TCE p.109–111, BMT p.50)")
+    class FourthLevelSpirits {
+
+        @ParameterizedTest(name = "{0}: {1} p.{2}")
+        @CsvSource({"Summon Aberration,TCE,109", "Summon Construct,TCE,111", "Summon Elemental,TCE,111",
+                "Spirit of Death,BMT,50"})
+        @DisplayName("Level 4 spirits that follow the caster, each from its own book")
+        void spirits(String name, String source, int page) {
+            Spell spell = spell(name);
+            assertEquals(Kind.SPIRIT, spell.kind());
+            assertEquals(4, spell.level());
+            assertEquals(source, spell.source());
+            assertEquals(page, spell.page());
+            assertEquals(List.of(InitiativeMode.FOLLOWS_CASTER), spell.initiativeModes());
+            assertTrue(spell.concentration());
+            assertEquals(List.of(1), counts(name, 7));
         }
     }
 

@@ -20,7 +20,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param concentration         whether it needs concentration
  * @param castInCombat          whether it can be cast in a turn; the others are placed by the DM, no slot spent
  * @param dmChooses             whether the DM chooses its creatures, so a cast leaves it waiting for the DM: always for
- *                              Summon Lesser Demons (XGE p.167), and for Conjure Animals while the campaign says so
+ *                              Summon Lesser Demons (XGE p.167), and for Conjure Animals, Conjure Minor Elementals and
+ *                              Conjure Woodland Beings while the campaign says so
  * @param options               what it can bring, the upcast multiplier included
  * @param multiplier            how many times over the creatures come at the slot level
  * @param variants              a Tasha's spirit's variants; empty for others
@@ -69,12 +70,15 @@ public record SummonOptions(
      * @param count how many creatures
      * @param maxCr the highest challenge rating, such as 0.25; null for no limit
      * @param label in words
+     * @param forms the stat blocks the option takes, by name, such as Giant Insect's "Giant Spider" (PHB p.245); empty
+     *              for any candidate within its challenge rating
      */
     public record Option(
             @Schema(requiredMode = REQUIRED) String id,
             @Schema(requiredMode = REQUIRED) int count,
             Double maxCr,
-            @Schema(requiredMode = REQUIRED) String label) {
+            @Schema(requiredMode = REQUIRED) String label,
+            @Schema(requiredMode = REQUIRED) List<String> forms) {
     }
 
     /**

@@ -8,6 +8,7 @@ import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.encounter.HealthStatus;
 import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.SummonLink;
 import com.tabletophelper.encounter.state.SummonSpec;
 import com.tabletophelper.encounter.state.TurnEconomy;
@@ -302,6 +303,16 @@ public class EncounterResponse {
         // Whether its caster can move it to a new creature once its creature drops to 0 HP (Hunter's Mark, Hex; D184)
         @Schema(requiredMode = REQUIRED)
         private boolean retargetable;
+
+        // Damage still to come at the end of a creature's next turn, as Vitriolic Sphere's (D185); empty for none
+        @Schema(requiredMode = REQUIRED)
+        private List<SpellEffectEntry.DelayedDamage> delayed;
+
+        // The damage it can still deal before it ends, as Guardian of Faith's (D185); null for no limit
+        private Integer damageLeft;
+
+        // What it deals back to a creature that hits its caster in melee, such as "2d8 fire" (D185); null for nothing
+        private String retaliation;
     }
 
     /** A spell whose Ongoing Modifiers are on a participant (D184), shown as a chip such as "Bless". */

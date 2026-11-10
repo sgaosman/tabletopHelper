@@ -84,7 +84,8 @@ class TurnEconomiesTest {
                 + "\"fly\": {\"number\": 60, \"condition\": \"(air only)\"}, "
                 + "\"swim\": {\"number\": 30, \"condition\": \"(water only)\"}}");
         spirit.setSummon(new SummonLink(UUID.randomUUID(), "Summon Beast", 4, SummonRules.Kind.SPIRIT,
-                SummonRules.InitiativeMode.FOLLOWS_CASTER, null, "Land", null, true, false, false, null));
+                SummonRules.InitiativeMode.FOLLOWS_CASTER, null, "Land", null, true, false, false, null, null, null, null,
+                null));
 
         assertEquals(Map.of("walk", 30, "climb", 30), TurnEconomies.speed(spirit, objectMapper));
 

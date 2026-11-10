@@ -9,6 +9,9 @@ import type {
 export const SUMMONING_SPELLS = [
   'Conjure Animals', 'Summon Lesser Demons', 'Summon Beast', 'Summon Fey', 'Summon Shadowspawn', 'Summon Undead',
   'Find Familiar', 'Flock of Familiars', 'Find Steed', 'Animate Dead', 'Tiny Servant',
+  // The 4th-level summonings (D185)
+  'Summon Aberration', 'Summon Construct', 'Summon Elemental', 'Spirit of Death', 'Conjure Minor Elementals',
+  'Conjure Woodland Beings', 'Giant Insect', 'Find Greater Steed', 'Summon Greater Demon',
 ] as const;
 
 /**
@@ -16,7 +19,8 @@ export const SUMMONING_SPELLS = [
  * during the fight with no slot spent: they come first in the Add companion form.
  */
 export const COMPANION_SPELLS = [
-  'Find Familiar', 'Find Steed', 'Animate Dead', 'Tiny Servant', 'Flock of Familiars',
+  'Find Familiar', 'Find Steed', 'Find Greater Steed', 'Animate Dead', 'Tiny Servant', 'Flock of Familiars',
+  'Conjure Minor Elementals',
 ] as const;
 
 const SUMMONING = new Set(SUMMONING_SPELLS.map(name => name.toLowerCase()));
@@ -24,6 +28,27 @@ const SUMMONING = new Set(SUMMONING_SPELLS.map(name => name.toLowerCase()));
 /** Whether the spell summons creatures the server places (D182). */
 export function isSummoningSpell(spellName: string | null | undefined): boolean {
   return !!spellName && SUMMONING.has(spellName.trim().toLowerCase());
+}
+
+/**
+ * Whether the spell is one of the tiered conjurings (PHB p.225-226): Conjure Animals, Conjure Minor Elementals and
+ * Conjure Woodland Beings, whose option the caster still chooses when the campaign has the DM choose the creatures. The
+ * kind is read as a string, as the generated types learn the newer kinds only when the API types are regenerated.
+ */
+export function isTieredConjuring(options: Pick<SummonOptions, 'kind'>): boolean {
+  const kind: string = options.kind;
+  return kind === 'CONJURE_ANIMALS' || kind === 'CONJURE';
+}
+
+/** The stat blocks an option takes by name, such as Giant Insect's giant spiders (PHB p.245); empty for any. */
+export function optionForms(option: SummonOption | undefined): string[] {
+  if (!option || !('forms' in option) || !Array.isArray(option.forms)) return [];
+  return option.forms.filter((form): form is string => typeof form === 'string');
+}
+
+/** Whether a summoned creature has broken free of its caster's control, as Summon Greater Demon's can (XGE p.166). */
+export function brokeFree(summon: EncounterParticipant['summon']): boolean {
+  return !!summon && 'uncontrolled' in summon && summon.uncontrolled === true;
 }
 
 /** How each initiative mode reads in the summon step. */
@@ -62,15 +87,25 @@ export function initialDraft(options: SummonOptions, optionId?: string | null): 
   };
 }
 
-/** Whether Animate Dead or Tiny Servant, which may bring fewer than the option's count (PHB p.212, XGE p.168). */
+/**
+ * Whether Animate Dead, Tiny Servant or Giant Insect, which may bring fewer than the option's count (PHB p.212, XGE
+ * p.168, PHB p.245: "up to ten centipedes").
+ */
 export function fewerAllowed(options: SummonOptions): boolean {
-  return options.kind === 'ANIMATE_DEAD' || options.kind === 'TINY_SERVANT';
+  const kind: string = options.kind;
+  return kind === 'ANIMATE_DEAD' || kind === 'TINY_SERVANT' || kind === 'GIANT_INSECT';
 }
 
-/** The creatures that fit the option: within its challenge rating, or all when it sets none. */
+/**
+ * The creatures that fit the option: its named forms when it has them (Giant Insect's), and those within its challenge
+ * rating; all when it sets neither.
+ */
 export function candidatesFor(options: SummonOptions, option: SummonOption | undefined): SummonCandidate[] {
-  if (!option || option.maxCr == null) return options.candidates;
-  return options.candidates.filter(c => c.challengeRatingValue == null || c.challengeRatingValue <= option.maxCr!);
+  if (!option) return options.candidates;
+  const forms = optionForms(option).map(form => form.toLowerCase());
+  return options.candidates.filter(c =>
+    (forms.length === 0 || forms.includes(c.name.toLowerCase()))
+    && (option.maxCr == null || c.challengeRatingValue == null || c.challengeRatingValue <= option.maxCr));
 }
 
 /** The creatures counted so far. */
@@ -80,11 +115,11 @@ export function totalCount(draft: SummonDraft): number {
 
 /**
  * Why the choice can't be sent yet, or null when it can, as the server would check it (D182). When the DM chooses a
- * caster's creatures, the caster has only Conjure Animals' option to choose. `byDm` is the DM placing them.
+ * caster's creatures, the caster has only a tiered conjuring's option to choose. `byDm` is the DM placing them.
  */
 export function draftProblem(options: SummonOptions, draft: SummonDraft, byDm = false): string | null {
   if (options.dmChooses && !byDm) {
-    return options.kind === 'CONJURE_ANIMALS' && !draft.optionId ? 'Choose an option' : null;
+    return isTieredConjuring(options) && !draft.optionId ? 'Choose an option' : null;
   }
   if (options.creatureTypes.length > 0 && !draft.creatureType) return 'Choose the creature type';
   if (options.kind === 'SPIRIT') {
@@ -101,8 +136,8 @@ export function draftProblem(options: SummonOptions, draft: SummonDraft, byDm = 
 }
 
 /**
- * The choice as a request carries it. A caster whose creatures the DM chooses sends only Conjure Animals' option, and
- * Summon Lesser Demons nothing, since its d6 picks the option (XGE p.167).
+ * The choice as a request carries it. A caster whose creatures the DM chooses sends only a tiered conjuring's option,
+ * and Summon Lesser Demons nothing, since its d6 picks the option (XGE p.167).
  */
 export function toSummonChoice(options: SummonOptions, draft: SummonDraft, byDm = false): SummonChoice {
   if (options.dmChooses && !byDm) {

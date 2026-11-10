@@ -717,4 +717,175 @@ class SummonServiceTest {
             assertEquals(0, goblin.getHpCurrent());
         }
     }
+
+    @Nested
+    @DisplayName("The 4th-level summonings (D185)")
+    class FourthLevel {
+
+        private static String template(String spell, int durationRounds) {
+            return """
+                    {"spellName": "%s", "spellLevel": 4, "concentration": true, "durationRounds": %d,
+                     "deliveryMethod": "NONE", "effects": [{"effectType": "SUMMON"}], "requiresManualResolution": true}"""
+                    .formatted(spell, durationRounds);
+        }
+
+        @BeforeEach
+        void fourthLevelSpells() {
+            f.spell("Summon Elemental", 4, template("Summon Elemental", 600));
+            f.spell("Summon Greater Demon", 4, template("Summon Greater Demon", 600));
+            f.spell("Giant Insect", 4, template("Giant Insect", 100));
+            f.spell("Conjure Woodland Beings", 4, template("Conjure Woodland Beings", 600));
+            monster("Elemental Spirit", null, "elemental", null, 0, 10, 15, null, "TCE");
+            monster("Barlgura", "5", "fiend", "demon", 68, 15, 15, null, "MPMM");
+            monster("Vrock", "6", "fiend", "demon", 104, 15, 15, null, "MM");
+            monster("Giant Spider", "1", "beast", null, 26, 14, 16, null, "MM");
+            monster("Pixie", "1/4", "fey", null, 1, 15, 20, null, "MM");
+            druid.getSpellSlotsCurrent().put("6", new SpellSlot(1, 0));
+        }
+
+        @Test
+        @DisplayName("A fire elemental at 4th: AC 15, 50 HP, fire Slams, immune to fire but not to cold, after the druid")
+        void fireElemental() {
+            castAs(player, "Summon Elemental", 4, new SummonChoice(null, null, "Fire", null, null));
+            EncounterParticipant spirit = summoned().getFirst();
+            assertEquals("Elemental Spirit (Fire)", spirit.getDisplayName());
+            assertEquals(15, spirit.getArmourClass());
+            assertEquals(50, spirit.getHpMax());
+            assertEquals("fire", spirit.getActionTemplates().find("ACTION", "Slam").orElseThrow().effects()
+                    .getFirst().damageType());
+            assertEquals(List.of("fire"), spirit.getSummon().damageImmunities());
+
+            DamageRequest fire = new DamageRequest();
+            fire.setTargetId(spirit.getId());
+            fire.setAmount(12);
+            fire.setDamageType("fire");
+            f.inTransaction(() -> f.hitPoints.applyDamage(f.encounterId(), fire, null, f.dmUserId));
+            assertEquals(50, spirit.getHpCurrent());
+            DamageRequest cold = new DamageRequest();
+            cold.setTargetId(spirit.getId());
+            cold.setAmount(12);
+            cold.setDamageType("cold");
+            f.inTransaction(() -> f.hitPoints.applyDamage(f.encounterId(), cold, null, f.dmUserId));
+            assertEquals(38, spirit.getHpCurrent());
+        }
+
+        @Test
+        @DisplayName("An earth elemental at 5th resists piercing: AC 16, 60 HP, half of 10 piercing damage")
+        void earthElemental() {
+            castAs(player, "Summon Elemental", 5, new SummonChoice(null, null, "Earth", null, null));
+            EncounterParticipant spirit = summoned().getFirst();
+            assertEquals(16, spirit.getArmourClass());
+            assertEquals(60, spirit.getHpMax());
+            DamageRequest piercing = new DamageRequest();
+            piercing.setTargetId(spirit.getId());
+            piercing.setAmount(10);
+            piercing.setDamageType("piercing");
+            f.inTransaction(() -> f.hitPoints.applyDamage(f.encounterId(), piercing, null, f.dmUserId));
+            assertEquals(55, spirit.getHpCurrent());
+        }
+
+        @Test
+        @DisplayName("A greater demon of CR 5 at 4th rolls its own initiative and obeys until it saves; a CR 6 demon "
+                + "waits for 5th")
+        void greaterDemon_breaksFree() {
+            CastSpellRequest tooStrong = cast("Summon Greater Demon", 4, new SummonChoice("1xCR5",
+                    List.of(new SummonCreature(id("Vrock"), 1)), null, null, null));
+            assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(f.encounterId(), tooStrong,
+                    druid.getId(), player));
+            assertEquals(0, druid.getSpellSlotsCurrent().get("4").used());
+
+            // d20 12 + DEX 15's +2
+            castAs(player, "Summon Greater Demon", 4, new SummonChoice("1xCR5",
+                    List.of(new SummonCreature(id("Barlgura"), 1)), null, null, null), 12);
+            EncounterParticipant demon = summoned().getFirst();
+            assertEquals(14, demon.getInitiative());
+            assertEquals(SummonRules.InitiativeMode.INDIVIDUAL, demon.getSummon().initiativeMode());
+            assertEquals(player, demon.getControlledByUserId());
+            assertEquals(13, demon.getSummon().controlSaveDc());
+
+            // The end of its turn: d20 10 - 3 = 7 fails against DC 13, so it obeys
+            f.turnOf(demon);
+            f.dice.script(10);
+            f.inTransaction(() -> f.turns.advanceTurn(f.encounterId(), f.dmUserId));
+            assertEquals(player, demon.getControlledByUserId());
+            assertTrue(f.descriptions().stream().anyMatch(d -> d.startsWith("Barlgura makes a Charisma save to break "
+                    + "free of Summon Greater Demon") && d.contains("= 7 vs DC 13 — fails, and it goes on obeying")));
+
+            // Next time 18 - 3 = 15 succeeds: the DM controls it from now on, and it saves no more
+            f.turnOf(demon);
+            f.dice.script(18);
+            f.inTransaction(() -> f.turns.advanceTurn(f.encounterId(), f.dmUserId));
+            assertNull(demon.getControlledByUserId());
+            assertTrue(demon.getSummon().uncontrolled());
+            assertTrue(f.descriptions().stream().anyMatch(d -> d.contains("succeeds, and its caster's control ends")));
+            f.turnOf(demon);
+            f.dice.script();
+            f.inTransaction(() -> f.turns.advanceTurn(f.encounterId(), f.dmUserId));
+        }
+
+        @Test
+        @DisplayName("Giant Insect: up to three giant spiders follow the druid's turn, the DM's to run")
+        void giantInsect() {
+            castAs(player, "Giant Insect", 4, new SummonChoice("3xGiant Spider",
+                    List.of(new SummonCreature(id("Giant Spider"), 2)), null, null, null));
+            List<EncounterParticipant> spiders = summoned();
+            assertEquals(2, spiders.size());
+            assertTrue(spiders.stream().allMatch(s -> s.getControlledByUserId() == null));
+            assertTrue(spiders.stream().allMatch(s -> s.getSummon().followsCaster()));
+            List<UUID> order = EncounterTurns.order(f.encounter).stream().map(t -> t.combatant().id()).toList();
+            assertEquals(order.indexOf(druid.getId()) + 1, order.indexOf(spiders.getFirst().getId()));
+
+            CastSpellRequest wrongForm = cast("Giant Insect", 4, new SummonChoice("3xGiant Spider",
+                    List.of(new SummonCreature(id("Wolf"), 1)), null, null, null));
+            assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(f.encounterId(), wrongForm,
+                    druid.getId(), player));
+        }
+
+        @Test
+        @DisplayName("Conjure Woodland Beings at 6th: sixteen pixies on one group roll; with the campaign's setting "
+                + "the DM chooses them")
+        void woodlandBeings() {
+            castAs(player, "Conjure Woodland Beings", 6, new SummonChoice("16xCR1/4",
+                    List.of(new SummonCreature(id("Pixie"), 16)), null, null, null), 8);
+            List<EncounterParticipant> pixies = summoned();
+            assertEquals(16, pixies.size());
+            assertTrue(pixies.stream().allMatch(p -> p.getInitiative() == 13));
+            assertNull(pixies.getFirst().getSummon().creatureType());
+            assertEquals(2, effect("Conjure Woodland Beings").summon().multiplier());
+
+            f.encounter.getCampaign().setDmChoosesConjuredCreatures(true);
+            assertTrue(Summoner.dmChooses(f.encounter, Summoner.spell("Conjure Woodland Beings")));
+            assertTrue(Summoner.dmChooses(f.encounter, Summoner.spell("Conjure Minor Elementals")));
+        }
+
+        @Test
+        @DisplayName("Find Greater Steed replaces a Find Steed steed, and Find Steed a greater steed (XGE p.156)")
+        void greaterSteed_replacesSteed() {
+            monster("Warhorse", "1/2", "beast", null, 19, 11, 12, null, "MM");
+            monster("Griffon", "2", "monstrosity", null, 59, 12, 15, null, "MM");
+            f.dice.script(10);
+            f.inTransaction(() -> f.summons.companion(f.encounterId(), new CompanionSummonRequest(druid.getId(),
+                    "Find Steed", null, null, List.of(new SummonCreature(id("Warhorse"), 1)), null, null, "fey",
+                    null), f.dmUserId));
+            f.dice.script(11);
+            f.inTransaction(() -> f.summons.companion(f.encounterId(), new CompanionSummonRequest(druid.getId(),
+                    "Find Greater Steed", null, null, List.of(new SummonCreature(id("Griffon"), 1)), null, null,
+                    "celestial", null), f.dmUserId));
+            assertEquals(List.of("Griffon"), summoned().stream().map(EncounterParticipant::getDisplayName).toList());
+            EncounterParticipant griffon = summoned().getFirst();
+            assertEquals(6, CreatureStats.score(griffon, com.tabletophelper.rules.Ability.INT));
+            assertEquals("celestial", CreatureStats.creatureType(griffon));
+            assertEquals(1, EffectApplier.effects(druid).size());
+
+            f.dice.script(12);
+            f.inTransaction(() -> f.summons.companion(f.encounterId(), new CompanionSummonRequest(druid.getId(),
+                    "Find Steed", null, null, List.of(new SummonCreature(id("Warhorse"), 1)), null, null, "fiend",
+                    null), f.dmUserId));
+            // The first warhorse's dismissed row keeps its name, so this one is numbered
+            assertEquals(List.of("Warhorse 2"), summoned().stream().map(EncounterParticipant::getDisplayName)
+                    .toList());
+            assertEquals("Find Steed", summoned().getFirst().getSummon().spell());
+            assertEquals(1, EffectApplier.effects(druid).size());
+        }
+    }
 }

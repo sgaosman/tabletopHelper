@@ -3,6 +3,7 @@ import { Target } from 'lucide-react';
 import type { EncounterParticipant } from '../../../types/encounter';
 import type { SpellTargetingInfo } from '../../../types/reference';
 import { healthLabel } from '../../../utils/healthStatus';
+import { reachable } from '../../../utils/spellEffects';
 import Button from '../../ui/Button';
 
 interface Props {
@@ -35,7 +36,8 @@ export default function TargetStep({
     // The dead are out of reach, but the dying and stable can still be healed or harmed (D161)
     const casterIsMonster = caster.participantType === 'MONSTER';
     for (const p of participants) {
-      if (p.id === caster.id || p.lifeState === 'DEAD') continue;
+      // Nor can a banished creature be reached, or one across Otiluke's Resilient Sphere (D185)
+      if (p.id === caster.id || p.lifeState === 'DEAD' || !reachable(caster, p)) continue;
       const isAlly = casterIsMonster === (p.participantType === 'MONSTER');
       if (isAlly && targetingInfo?.canTargetAllies !== false) list.push(p);
       else if (!isAlly && targetingInfo?.canTargetEnemies !== false) list.push(p);

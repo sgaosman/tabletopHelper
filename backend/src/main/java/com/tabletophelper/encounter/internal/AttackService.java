@@ -156,6 +156,7 @@ public class AttackService {
         attack = withRescue(actor, request, attack);
         manualModifiers.require(encounter, userId, attack.modifiers());
         CombatAccess.requireNotDead(List.of(target));
+        CombatAccess.requireReachable(actor, List.of(target));
         // A controlled mount only Dashes, Disengages or Dodges (PHB p.198)
         if (actor != null) {
             ControlledMount.requireMountAction(encounter, actor, "attack", userId, combatLog);

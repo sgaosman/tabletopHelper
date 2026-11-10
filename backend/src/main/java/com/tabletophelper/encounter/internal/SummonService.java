@@ -111,7 +111,7 @@ public class SummonService {
         return new SummonOptions(spell.name(), spell.kind(), slot, spell.level(), spell.concentration(),
                 spell.castInCombat(), Summoner.dmChooses(encounter, spell),
                 options.stream().map(option -> new SummonOptions.Option(option.id(), option.count(), option.maxCr(),
-                        option.label())).toList(),
+                        option.label(), option.forms())).toList(),
                 SummonRules.multiplier(spell, slot), variants, spell.initiativeModes(),
                 spell.defaultInitiativeMode(), spell.houseRuleModes(), spell.controller(), spell.typeChoices(),
                 spell.creatureType(), spell.cannotAttack(), spell.needsCommand(), spell.vanishesAtZero(), hasFamiliar,
@@ -233,16 +233,15 @@ public class SummonService {
                                                      boolean pact) {
         List<Monster> pool = new ArrayList<>();
         switch (spell.kind()) {
-            case CONJURE_ANIMALS -> pool.addAll(monsterRepository.findByTypeIgnoreCase("beast"));
-            case LESSER_DEMONS -> pool.addAll(monsterRepository.findByTypeIgnoreCase("fiend"));
+            case CONJURE_ANIMALS, CONJURE -> pool.addAll(monsterRepository.findByTypeIgnoreCase(spell.conjures()));
+            case LESSER_DEMONS, GREATER_DEMON -> pool.addAll(monsterRepository.findByTypeIgnoreCase("fiend"));
             case FAMILIAR, FLOCK_OF_FAMILIARS -> {
                 named(pool, SummonRules.FAMILIAR_FORMS);
                 if (pact && spell.kind() == SummonRules.Kind.FAMILIAR) {
                     named(pool, SummonRules.PACT_OF_THE_CHAIN_FORMS);
                 }
             }
-            case STEED -> named(pool, SummonRules.STEED_FORMS);
-            case ANIMATE_DEAD -> named(pool, SummonRules.ANIMATE_DEAD_FORMS);
+            case STEED, GIANT_INSECT, ANIMATE_DEAD -> named(pool, spell.forms());
             case TINY_SERVANT -> monsterRepository.findByNameIgnoreCaseAndSource(SummonRules.TINY_SERVANT, "XGE")
                     .ifPresent(pool::add);
             default -> {

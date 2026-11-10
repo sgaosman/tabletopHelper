@@ -32,7 +32,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Summoning, end to end (D182). A table of a DM and one player, whose druid Aria acts first on 18 against a goblin on
  * 10: her familiar joins while the encounter is prepared, Conjure Animals at 5th brings sixteen wolves that undo takes
  * back, Summon Lesser Demons waits for the DM's demons, which players see as monsters, and removing a summoned
- * creature dismisses it.
+ * creature dismisses it. The 4th-level summonings (D185): Summon Elemental at 4th and 5th with each element's damage
+ * and defences, and Summon Greater Demon's challenge rating cap and its demon breaking free.
  */
 class SummonIT extends IntegrationTest {
 
@@ -402,5 +403,152 @@ class SummonIT extends IntegrationTest {
             }
         }
         throw new AssertionError("Participant " + participantId + " is not in the encounter");
+    }
+
+    // ── The 4th-level summonings (D185) ─────────────────────────
+
+    // Gives Aria 4th- and 5th-level slots and the 4th-level spell, after the start
+    private void fourthLevel(String spellName) {
+        EncounterParticipant brea = participantRepository.findById(UUID.fromString(breaId)).orElseThrow();
+        brea.setSpellSlotsCurrent(new HashMap<>(Map.of("4", new SpellSlot(2, 0), "5", new SpellSlot(1, 0))));
+        List<KnownSpell> known = new ArrayList<>(brea.getSpellsKnown());
+        known.add(new KnownSpell(null, spellName, 4, "class:Druid", true, null, null, null, null));
+        brea.setSpellsKnown(known);
+        participantRepository.save(brea);
+    }
+
+    private JsonNode castSummon(String spellName, int slotLevel, Map<String, Object> summon, HttpStatus status) {
+        return expect(status, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/cast-spell?actorId=" + breaId, Map.of("spellName", spellName, "slotLevel", slotLevel,
+                "targetIds", List.of(), "summon", summon), player.accessToken()));
+    }
+
+    private JsonNode damage(String targetId, int amount, String damageType) {
+        return expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/damage",
+                Map.of("targetId", targetId, "amount", amount, "damageType", damageType), dm.accessToken()));
+    }
+
+    @Test
+    @DisplayName("Summon Elemental at 4th and 5th: the spirit's AC, HP and Slams scale with the slot, the Fire spirit "
+            + "slams with fire and ignores it, and the Water spirit at 5th resists acid (TCE p.111)")
+    void summonElemental_fourthAndFifth() {
+        spell("Summon Elemental", 4, true);
+        // Its row lists only poison as a plain immunity; the variants' defences are conditional entries (TCE p.111)
+        monsterRepository.save(Monster.builder().name("Elemental Spirit").type("elemental").source("TCE")
+                .hitPoints(50).armourClass(15).dexterity(15).charisma(16)
+                .damageImmunities("[\"poison\", {\"immune\": [\"fire\"], \"cond\": true, \"note\": \"(Fire only)\"}]")
+                .damageResistances("[{\"resist\": [\"acid\"], \"cond\": true, \"note\": \"(Water only)\"}]")
+                .build());
+        start();
+        fourthLevel("Summon Elemental");
+
+        JsonNode options = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId
+                + "/combat/summon-options?participantId=" + breaId + "&spellName=Summon Elemental&slotLevel=4", null,
+                player.accessToken()));
+        List<String> variants = new ArrayList<>();
+        options.get("variants").forEach(v -> variants.add(v.asString()));
+        assertThat(variants).containsExactly("Air", "Earth", "Fire", "Water");
+        assertThat(options.get("spirit").get("armourClass").asInt()).isEqualTo(15);
+        assertThat(options.get("spirit").get("hitPoints").get("Fire").asInt()).isEqualTo(50);
+
+        JsonNode cast = castSummon("Summon Elemental", 4, Map.of("variant", "Fire"), HttpStatus.OK);
+        assertThat(cast.get("resultSummary").asString()).contains("summons Elemental Spirit (Fire)");
+        JsonNode fire = companions(dmState()).getFirst();
+        String fireId = fire.get("id").asString();
+        assertThat(fire.get("displayName").asString()).isEqualTo("Elemental Spirit (Fire)");
+        assertThat(fire.get("armourClass").asInt()).isEqualTo(15);
+        assertThat(fire.get("hpMax").asInt()).isEqualTo(50);
+        assertThat(fire.get("summon").get("damageImmunities").get(0).asString()).isEqualTo("fire");
+        // The player who controls it reads its actions
+        JsonNode actions = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId
+                + "/participants/" + fireId + "/actions", null, player.accessToken()));
+        JsonNode multiattack = actions.get("actions").get(0);
+        assertThat(multiattack.get("multiattackComponents").size()).isEqualTo(2);
+        JsonNode slam = actions.get("actions").get(1);
+        assertThat(slam.get("name").asString()).isEqualTo("Slam");
+        assertThat(slam.get("attackBonus").asInt()).isEqualTo(6);
+        assertThat(slam.get("effects").get(0).get("damageDice").asString()).isEqualTo("1d10 + 8");
+        assertThat(slam.get("effects").get(0).get("damageType").asString()).isEqualTo("fire");
+
+        // Immune to fire and poison, not to cold
+        assertThat(participant(damage(fireId, 12, "fire"), fireId).get("hpCurrent").asInt()).isEqualTo(50);
+        assertThat(participant(damage(fireId, 12, "poison"), fireId).get("hpCurrent").asInt()).isEqualTo(50);
+        assertThat(participant(damage(fireId, 12, "cold"), fireId).get("hpCurrent").asInt()).isEqualTo(38);
+
+        // At 5th, on Aria's next turn (after the spirit's and the goblin's), a new casting ends the first's
+        // concentration, and with it the fire spirit
+        nextTurn();
+        nextTurn();
+        nextTurn();
+        castSummon("Summon Elemental", 5, Map.of("variant", "Water"), HttpStatus.OK);
+        List<JsonNode> left = companions(dmState());
+        assertThat(left).hasSize(1);
+        JsonNode water = left.getFirst();
+        String waterId = water.get("id").asString();
+        assertThat(waterId).isNotEqualTo(fireId);
+        assertThat(water.get("armourClass").asInt()).isEqualTo(16);
+        assertThat(water.get("hpMax").asInt()).isEqualTo(60);
+        JsonNode waterSlam = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId
+                + "/participants/" + waterId + "/actions", null, player.accessToken())).get("actions").get(1);
+        assertThat(waterSlam.get("effects").get(0).get("damageDice").asString()).isEqualTo("1d10 + 9");
+        assertThat(waterSlam.get("effects").get(0).get("damageType").asString()).isEqualTo("bludgeoning");
+        assertThat(participant(damage(waterId, 10, "acid"), waterId).get("hpCurrent").asInt()).isEqualTo(55);
+        assertThat(participant(damage(waterId, 10, "fire"), waterId).get("hpCurrent").asInt()).isEqualTo(45);
+    }
+
+    @Test
+    @DisplayName("Summon Greater Demon offers demons of CR 5 at 4th and 6 at 5th; a stronger one is a 400; the demon "
+            + "rolls its own initiative and, saving at the end of its turn, breaks free to the DM (XGE p.166)")
+    void summonGreaterDemon_crCapAndControl() {
+        spell("Summon Greater Demon", 4, true);
+        Monster barlgura = monster("Barlgura", "fiend", "demon", "5", 68, 15, 15);
+        Monster vrock = monster("Vrock", "fiend", "demon", "6", 104, 15, 15);
+        monster("Bearded Devil", "fiend", "devil", "3", 52, 13, 15);
+        start();
+        fourthLevel("Summon Greater Demon");
+
+        JsonNode atFourth = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId
+                + "/combat/summon-options?participantId=" + breaId + "&spellName=Summon Greater Demon&slotLevel=4",
+                null, player.accessToken()));
+        assertThat(atFourth.get("options").get(0).get("id").asString()).isEqualTo("1xCR5");
+        assertThat(atFourth.get("options").get(0).get("maxCr").asDouble()).isEqualTo(5.0);
+        assertThat(atFourth.get("candidates").findValuesAsString("name")).contains("Barlgura", "Dretch")
+                .doesNotContain("Vrock", "Bearded Devil");
+        JsonNode atFifth = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId
+                + "/combat/summon-options?participantId=" + breaId + "&spellName=Summon Greater Demon&slotLevel=5",
+                null, player.accessToken()));
+        assertThat(atFifth.get("options").get(0).get("id").asString()).isEqualTo("1xCR6");
+        assertThat(atFifth.get("candidates").findValuesAsString("name")).contains("Barlgura", "Vrock");
+
+        castSummon("Summon Greater Demon", 4, Map.of("optionId", "1xCR5",
+                "creatures", List.of(Map.of("monsterId", vrock.getId(), "count", 1))), HttpStatus.BAD_REQUEST);
+        assertThat(participant(dmState(), breaId).get("spellSlotsCurrent").get("4").get("used").asInt()).isZero();
+
+        // d20 3 + DEX 15's +2: it acts after the goblin's 10
+        dice.script(3);
+        castSummon("Summon Greater Demon", 4, Map.of("optionId", "1xCR5",
+                "creatures", List.of(Map.of("monsterId", barlgura.getId(), "count", 1))), HttpStatus.OK);
+        JsonNode demon = companions(dmState()).getFirst();
+        String demonId = demon.get("id").asString();
+        assertThat(demon.get("initiative").asInt()).isEqualTo(5);
+        assertThat(demon.get("controlledByUserId").asString()).isEqualTo(player.id().toString());
+        assertThat(demon.get("summon").get("controlSaveDc").asInt()).isEqualTo(14);
+
+        // Aria's turn, then the goblin's; the demon's turn ends with its save: d20 17 + CHA 10's +0 = 17 vs DC 14
+        nextTurn();
+        nextTurn();
+        dice.script(17);
+        nextTurn();
+        JsonNode freed = participant(dmState(), demonId);
+        assertThat(freed.get("controlledByUserId").isNull()).isTrue();
+        assertThat(freed.get("summon").get("uncontrolled").asBoolean()).isTrue();
+        // The players see it as they see a monster now
+        JsonNode seen = participant(playerState(), demonId);
+        assertThat(seen.get("hpCurrent").isNull()).isTrue();
+    }
+
+    private void nextTurn() {
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/turn/next", null,
+                dm.accessToken()));
     }
 }

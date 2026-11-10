@@ -56,7 +56,7 @@ public class SpiritTemplates {
 
     /**
      * The variant's action templates at this slot level, with the caster's spell attack bonus and save DC: the
-     * Multiattack first, then the spirit's actions and the variant's, its bonus actions and its traits.
+     * Multiattack first, then the spirit's actions and the variant's, its bonus actions, its reactions and its traits.
      */
     public MonsterTemplates templates(SummonSpirits.Spirit spirit, SummonSpirits.Variant variant, int slotLevel,
                                       int attackBonus, int saveDc) {
@@ -79,6 +79,7 @@ public class SpiritTemplates {
         List<Map<String, Object>> bonusActions = new ArrayList<>(spirit.bonusActions());
         bonusActions.addAll(variant.bonusActions());
         add(root.putArray("bonusActions"), bonusActions, slotLevel, attackBonus, saveDc);
+        add(root.putArray("reactions"), variant.reactions(), slotLevel, attackBonus, saveDc);
         add(root.putArray("traits"), variant.traits(), slotLevel, attackBonus, saveDc);
         return MonsterTemplates.of(root);
     }

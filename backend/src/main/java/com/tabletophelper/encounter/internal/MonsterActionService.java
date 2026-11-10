@@ -123,6 +123,7 @@ public class MonsterActionService {
         List<EncounterParticipant> targets = CombatAccess.targets(encounter,
                 componentTargetIds != null ? distinct(componentTargetIds) : targetIds, userId);
         CombatAccess.requireNotDead(targets);
+        CombatAccess.requireReachable(monster, targets);
         requireTiming(encounter, monster, request.actionSource());
 
         if ("LEGENDARY".equals(request.actionSource())) {

@@ -4,9 +4,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * How a Tasha's spirit scales with the slot its spell is cast with (TCE p.109–114, D182):
+ * How a Tasha's spirit scales with the slot its spell is cast with (TCE p.109–114, D182), and Spirit of Death's Reaper
+ * Spirit the same way (BMT p.50):
  * <ul>
- *   <li>AC: 11 + the spell's level, or 12 + it for the fey spirit.</li>
+ *   <li>AC: 11 + the spell's level, 12 + it for the fey spirit and 13 + it for the construct spirit.</li>
  *   <li>Hit points: the variant's at the spell's own level, plus so many for each slot level above it, as "30 + 5 for
  *       each spell level above 2nd" for a land or water beast.</li>
  *   <li>Multiattack: as many attacks as half the spell's level, rounded down.</li>

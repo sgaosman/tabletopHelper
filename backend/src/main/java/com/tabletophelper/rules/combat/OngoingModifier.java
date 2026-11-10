@@ -29,10 +29,14 @@ import java.util.UUID;
  * @param until         an end of its own, earlier than the spell's; null when it lasts as long as the spell
  * @param armed         for an end at the end of a turn: that turn has started, so its end ends the modifier
  * @param requires      what the attacker needs: "SEEN" (it can see the creature, Faerie Fire PHB p.239) or "SIGHTED"
- *                      (it has neither blindsight nor truesight, Blur PHB p.219); null for nothing
+ *                      (it has neither blindsight nor truesight, Blur PHB p.219); for a RESISTANCE, "NONMAGICAL" when it
+ *                      resists only nonmagical damage (Stoneskin, PHB p.278); for a CONDITION_IMMUNITY, "MAGICAL" when it
+ *                      guards only against magic (Freedom of Movement, PHB p.244); null for nothing
  * @param attackerTypes the creature types an attacker must have for it to apply, such as Protection from Evil and
  *                      Good's (PHB p.270); empty for any attacker
- * @param condition     the condition it makes the creature immune to, for CONDITION_IMMUNITY
+ * @param condition     the condition it makes the creature immune to, for CONDITION_IMMUNITY; for a SAVE_MODE, the
+ *                      conditions, comma-separated, of the effects whose saves it changes, as Aura of Purity's (PHB
+ *                      p.216, D185), null for every save
  * @param skill         the skill a CHECK modifier is limited to, such as "Stealth"; null for any ability check the
  *                      engine rolls (Hide and initiative)
  */
@@ -82,7 +86,20 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
         /** Dice or a flat amount added to the ability checks the engine rolls: Hide and initiative. */
         CHECK,
         /** Dice or a flat amount added to the creature's initiative (Gift of Alacrity, XGE p.157). */
-        INITIATIVE
+        INITIATIVE,
+        /**
+         * The first time the creature would drop to 0 hit points from damage it drops to 1 instead, and the spell ends
+         * (Death Ward, PHB p.230, D185).
+         */
+        DEATH_WARD,
+        /** Magic can't reduce the creature's speed (Freedom of Movement, PHB p.244, D185). */
+        SPEED_PROTECTED,
+        /** The creature's hit point maximum can't be reduced (Aura of Life, PHB p.216, D185). */
+        HP_MAX_PROTECTED,
+        /** A living creature at 0 hit points regains this many at the start of its turn (Aura of Life, PHB p.216). */
+        HEAL_AT_ZERO,
+        /** The creature loses its resistance to the damage types (Elemental Bane, XGE p.155, D185). */
+        LOSE_RESISTANCE
     }
 
     /** Whose rolls a modifier changes. */
@@ -167,7 +184,8 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
             case ATTACKED_MODE -> modeWord() + " on attack rolls against it";
             case REVEALED -> "can't benefit from being invisible";
             case SAVE -> amount + " to " + (oneShot ? "its next " + saveWords().replaceFirst("s$", "") : saveWords());
-            case SAVE_MODE -> modeWord() + " on " + saveWords();
+            case SAVE_MODE -> modeWord() + " on " + saveWords()
+                    + (condition != null && !condition.isBlank() ? " against " + condition.replace(",", ", ") : "");
             case AC -> "AC " + signed(flat);
             case AC_FLOOR -> "AC at least " + flat;
             case AC_BASE -> "base AC " + flat;
@@ -177,15 +195,23 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
             case SPEED -> "speed " + signed(flat) + " ft.";
             case SPEED_DOUBLED -> "speed doubled";
             case SPEED_HALVED -> "speed halved";
-            case RESISTANCE -> "resistance to " + (damageTypes.stream().anyMatch(ALL::equalsIgnoreCase) ? "all damage"
+            case RESISTANCE -> "resistance to " + ("NONMAGICAL".equalsIgnoreCase(requires) ? "nonmagical " : "")
+                    + (damageTypes.stream().anyMatch(ALL::equalsIgnoreCase) ? "all damage"
                     : String.join(", ", damageTypes) + " damage");
             case HP_MAX -> "hit point maximum " + signed(flat);
             case NO_HEALING -> "can't regain hit points";
             case TEMP_HP_EACH_TURN -> flat + " temporary hit points at the start of each of its turns";
-            case CONDITION_IMMUNITY -> "immune to being " + condition;
+            case CONDITION_IMMUNITY -> "immune to being " + condition
+                    + ("MAGICAL".equalsIgnoreCase(requires) ? " by magic" : "");
             case CHECK -> amount + " to " + (oneShot ? "its next " : "") + (skill != null ? skill + " checks"
                     : "ability check (Hide or initiative)");
             case INITIATIVE -> amount + " to initiative";
+            case DEATH_WARD -> "drops to 1 hit point instead of 0, once";
+            case SPEED_PROTECTED -> "magic can't reduce its speed";
+            case HP_MAX_PROTECTED -> "hit point maximum can't be reduced";
+            case HEAL_AT_ZERO -> "regains " + flat + " hit point" + (flat == 1 ? "" : "s")
+                    + " at the start of its turn at 0 hit points";
+            case LOSE_RESISTANCE -> "loses resistance to " + String.join(", ", damageTypes) + " damage";
         } + (until != null ? " (" + untilWords() + ")" : "");
     }
 

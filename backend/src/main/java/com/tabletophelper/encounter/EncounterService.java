@@ -823,6 +823,10 @@ public class EncounterService {
                     .option(effect.option())
                     .modifiers(effect.modifiers().stream().map(OngoingModifier::describe).toList())
                     .retargetable(retargetable(effect.spell()))
+                    .delayed(effect.delayed())
+                    .damageLeft(effect.damageLeft())
+                    .retaliation(effect.retaliation() != null
+                            ? effect.retaliation().dice() + " " + effect.retaliation().type() : null)
                     .summonedParticipantIds(effect.summon() == null ? List.of()
                             : EffectApplier.summonedBy(encounter, effect.id()).stream()
                                     .sorted(Comparator.comparing(p -> p.getSortOrder() != null ? p.getSortOrder()

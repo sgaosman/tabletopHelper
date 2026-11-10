@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { makeMockCondition, makeMockLogEntry, makeMockParticipant, makeMockSpellEffect } from '../../test/mocks/handlers';
+import type { EncounterParticipant } from '../../types/encounter';
 import ParticipantRow from './ParticipantRow';
 import ConditionChips from './ConditionChips';
 import ActiveSpells from './ActiveSpells';
@@ -13,6 +14,13 @@ const legolas = (overrides: Parameters<typeof makeMockParticipant>[3] = {}) =>
   makeMockParticipant('p', 'Legolas', 'PLAYER', { initiative: 19, characterClass: 'Ranger', ...overrides });
 
 describe('ParticipantRow', () => {
+  it('marks and dims a banished creature (PHB p.217, D185)', () => {
+    const ogre = makeMockParticipant('m', 'Ogre', 'MONSTER', { activeConditions: [makeMockCondition('banished')] });
+    render(<ParticipantRow participant={ogre} current={false} />);
+    expect(screen.getByText('Banished')).toBeInTheDocument();
+    expect(screen.getByText('Ogre').closest('[style]')).toHaveClass('opacity-60');
+  });
+
   it('shows the initiative and name, with the left edge in the class colour', () => {
     render(<ParticipantRow participant={legolas()} current={false} />);
     expect(screen.getByText('19')).toBeInTheDocument();
@@ -97,5 +105,19 @@ describe('ParticipantRow', () => {
     // A participant nobody summoned has no badge
     rerender(<ParticipantRow participant={legolas()} current={false} />);
     expect(screen.queryByText(/Summoned/)).not.toBeInTheDocument();
+  });
+
+  it('badges a greater demon that broke free of its caster (XGE p.166, D185)', () => {
+    // `uncontrolled` reaches the generated types when they are regenerated
+    const link = { spell: 'Summon Greater Demon', initiativeMode: 'INDIVIDUAL', controlSaveDc: 14 };
+    const demon = makeMockParticipant('d', 'Barlgura', 'COMPANION', {
+      summonedByParticipantId: 'p', summon: link as unknown as EncounterParticipant['summon'],
+    });
+    const { rerender } = render(<ParticipantRow participant={demon} current={false} summonerName="Legolas" />);
+    expect(screen.queryByText('Broke free')).not.toBeInTheDocument();
+
+    const freed = { ...demon, summon: { ...link, uncontrolled: true } as unknown as EncounterParticipant['summon'] };
+    rerender(<ParticipantRow participant={freed} current={false} summonerName="Legolas" />);
+    expect(screen.getByText('Broke free')).toBeInTheDocument();
   });
 });

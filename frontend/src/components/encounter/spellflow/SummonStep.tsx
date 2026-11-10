@@ -2,7 +2,7 @@ import { useId, useMemo, useState } from 'react';
 import { Minus, Plus, Search } from 'lucide-react';
 import type { SummonOptions } from '../../../types/encounter';
 import {
-  INITIATIVE_MODE_LABELS, candidatesFor, draftProblem, fewerAllowed, totalCount, type SummonDraft,
+  INITIATIVE_MODE_LABELS, candidatesFor, draftProblem, fewerAllowed, isTieredConjuring, totalCount, type SummonDraft,
 } from '../../../utils/summons';
 import Button from '../../ui/Button';
 import IconButton from '../../ui/IconButton';
@@ -18,9 +18,9 @@ const CHOICE = 'flex items-start gap-2 min-h-11 px-3 py-2 bg-page-alt border bor
  * option (how many creatures, up to what challenge rating), the creatures with a count each and the running total
  * against the option's, a Tasha's spirit's form with its stat preview, the type a familiar or steed counts as, and how
  * the creatures take their turns, a mode the rules don't give being labelled a house rule. When the DM chooses the
- * caster's creatures (Summon Lesser Demons always, XGE p.167; Conjure Animals when the campaign says so, PHB p.225) it
- * says so, and the caster chooses only Conjure Animals' option. `byDm` is the DM choosing them, who may pick from every
- * creature listed. `onContinue` and `onBack` add the step's own buttons, for the cast flow.
+ * caster's creatures (Summon Lesser Demons always, XGE p.167; the tiered conjurings when the campaign says so, PHB
+ * p.225-226) it says so, and the caster chooses only the conjuring's option. `byDm` is the DM choosing them, who may
+ * pick from every creature listed. `onContinue` and `onBack` add the step's own buttons, for the cast flow.
  */
 export default function SummonStep({
   options, draft, onChange, byDm = false, rolled, onContinue, onBack, continueLabel = 'Continue',
@@ -37,6 +37,9 @@ export default function SummonStep({
 }) {
   const name = useId();
   const [search, setSearch] = useState('');
+  // Read as a string: the generated types learn the 4th-level kinds (D185) when the API types are regenerated
+  const kind: string = options.kind;
+  const tiered = isTieredConjuring(options);
   const option = options.options.find(o => o.id === draft.optionId);
   const dmWillChoose = options.dmChooses && !byDm;
   const problem = draftProblem(options, draft, byDm);
@@ -72,7 +75,7 @@ export default function SummonStep({
         <p role="note" className="bg-page-alt border border-rule p-3 font-body text-[15px] font-semibold text-ink">
           {options.kind === 'LESSER_DEMONS'
             ? 'A d6 decides how many demons come, and the DM chooses them (XGE p.167).'
-            : `The DM chooses ${options.spellName}'s creatures${options.kind === 'CONJURE_ANIMALS' ? '; choose how many come' : ''}.`}
+            : `The DM chooses ${options.spellName}'s creatures${tiered ? '; choose how many come' : ''}.`}
         </p>
       )}
 
@@ -81,7 +84,7 @@ export default function SummonStep({
       )}
 
       {/* The option: shown as choices when there are several, else as a line */}
-      {options.kind !== 'SPIRIT' && !(dmWillChoose && options.kind !== 'CONJURE_ANIMALS') && (
+      {options.kind !== 'SPIRIT' && !(dmWillChoose && !tiered) && (
         options.options.length > 1 ? (
           <fieldset>
             <legend className={HEADING}>How many</legend>
@@ -194,7 +197,12 @@ export default function SummonStep({
       )}
 
       <ul className="space-y-0.5">
-        {options.controlledBy === 'DM' && <li className={NOTE}>The DM controls them: they are hostile and act on their own.</li>}
+        {options.controlledBy === 'DM' && (kind === 'GIANT_INSECT'
+          ? <li className={NOTE}>They act on your turn and obey your commands; the DM resolves their actions and movement (PHB p.245).</li>
+          : <li className={NOTE}>The DM controls them: they are hostile and act on their own.</li>)}
+        {kind === 'GREATER_DEMON' && (
+          <li className={NOTE}>At the end of each of its turns it makes a Charisma save against your spell save DC; on a success your control ends (XGE p.166).</li>
+        )}
         {options.cannotAttack && <li className={NOTE}>A familiar can't attack (PHB p.240).</li>}
         {options.needsCommand && <li className={NOTE}>They act only on your command, a bonus action on your turn.</li>}
         {options.concentration && <li className={NOTE}>Needs concentration: they vanish when it ends.</li>}
@@ -221,7 +229,8 @@ function SpiritChoice({ options, draft, onChange, name }: {
   const hp = spirit && draft.variant ? spirit.hitPoints[draft.variant] : undefined;
   return (
     <>
-      {options.variants.length > 0 && (
+      {/* A spirit with one form, such as the reaper spirit (BMT p.50), takes it without asking */}
+      {options.variants.length > 1 && (
         <fieldset>
           <legend className={HEADING}>Spirit</legend>
           <div className="flex flex-wrap gap-1.5">

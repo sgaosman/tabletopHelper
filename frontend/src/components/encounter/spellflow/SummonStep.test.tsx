@@ -10,7 +10,7 @@ import {
 } from '../../../test/mocks/handlers';
 import { EncounterProvider } from '../../../context/EncounterContext';
 import { queryKeys } from '../../../queries/keys';
-import type { SummonOptions } from '../../../types/encounter';
+import type { SummonOption, SummonOptions } from '../../../types/encounter';
 import { initialDraft, toSummonChoice, type SummonDraft } from '../../../utils/summons';
 import SpellCastModal from '../SpellCastModal';
 import SummonStep from './SummonStep';
@@ -106,7 +106,7 @@ describe('SummonStep', () => {
     const user = userEvent.setup();
     const familiar = makeMockSummonOptions({
       spellName: 'Find Familiar', kind: 'FAMILIAR', slotLevel: 1, spellLevel: 1, concentration: false,
-      options: [{ id: '1', count: 1, maxCr: null, label: '1 familiar' }], initiativeModes: ['INDIVIDUAL'],
+      options: [{ id: '1', count: 1, maxCr: null, label: '1 familiar', forms: [] }], initiativeModes: ['INDIVIDUAL'],
       defaultInitiativeMode: 'INDIVIDUAL', houseRuleModes: [], creatureTypes: ['celestial', 'fey', 'fiend'],
       creatureType: null, cannotAttack: true,
       candidates: [{ monsterId: 'mon-owl', name: 'Owl', challengeRating: '0', challengeRatingValue: 0, hitPoints: 1, armourClass: 11, type: 'beast', size: 'T', source: 'MM' }],
@@ -127,7 +127,7 @@ describe('SummonStep', () => {
     const demons = makeMockSummonOptions({
       spellName: 'Summon Lesser Demons', kind: 'LESSER_DEMONS', dmChooses: true, controlledBy: 'DM',
       initiativeModes: ['GROUP'], houseRuleModes: [], creatureType: null,
-      options: [{ id: '2xCR1', count: 2, maxCr: 1, label: '2 demons of challenge rating 1 or lower' }],
+      options: [{ id: '2xCR1', count: 2, maxCr: 1, label: '2 demons of challenge rating 1 or lower', forms: [] }],
     });
     render(<Harness options={demons} onContinue={onContinue} />);
 
@@ -141,6 +141,90 @@ describe('SummonStep', () => {
     render(<Harness options={makeMockSummonOptions({ dmChooses: true })} byDm />);
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /8 beasts/ })).toBeInTheDocument();
+  });
+});
+
+// ── The 4th-level summonings (D185) ───────────────────────────────────────
+
+// The generated types learn the newer kinds and an option's forms when the API types are regenerated
+const kindOf = (kind: string) => kind as SummonOptions['kind'];
+
+describe('SummonStep for the 4th-level summonings', () => {
+  it('Giant Insect: each option lists only its own insect, and fewer than its count will do (PHB p.245)', async () => {
+    const onContinue = vi.fn();
+    const user = userEvent.setup();
+    const insectOptions: (SummonOption & { forms: string[] })[] = [
+      { id: '10xGiant Centipede', count: 10, maxCr: null, label: 'Up to 10 giant centipedes', forms: ['Giant Centipede'] },
+      { id: '3xGiant Spider', count: 3, maxCr: null, label: 'Up to 3 giant spiders', forms: ['Giant Spider'] },
+      { id: '5xGiant Wasp', count: 5, maxCr: null, label: 'Up to 5 giant wasps', forms: ['Giant Wasp'] },
+      { id: '1xGiant Scorpion', count: 1, maxCr: null, label: 'Up to 1 giant scorpion', forms: ['Giant Scorpion'] },
+    ];
+    const insects = makeMockSummonOptions({
+      spellName: 'Giant Insect', kind: kindOf('GIANT_INSECT'), slotLevel: 4, spellLevel: 4, controlledBy: 'DM',
+      options: insectOptions, initiativeModes: ['FOLLOWS_CASTER'], defaultInitiativeMode: 'FOLLOWS_CASTER',
+      houseRuleModes: [], creatureType: null,
+      candidates: [
+        { monsterId: 'mon-centipede', name: 'Giant Centipede', challengeRating: '1/4', challengeRatingValue: 0.25, hitPoints: 4, armourClass: 13, type: 'beast', size: 'S', source: 'MM' },
+        { monsterId: 'mon-spider', name: 'Giant Spider', challengeRating: '1', challengeRatingValue: 1, hitPoints: 26, armourClass: 14, type: 'beast', size: 'L', source: 'MM' },
+      ],
+    });
+    render(<Harness options={insects} onContinue={onContinue} />);
+
+    expect(screen.getByText(/the DM resolves their actions and movement/)).toBeInTheDocument();
+    expect(screen.queryByText(/they are hostile/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'Up to 3 giant spiders' }));
+    const list = screen.getByRole('list', { name: 'Creatures to summon' });
+    expect(within(list).getByText('Giant Spider')).toBeInTheDocument();
+    expect(within(list).queryByText('Giant Centipede')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'One more Giant Spider' }));
+    await user.click(screen.getByRole('button', { name: 'One more Giant Spider' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Chosen 2 of up to 3');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(onContinue).toHaveBeenCalledWith(expect.objectContaining({
+      optionId: '3xGiant Spider', creatures: [{ monsterId: 'mon-spider', count: 2 }],
+    }));
+  });
+
+  it('Spirit of Death: a spirit with one form takes it without asking (BMT p.50)', async () => {
+    const onContinue = vi.fn();
+    const user = userEvent.setup();
+    render(<Harness onContinue={onContinue} options={makeMockSpiritOptions({
+      spellName: 'Spirit of Death', spellLevel: 4, variants: ['Reaper'],
+      spirit: { monsterId: 'mon-reaper', name: 'Reaper Spirit', armourClass: 15, hitPoints: { Reaper: 40 }, attacks: 2, attackBonus: 7, saveDc: 15 },
+    })} />);
+
+    expect(screen.queryByRole('radio', { name: 'Reaper' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Reaper Spirit at level 4')).toHaveTextContent('HP40');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(onContinue).toHaveBeenCalledWith(expect.objectContaining({ variant: 'Reaper' }));
+  });
+
+  it('Conjure Woodland Beings: when the DM chooses, the caster still picks how many come (PHB p.226)', async () => {
+    const onContinue = vi.fn();
+    const user = userEvent.setup();
+    render(<Harness onContinue={onContinue} options={makeMockSummonOptions({
+      spellName: 'Conjure Woodland Beings', kind: kindOf('CONJURE'), slotLevel: 4, spellLevel: 4, dmChooses: true,
+      creatureType: null,
+    })} />);
+
+    expect(screen.getByRole('note')).toHaveTextContent('The DM chooses Conjure Woodland Beings\'s creatures; choose how many come.');
+    await user.click(screen.getByRole('radio', { name: /8 beasts/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(onContinue).toHaveBeenCalledWith({ optionId: '8xCR1/4' });
+  });
+
+  it('Summon Greater Demon: one demon, and a note that it may break free (XGE p.166)', () => {
+    render(<Harness options={makeMockSummonOptions({
+      spellName: 'Summon Greater Demon', kind: kindOf('GREATER_DEMON'), slotLevel: 4, spellLevel: 4,
+      options: [{ id: '1xCR5', count: 1, maxCr: 5, label: '1 demon of challenge rating 5 or lower', forms: [] }],
+      initiativeModes: ['INDIVIDUAL'], defaultInitiativeMode: 'INDIVIDUAL', houseRuleModes: [], creatureType: null,
+    })} />);
+
+    expect(screen.getByText('1 demon of challenge rating 5 or lower')).toBeInTheDocument();
+    expect(screen.getByText(/on a success your control ends \(XGE p\.166\)/)).toBeInTheDocument();
+    // Every candidate here is CR 1 or lower, so all fit the CR 5 cap
+    expect(within(screen.getByRole('list', { name: 'Creatures to summon' })).getByText('Brown Bear')).toBeInTheDocument();
   });
 });
 

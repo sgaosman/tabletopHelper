@@ -45,10 +45,15 @@ import java.util.UUID;
  *       Animate Dead's and Tiny Servant's creatures roll one per kind of identical creature; anyone else rolls its own.
  *       The dice are the encounter's.</li>
  *   <li>Control: the caster's player acts for the creatures, except Summon Lesser Demons', which are hostile to everyone
- *       and the DM's (XGE p.167).</li>
+ *       and the DM's (XGE p.167), and Giant Insect's, whose actions the DM resolves (PHB p.245). Summon Greater Demon's
+ *       demon is the caster's until it succeeds on a Charisma save at the end of one of its turns (XGE p.166), so it
+ *       carries the caster's spell save DC.</li>
  *   <li>A Tasha's spirit's AC, hit points and actions are worked out for the slot level and the caster's spell numbers
  *       ({@link SpiritTemplates}).</li>
- *   <li>A familiar and a steed are one at a time (PHB p.240): a new one replaces the caster's earlier one.</li>
+ *   <li>A familiar and a steed are one at a time (PHB p.240): a new one replaces the caster's earlier one, Find
+ *       Steed's and Find Greater Steed's replacing each other (XGE p.156).</li>
+ *   <li>A spirit's variant may resist or ignore damage its stat block's row doesn't, such as the Fire Elemental Spirit's
+ *       immunity to fire (TCE p.111); the creature carries those defences.</li>
  * </ul>
  */
 @Component
@@ -111,10 +116,11 @@ public class Summoner {
 
     /**
      * Whether the DM chooses the spell's creatures in this encounter: always Summon Lesser Demons' (XGE p.167), and
-     * Conjure Animals' while the campaign says so (PHB p.225: "The DM has the creatures' statistics").
+     * Conjure Animals', Conjure Minor Elementals' and Conjure Woodland Beings' while the campaign says so (PHB
+     * p.225–226: "The DM has the creatures' statistics").
      */
     public static boolean dmChooses(Encounter encounter, SummonRules.Spell spell) {
-        return spell.dmChooses() || spell.kind() == SummonRules.Kind.CONJURE_ANIMALS
+        return spell.dmChooses() || spell.tiered()
                 && Boolean.TRUE.equals(encounter.getCampaign().getDmChoosesConjuredCreatures());
     }
 
@@ -327,7 +333,8 @@ public class Summoner {
             Monster monster = picked.monster();
             int dexMod = Ability.modifier(monster.getDexterity() != null ? monster.getDexterity() : 10);
             String base = displayName != null ? displayName
-                    : plan.spirit() != null ? monster.getName() + " (" + plan.variant().name() + ")"
+                    : plan.spirit() != null && plan.spirit().hasChoice()
+                    ? monster.getName() + " (" + plan.variant().name() + ")"
                     : monster.getName();
             long existing = encounter.getParticipants().stream()
                     .filter(p -> p.getDisplayName() != null && p.getDisplayName().startsWith(base)).count();
@@ -368,7 +375,10 @@ public class Summoner {
                         .summon(new SummonLink(effect.id(), spell.name(), effect.slotLevel(), spell.kind(),
                                 plan.initiativeMode(), groupId, plan.variant() != null ? plan.variant().name() : null,
                                 plan.creatureType(), spell.vanishesAtZero(), spell.cannotAttack(),
-                                spell.needsCommand(), null))
+                                spell.needsCommand(), null,
+                                plan.variant() != null ? plan.variant().damageResistances() : List.of(),
+                                plan.variant() != null ? plan.variant().damageImmunities() : List.of(),
+                                spell.savesToBreakControl() ? saveDc : null, null))
                         .build();
                 monsterPools.setUp(creature, monster);
                 if (plan.spirit() != null) {
@@ -389,7 +399,22 @@ public class Summoner {
             }
         }
         combatLog.write(encounter, CombatActionType.SUMMON, caster.getDisplayName() + "'s " + spell.name()
-                + " summons " + names(made) + initiativeNote(plan.initiativeMode(), made) + how, caster, null);
+                + " summons " + names(made) + initiativeNote(plan.initiativeMode(), made) + how
+                + controlNote(spell, saveDc), caster, null);
+    }
+
+    // What the DM keeps in mind for a creature that may break free or that the DM runs
+    private static String controlNote(SummonRules.Spell spell, int saveDc) {
+        if (spell.savesToBreakControl()) {
+            return "; at the end of each of its turns it makes a DC " + saveDc + " Charisma save, with disadvantage "
+                    + "if its true name is spoken (the DM's call), and on a success the caster's control ends (XGE "
+                    + "p.166)";
+        }
+        if (spell.kind() == SummonRules.Kind.GIANT_INSECT) {
+            return "; they obey the caster's commands and act on its turn, and the DM resolves their actions and "
+                    + "movement (PHB p.245)";
+        }
+        return "";
     }
 
     // The caster's concentration on the spell, which the cast has just started
@@ -399,14 +424,17 @@ public class Summoner {
                 && held.spell().equalsIgnoreCase(spell.name()) ? held : null;
     }
 
-    // A familiar or a steed is one at a time: the caster's earlier one goes (PHB p.240)
+    // A familiar or a steed is one at a time: the caster's earlier one goes (PHB p.240), Find Steed's and Find Greater
+    // Steed's sharing the one mount (XGE p.156)
     private void replaceOneAtATime(Encounter encounter, EncounterParticipant caster, SummonRules.Spell spell) {
-        if (spell.kind() != SummonRules.Kind.FAMILIAR && spell.kind() != SummonRules.Kind.STEED) {
+        if (!spell.oneAtATime()) {
             return;
         }
         for (SpellEffectEntry earlier : EffectApplier.effects(caster)) {
-            if (earlier.summon() != null && earlier.spell().equalsIgnoreCase(spell.name())) {
-                effectApplier.endEffect(encounter, caster, earlier.id(), spell.name() + " is cast again");
+            if (earlier.summon() != null && SummonRules.spell(earlier.spell())
+                    .filter(other -> SummonRules.sharesBond(spell, other)).isPresent()) {
+                effectApplier.endEffect(encounter, caster, earlier.id(), spell.name()
+                        + (earlier.spell().equalsIgnoreCase(spell.name()) ? " is cast again" : " replaces it"));
             }
         }
     }
@@ -450,7 +478,8 @@ public class Summoner {
     private static String creatures(Plan plan) {
         List<String> kinds = plan.picked().stream()
                 .map(picked -> picked.monster().getName()
-                        + (plan.variant() != null ? " (" + plan.variant().name() + ")" : "")
+                        + (plan.variant() != null && plan.spirit().hasChoice() ? " (" + plan.variant().name() + ")"
+                        : "")
                         + (picked.count() > 1 ? " ×" + picked.count() : ""))
                 .toList();
         if (kinds.size() <= 1) {

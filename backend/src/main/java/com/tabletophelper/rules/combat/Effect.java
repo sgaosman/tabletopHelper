@@ -243,9 +243,24 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
      *                       otherwise after durationRounds, counted at the start of the user's turns
      * @param endsOnAttackOrCast it also ends once its creature attacks or casts a spell, as the Invisibility spell's
      *                       invisibility (PHB p.254) and Cloak of Shadows' (PHB p.63) do, whatever else ends it
+     * @param saveOnDamage   the save its creature makes each time it takes damage, a success ending the spell, as
+     *                       Dominate Beast's (PHB p.234, D185); null for none
      */
     public record ConditionEnd(Integer durationRounds, RepeatSave repeatSave, Integer escapeDc,
-                               boolean endOfUsersTurn, boolean endsOnDamage, boolean endsOnAttackOrCast) {
+                               boolean endOfUsersTurn, boolean endsOnDamage, boolean endsOnAttackOrCast,
+                               DamageSave saveOnDamage) {
+
+        /** An end that taking damage brings no save for. */
+        public ConditionEnd(Integer durationRounds, RepeatSave repeatSave, Integer escapeDc, boolean endOfUsersTurn,
+                            boolean endsOnDamage, boolean endsOnAttackOrCast) {
+            this(durationRounds, repeatSave, escapeDc, endOfUsersTurn, endsOnDamage, endsOnAttackOrCast, null);
+        }
+
+        /** This end lasting this many rounds instead. */
+        public ConditionEnd lasting(Integer rounds) {
+            return new ConditionEnd(rounds, repeatSave, escapeDc, endOfUsersTurn, endsOnDamage, endsOnAttackOrCast,
+                    saveOnDamage);
+        }
 
         /** An end that attacking or casting doesn't bring. */
         public ConditionEnd(Integer durationRounds, RepeatSave repeatSave, Integer escapeDc, boolean endOfUsersTurn,
@@ -275,7 +290,19 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
 
         /** This end, which the creature attacking or casting a spell brings too. */
         public ConditionEnd endingOnAttackOrCast() {
-            return new ConditionEnd(durationRounds, repeatSave, escapeDc, endOfUsersTurn, endsOnDamage, true);
+            return new ConditionEnd(durationRounds, repeatSave, escapeDc, endOfUsersTurn, endsOnDamage, true,
+                    saveOnDamage);
+        }
+    }
+
+    /**
+     * A saving throw made each time a creature takes damage to end a condition and its spell (D185): the ability, the DC,
+     * and whether it has advantage, as Tasha's Hideous Laughter's (PHB p.280).
+     */
+    public record DamageSave(Ability ability, int dc, boolean advantage) {
+
+        public DamageSave {
+            Objects.requireNonNull(ability, "ability");
         }
     }
 

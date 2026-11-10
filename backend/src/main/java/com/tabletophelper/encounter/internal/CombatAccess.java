@@ -183,6 +183,53 @@ public class CombatAccess {
                 .ifPresent(target -> {
                     throw new ConflictException(target.getDisplayName() + " is dead");
                 });
+        // A banished creature is gone from the fight until the spell ends, so nothing reaches it (PHB p.217, D185)
+        targets.stream()
+                .filter(CombatAccess::banished)
+                .findFirst()
+                .ifPresent(target -> {
+                    throw new ConflictException(target.getDisplayName() + " is banished");
+                });
+    }
+
+    /**
+     * Refuses an attack, spell or action across the wall of Otiluke's Resilient Sphere with a 409 (PHB p.264, D185):
+     * nothing passes through it, so a creature inside can affect only itself, and nothing outside reaches it. The DM's
+     * own hand (no actor) is refused too, as the sphere is immune to all damage.
+     *
+     * @param actor the creature acting, or null for the DM by hand
+     */
+    public static void requireReachable(EncounterParticipant actor, List<EncounterParticipant> targets) {
+        boolean actorInside = actor != null && enclosed(actor);
+        for (EncounterParticipant target : targets) {
+            boolean self = actor != null && target.getId().equals(actor.getId());
+            if (self) {
+                continue;
+            }
+            if (enclosed(target)) {
+                throw new ConflictException(target.getDisplayName() + " is inside Otiluke's Resilient Sphere, which "
+                        + "nothing passes through");
+            }
+            if (actorInside) {
+                throw new ConflictException(actor.getDisplayName() + " is inside Otiluke's Resilient Sphere, which "
+                        + "nothing passes through");
+            }
+        }
+    }
+
+    /** Whether Banishment has removed the creature from the fight (PHB p.217, D185). */
+    public static boolean banished(EncounterParticipant participant) {
+        return has(participant, EffectApplier.BANISHED);
+    }
+
+    /** Whether the creature is inside Otiluke's Resilient Sphere (PHB p.264, D185). */
+    public static boolean enclosed(EncounterParticipant participant) {
+        return has(participant, EffectApplier.ENCLOSED);
+    }
+
+    private static boolean has(EncounterParticipant participant, String condition) {
+        return participant.getActiveConditions() != null && participant.getActiveConditions().stream()
+                .anyMatch(c -> c != null && condition.equalsIgnoreCase(c.name()));
     }
 
     private static UUID campaignId(Encounter encounter) {

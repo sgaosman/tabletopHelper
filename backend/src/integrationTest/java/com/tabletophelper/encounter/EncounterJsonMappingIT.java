@@ -159,7 +159,8 @@ class EncounterJsonMappingIT extends IntegrationTest {
                 caster)).isEqualTo("false");
 
         SummonLink link = new SummonLink(conjure.id(), "Conjure Animals", 5, SummonRules.Kind.CONJURE_ANIMALS,
-                SummonRules.InitiativeMode.GROUP, UUID.randomUUID(), null, "fey", true, false, false, null);
+                SummonRules.InitiativeMode.GROUP, UUID.randomUUID(), null, "fey", true, false, false, null, null, null, null,
+                null);
         MonsterTemplates templates = MonsterTemplates.parse("""
                 {"actions": [{"name": "Bite", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 4}]}""");
         UUID wolf = saveParticipant(EncounterParticipant.builder().summon(link).summonedByParticipantId(caster)

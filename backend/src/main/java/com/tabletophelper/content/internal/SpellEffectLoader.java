@@ -23,7 +23,8 @@ import java.util.Map;
  * whose parts don't fit those records fails the load naming the spell (D155). So does a definition with a repeat
  * effect that doesn't say what using it again costs, ACTION, BONUS_ACTION or NONE (D174); an unknown cost is a part
  * that doesn't fit. Since version 2 a BUFF or DEBUFF effect may list its Ongoing Modifiers (D184), and one of an
- * unknown kind, scope, mode or end is a part that doesn't fit too.
+ * unknown kind, scope, mode or end is a part that doesn't fit too. Since version 3 the 4th-level spells' keys (D185),
+ * such as delayedDamage, retaliation and durationBySlot, are checked the same way.
  */
 @Component
 @RequiredArgsConstructor
@@ -47,7 +48,8 @@ public class SpellEffectLoader implements ContentLoader {
 
     @Override
     public int version() {
-        return 2;
+        // 3: the 4th-level spells' templates and keys (D185)
+        return 3;
     }
 
     @Override

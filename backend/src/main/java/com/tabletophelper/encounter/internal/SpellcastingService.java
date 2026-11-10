@@ -110,6 +110,10 @@ public class SpellcastingService {
         // A spell with options is cast with one of them (D184)
         String option = spellEffects.option(payment.spellName(), request.getOption());
         List<EncounterParticipant> targets = CombatAccess.targets(encounter, request.getTargetIds(), userId);
+        // Nothing crosses Otiluke's Resilient Sphere, and a spell for one creature type refuses others (D185), checked
+        // before anything is spent
+        CombatAccess.requireReachable(caster, targets);
+        spellCaster.requireTargetTypes(payment.spellName(), targets);
         SpellNumbers own = numbers(caster, payment.origin());
         List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(own.attackBonus(), own.saveDc(),
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC());

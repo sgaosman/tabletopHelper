@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
-import { makeMockParticipant } from '../../../test/mocks/handlers';
+import { makeMockCondition, makeMockParticipant } from '../../../test/mocks/handlers';
 import type { SpellTargetingInfo } from '../../../types/reference';
 import TargetStep from './TargetStep';
 
@@ -34,6 +34,13 @@ function offered() {
 }
 
 describe('TargetStep', () => {
+  it("leaves out a banished creature and one inside Otiluke's Resilient Sphere (D185)", () => {
+    const banished = { ...goblin, activeConditions: [makeMockCondition('banished')] };
+    const enclosed = { ...kobold, lifeState: 'ALIVE' as const, activeConditions: [makeMockCondition('enclosed')] };
+    renderStep({ participants: [cleric, legolas, banished, enclosed] });
+    expect(offered()).toEqual(['Brother Tuck', 'Legolas']);
+  });
+
   it('offers the caster and everyone still alive, but not the dead', () => {
     renderStep();
 

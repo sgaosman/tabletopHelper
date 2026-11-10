@@ -377,6 +377,11 @@ public final class Resolver {
         return rng.roll(20);
     }
 
+    /** One die of these sides, such as Confusion's d10 (PHB p.224, D185). */
+    public int roll(int sides) {
+        return rng.roll(sides);
+    }
+
     private TargetOutcome attack(Effect effect, Effect.Attack attack, AttackRules.Side attacker, Target target,
                                  int empoweredDice) {
         RollModifiers modifiers = target.modifiers();

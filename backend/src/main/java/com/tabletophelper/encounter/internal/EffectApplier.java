@@ -9,6 +9,7 @@ import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.state.ConcentrationCheck;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.DamageSave;
 import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.RepeatSave;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
@@ -96,6 +97,12 @@ public class EffectApplier {
 
     private static final String UNCONSCIOUS = "unconscious";
 
+    /** The condition of a creature Banishment has removed from the fight (PHB p.217, D185). */
+    public static final String BANISHED = "banished";
+
+    /** The condition of a creature inside Otiluke's Resilient Sphere (PHB p.264, D185). */
+    public static final String ENCLOSED = "enclosed";
+
     private final Resolver resolver;
     private final CreatureStats stats;
     private final CombatLogWriter combatLog;
@@ -160,7 +167,63 @@ public class EffectApplier {
             applied.add(applyTo(encounter, use, effect, outcome, null));
         }
         endOnAttackOrCast(encounter, use.actor(), ending, "it attacks");
+        if (attack) {
+            retaliate(encounter, use.actor(), (Effect.Attack) effect.delivery(), applied);
+        }
         return applied;
+    }
+
+    /*
+     * A melee hit on a creature whose Spell Effect strikes back, as Fire Shield's 2d8 fire or cold (PHB p.242) and Shadow
+     * of Moil's 2d8 necrotic (XGE p.164), deals that damage to the attacker with no roll (D185). With no map, a melee
+     * attack is one made within 5 feet, as for every other melee rule here (D161); Shadow of Moil's ranged attacks from
+     * within 10 feet are the DM's. The attacker's own defences count, and a dead attacker takes nothing.
+     */
+    private void retaliate(Encounter encounter, EncounterParticipant attacker, Effect.Attack attack,
+                           List<Applied> applied) {
+        if (!attack.withinFiveFeet() || attacker == null) {
+            return;
+        }
+        for (Applied hit : applied) {
+            Outcome outcome = hit.outcome().outcome();
+            if ((outcome != Outcome.HIT && outcome != Outcome.CRITICAL) || hit.target() == attacker) {
+                continue;
+            }
+            for (SpellEffectEntry protection : effects(hit.target())) {
+                SpellEffectEntry.Retaliation retaliation = protection.retaliation();
+                if (retaliation == null || attacker.getLifeState() == LifeState.DEAD) {
+                    continue;
+                }
+                com.tabletophelper.rules.Dice dice = com.tabletophelper.rules.Dice.parse(retaliation.dice());
+                Effect back = new Effect(protection.spell(), new Effect.Automatic(),
+                        List.of(new Effect.DamagePart(dice, retaliation.type())), null, List.of(), false, null);
+                Use use = new Use(hit.target(), hit.target().getDisplayName() + "'s " + protection.spell(),
+                        CombatActionType.SPELL_EFFECT_REPEAT, "strikes back at", "", protection.spell(), null);
+                applyTo(encounter, use, back, resolver.resolve(back, List.of(stats.target(attacker, back))).getFirst(),
+                        null);
+            }
+        }
+    }
+
+    /**
+     * Whether the damage and conditions a Use deals are magical (D185), which Stoneskin's resistance (PHB p.278) and
+     * Freedom of Movement's protection (PHB p.244) ask: a spell, a spell's lasting effect, a weapon a spell gives an
+     * attack bonus to, as Magic Weapon (PHB p.257) and Elemental Weapon (XGE p.155) do, or a monster whose stat block
+     * says its weapon attacks are magical. Anything else counts as nonmagical, so a magic weapon on a sheet is the DM's.
+     */
+    static boolean magical(Use use) {
+        if (use.actionType() == CombatActionType.SPELL_CAST || use.actionType() == CombatActionType.SPELL_EFFECT_REPEAT) {
+            return true;
+        }
+        EncounterParticipant actor = use.actor();
+        if (actor == null) {
+            return false;
+        }
+        boolean enchantedWeapon = ActiveModifiers.modifiersOn(actor).stream()
+                .anyMatch(m -> m.kind() == OngoingModifier.Kind.ATTACK_ROLL && m.weaponOnly());
+        String traits = actor.getMonster() != null ? actor.getMonster().getTraits() : null;
+        return enchantedWeapon || traits != null && traits.toLowerCase(java.util.Locale.ROOT)
+                .contains("weapon attacks are magical");
     }
 
     /**
@@ -192,8 +255,12 @@ public class EffectApplier {
         Integer shownClass = CreatureStats.armourClass(target);
         int armourClass = shownClass != null ? shownClass : 0;
 
-        Defended damage = defended(target, outcome.damage());
-        Taken taken = takeDamage(target, damage.total(), outcome.outcome() == Outcome.CRITICAL);
+        boolean magical = magical(use);
+        Defended damage = defended(target, outcome.damage(), magical);
+        // Death Ward turns the first drop to 0 into a drop to 1 (PHB p.230, D185)
+        String warded = deathWard(encounter, target, damage.total());
+        Taken taken = takeDamage(target, warded != null ? wardedDamage(target) : damage.total(),
+                outcome.outcome() == Outcome.CRITICAL);
         VitalsChange damageChange = taken.change();
 
         // A creature that can't regain hit points, as one Chill Touch hit, regains none (PHB p.221, D184)
@@ -204,7 +271,8 @@ public class EffectApplier {
 
         // A creature the Effect killed gets none of its conditions, and one immune to a condition doesn't get it
         List<String> immune = target.getLifeState() == LifeState.DEAD ? List.of()
-                : outcome.conditions().stream().filter(name -> stats.immuneToCondition(target, name)).toList();
+                : outcome.conditions().stream().filter(name -> stats.immuneToCondition(target, name, magical))
+                        .toList();
         List<ConditionEntry> added = target.getLifeState() == LifeState.DEAD ? List.of()
                 : addEffectConditions(encounter, target,
                         outcome.conditions().stream().filter(name -> !immune.contains(name)).toList(), use, effect);
@@ -225,7 +293,8 @@ public class EffectApplier {
         }
         String description = describe(use, effect, target, armourClass, outcome, damage, healed, added, immune)
                 + (healing < outcome.healing() ? " " + target.getDisplayName() + " can't regain hit points ("
-                        + noHealingSource(target) + ")." : "");
+                        + noHealingSource(target) + ")." : "")
+                + (warded != null ? " " + warded : "");
         CombatLog.CombatLogBuilder entry = CombatLogWriter.about(
                         combatLog.entry(encounter, use.actionType(), description), use.actor(), target)
                 .rollValue(outcome.d20())
@@ -238,7 +307,7 @@ public class EffectApplier {
                     .lrDamageDealt(hitPointsLost(before, damage.total()))
                     .lrConditionsApplied(String.join(",", fromSave.stream().map(ConditionEntry::name).toList()))
                     .lrResolved(false)
-                    .lrSuccessDamage(defended(target, outcome.successDamage()).total())
+                    .lrSuccessDamage(defended(target, outcome.successDamage(), magical).total())
                     .lrConditionIds(fromSave.stream().map(ConditionEntry::id).toList());
         }
         CombatLog saved = combatLog.save(entry);
@@ -255,6 +324,37 @@ public class EffectApplier {
                 description, saved != null ? saved.getId() : null, check);
     }
 
+    /*
+     * Death Ward (PHB p.230, D185): the first time the warded creature would drop to 0 hit points from damage it drops
+     * to 1 instead, and the spell ends. Damage that would kill it outright as massive damage drops it to 1 as well, since
+     * it never reaches 0 (rules call). A druid in Wild Shape reverting isn't dropping to 0, so the ward waits. Ends the
+     * effect and returns what the log adds, or null when the ward doesn't apply.
+     */
+    private String deathWard(Encounter encounter, EncounterParticipant target, int damage) {
+        Vitals before = vitals(target);
+        if (damage <= 0 || before.lifeState() != LifeState.ALIVE || WildShapeForm.of(target).isPresent()
+                || damage < before.hp() + before.tempHp()) {
+            return null;
+        }
+        Optional<ActiveModifiers.Found> ward = ActiveModifiers.on(target).stream()
+                .filter(found -> found.modifier().kind() == OngoingModifier.Kind.DEATH_WARD)
+                .findFirst();
+        if (ward.isEmpty()) {
+            return null;
+        }
+        String spell = ward.get().effect().spell();
+        String note = target.getDisplayName() + " drops to 1 hit point instead of 0 (" + spell + "), and " + spell
+                + " ends.";
+        release(encounter, ward.get().caster(), ward.get().effect().id(), target, "it saved " + target.getDisplayName());
+        return note;
+    }
+
+    // The damage that leaves a warded creature at 1 hit point
+    private static int wardedDamage(EncounterParticipant target) {
+        Vitals before = vitals(target);
+        return Math.max(0, before.hp() + before.tempHp() - 1);
+    }
+
     // ── Hit points ───────────────────────────────────────────────
 
     /**
@@ -267,12 +367,13 @@ public class EffectApplier {
         String type = damageType != null && !damageType.isBlank() ? damageType.trim().toLowerCase() : null;
         Set<Defence> defences = stats.defences(target, type);
         int total = DamageRules.applyDefences(amount, defences);
-        Taken taken = takeDamage(target, total, false);
+        String warded = deathWard(encounter, target, total);
+        Taken taken = takeDamage(target, warded != null ? wardedDamage(target) : total, false);
         Vitals before = taken.before();
         VitalsChange change = taken.change();
 
         String description = actorName + " deals " + total + " damage to " + target.getDisplayName()
-                + (type != null ? " (" + type + defenceNote(defences) + ")" : "");
+                + (type != null ? " (" + type + defenceNote(defences) + ")" : "") + (warded != null ? ". " + warded : "");
         combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.DAMAGE, description),
                 actor, target).damageDealt(total));
         logReverted(encounter, target, taken);
@@ -618,7 +719,8 @@ public class EffectApplier {
         ConditionEntry condition = found.get();
         RepeatSave save = condition.repeatSave();
         int modifier = stats.saveModifier(participant, save.ability());
-        CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(participant, save.ability());
+        CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(participant, save.ability(),
+                List.of(condition.name()));
         Resolver.SaveRoll roll = resolver.savingThrow(save.ability(), modifier, save.dc(),
                 CreatureStats.conditionNames(participant), stats.armourPenalty(participant), modifiers.modes(),
                 modifiers.bonuses());
@@ -760,8 +862,12 @@ public class EffectApplier {
             conditions.removeAll(ended);
             participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
             for (ConditionEntry condition : ended) {
+                // Banishment that lasts its full minute leaves a creature native to another plane there (PHB p.217)
+                String note = BANISHED.equalsIgnoreCase(condition.name()) && "its duration ends".equals(why)
+                        ? ": it returns, unless it is native to another plane, where it stays (PHB p.217); the DM "
+                                + "removes it then" : "";
                 combatLog.write(encounter, CombatActionType.CONDITION_REMOVE, condition.name() + " ends on "
-                        + participant.getDisplayName() + " (" + instance.spell() + " concentration lost)", null,
+                        + participant.getDisplayName() + " (" + instance.spell() + " concentration lost)" + note, null,
                         participant);
             }
         }
@@ -823,6 +929,222 @@ public class EffectApplier {
         afterModifiersEnd(encounter, ended.get(), ended.get().affected());
         // A summoning's creatures leave with it: its concentration lost, its duration over, or ended by hand (D182)
         dismissSummons(encounter, effectId, ended.get().spell() + " ends");
+        // The exhaustion it gave goes with it, as Sickening Radiance's (XGE p.164, D185)
+        for (SpellEffectEntry.ExhaustionGiven given : ended.get().exhaustion()) {
+            encounter.getParticipants().stream()
+                    .filter(p -> p.getId().equals(given.creature()) && !EncounterTurns.dismissed(p))
+                    .findFirst()
+                    .ifPresent(creature -> {
+                        int level = Exhaustion.clamp(creature.getExhaustionLevel());
+                        if (level > 0 && creature.getLifeState() != LifeState.DEAD) {
+                            setExhaustion(encounter, creature, Math.max(0, level - given.levels()));
+                        }
+                    });
+        }
+    }
+
+    // ── What the 4th-level spells leave on a Spell Effect (D185) ─────
+
+    /**
+     * Puts what a cast leaves for later on its Spell Effect (D185): a damage budget, a retaliation and a turn reminder.
+     */
+    public SpellEffectEntry startLater(EncounterParticipant caster, UUID effectId, Integer damageBudget,
+                                       SpellEffectEntry.Retaliation retaliation, String turnReminder) {
+        SpellEffectEntry effect = find(caster, effectId);
+        SpellEffectEntry changed = effect.withDamageLeft(damageBudget).withRetaliation(retaliation)
+                .withTurnReminder(turnReminder);
+        replaceEffect(caster, changed);
+        return changed;
+    }
+
+    /** Adds damage a creature takes at the end of its next turn to the Spell Effect (D185). */
+    public void delay(EncounterParticipant caster, UUID effectId, EncounterParticipant target, String dice,
+                      String type) {
+        SpellEffectEntry effect = find(caster, effectId);
+        List<SpellEffectEntry.DelayedDamage> delayed = new ArrayList<>(effect.delayed());
+        delayed.add(new SpellEffectEntry.DelayedDamage(target.getId(), dice, type, false));
+        replaceEffect(caster, effect.withDelayed(delayed));
+    }
+
+    /**
+     * Counts damage a Spell Effect dealt against its budget (D185): Guardian of Faith vanishes once it has dealt 60
+     * (PHB p.246). Nothing for an effect without one, or one already gone.
+     */
+    public void spendBudget(Encounter encounter, EncounterParticipant caster, UUID effectId, int dealt) {
+        Optional<SpellEffectEntry> found = effects(caster).stream().filter(e -> e.id().equals(effectId)).findFirst();
+        if (found.isEmpty() || found.get().damageLeft() == null || dealt <= 0) {
+            return;
+        }
+        SpellEffectEntry effect = found.get();
+        int left = effect.damageLeft() - dealt;
+        if (left > 0) {
+            replaceEffect(caster, effect.withDamageLeft(left));
+            return;
+        }
+        replaceEffect(caster, effect.withDamageLeft(0));
+        endWholeEffect(encounter, caster, effect, "has dealt all its damage");
+    }
+
+    /**
+     * Gives creatures exhaustion levels from a Spell Effect, recorded on it so they go when it ends, as Sickening
+     * Radiance's (XGE p.164, D185). A creature immune to exhaustion, or already dead, gains none.
+     */
+    public void exhaust(Encounter encounter, EncounterParticipant caster, UUID effectId,
+                        List<EncounterParticipant> creatures, int levels) {
+        List<SpellEffectEntry.ExhaustionGiven> given = new ArrayList<>(find(caster, effectId).exhaustion());
+        for (EncounterParticipant creature : creatures) {
+            int before = Exhaustion.clamp(creature.getExhaustionLevel());
+            if (creature.getLifeState() == LifeState.DEAD || stats.immuneToCondition(creature, Exhaustion.CONDITION)
+                    || before >= Exhaustion.MAX_LEVEL) {
+                continue;
+            }
+            int after = Math.min(Exhaustion.MAX_LEVEL, before + levels);
+            setExhaustion(encounter, creature, after);
+            given.add(new SpellEffectEntry.ExhaustionGiven(creature.getId(), after - before));
+        }
+        Optional<SpellEffectEntry> still = effects(caster).stream().filter(e -> e.id().equals(effectId)).findFirst();
+        still.ifPresent(effect -> replaceEffect(caster, effect.withExhaustion(given)));
+    }
+
+    /**
+     * Puts more creatures under a Spell Effect's Ongoing Modifiers, as Sickening Radiance's light on each creature that
+     * fails its save (XGE p.164, D185).
+     */
+    public void addAffected(EncounterParticipant caster, UUID effectId, List<EncounterParticipant> creatures) {
+        Optional<SpellEffectEntry> found = effects(caster).stream().filter(e -> e.id().equals(effectId)).findFirst();
+        if (found.isEmpty() || creatures.isEmpty()) {
+            return;
+        }
+        List<UUID> affected = new ArrayList<>(found.get().affected());
+        creatures.stream().map(EncounterParticipant::getId).filter(id -> !affected.contains(id)).forEach(affected::add);
+        replaceEffect(caster, found.get().withAffected(affected));
+    }
+
+    /**
+     * The start of a creature's turn for the 4th-level spells (D185): damage it has coming at the end of this turn is
+     * armed, as Vitriolic Sphere's (XGE p.170); a creature at 0 hit points under Aura of Life regains 1 (PHB p.216); and
+     * the creature's own Spell Effects remind it of what they do now, as Mordenkainen's Faithful Hound's bite (PHB
+     * p.261).
+     */
+    public void effectsAtTurnStart(Encounter encounter, EncounterParticipant creature) {
+        UUID id = creature.getId();
+        for (EncounterParticipant caster : List.copyOf(encounter.getParticipants())) {
+            for (SpellEffectEntry effect : effects(caster)) {
+                if (effect.delayed().stream().anyMatch(d -> d.target().equals(id) && !d.armed())) {
+                    replaceEffect(caster, effect.withDelayed(effect.delayed().stream()
+                            .map(d -> d.target().equals(id) ? d.armedNow() : d).toList()));
+                }
+            }
+        }
+        if (creature.getLifeState() != LifeState.DEAD && creature.getHpCurrent() != null
+                && creature.getHpCurrent() == 0) {
+            String type = CreatureStats.typeForSpells(creature);
+            boolean living = type == null || !(type.contains("undead") || type.contains("construct"));
+            ActiveModifiers.on(creature).stream()
+                    .filter(found -> found.modifier().kind() == OngoingModifier.Kind.HEAL_AT_ZERO
+                            && found.modifier().flat() > 0)
+                    .findFirst()
+                    .filter(found -> living)
+                    .ifPresent(found -> heal(encounter, found.caster(), creature, found.modifier().flat(),
+                            found.effect().spell()));
+        }
+        for (SpellEffectEntry effect : effects(creature)) {
+            if (effect.turnReminder() != null && !effect.turnReminder().isBlank()) {
+                combatLog.write(encounter, CombatActionType.SPELL_EFFECT_REPEAT, creature.getDisplayName() + "'s "
+                        + effect.spell() + ": " + effect.turnReminder(), creature, null);
+            }
+        }
+        if (creature.getLifeState() == LifeState.ALIVE && conditions(creature).stream()
+                .anyMatch(c -> CONFUSED.equalsIgnoreCase(c.name()))) {
+            confusedTurn(encounter, creature);
+        }
+    }
+
+    /** The condition of a creature Confusion has affected (PHB p.224, D185). */
+    public static final String CONFUSED = "confused";
+
+    /*
+     * Confusion (PHB p.224, D185): a confused creature rolls a d10 at the start of its turn to see what it does that
+     * turn, which the log shows for the DM to play out: 1, it moves in a random direction, a d8 for the direction, and
+     * takes no action; 2 to 6, it doesn't move or take actions; 7 or 8, it uses its action to make a melee attack against
+     * a randomly chosen creature within its reach, or does nothing if none is; 9 or 10, it acts and moves normally. It
+     * can't take reactions, which the DM keeps to.
+     */
+    private void confusedTurn(Encounter encounter, EncounterParticipant creature) {
+        int d10 = resolver.roll(10);
+        String name = creature.getDisplayName();
+        String what;
+        if (d10 == 1) {
+            what = "moves its full speed in a random direction (d8: " + resolver.roll(8) + ") and takes no action";
+        } else if (d10 <= 6) {
+            what = "doesn't move or take actions this turn";
+        } else if (d10 <= 8) {
+            what = "uses its action to make a melee attack against a randomly chosen creature within its reach, or "
+                    + "does nothing if none is";
+        } else {
+            what = "can act and move normally";
+        }
+        combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.SPELL_EFFECT_REPEAT,
+                name + " is confused: d10 (" + d10 + "), so it " + what + "; it can't take reactions."), null, creature)
+                .rollValue(d10));
+    }
+
+    /**
+     * Temporary hit points a spell gives a creature (D185), as Guardian of Nature's Great Tree gives its caster 10 (XGE
+     * p.157): they replace a smaller number held, never adding to it (PHB p.198).
+     */
+    public void gainTempHp(Encounter encounter, EncounterParticipant giver, EncounterParticipant creature, int amount,
+                           String source) {
+        int held = creature.getHpTemp() != null ? creature.getHpTemp() : 0;
+        if (amount <= held || creature.getLifeState() == LifeState.DEAD) {
+            return;
+        }
+        creature.setHpTemp(amount);
+        combatLog.write(encounter, CombatActionType.SPELL_EFFECT_REPEAT, creature.getDisplayName() + " gains " + amount
+                + " temporary hit points from " + source, giver, creature);
+    }
+
+    /**
+     * The end of a creature's turn for the 4th-level spells (D185): damage armed at its start is dealt, as Vitriolic
+     * Sphere's 5d4 acid (XGE p.170) or Melf's Acid Arrow's 2d4 (PHB p.259), and a Spell Effect left only for it ends
+     * once none is left.
+     */
+    public void effectsAtTurnEnd(Encounter encounter, EncounterParticipant creature) {
+        UUID id = creature.getId();
+        for (EncounterParticipant caster : List.copyOf(encounter.getParticipants())) {
+            for (SpellEffectEntry effect : effects(caster)) {
+                List<SpellEffectEntry.DelayedDamage> due = effect.delayed().stream()
+                        .filter(d -> d.target().equals(id) && d.armed())
+                        .toList();
+                if (due.isEmpty()) {
+                    continue;
+                }
+                List<SpellEffectEntry.DelayedDamage> left = effect.delayed().stream()
+                        .filter(d -> !due.contains(d)).toList();
+                replaceEffect(caster, effect.withDelayed(left));
+                if (creature.getLifeState() != LifeState.DEAD && !EncounterTurns.dismissed(creature)) {
+                    for (SpellEffectEntry.DelayedDamage damage : due) {
+                        Effect later = new Effect(effect.spell(), new Effect.Automatic(),
+                                List.of(new Effect.DamagePart(com.tabletophelper.rules.Dice.parse(damage.dice()),
+                                        damage.type())), null, List.of(), false, null);
+                        Use use = new Use(caster, caster.getDisplayName() + "'s " + effect.spell(),
+                                CombatActionType.SPELL_EFFECT_REPEAT, "deals its later damage to", "", effect.spell(),
+                                null);
+                        applyTo(encounter, use, later, resolver.resolve(later, List.of(stats.target(creature, later)))
+                                .getFirst(), null);
+                    }
+                }
+                if (left.isEmpty() && effect.onlyForDelayed()) {
+                    endEffect(encounter, caster, effect.id(), "its damage is dealt");
+                }
+            }
+        }
+    }
+
+    // One of the caster's Spell Effects, which must be there
+    private static SpellEffectEntry find(EncounterParticipant caster, UUID effectId) {
+        return effects(caster).stream().filter(e -> e.id().equals(effectId)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No Spell Effect " + effectId));
     }
 
     // ── Ongoing Modifiers (D184) ─────────────────────────────────
@@ -1233,6 +1555,45 @@ public class EffectApplier {
         if (creature.getSummon() != null) {
             creature.setSummon(creature.getSummon().withCommandedRound(round));
         }
+    }
+
+    /**
+     * Summon Greater Demon's demon, at the end of each of its turns, makes a Charisma saving throw against its caster's
+     * spell save DC (XGE p.166, D182): on a failure it goes on obeying; on a success the caster's control ends for the
+     * rest of the spell, so the DM controls it from then on. Disadvantage when the caster speaks its true name is the
+     * DM's to apply by hand.
+     */
+    public void summonControlSave(Encounter encounter, EncounterParticipant creature) {
+        SummonLink link = creature.getSummon();
+        if (link == null || !link.savesToStayControlled()) {
+            return;
+        }
+        int modifier = stats.saveModifier(creature, Ability.CHA);
+        CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(creature, Ability.CHA);
+        Resolver.SaveRoll roll = resolver.savingThrow(Ability.CHA, modifier, link.controlSaveDc(),
+                CreatureStats.conditionNames(creature), stats.armourPenalty(creature), modifiers.modes(),
+                modifiers.bonuses());
+        StringBuilder description = new StringBuilder(creature.getDisplayName())
+                .append(" makes a Charisma save to break free of ").append(link.spell());
+        if (roll.autoFailed()) {
+            description.append(" vs DC ").append(link.controlSaveDc()).append(" — fails automatically");
+        } else {
+            description.append(": ").append(saveDice(roll)).append(signed(modifier)).append(bonusText(roll.bonuses()))
+                    .append(" = ").append(roll.total()).append(" vs DC ").append(link.controlSaveDc())
+                    .append(roll.success() ? " — succeeds" : " — fails");
+        }
+        if (roll.success()) {
+            creature.setSummon(link.withControlBroken());
+            creature.setControlledByUserId(null);
+            description.append(", and its caster's control ends: it pursues and attacks the nearest non-demons, and "
+                    + "if the caster's concentration ends early it stays 1d6 rounds (the DM's call).");
+        } else {
+            description.append(", and it goes on obeying.");
+        }
+        combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.SUMMON,
+                        description.toString()), null, creature)
+                .rollValue(roll.d20())
+                .rollTotal(roll.total()));
     }
 
     /** Spends uses of a Spell Effect that has a count, such as meteors, leaving the effect in place. */
@@ -1682,9 +2043,62 @@ public class EffectApplier {
     // Conditions that last until their creature takes damage end once it does, as a turned undead's (PHB p.59)
     private void endOnDamage(Encounter encounter, EncounterParticipant target) {
         for (ConditionEntry condition : conditions(target)) {
-            if (condition.endRule() != null && condition.endRule().type() == EndRule.Type.ON_DAMAGE) {
+            if (condition.endRule() != null && condition.endRule().type() == EndRule.Type.ON_DAMAGE
+                    || Boolean.TRUE.equals(condition.endsOnDamage())) {
                 endCondition(encounter, target, condition.id(), "it takes damage");
             }
+        }
+        for (ConditionEntry condition : conditions(target)) {
+            if (condition.saveOnDamage() != null && target.getLifeState() != LifeState.DEAD) {
+                saveOnDamage(encounter, target, condition);
+            }
+        }
+    }
+
+    /*
+     * A creature under a condition it saves against each time it takes damage, as Dominate Beast's charm (PHB p.234,
+     * D185): it rolls the save, and a success ends the spell, its concentration and everything that came with it, or the
+     * condition alone when nothing holds it. A failure offers Legendary Resistance as a repeated save does (D163).
+     */
+    private void saveOnDamage(Encounter encounter, EncounterParticipant target, ConditionEntry condition) {
+        DamageSave save = condition.saveOnDamage();
+        int modifier = stats.saveModifier(target, save.ability());
+        CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(target, save.ability(),
+                List.of(condition.name()));
+        List<RollMode> modes = new ArrayList<>(modifiers.modes());
+        if (save.advantage()) {
+            modes.add(RollMode.ADVANTAGE);
+        }
+        Resolver.SaveRoll roll = resolver.savingThrow(save.ability(), modifier, save.dc(),
+                CreatureStats.conditionNames(target), stats.armourPenalty(target), modes, modifiers.bonuses());
+        String name = target.getDisplayName();
+        String source = condition.sourceSpellName() != null ? condition.sourceSpellName() : condition.name();
+        String rolled = roll.autoFailed() ? " vs DC " + save.dc() + " — fails automatically"
+                : ": " + saveDice(roll) + signed(modifier) + bonusText(roll.bonuses()) + " = " + roll.total()
+                        + " vs DC " + save.dc() + (roll.success() ? " — succeeds" : " — fails");
+        CombatLog.CombatLogBuilder entry = CombatLogWriter.about(combatLog.entry(encounter,
+                        CombatActionType.REPEAT_SAVE, name + " takes damage and repeats the " + save.ability().name()
+                                + " save against " + source + rolled + (roll.success() ? ", and " + source + " ends."
+                                : ".")), null, target)
+                .rollValue(roll.d20()).rollTotal(roll.total());
+        if (!roll.success() && legendaryResistanceRemaining(target) > 0) {
+            entry.legendaryResistanceEligible(true).lrTargetId(target.getId()).lrDamageDealt(0)
+                    .lrConditionsApplied(condition.name()).lrResolved(false).lrSuccessDamage(0)
+                    .lrConditionIds(List.of(condition.id()));
+        }
+        combatLog.save(entry);
+        spendModifiers(encounter, roll.spentOneShots());
+        if (!roll.success()) {
+            return;
+        }
+        Optional<EncounterParticipant> caster = encounter.getParticipants().stream()
+                .filter(p -> p.getId().equals(condition.sourceParticipantId()))
+                .findFirst();
+        ConcentrationInstance held = caster.map(EncounterParticipant::getConcentration).orElse(null);
+        if (held != null && held.id().equals(condition.concentrationInstanceId())) {
+            endConcentration(encounter, caster.get(), name + " succeeds on the save");
+        } else {
+            endCondition(encounter, target, condition.id(), "it succeeds on the save");
         }
     }
 
@@ -1790,12 +2204,20 @@ public class EffectApplier {
             if (end != null && end.endOfUsersTurn() && sourceId != null) {
                 entry = new ConditionEntry(UUID.randomUUID(), name, end.durationRounds(), encounter.getRoundNumber(),
                         use.conditionSource(), sourceId, null, null, EndRule.endOfTurn(sourceId), null);
-            } else if (end != null && end.endsOnDamage()) {
+            } else if (end != null && end.endsOnDamage() && use.instance() == null) {
                 entry = new ConditionEntry(UUID.randomUUID(), name, duration, encounter.getRoundNumber(),
                         use.conditionSource(), sourceId, null, null, EndRule.ON_DAMAGE, repeatSave);
             } else {
                 entry = ConditionEntry.fromEffect(name, duration, encounter.getRoundNumber(),
                         use.conditionSource(), sourceId, use.instance(), repeatSave);
+                // A concentration spell's condition that ends when its creature takes damage, as Hypnotic Pattern's
+                // (PHB p.252), or that makes it save again then, as Dominate Beast's (PHB p.234), still ends with the
+                // concentration (D185)
+                if (end != null && (end.endsOnDamage() || end.saveOnDamage() != null)) {
+                    entry = entry.onDamage(end.endsOnDamage(), end.saveOnDamage() != null
+                            ? new DamageSave(end.saveOnDamage().ability(), end.saveOnDamage().dc(),
+                                    end.saveOnDamage().advantage()) : null);
+                }
             }
             // Whatever else ends it, attacking or casting a spell may too, as Invisibility's does (PHB p.254)
             ConditionEntry made = end != null && end.endsOnAttackOrCast() ? entry.endingOnAttackOrCast() : entry;
@@ -1838,11 +2260,11 @@ public class EffectApplier {
         }
     }
 
-    // Each type's damage after the target's defences against it (D161)
-    private Defended defended(EncounterParticipant target, List<Resolver.Damage> damage) {
+    // Each type's damage after the target's defences against it (D161), magical or not (D185)
+    private Defended defended(EncounterParticipant target, List<Resolver.Damage> damage, boolean magical) {
         List<DefendedPart> parts = new ArrayList<>();
         for (Resolver.Damage part : damage) {
-            Set<Defence> defences = stats.defences(target, part.type());
+            Set<Defence> defences = stats.defences(target, part.type(), magical);
             parts.add(new DefendedPart(part.type(), DamageRules.applyDefences(part.amount(), defences), defences));
         }
         return new Defended(parts);

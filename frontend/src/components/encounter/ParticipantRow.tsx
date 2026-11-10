@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import type { EncounterParticipant } from '../../types/encounter';
 import { getParticipantColour } from '../../utils/classColours';
+import { brokeFree } from '../../utils/summons';
+import { BANISHED, hasCondition } from '../../utils/spellEffects';
 import WildShapeStatus from './WildShapeStatus';
 import SpellModifierChips from './SpellModifierChips';
 
@@ -40,6 +42,8 @@ export default function ParticipantRow({
   const isMonster = p.participantType === 'MONSTER';
   // A summon that acts right after its caster sits under it in the order (TCE p.109, D182)
   const follower = p.summon?.initiativeMode === 'FOLLOWS_CASTER';
+  // Banishment takes it out of the fight until the spell ends (PHB p.217, D185)
+  const banished = hasCondition(p, BANISHED);
   return (
     <div
       aria-current={current ? 'step' : undefined}
@@ -47,7 +51,7 @@ export default function ParticipantRow({
         current ? 'border-t-cls-fighter border-r-cls-fighter border-b-cls-fighter ring-1 ring-cls-fighter/30' :
         highlighted ? 'border-t-ink border-r-ink border-b-ink ring-1 ring-ink/30' :
         'border-t-rule border-r-rule border-b-rule'
-      } ${p.lifeState !== 'ALIVE' ? 'opacity-60' : ''}`}
+      } ${p.lifeState !== 'ALIVE' || banished ? 'opacity-60' : ''}`}
       style={{ borderLeftColor: getParticipantColour(isMonster, p.characterClass) }}
     >
       <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2">
@@ -70,6 +74,18 @@ export default function ParticipantRow({
             {p.summon && (
               <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 bg-cls-druid/10 text-cls-druid">
                 {summonerName ? `Summoned by ${summonerName}` : 'Summoned'}{p.summon.spell ? ` (${p.summon.spell})` : ''}
+              </span>
+            )}
+            {banished && (
+              <span title="Removed from the fight until Banishment ends: it takes no turns and can't be targeted"
+                className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 bg-cls-warlock/10 text-cls-warlock">
+                Banished
+              </span>
+            )}
+            {/* Summon Greater Demon's demon after a successful Charisma save (XGE p.166, D185) */}
+            {brokeFree(p.summon) && (
+              <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 bg-debuff/10 text-debuff">
+                Broke free
               </span>
             )}
           </div>

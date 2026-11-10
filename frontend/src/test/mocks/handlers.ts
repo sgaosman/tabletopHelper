@@ -577,7 +577,7 @@ export function makeMockSpellEffect(spell = 'Spiritual Weapon', overrides: Parti
     id: `effect-${spell.toLowerCase().replace(/[^a-z]+/g, '-')}`, spell, slotLevel: 2, concentration: false,
     startedRound: 1, durationRounds: 10, usesLeft: null, directedCost: 'BONUS_ACTION', directedResolves: true,
     maxUsesEachTurn: null, triggers: [], summonedParticipantIds: [], affectedIds: [], modifiers: [],
-    retargetable: false,
+    retargetable: false, delayed: [],
   } satisfies SpellEffect;
   return { ...effect, ...overrides };
 }
@@ -710,10 +710,10 @@ export function makeMockSummonOptions(overrides: Partial<SummonOptions> = {}): S
     spellName: 'Conjure Animals', kind: 'CONJURE_ANIMALS', slotLevel: 3, spellLevel: 3, concentration: true,
     castInCombat: true, dmChooses: false, multiplier: 1,
     options: [
-      { id: '1xCR2', count: 1, maxCr: 2, label: '1 beast of challenge rating 2 or lower' },
-      { id: '2xCR1', count: 2, maxCr: 1, label: '2 beasts of challenge rating 1 or lower' },
-      { id: '4xCR1/2', count: 4, maxCr: 0.5, label: '4 beasts of challenge rating 1/2 or lower' },
-      { id: '8xCR1/4', count: 8, maxCr: 0.25, label: '8 beasts of challenge rating 1/4 or lower' },
+      { id: '1xCR2', count: 1, maxCr: 2, label: '1 beast of challenge rating 2 or lower', forms: [] },
+      { id: '2xCR1', count: 2, maxCr: 1, label: '2 beasts of challenge rating 1 or lower', forms: [] },
+      { id: '4xCR1/2', count: 4, maxCr: 0.5, label: '4 beasts of challenge rating 1/2 or lower', forms: [] },
+      { id: '8xCR1/4', count: 8, maxCr: 0.25, label: '8 beasts of challenge rating 1/4 or lower', forms: [] },
     ],
     variants: [], initiativeModes: ['GROUP', 'FOLLOWS_CASTER'], defaultInitiativeMode: 'GROUP',
     houseRuleModes: ['FOLLOWS_CASTER'], controlledBy: 'CASTER', creatureTypes: [], creatureType: 'fey',
@@ -733,7 +733,7 @@ export function makeMockSummonOptions(overrides: Partial<SummonOptions> = {}): S
 export function makeMockSpiritOptions(overrides: Partial<SummonOptions> = {}): SummonOptions {
   return makeMockSummonOptions({
     spellName: 'Summon Beast', kind: 'SPIRIT', slotLevel: 4, spellLevel: 2,
-    options: [{ id: '1', count: 1, maxCr: null, label: '1 spirit' }],
+    options: [{ id: '1', count: 1, maxCr: null, label: '1 spirit', forms: [] }],
     variants: ['Air', 'Land', 'Water'], initiativeModes: ['FOLLOWS_CASTER'], defaultInitiativeMode: 'FOLLOWS_CASTER',
     houseRuleModes: [], creatureType: null,
     candidates: [{ monsterId: 'mon-bestial', name: 'Bestial Spirit', challengeRating: null, challengeRatingValue: null, hitPoints: 0, armourClass: 10, type: 'beast', size: 'S', source: 'TCE' }],

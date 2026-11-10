@@ -62,7 +62,13 @@ public final class OngoingModifiers {
         int added = 0;
         int doubled = 0;
         int halved = 0;
+        // Freedom of Movement: magic can't reduce the creature's speed (PHB p.244, D185)
+        boolean protectedSpeed = modifiers.stream().anyMatch(m -> m.kind() == OngoingModifier.Kind.SPEED_PROTECTED);
         for (OngoingModifier modifier : modifiers) {
+            if (protectedSpeed && (modifier.kind() == OngoingModifier.Kind.SPEED_HALVED
+                    || modifier.kind() == OngoingModifier.Kind.SPEED && modifier.flat() < 0)) {
+                continue;
+            }
             switch (modifier.kind()) {
                 case SPEED -> added += modifier.flat();
                 case SPEED_DOUBLED -> doubled++;
@@ -95,18 +101,39 @@ public final class OngoingModifiers {
     /** The hit point maximum with the modifiers, such as Aid's +5 (PHB p.211); exhaustion halves the total (D183). */
     public static int hitPointMaximum(int maximum, List<OngoingModifier> modifiers) {
         int total = maximum;
+        boolean guarded = maximumProtected(modifiers);
         for (OngoingModifier modifier : modifiers) {
-            if (modifier.kind() == OngoingModifier.Kind.HP_MAX) {
+            if (modifier.kind() == OngoingModifier.Kind.HP_MAX && (modifier.flat() > 0 || !guarded)) {
                 total += modifier.flat();
             }
         }
         return Math.max(1, total);
     }
 
-    /** Whether the modifiers resist the damage type. */
+    /** Whether the modifiers keep the hit point maximum from being reduced (Aura of Life, PHB p.216, D185). */
+    public static boolean maximumProtected(List<OngoingModifier> modifiers) {
+        return modifiers.stream().anyMatch(modifier -> modifier.kind() == OngoingModifier.Kind.HP_MAX_PROTECTED);
+    }
+
+    /** Whether the modifiers resist the damage type, counting those for nonmagical damage only as resisting it. */
     public static boolean resists(String damageType, List<OngoingModifier> modifiers) {
+        return resists(damageType, modifiers, false);
+    }
+
+    /**
+     * Whether the modifiers resist the damage type, magical or not (D185): one for nonmagical damage only, as
+     * Stoneskin's (PHB p.278), doesn't resist magical damage.
+     */
+    public static boolean resists(String damageType, List<OngoingModifier> modifiers, boolean magical) {
         return modifiers.stream().anyMatch(modifier -> modifier.kind() == OngoingModifier.Kind.RESISTANCE
-                && modifier.resists(damageType));
+                && modifier.resists(damageType) && !(magical && "NONMAGICAL".equalsIgnoreCase(modifier.requires())));
+    }
+
+    /** Whether the modifiers take away the creature's resistance to the type (Elemental Bane, XGE p.155, D185). */
+    public static boolean losesResistance(String damageType, List<OngoingModifier> modifiers) {
+        return damageType != null && modifiers.stream().anyMatch(modifier ->
+                modifier.kind() == OngoingModifier.Kind.LOSE_RESISTANCE && modifier.damageTypes().stream()
+                        .anyMatch(type -> type.equalsIgnoreCase(damageType.trim())));
     }
 
     /** Whether the modifiers keep the creature from regaining hit points (Chill Touch, PHB p.221). */
@@ -116,9 +143,18 @@ public final class OngoingModifiers {
 
     /** Whether the modifiers make the creature immune to the condition (Heroism's frightened, PHB p.250). */
     public static boolean immuneTo(String condition, List<OngoingModifier> modifiers) {
+        return immuneTo(condition, modifiers, false);
+    }
+
+    /**
+     * Whether the modifiers make the creature immune to the condition from a magical source or not (D185): one against
+     * magic only, as Freedom of Movement's (PHB p.244), guards only against a magical one.
+     */
+    public static boolean immuneTo(String condition, List<OngoingModifier> modifiers, boolean magical) {
         return condition != null && modifiers.stream()
                 .anyMatch(modifier -> modifier.kind() == OngoingModifier.Kind.CONDITION_IMMUNITY
-                        && condition.trim().equalsIgnoreCase(modifier.condition()));
+                        && condition.trim().equalsIgnoreCase(modifier.condition())
+                        && (magical || !"MAGICAL".equalsIgnoreCase(modifier.requires())));
     }
 
     /**
@@ -126,14 +162,37 @@ public final class OngoingModifiers {
      * Haste's advantage on Dexterity saves (PHB p.250), Beacon of Hope's on Wisdom and death saves (PHB p.217).
      */
     public static List<RollMode> saveModes(String ability, List<OngoingModifier> modifiers) {
+        return saveModes(ability, modifiers, List.of());
+    }
+
+    /**
+     * As {@link #saveModes(String, List)}, against an effect that would give these conditions (D185): a mode kept for
+     * effects that give certain conditions, as Aura of Purity's advantage against those that would blind, charm, deafen,
+     * frighten, paralyze, poison or stun (PHB p.216), counts only when the effect gives one of them.
+     */
+    public static List<RollMode> saveModes(String ability, List<OngoingModifier> modifiers, List<String> against) {
         List<RollMode> modes = new ArrayList<>();
         for (OngoingModifier modifier : modifiers) {
             if (modifier.kind() == OngoingModifier.Kind.SAVE_MODE && modifier.mode() != null
-                    && modifier.coversSave(ability)) {
+                    && modifier.coversSave(ability) && againstOneOf(modifier.condition(), against)) {
                 modes.add(modifier.mode());
             }
         }
         return modes;
+    }
+
+    // Whether a mode kept for some conditions applies against an effect giving these; one kept for none always does
+    private static boolean againstOneOf(String kept, List<String> against) {
+        if (kept == null || kept.isBlank()) {
+            return true;
+        }
+        for (String each : kept.split(",")) {
+            if (against != null && against.stream().anyMatch(name -> name != null
+                    && name.trim().equalsIgnoreCase(each.trim()))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The dice and amounts the modifiers add to a saving throw of the ability, a death save when it is null. */

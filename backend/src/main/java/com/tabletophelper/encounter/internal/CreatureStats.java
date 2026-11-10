@@ -7,6 +7,7 @@ import com.tabletophelper.character.EquippedArmour;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.SummonLink;
 import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.Race;
@@ -98,7 +99,12 @@ public class CreatureStats {
     public static int hpMax(EncounterParticipant participant) {
         int stored = participant.getHpMax() != null ? participant.getHpMax() : 1;
         // Aid raises the maximum, and exhaustion halves the maximum it has then (PHB p.211, p.291; D184)
-        int raised = OngoingModifiers.hitPointMaximum(stored, ActiveModifiers.modifiersOn(participant));
+        List<OngoingModifier> modifiers = ActiveModifiers.modifiersOn(participant);
+        int raised = OngoingModifiers.hitPointMaximum(stored, modifiers);
+        // Aura of Life: the maximum can't be reduced, so exhaustion doesn't halve it (PHB p.216, D185)
+        if (OngoingModifiers.maximumProtected(modifiers)) {
+            return Math.max(stored, raised);
+        }
         return Exhaustion.hitPointMaximum(raised, Exhaustion.clamp(participant.getExhaustionLevel()));
     }
 
@@ -144,9 +150,10 @@ public class CreatureStats {
     public Resolver.Target target(EncounterParticipant participant, Effect effect, EncounterParticipant attacker) {
         Ability saveAbility = effect.saveAbility();
         List<OngoingModifiers.Labelled> own = ActiveModifiers.labelledOn(participant);
+        // A mode kept for effects that give certain conditions counts against this one's (Aura of Purity, D185)
         List<RollMode> saveModes = saveAbility != null
                 ? OngoingModifiers.saveModes(saveAbility.name(), own.stream().map(OngoingModifiers.Labelled::modifier)
-                        .toList())
+                        .toList(), effect.conditions())
                 : List.of();
         return new Resolver.Target(participant.getId(), armourClass(participant),
                 saveModifier(participant, saveAbility), conditionNames(participant),
@@ -196,10 +203,19 @@ public class CreatureStats {
      * (D184): their dice and amounts, and their advantage or disadvantage.
      */
     public static SaveModifiers saveModifiers(EncounterParticipant participant, Ability ability) {
+        return saveModifiers(participant, ability, List.of());
+    }
+
+    /**
+     * As {@link #saveModifiers(EncounterParticipant, Ability)}, for a save against an effect that gives these
+     * conditions, as a repeated save against being paralyzed is (Aura of Purity, PHB p.216, D185).
+     */
+    public static SaveModifiers saveModifiers(EncounterParticipant participant, Ability ability, List<String> against) {
         List<OngoingModifiers.Labelled> own = ActiveModifiers.labelledOn(participant);
         String name = ability != null ? ability.name() : null;
         return new SaveModifiers(OngoingModifiers.saveBonuses(name, own),
-                OngoingModifiers.saveModes(name, own.stream().map(OngoingModifiers.Labelled::modifier).toList()));
+                OngoingModifiers.saveModes(name, own.stream().map(OngoingModifiers.Labelled::modifier).toList(),
+                        against));
     }
 
     /** The dice and modes Ongoing Modifiers give one saving throw (D184). */
@@ -280,7 +296,8 @@ public class CreatureStats {
         }
         if (participant.getMonster() != null) {
             int score = orTen(monsterScore(participant.getMonster(), ability));
-            // Find Steed's steed has an Intelligence of at least 6 (PHB p.240, D182)
+            // Find Steed's steed and Find Greater Steed's mount have an Intelligence of at least 6 (PHB p.240, XGE
+            // p.156, D182)
             if (ability == Ability.INT && participant.getSummon() != null
                     && participant.getSummon().kind() == SummonRules.Kind.STEED) {
                 return Math.max(score, SummonRules.STEED_MINIMUM_INTELLIGENCE);
@@ -300,6 +317,32 @@ public class CreatureStats {
             return participant.getSummon().creatureType();
         }
         return participant.getMonster() != null ? participant.getMonster().getType() : null;
+    }
+
+    /**
+     * The creature type a spell's rules read (D185), as Blight's for undead, constructs and plants (PHB p.219) or Dominate
+     * Beast's for beasts (PHB p.234): a beast while in Wild Shape (PHB p.66), the type a summoning gives, the stat
+     * block's, or a player character's race's, humanoid when its data gives none (PHB p.17-18 races are humanoid).
+     */
+    public static String typeForSpells(EncounterParticipant participant) {
+        if (WildShapeForm.of(participant).isPresent()) {
+            return "beast";
+        }
+        String type = creatureType(participant);
+        if (type != null) {
+            // The stat block's tags count too, such as a werewolf's shapechanger, which Polymorph doesn't affect (PHB
+            // p.266)
+            boolean ownType = participant.getSummon() == null || participant.getSummon().creatureType() == null;
+            String tags = ownType && participant.getMonster() != null ? participant.getMonster().getSubtype() : null;
+            return (type.trim() + (tags != null && !tags.isBlank() ? " (" + tags.trim() + ")" : ""))
+                    .toLowerCase(Locale.ROOT);
+        }
+        if (participant.getCharacter() != null) {
+            Race race = participant.getCharacter().getRaceRef();
+            String raceType = race != null ? race.getCreatureType() : null;
+            return raceType != null && !raceType.isBlank() ? raceType.trim().toLowerCase(Locale.ROOT) : "humanoid";
+        }
+        return null;
     }
 
     /**
@@ -377,6 +420,15 @@ public class CreatureStats {
      * bludgeoning, piercing and slashing damage while it rages (PHB p.48, M17).
      */
     public Set<Defence> defences(EncounterParticipant participant, String damageType) {
+        return defences(participant, damageType, false);
+    }
+
+    /**
+     * As {@link #defences(EncounterParticipant, String)}, for damage that is magical or not (D185): a resistance an Ongoing
+     * Modifier gives only against nonmagical damage, as Stoneskin's (PHB p.278), counts only against nonmagical damage,
+     * and one that strips a resistance, as Elemental Bane's (XGE p.155), takes it away.
+     */
+    public Set<Defence> defences(EncounterParticipant participant, String damageType, boolean magical) {
         if (damageType == null || damageType.isBlank()) {
             return Set.of();
         }
@@ -394,6 +446,15 @@ public class CreatureStats {
             if (lists(monster.getDamageVulnerabilities(), name + "'s damage vulnerabilities", type)) {
                 defences.add(Defence.VULNERABILITY);
             }
+            // A summoned spirit's variant adds its own, which its row lists only as conditional entries, such as the
+            // Fire Elemental Spirit's immunity to fire (TCE p.111, D182)
+            SummonLink link = participant.getSummon();
+            if (link != null && names(link.damageResistances(), type)) {
+                defences.add(Defence.RESISTANCE);
+            }
+            if (link != null && names(link.damageImmunities(), type)) {
+                defences.add(Defence.IMMUNITY);
+            }
         } else if (participant.getCharacter() != null) {
             defences.addAll(DmAdjustments.defences(participant.getCharacter(), type));
             // A druid in beast form has the beast's defences, and keeps those its own race and features give (PHB p.67)
@@ -410,12 +471,17 @@ public class CreatureStats {
             });
         }
         // Resistance an Ongoing Modifier gives, such as Warding Bond's to all damage (PHB p.287, D184)
-        if (OngoingModifiers.resists(type, ActiveModifiers.modifiersOn(participant))) {
+        List<OngoingModifier> modifiers = ActiveModifiers.modifiersOn(participant);
+        if (OngoingModifiers.resists(type, modifiers, magical)) {
             defences.add(Defence.RESISTANCE);
         }
         // A raging creature resists bludgeoning, piercing and slashing damage (PHB p.48); resistances don't stack
         if (ClassFeatures.raging(conditionNames(participant)) && ClassFeatures.rageResists(type)) {
             defences.add(Defence.RESISTANCE);
+        }
+        // Elemental Bane: the creature loses its resistance to the type chosen (XGE p.155, D185)
+        if (OngoingModifiers.losesResistance(type, modifiers)) {
+            defences.remove(Defence.RESISTANCE);
         }
         return defences;
     }
@@ -428,12 +494,21 @@ public class CreatureStats {
      * condition, so a race's immunity to it changes nothing here.
      */
     public boolean immuneToCondition(EncounterParticipant participant, String condition) {
+        return immuneToCondition(participant, condition, false);
+    }
+
+    /**
+     * As {@link #immuneToCondition(EncounterParticipant, String)}, for a condition from a magical source or not (D185):
+     * an immunity an Ongoing Modifier gives only against magic, as Freedom of Movement's to being paralyzed or restrained
+     * (PHB p.244), counts only for a magical one.
+     */
+    public boolean immuneToCondition(EncounterParticipant participant, String condition, boolean magical) {
         if (condition == null || condition.isBlank()) {
             return false;
         }
         String name = condition.trim();
         // Heroism's immunity to being frightened (PHB p.250, D184)
-        if (OngoingModifiers.immuneTo(name, ActiveModifiers.modifiersOn(participant))) {
+        if (OngoingModifiers.immuneTo(name, ActiveModifiers.modifiersOn(participant), magical)) {
             return true;
         }
         if (participant.getMonster() != null) {

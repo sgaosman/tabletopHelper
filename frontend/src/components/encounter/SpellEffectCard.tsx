@@ -1,6 +1,6 @@
 import { Link2, Move, RotateCw, X } from 'lucide-react';
 import type { SpellEffect } from '../../types/encounter';
-import { TRIGGER_LABELS, effectUseLabel, roundsLeft } from '../../utils/spellEffects';
+import { TRIGGER_LABELS, effectUseLabel, laterNotes, roundsLeft } from '../../utils/spellEffects';
 import IconButton from '../ui/IconButton';
 
 /**
@@ -9,10 +9,12 @@ import IconButton from '../ui/IconButton';
  * adds the caster's button for an effect they direct, greyed with `blockedReason`'s reason, and `onEnd` the button that
  * ends it by hand. An effect with Ongoing Modifiers (D184) names the creatures they are on, `affectedNames`, and its
  * option, with what the modifiers do as its title. `moveTargets` with `onMove` offers to move Hunter's Mark or Hex to
- * another creature (PHB p.251), which the server allows once the marked creature is at 0 hit points.
+ * another creature (PHB p.251), which the server allows once the marked creature is at 0 hit points. What the effect
+ * keeps for later (D185), such as Guardian of Faith's damage left, Fire Shield's retaliation or Vitriolic Sphere's damage
+ * still to come, is listed too, naming creatures through `nameOf`.
  */
 export default function SpellEffectCard({
-  effect, roundNumber, onUse, blockedReason, onEnd, affectedNames = [], moveTargets = [], onMove,
+  effect, roundNumber, onUse, blockedReason, onEnd, affectedNames = [], moveTargets = [], onMove, nameOf,
 }: {
   effect: SpellEffect;
   roundNumber: number;
@@ -22,8 +24,10 @@ export default function SpellEffectCard({
   affectedNames?: string[];
   moveTargets?: { id: string; name: string }[];
   onMove?: (targetId: string) => void;
+  nameOf?: (id: string) => string | undefined;
 }) {
   const left = roundsLeft(effect, roundNumber);
+  const later = laterNotes(effect, nameOf ?? (() => undefined));
   const label = effectUseLabel(effect);
   return (
     <div role="group" aria-label={`${effect.spell} effect`}
@@ -50,6 +54,9 @@ export default function SpellEffectCard({
       {effect.usesLeft != null && (
         <span className="font-body text-[13px] font-semibold text-muted">{effect.usesLeft} left</span>
       )}
+      {later.map(note => (
+        <span key={note} className="font-body text-[13px] font-semibold text-muted">{note}</span>
+      ))}
       {effect.triggers.length > 0 && (
         <span className="font-body text-[13px] font-semibold text-faint">
           On a creature: {effect.triggers.map(t => TRIGGER_LABELS[t].toLowerCase()).join(', ')}

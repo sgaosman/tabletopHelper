@@ -332,6 +332,359 @@
           ]
         }
       ]
+    },
+    {
+      "spell": "Summon Aberration",
+      "monster": "Aberrant Spirit",
+      "source": "TCE",
+      "page": 109,
+      "baseLevel": 4,
+      "acBase": 11,
+      "attack": null,
+      "actions": [],
+      "bonusActions": [],
+      "variants": [
+        {
+          "name": "Beholderkin",
+          "hpBase": 40,
+          "hpPerLevel": 10,
+          "attack": "Eye Ray",
+          "actions": [
+            {
+              "name": "Eye Ray",
+              "actionType": "ACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "RANGED_SPELL",
+              "attackBonus": "SPELL_ATTACK",
+              "targetCount": 1,
+              "description": "Ranged Spell Attack: your spell attack modifier to hit, range 150 ft., one creature.",
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "1d8 + 3 + LEVEL",
+                  "damageType": "psychic"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Slaad",
+          "hpBase": 40,
+          "hpPerLevel": 10,
+          "attack": "Claws",
+          "actions": [
+            {
+              "name": "Claws",
+              "actionType": "ACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "MELEE_WEAPON",
+              "attackBonus": "SPELL_ATTACK",
+              "targetCount": 1,
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "1d10 + 3 + LEVEL",
+                  "damageType": "slashing"
+                }
+              ],
+              "dmNote": "If the target is a creature, it can't regain hit points until the start of the aberration's next turn; the DM applies it by hand"
+            }
+          ],
+          "traits": [
+            {
+              "name": "Regeneration",
+              "description": "The aberration regains 5 hit points at the start of its turn if it has at least 1 hit point. The DM heals it by hand."
+            }
+          ]
+        },
+        {
+          "name": "Star Spawn",
+          "hpBase": 40,
+          "hpPerLevel": 10,
+          "attack": "Psychic Slam",
+          "actions": [
+            {
+              "name": "Psychic Slam",
+              "actionType": "ACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "MELEE_SPELL",
+              "attackBonus": "SPELL_ATTACK",
+              "targetCount": 1,
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "1d8 + 3 + LEVEL",
+                  "damageType": "psychic"
+                }
+              ]
+            }
+          ],
+          "traits": [
+            {
+              "name": "Whispering Aura",
+              "description": "At the start of each of the aberration's turns, each creature within 5 feet of the aberration must succeed on a DC SPELL_DC Wisdom saving throw or take 2d6 psychic damage, provided that the aberration isn't incapacitated."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "spell": "Summon Construct",
+      "monster": "Construct Spirit",
+      "source": "TCE",
+      "page": 111,
+      "baseLevel": 4,
+      "acBase": 13,
+      "attack": "Slam",
+      "actions": [
+        {
+          "name": "Slam",
+          "actionType": "ACTION",
+          "deliveryMethod": "ATTACK_ROLL",
+          "attackType": "MELEE_WEAPON",
+          "attackBonus": "SPELL_ATTACK",
+          "targetCount": 1,
+          "effects": [
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "1d8 + 4 + LEVEL",
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      ],
+      "bonusActions": [],
+      "variants": [
+        {
+          "name": "Clay",
+          "hpBase": 40,
+          "hpPerLevel": 15,
+          "reactions": [
+            {
+              "name": "Berserk Lashing",
+              "actionType": "REACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "MELEE_WEAPON",
+              "attackBonus": "SPELL_ATTACK",
+              "targetCount": 1,
+              "description": "When the construct takes damage, it makes a slam attack against a random creature within 5 feet of it. If no creature is within reach, the construct moves up to half its speed toward an enemy it can see, without provoking opportunity attacks.",
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "1d8 + 4 + LEVEL",
+                  "damageType": "bludgeoning"
+                }
+              ],
+              "dmNote": "Only when the construct takes damage, against a random creature within 5 feet; with none in reach it moves instead, which the DM resolves"
+            }
+          ]
+        },
+        {
+          "name": "Metal",
+          "hpBase": 40,
+          "hpPerLevel": 15,
+          "traits": [
+            {
+              "name": "Heated Body",
+              "description": "A creature that touches the construct or hits it with a melee attack while within 5 feet of it takes 1d10 fire damage. The DM applies it by hand."
+            }
+          ]
+        },
+        {
+          "name": "Stone",
+          "hpBase": 40,
+          "hpPerLevel": 15,
+          "traits": [
+            {
+              "name": "Stony Lethargy",
+              "description": "When a creature the construct can see starts its turn within 10 feet of the construct, the construct can force it to make a DC SPELL_DC Wisdom saving throw. On a failed save, the target can't use reactions and its speed is halved until the start of its next turn. The DM applies it by hand."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "spell": "Summon Elemental",
+      "monster": "Elemental Spirit",
+      "source": "TCE",
+      "page": 111,
+      "baseLevel": 4,
+      "acBase": 11,
+      "attack": "Slam",
+      "actions": [],
+      "bonusActions": [],
+      "variants": [
+        {
+          "name": "Air",
+          "hpBase": 50,
+          "hpPerLevel": 10,
+          "actions": [
+            {
+              "name": "Slam",
+              "actionType": "ACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "MELEE_WEAPON",
+              "attackBonus": "SPELL_ATTACK",
+              "targetCount": 1,
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "1d10 + 4 + LEVEL",
+                  "damageType": "bludgeoning"
+                }
+              ]
+            }
+          ],
+          "traits": [
+            {
+              "name": "Amorphous Form",
+              "description": "The elemental can move through a space as narrow as 1 inch wide without squeezing."
+            }
+          ],
+          "damageResistances": [
+            "lightning",
+            "thunder"
+          ]
+        },
+        {
+          "name": "Earth",
+          "hpBase": 50,
+          "hpPerLevel": 10,
+          "actions": [
+            {
+              "name": "Slam",
+              "actionType": "ACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "MELEE_WEAPON",
+              "attackBonus": "SPELL_ATTACK",
+              "targetCount": 1,
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "1d10 + 4 + LEVEL",
+                  "damageType": "bludgeoning"
+                }
+              ]
+            }
+          ],
+          "damageResistances": [
+            "piercing",
+            "slashing"
+          ]
+        },
+        {
+          "name": "Fire",
+          "hpBase": 50,
+          "hpPerLevel": 10,
+          "actions": [
+            {
+              "name": "Slam",
+              "actionType": "ACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "MELEE_WEAPON",
+              "attackBonus": "SPELL_ATTACK",
+              "targetCount": 1,
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "1d10 + 4 + LEVEL",
+                  "damageType": "fire"
+                }
+              ]
+            }
+          ],
+          "traits": [
+            {
+              "name": "Amorphous Form",
+              "description": "The elemental can move through a space as narrow as 1 inch wide without squeezing."
+            }
+          ],
+          "damageImmunities": [
+            "fire"
+          ]
+        },
+        {
+          "name": "Water",
+          "hpBase": 50,
+          "hpPerLevel": 10,
+          "actions": [
+            {
+              "name": "Slam",
+              "actionType": "ACTION",
+              "deliveryMethod": "ATTACK_ROLL",
+              "attackType": "MELEE_WEAPON",
+              "attackBonus": "SPELL_ATTACK",
+              "targetCount": 1,
+              "effects": [
+                {
+                  "effectType": "DAMAGE",
+                  "damageDice": "1d10 + 4 + LEVEL",
+                  "damageType": "bludgeoning"
+                }
+              ]
+            }
+          ],
+          "traits": [
+            {
+              "name": "Amorphous Form",
+              "description": "The elemental can move through a space as narrow as 1 inch wide without squeezing."
+            }
+          ],
+          "damageResistances": [
+            "acid"
+          ]
+        }
+      ]
+    },
+    {
+      "spell": "Spirit of Death",
+      "monster": "Reaper Spirit",
+      "source": "BMT",
+      "page": 50,
+      "baseLevel": 4,
+      "acBase": 11,
+      "attack": "Reaping Scythe",
+      "actions": [
+        {
+          "name": "Reaping Scythe",
+          "actionType": "ACTION",
+          "deliveryMethod": "ATTACK_ROLL",
+          "attackType": "MELEE_WEAPON",
+          "attackBonus": "SPELL_ATTACK",
+          "targetCount": 1,
+          "description": "Melee Weapon Attack: your spell attack modifier to hit (with advantage), reach 5 ft., the creature haunted by Haunt Creature.",
+          "effects": [
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "1d8 + 3 + LEVEL",
+              "damageType": "necrotic"
+            }
+          ],
+          "dmNote": "It attacks only the creature it haunts, with advantage; choose advantage on the roll"
+        }
+      ],
+      "bonusActions": [
+        {
+          "name": "Haunt Creature",
+          "actionType": "BONUS_ACTION",
+          "automatable": false,
+          "description": "The spirit targets a creature it can see within 10 feet of itself and begins haunting it. While the target is haunted, you and the spirit sense the direction and distance to the target if it is on the same plane of existence as you. Additionally, if the target starts its turn within 10 feet of the spirit, the target must succeed on a DC SPELL_DC Wisdom saving throw or have the frightened condition until the start of the target's next turn. The target remains haunted until it dies, the spirit disappears, or the spirit uses this action again."
+        }
+      ],
+      "variants": [
+        {
+          "name": "Reaper",
+          "hpBase": 40,
+          "hpPerLevel": 10,
+          "traits": [
+            {
+              "name": "Incorporeal Movement",
+              "description": "The spirit can move through other creatures and objects as if they were difficult terrain. If it ends its turn inside an object, it is shunted to the nearest unoccupied space and takes 1d10 force damage for every 5 feet shunted."
+            }
+          ]
+        }
+      ]
     }
   ]
 }
