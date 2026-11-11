@@ -222,6 +222,18 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      * @param rayCount                how many of its rays an Eye Rays action fires
      * @param dmNote                  what the DM applies by hand when the action is used, such as how a bite's
      *                                swallowing works; the combat log shows it
+     * @param grappleLimit            how many creatures the attack's grapple can hold at once, as a giant constrictor
+     *                                snake's constriction holds one (MM p.324) and a giant crab's two claws two (MM
+     *                                p.324); null for no limit (D203)
+     * @param grappleLimitBlocks      whether the attack can't be used on another creature while it holds its limit,
+     *                                as "the snake can't constrict another target"; otherwise it still hits, but
+     *                                grapples no one more (D203)
+     * @param immuneAfterSave         for a saving throw action, how long a creature that succeeds on its save is
+     *                                immune to it, as "for the next 24 hours" after a dragon's Frightful Presence (MM
+     *                                p.87); the immunity is kept for the encounter, and also follows once the effect
+     *                                ends for a creature that failed; null for none (D203)
+     * @param exemptTypes             creature types the whole action has no effect on, as a banshee's wail on
+     *                                constructs and undead (MM p.23); empty for none (D203)
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Action(String name, String description, Boolean automatable, String deliveryMethod,
@@ -233,12 +245,14 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                          @JsonProperty("isMultiattack") boolean multiattack, List<String> multiattackComponents,
                          String multiattackDescription, @JsonProperty("_multiattackNote") String multiattackNote,
                          @JsonProperty("isEyeRays") boolean eyeRays, Integer rayCount, List<Ray> rays,
-                         String dmNote) {
+                         String dmNote, Integer grappleLimit, boolean grappleLimitBlocks, String immuneAfterSave,
+                         List<String> exemptTypes) {
 
         public Action {
             effects = listOf(effects);
             multiattackComponents = listOf(multiattackComponents);
             rays = listOf(rays);
+            exemptTypes = listOf(exemptTypes);
         }
 
         /** A legendary action's cost: its number, or 1 when it has none or gives a range. */
@@ -275,6 +289,27 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      *                          smaller creature"; a bigger target doesn't get it (D202)
      * @param endOfUsersTurn    for a CONDITION part, it lasts until the end of the user's next turn, as a scarecrow's
      *                          frightening claw (MM p.268), not the target's (D202)
+     * @param endsWith          the condition the same hit gives that this part lasts while, ending with it: "grappled"
+     *                          for a giant constrictor snake's restraint "until this grapple ends" (MM p.324),
+     *                          "poisoned" for a carrion crawler's paralysis "until this poison ends" (MM p.37); its own
+     *                          duration and repeat save then give way to that condition's (D203)
+     * @param endsOnDamage      for a CONDITION part, it also ends when its creature takes damage (D203)
+     * @param exemptTypes       creature types the part doesn't reach, as a ghoul's paralysis passes over elves and undead
+     *                          (MM p.148); a race or a stat block's tag counts, such as "elf" (D203)
+     * @param until             for a lasting part, when it ends: LONG_REST or SHORT_REST (a rest, which the encounter
+     *                          doesn't reach, so the log reminds the table for Write-back), TARGET_TURN_END,
+     *                          TARGET_TURN_START, USER_TURN_END or USER_TURN_START; null for durationRounds, or for
+     *                          as long as endsWith's condition (D203)
+     * @param diesAtZero        for HP_MAX_REDUCTION, the creature dies if the reduction takes its maximum to 0, as a
+     *                          wight's Life Drain's (MM p.300) (D203)
+     * @param half              for HP_MAX_REDUCTION or LIFE_DRAIN, half the damage counts rather than all of it
+     * @param tempHp            for LIFE_DRAIN, the attacker gains temporary hit points rather than regaining hit points
+     * @param levels            for EXHAUSTION, how many levels the creature gains
+     * @param modifier          for MODIFIER, the Ongoing Modifier the hit leaves on its target (D184, D203)
+     * @param turnOf            for ONGOING_DAMAGE, whose turns' start deals it: TARGET (the default), or USER, as a
+     *                          stirge drains blood at the start of each of its own turns (MM p.284)
+     * @param total             for ONGOING_DAMAGE, the most it deals in all, as a stirge's 10 hit points, after which
+     *                          it and its endsWith condition end; null for no limit
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Part(String effectType, String damageDice, String damageType, String condition,
@@ -282,7 +317,23 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                        Integer durationRounds, boolean saveToEndEachTurn,
                        @JsonProperty("saveToEndDC") Integer saveToEndDc, String saveToEndAbility,
                        @JsonProperty("escapeDC") Integer escapeDc, boolean halfOnSave, DamageCondition onlyIf,
-                       boolean replacesDamage, String maxTargetSize, boolean endOfUsersTurn) {
+                       boolean replacesDamage, String maxTargetSize, boolean endOfUsersTurn, String endsWith,
+                       boolean endsOnDamage, List<String> exemptTypes, String until, boolean diesAtZero, boolean half,
+                       boolean tempHp, Integer levels, Modifier modifier, String turnOf, Integer total) {
+
+        public Part {
+            exemptTypes = listOf(exemptTypes);
+        }
+
+        /** A part with none of the riders D203 reads. */
+        public Part(String effectType, String damageDice, String damageType, String condition, Integer saveDc,
+                    String saveAbility, Integer durationRounds, boolean saveToEndEachTurn, Integer saveToEndDc,
+                    String saveToEndAbility, Integer escapeDc, boolean halfOnSave, DamageCondition onlyIf,
+                    boolean replacesDamage, String maxTargetSize, boolean endOfUsersTurn) {
+            this(effectType, damageDice, damageType, condition, saveDc, saveAbility, durationRounds, saveToEndEachTurn,
+                    saveToEndDc, saveToEndAbility, escapeDc, halfOnSave, onlyIf, replacesDamage, maxTargetSize,
+                    endOfUsersTurn, null, false, null, null, false, false, false, null, null, null, null);
+        }
 
         /** A part with none of the riders D202 reads. */
         public Part(String effectType, String damageDice, String damageType, String condition, Integer saveDc,
@@ -290,6 +341,29 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                     String saveToEndAbility, Integer escapeDc) {
             this(effectType, damageDice, damageType, condition, saveDc, saveAbility, durationRounds, saveToEndEachTurn,
                     saveToEndDc, saveToEndAbility, escapeDc, false, null, false, null, false);
+        }
+
+        /** Whether the part records a save of its own: both its DC and its ability. */
+        public boolean ownSave() {
+            return saveDc != null && saveAbility != null && !saveAbility.isBlank();
+        }
+    }
+
+    /**
+     * The Ongoing Modifier a monster's hit leaves on its target (D203), named as {@code OngoingModifier.Kind}: such as
+     * NO_HEALING for "can't regain hit points", SPEED with flat -10 for "its speed is reduced by 10 feet", SPEED_HALVED,
+     * SPEED_MAX with flat 0 for "its speed becomes 0", ATTACK_MODE, SAVE_MODE, CHECK_MODE or ATTACKED_MODE with a mode,
+     * NO_REACTIONS, or LOSE_RESISTANCE with damageTypes.
+     *
+     * @param mode    ADVANTAGE or DISADVANTAGE, for the *_MODE kinds
+     * @param flat    feet, for SPEED and SPEED_MAX
+     * @param ability the one ability whose saves or checks it changes, such as "STR"; null for all
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Modifier(String kind, String mode, Integer flat, String ability, List<String> damageTypes) {
+
+        public Modifier {
+            damageTypes = listOf(damageTypes);
         }
     }
 

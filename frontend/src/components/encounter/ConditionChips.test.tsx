@@ -116,6 +116,50 @@ describe('ConditionChips', () => {
     await waitFor(() => expect(sent).toEqual({ participantId: 'p', conditionId: 'cond-frightened' }));
   });
 
+  it("offers the DM an Escape from a monster's grapple, and names what lasts while it does (D203)", async () => {
+    setupAuthToken();
+    let sent: unknown = null;
+    server.use(http.post('/api/encounters/:id/combat/action-save', async ({ request }) => {
+      sent = await request.json();
+      return HttpResponse.json(makeMockEncounter());
+    }));
+    const grappled = makeMockCondition('grappled', {
+      sourceSpellName: 'Giant Constrictor Snake',
+      sourceAction: 'Constrict',
+      repeatSave: { ability: 'STR', dc: 16, awaitingRoll: false, byAction: true, check: true,
+        skill: 'Athletics or Acrobatics', escape: true },
+    });
+    const restrained = makeMockCondition('restrained', {
+      sourceSpellName: 'Giant Constrictor Snake', sourceAction: 'Constrict', linkedTo: grappled.id,
+    });
+    const giant = makeMockParticipant('p', 'Hill Giant', 'MONSTER', { activeConditions: [grappled, restrained] });
+    render(
+      <EncounterProvider encounterId="enc-001">
+        <ConditionChips participant={giant} roundNumber={1} showRepeatSave />
+      </EncounterProvider>,
+    );
+    expect(screen.getByText('grappled (Giant Constrictor Snake)')).toHaveAttribute('title',
+      '; escape with its action: Athletics or Acrobatics check DC 16, its better skill');
+    expect(screen.getByText('restrained (Giant Constrictor Snake)')).toHaveAttribute('title', '; lasts while grappled');
+    const escape = await screen.findByRole('button', {
+      name: 'Use the action to escape grappled: Athletics or Acrobatics check (DC 16)',
+    });
+    expect(escape).toHaveTextContent('Escape (DC 16)');
+    await userEvent.setup().click(escape);
+    await waitFor(() => expect(sent).toEqual({ participantId: 'p', conditionId: 'cond-grappled' }));
+  });
+
+  it("says a monster's net ends by a check made with the action, not a spell (D203)", () => {
+    const net = makeMockCondition('restrained', {
+      sourceSpellName: 'Kuo-toa', sourceAction: 'Net',
+      repeatSave: { ability: 'STR', dc: 10, awaitingRoll: false, byAction: true, check: true },
+    });
+    plainRender(<ConditionChips participant={makeMockParticipant('p', 'Gimli', 'PLAYER', { activeConditions: [net] })}
+      roundNumber={1} />);
+    expect(screen.getByText('restrained (Kuo-toa)'))
+      .toHaveAttribute('title', '; a STR check DC 10 made with its action ends it');
+  });
+
   it("shows Rage and Reckless Attack as the creature's own features, with what they do (M17)", () => {
     const grog = makeMockParticipant('p', 'Grog', 'PLAYER', { activeConditions: [
       makeMockCondition('raging', { duration: 10, appliedRound: 2, sourceSpellName: 'Rage' }),

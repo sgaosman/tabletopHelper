@@ -19,8 +19,27 @@ export const DAMAGE_TYPES = [
  * ("WIS save").
  */
 export function repeatRollName(save: RepeatSave): string {
+  // The escape from a monster's grapple: the creature's better of the two skills (PHB p.195, D203)
+  if (save.escape) return `${save.skill ?? 'Athletics or Acrobatics'} check`;
   if (save.skill) return `${save.ability} (${save.skill}) check`;
   return save.check ? `${save.ability} check` : `${save.ability} save`;
+}
+
+/**
+ * What a condition's chip says ends it when its creature spends its action (D188, D203): the spell for a spell's
+ * condition, the grapple for a monster's grapple, or the condition for a monster's net.
+ */
+export function actionEndText(condition: ConditionEntry): string {
+  const save = condition.repeatSave;
+  if (!save) return '';
+  if (save.escape) return `; escape with its action: ${repeatRollName(save)} DC ${save.dc}, its better skill`;
+  return `; a ${repeatRollName(save)} DC ${save.dc} made with its action ends ${condition.sourceAction ? 'it' : 'the spell'}`;
+}
+
+/** What a condition lasts while, as a restraint until its grapple ends (D203); undefined when it lasts on its own. */
+export function linkedName(participant: EncounterParticipant, condition: ConditionEntry): string | undefined {
+  if (!condition.linkedTo) return undefined;
+  return participant.activeConditions?.find(other => other.id === condition.linkedTo)?.name;
 }
 
 /** A participant's fear for its frightened entry (D201), if the server sent one. */

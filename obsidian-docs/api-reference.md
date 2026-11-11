@@ -1891,3 +1891,7 @@ Spell options gain `targetRoles` `{primaryTargets, pickedWithinFeet, darts}` (nu
 ### Frightened (D201)
 
 `POST /combat/condition/add` takes an optional `sourceParticipantId`, the creature a frightened target fears (400 for any other condition, the creature itself or an unknown participant). `PUT /combat/condition/fear-sight {participantId, conditionId, outOfSight}` marks a frightened condition's source out of sight or back (DM only, Active, undoable; 400 for a condition that isn't frightened). Participants gain `fears: [{conditionId, sourceId, sourceName, inSight, sight, markedOutOfSight}]`; the Player View blanks a hidden source.
+
+### Monster riders (D202, D203)
+
+No endpoint changed. A monster attack may answer 409 when its grappling attack already holds another creature ("can't use this attack on another target"). Conditions gain `linkedTo` and `sourceAction`; a repeat save gains `escape`, and `POST /combat/action-save` on such a condition rolls the creature's better of Athletics and Acrobatics against the escape DC, using its action.

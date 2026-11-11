@@ -2958,9 +2958,12 @@ export interface components {
             heldDie?: components["schemas"]["HeldDie"] | null;
             /** Format: uuid */
             id: string;
+            /** Format: uuid */
+            linkedTo?: string | null;
             name: string;
             repeatSave?: components["schemas"]["RepeatSave"] | null;
             saveOnDamage?: components["schemas"]["DamageSave"] | null;
+            sourceAction?: string | null;
             sourceOutOfSight?: boolean | null;
             /** Format: uuid */
             sourceParticipantId?: string | null;
@@ -3989,6 +3992,7 @@ export interface components {
             check?: boolean | null;
             /** Format: int32 */
             dc: number;
+            escape?: boolean | null;
             skill?: string | null;
         };
         RepeatSaveRequest: {

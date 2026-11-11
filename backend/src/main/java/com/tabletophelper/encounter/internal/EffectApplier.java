@@ -102,6 +102,9 @@ public class EffectApplier {
 
     private static final String UNCONSCIOUS = "unconscious";
 
+    // The condition a monster's grapple gives, which an escape check ends (PHB p.195, D203)
+    private static final String GRAPPLED = "grappled";
+
     /** The condition of a creature Banishment has removed from the fight (PHB p.217, D185). */
     public static final String BANISHED = "banished";
 
@@ -238,6 +241,7 @@ public class EffectApplier {
             retaliate(encounter, use.actor(), (Effect.Attack) effect.delivery(), applied, tempBefore);
         }
         endExtraTurnsIfOthers(encounter, use.actor(), applied);
+        endLinked(encounter);
         return applied;
     }
 
@@ -646,6 +650,7 @@ public class EffectApplier {
                 actor, target).damageDealt(total));
         logReverted(encounter, target, taken);
         afterDamage(encounter, target, before, change, total, null);
+        endLinked(encounter);
     }
 
     /** The DM's healing by hand (D028). The dead regain nothing: only Set HP revives them (D161). */
@@ -746,6 +751,7 @@ public class EffectApplier {
         if (change.died()) {
             vanishAtZero(encounter, target);
         }
+        endLinked(encounter);
     }
 
     /**
@@ -920,6 +926,7 @@ public class EffectApplier {
         if (INCAPACITATING.contains(name)) {
             endConcentration(encounter, target, name);
         }
+        endLinked(encounter);
         if (UNCONSCIOUS.equals(name)) {
             endRage(encounter, target, UNCONSCIOUS);
             // Wild Shape ends when the druid falls unconscious (PHB p.67); a spell's form only at 0 hit points or death
@@ -950,6 +957,7 @@ public class EffectApplier {
         combatLog.write(encounter, CombatActionType.CONDITION_REMOVE,
                 target.getDisplayName() + " loses condition: " + name, null, target);
         releaseFreed(encounter);
+        endLinked(encounter);
     }
 
     /**
@@ -1003,6 +1011,7 @@ public class EffectApplier {
         restoreForms(encounter, participant, List.of(ended.get()), why);
         combatLog.write(encounter, CombatActionType.CONDITION_REMOVE,
                 ended.get().name() + " ends on " + participant.getDisplayName() + " (" + why + ")", null, participant);
+        endLinked(encounter);
     }
 
     /**
@@ -1041,6 +1050,11 @@ public class EffectApplier {
         }
         ConditionEntry condition = found.get();
         RepeatSave save = condition.repeatSave();
+        // The escape from a monster's grapple (PHB p.195, D203)
+        if (save.madeByAction() && save.escapes()) {
+            escape(encounter, participant, conditions, condition);
+            return;
+        }
         // An ability check made with the action in place of the save, as Phantasmal Force's Intelligence
         // (Investigation) check (PHB p.264, D199)
         String skill = save.madeByAction() ? templateOf(condition.sourceSpellName())
@@ -1052,7 +1066,8 @@ public class EffectApplier {
             checkByAction(encounter, participant, conditions, condition, skill);
             return;
         }
-        if (save.madeByAction() && actionCheck(condition)) {
+        // A monster's net or web is broken by a Strength check its entry records (D203)
+        if (save.madeByAction() && (actionCheck(condition) || save.madeAsCheck() && save.skill() == null)) {
             abilityCheckToEnd(encounter, participant, conditions, condition);
             return;
         }
@@ -1100,6 +1115,229 @@ public class EffectApplier {
         }
         participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
         spendModifiers(encounter, roll.spentOneShots());
+        endLinked(encounter);
+    }
+
+    /*
+     * A creature escapes a monster's grapple with its action (PHB p.195, D203): a Strength (Athletics) or Dexterity
+     * (Acrobatics) check, the one with the higher bonus, Athletics on a tie, against the grapple's escape DC, with the
+     * advantage and disadvantage the engine gives an ability check (exhaustion, poisoned, a fear in sight, Ongoing
+     * Modifiers: AbilityChecks, D199, D201), as D190's escape from Maze is rolled. A success ends the grapple, and what
+     * lasted only while it did, as a restraint, goes with it.
+     */
+    private void escape(Encounter encounter, EncounterParticipant participant, List<ConditionEntry> conditions,
+                        ConditionEntry condition) {
+        RepeatSave save = condition.repeatSave();
+        int athletics = stats.skillModifier(participant, "Athletics", Ability.STR);
+        int acrobatics = stats.skillModifier(participant, "Acrobatics", Ability.DEX);
+        boolean strength = athletics >= acrobatics;
+        Ability ability = strength ? Ability.STR : Ability.DEX;
+        String skill = strength ? "Athletics" : "Acrobatics";
+        int modifier = strength ? athletics : acrobatics;
+        AbilityChecks.Roll rolled = AbilityChecks.roll(resolver::d20, AbilityChecks.sources(participant, ability,
+                skill));
+        int total = rolled.d20() + modifier;
+        boolean success = total >= save.dc();
+        String from = condition.sourceAction() != null && condition.sourceSpellName() != null
+                ? " (" + condition.sourceSpellName() + "'s " + condition.sourceAction() + ")"
+                : condition.sourceSpellName() != null ? " (" + condition.sourceSpellName() + ")" : "";
+        String description = participant.getDisplayName() + " uses its action to escape the grapple" + from + ": "
+                + (strength ? "Strength" : "Dexterity") + " (" + skill + ") check " + rolled.dice() + signed(modifier)
+                + " = " + total + " vs DC " + save.dc() + (success ? " — escapes, and " + condition.name() + " ends."
+                : " — fails, and stays " + condition.name() + ".");
+        combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.REPEAT_SAVE, description),
+                null, participant).rollValue(rolled.d20()).rollTotal(total));
+        if (success) {
+            conditions.remove(condition);
+            participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
+            endLinked(encounter);
+        }
+    }
+
+    /**
+     * Ends what lasted only while something now gone did (D203): a condition tied to another of its creature's entries,
+     * as a restraint "until this grapple ends" (MM p.324) or a paralysis "until this poison ends" (MM p.37); a monster's
+     * grapple whose grappler is dead, gone or incapacitated (PHB p.290); and a monster's lasting rider tied to a
+     * condition, as a bearded devil's "can't regain hit points" while poisoned (MM p.70). Run after anything that ends
+     * conditions or kills, and at the start of each turn.
+     */
+    public void endLinked(Encounter encounter) {
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (EncounterParticipant creature : List.copyOf(encounter.getParticipants())) {
+                List<ConditionEntry> conditions = conditions(creature);
+                Set<UUID> ids = conditions.stream().map(ConditionEntry::id).collect(Collectors.toSet());
+                Map<ConditionEntry, String> ending = new java.util.LinkedHashMap<>();
+                for (ConditionEntry condition : conditions) {
+                    if (condition.linkedTo() != null && !ids.contains(condition.linkedTo())) {
+                        ending.put(condition, "what it lasted while has ended");
+                    } else {
+                        String gone = grapplerGone(encounter, condition);
+                        if (gone != null) {
+                            ending.put(condition, gone);
+                        }
+                    }
+                }
+                if (ending.isEmpty()) {
+                    continue;
+                }
+                conditions.removeAll(ending.keySet());
+                creature.setActiveConditions(conditions.isEmpty() ? null : conditions);
+                ending.forEach((condition, why) -> combatLog.write(encounter, CombatActionType.CONDITION_REMOVE,
+                        condition.name() + " ends on " + creature.getDisplayName() + " (" + why + ")", null, creature));
+                changed = true;
+            }
+        }
+        for (EncounterParticipant holder : List.copyOf(encounter.getParticipants())) {
+            for (SpellEffectEntry effect : effects(holder)) {
+                SpellEffectEntry.MonsterRider rider = effect.monsterRider();
+                if (rider == null || rider.anchor() == null
+                        || SpellEffectEntry.MonsterRider.IMMUNITY.equals(rider.kind())) {
+                    continue;
+                }
+                boolean held = effect.affected().stream()
+                        .map(id -> participant(encounter, id))
+                        .flatMap(Optional::stream)
+                        .anyMatch(creature -> conditions(creature).stream()
+                                .anyMatch(c -> c.id().equals(rider.anchor())));
+                if (!held) {
+                    endEffect(encounter, holder, effect.id(), "its " + (rider.anchorName() != null
+                            ? rider.anchorName() : "condition") + " has ended");
+                }
+            }
+        }
+    }
+
+    // Why a monster's grapple has ended with its grappler: dead, gone or incapacitated (PHB p.290, D203); null when it
+    // holds
+    private String grapplerGone(Encounter encounter, ConditionEntry condition) {
+        if (!GRAPPLED.equalsIgnoreCase(condition.name()) || condition.sourceAction() == null
+                || condition.sourceParticipantId() == null) {
+            return null;
+        }
+        Optional<EncounterParticipant> grappler = participant(encounter, condition.sourceParticipantId());
+        if (grappler.isEmpty() || EncounterTurns.dismissed(grappler.get())) {
+            return "its grappler is gone";
+        }
+        if (grappler.get().getLifeState() == LifeState.DEAD) {
+            return grappler.get().getDisplayName() + " is dead";
+        }
+        return CreatureStats.conditionNames(grappler.get()).stream()
+                .map(name -> name.toLowerCase(Locale.ROOT))
+                .filter(INCAPACITATING::contains)
+                .findFirst()
+                .map(name -> grappler.get().getDisplayName() + " is " + name + ", so it can't hold the grapple")
+                .orElse(null);
+    }
+
+    /**
+     * The damage a monster's hit deals at the start of a turn (D203): at the start of each of the creature's turns, as a
+     * chain devil's 2d6 piercing while its chain restrains (MM p.72), or of each of the monster's, as a stirge's blood
+     * drain (MM p.284), whose hit points lost no defence changes. Rolled by the server and dealt by the monster. One with
+     * a most it deals in all ends once that is dealt, its condition with it ("the stirge detaches"), as does one whose
+     * creature dies.
+     */
+    private void monsterTurnDamage(Encounter encounter, EncounterParticipant starting) {
+        for (EncounterParticipant holder : List.copyOf(encounter.getParticipants())) {
+            for (SpellEffectEntry effect : effects(holder)) {
+                SpellEffectEntry.MonsterRider rider = effect.monsterRider();
+                if (rider == null || rider.turnDamage() == null) {
+                    continue;
+                }
+                boolean usersTurn = "USER".equalsIgnoreCase(rider.turnDamage().turnOf());
+                for (UUID id : effect.affected()) {
+                    Optional<EncounterParticipant> creature = participant(encounter, id);
+                    if (creature.isEmpty() || (usersTurn ? !holder.getId().equals(starting.getId())
+                            : !id.equals(starting.getId()))) {
+                        continue;
+                    }
+                    turnDamage(encounter, holder, effect, rider, creature.get());
+                }
+            }
+        }
+    }
+
+    private void turnDamage(Encounter encounter, EncounterParticipant holder, SpellEffectEntry effect,
+                            SpellEffectEntry.MonsterRider rider, EncounterParticipant creature) {
+        if (creature.getLifeState() == LifeState.DEAD) {
+            endMonsterRider(encounter, holder, effect, creature, creature.getDisplayName() + " is dead");
+            return;
+        }
+        SpellEffectEntry.TurnDamage turn = rider.turnDamage();
+        Optional<List<com.tabletophelper.rules.Dice>> dice = TemplateDice.read(turn.dice());
+        if (dice.isEmpty()) {
+            return;
+        }
+        String type = turn.type() != null && !turn.type().isBlank() ? turn.type() : null;
+        Effect damage = new Effect(effect.spell(), new Effect.Automatic(), dice.get().stream()
+                .map(each -> new Effect.DamagePart(each, type)).toList(), null, List.of(), false, null);
+        Use use = new Use(holder, effect.spell(), CombatActionType.SPELL_EFFECT_REPEAT,
+                type != null ? "deals its damage to" : "drains hit points from", "", effect.spell(), null);
+        List<Applied> dealt = apply(encounter, use, damage, resolver.resolve(damage,
+                List.of(stats.target(creature, damage))));
+        int taken = dealt.stream().mapToInt(Applied::damageTaken).sum();
+        if (effect.damageLeft() != null) {
+            int left = effect.damageLeft() - taken;
+            if (left <= 0) {
+                endMonsterRider(encounter, holder, effect, creature, "it has dealt all it can");
+                return;
+            }
+            replaceEffect(holder, effect.withDamageLeft(left));
+        }
+        if (creature.getLifeState() == LifeState.DEAD) {
+            endMonsterRider(encounter, holder, effect, creature, creature.getDisplayName() + " is dead");
+        }
+    }
+
+    // Ends a monster's lasting rider and the condition it was tied to, as a stirge detaching (MM p.284, D203)
+    private void endMonsterRider(Encounter encounter, EncounterParticipant holder, SpellEffectEntry effect,
+                                 EncounterParticipant creature, String why) {
+        SpellEffectEntry.MonsterRider rider = effect.monsterRider();
+        endEffect(encounter, holder, effect.id(), why);
+        if (rider != null && rider.anchor() != null) {
+            List<ConditionEntry> conditions = conditions(creature);
+            Optional<ConditionEntry> anchor = find(conditions, rider.anchor());
+            if (anchor.isPresent()) {
+                conditions.remove(anchor.get());
+                creature.setActiveConditions(conditions.isEmpty() ? null : conditions);
+                combatLog.write(encounter, CombatActionType.CONDITION_REMOVE, anchor.get().name() + " ends on "
+                        + creature.getDisplayName() + " (" + effect.spell() + " ends)", null, creature);
+            }
+        }
+        endLinked(encounter);
+    }
+
+    /** Puts on one of the monster's Spell Effects what its hit left on a creature (D203). */
+    public SpellEffectEntry holdMonsterRider(EncounterParticipant monster, UUID effectId,
+                                             SpellEffectEntry.MonsterRider rider, Integer damageLeft) {
+        SpellEffectEntry changed = find(monster, effectId).withMonsterRider(rider).withDamageLeft(damageLeft);
+        replaceEffect(monster, changed);
+        return changed;
+    }
+
+    /** Replaces one of the creature's condition entries with this one, of the same ID (D203). */
+    public void replaceCondition(EncounterParticipant creature, ConditionEntry changed) {
+        List<ConditionEntry> conditions = conditions(creature);
+        for (int i = 0; i < conditions.size(); i++) {
+            if (conditions.get(i).id().equals(changed.id())) {
+                conditions.set(i, changed);
+            }
+        }
+        creature.setActiveConditions(conditions);
+    }
+
+    /** Takes one of the creature's condition entries away, logging why (D203). */
+    public void dropCondition(Encounter encounter, EncounterParticipant creature, UUID conditionId, String why) {
+        List<ConditionEntry> conditions = conditions(creature);
+        Optional<ConditionEntry> dropped = find(conditions, conditionId);
+        if (dropped.isEmpty()) {
+            return;
+        }
+        conditions.remove(dropped.get());
+        creature.setActiveConditions(conditions.isEmpty() ? null : conditions);
+        combatLog.write(encounter, CombatActionType.CONDITION_REMOVE, dropped.get().name() + " ends on "
+                + creature.getDisplayName() + " (" + why + ")", null, creature);
     }
 
     /*
@@ -1126,6 +1364,7 @@ public class EffectApplier {
             conditions.remove(index);
         }
         participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
+        endLinked(encounter);
     }
 
     // Whether the condition's spell ends it by an ability check made with an action rather than a save, as Wrathful
@@ -1167,6 +1406,7 @@ public class EffectApplier {
             conditions.remove(condition);
             participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
             releaseFreed(encounter);
+            endLinked(encounter);
         }
     }
 
@@ -1280,6 +1520,7 @@ public class EffectApplier {
                         participant);
             }
         }
+        endLinked(encounter);
     }
 
     // ── Spell Effects (M15) ──────────────────────────────────────
@@ -1351,8 +1592,10 @@ public class EffectApplier {
         }
         effects.remove(ended.get());
         caster.setActiveEffects(effects);
-        combatLog.write(encounter, CombatActionType.SPELL_EFFECT_END, caster.getDisplayName() + "'s "
-                + ended.get().spell() + " ends (" + why + ")", null, caster);
+        // A monster's rider is named for its action already, as "Wight's Life Drain" (D203)
+        String whose = ended.get().spell().startsWith(caster.getDisplayName() + "'s ") ? ended.get().spell()
+                : caster.getDisplayName() + "'s " + ended.get().spell();
+        combatLog.write(encounter, CombatActionType.SPELL_EFFECT_END, whose + " ends (" + why + ")", null, caster);
         // A bead that explodes as the spell ends, however it ends (PHB p.230, D189)
         if (ended.get().detonation() != null) {
             detonate(encounter, caster, ended.get());
@@ -1747,6 +1990,7 @@ public class EffectApplier {
         combatLog.write(encounter, CombatActionType.CONDITION_REMOVE, actor.getDisplayName() + "'s " + spell
                 + " ends " + name + " on " + target.getDisplayName(), actor, target);
         releaseFreed(encounter);
+        endLinked(encounter);
         return true;
     }
 
@@ -1969,6 +2213,8 @@ public class EffectApplier {
         }
         escapeAttempts(encounter, creature);
         conditionDamage(encounter, creature);
+        endLinked(encounter);
+        monsterTurnDamage(encounter, creature);
         if (creature.getLifeState() == LifeState.ALIVE && conditions(creature).stream()
                 .anyMatch(c -> CONFUSED.equalsIgnoreCase(c.name()))) {
             confusedTurn(encounter, creature);
@@ -2128,6 +2374,7 @@ public class EffectApplier {
                 + " ends for " + creature.getDisplayName() + " (" + String.join(", ", ended) + "): " + why, caster,
                 creature);
         releaseFreed(encounter);
+        endLinked(encounter);
         return true;
     }
 
@@ -2314,6 +2561,7 @@ public class EffectApplier {
                 .damageDealt(0));
         endConcentration(encounter, target, "dies");
         vanishAtZero(encounter, target);
+        endLinked(encounter);
         return note;
     }
 
@@ -3521,6 +3769,12 @@ public class EffectApplier {
                                     end.saveOnDamage().advantage()) : null);
                 }
             }
+            // A monster's grapple is escaped with an action, by an Athletics or Acrobatics check against its escape
+            // DC (PHB p.195), and its net or web by a Strength check (MM p.199, D203)
+            if (end != null && end.escapeDc() != null && entry.repeatSave() == null) {
+                entry = entry.withRepeatSave(GRAPPLED.equalsIgnoreCase(name) ? RepeatSave.escape(end.escapeDc())
+                        : RepeatSave.checkByAction(Ability.STR, end.escapeDc()));
+            }
             // Whatever else ends it, attacking or casting a spell may too, as Invisibility's does (PHB p.254)
             ConditionEntry made = end != null && end.endsOnAttackOrCast() ? entry.endingOnAttackOrCast() : entry;
             boolean duplicate = conditions.stream().anyMatch(c -> c.name().equalsIgnoreCase(name)
@@ -3696,7 +3950,8 @@ public class EffectApplier {
         return roll.success() ? rolled + " succeeds against " + guardedText(save) : rolled + " fails";
     }
 
-    // What a hit's save guards: its conditions, and its damage, "4d8 poison (half on a success)" (D202)
+    // What a hit's save guards: its conditions, and its damage, "4d8 poison (half on a success)" (D202), and what else
+    // a failure brings, as "hit point maximum reduced" (D203)
     private static String guardedText(Effect.HitSave save) {
         List<String> guarded = new ArrayList<>(save.conditions());
         if (!save.damage().isEmpty()) {
@@ -3705,6 +3960,7 @@ public class EffectApplier {
                     .collect(Collectors.joining(" + ")) + " damage"
                     + (save.halfDamageOnSuccess() ? " (half taken)" : ""));
         }
+        guarded.addAll(save.riders());
         return String.join(", ", guarded);
     }
 

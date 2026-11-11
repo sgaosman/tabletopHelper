@@ -5,6 +5,7 @@ import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.shared.JacksonDefaults;
 import tools.jackson.databind.JsonNode;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,12 @@ class MonsterRidersDataTest {
         try (InputStream in = new ClassPathResource(DEFINITIONS).getInputStream()) {
             JacksonDefaults.mapper().readTree(in).forEach(definitions::add);
         }
+    }
+
+    // The data is large, and the test JVM runs the other classes after this one (D203)
+    @AfterAll
+    static void letTheDataGo() {
+        definitions.clear();
     }
 
     private static JsonNode definition(String monster, String source) {

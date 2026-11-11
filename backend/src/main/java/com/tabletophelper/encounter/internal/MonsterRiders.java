@@ -29,6 +29,13 @@ import java.util.stream.Stream;
  *       has advantage on the roll as the attack is set up (the same sources {@link AttackRules#setup} combines, as for
  *       Sneak Attack), is in a form (its conditions, the spells on it and a Wild Shape or Polymorph form), or has half
  *       its hit points or fewer. Otherwise it is skipped, and the log says so.</li>
+ *   <li>A condition or a lasting rider that passes over some creature types doesn't reach a target of one, as a
+ *       ghoul's paralysis passes over elves and undead (MM p.148); the hit's save no longer guards it (D203).</li>
+ *   <li>An attack whose grapple holds only so many creatures, as a chain devil's "if the devil isn't already grappling
+ *       a creature" (MM p.72), grapples no one more once it holds them; one that can't be used on another creature then,
+ *       as a giant constrictor snake's Constrict (MM p.324), is refused before it is rolled (D203).</li>
+ *   <li>A condition that lasts only while another of the hit does goes with it, as a restraint with a grapple the
+ *       target is too big for (D203).</li>
  * </ul>
  */
 final class MonsterRiders {
@@ -53,9 +60,14 @@ final class MonsterRiders {
             return new Against(effect, List.of());
         }
         List<String> notes = new ArrayList<>();
-        List<String> tooBig = tooBig(effect.name(), riders, participant, notes);
+        List<String> tooBig = dropped(effect, riders, attacker, participant, notes);
         List<String> conditions = effect.conditions().stream().filter(c -> !tooBig.contains(c)).toList();
         Effect.HitSave hitSave = attack.hitSave() != null ? attack.hitSave().without(tooBig) : null;
+        // Lasting riders the target is exempt from leave the save nothing more to guard (D203)
+        if (hitSave != null && riders.lasting().parts().stream().filter(MonsterTemplates.Part::ownSave)
+                .allMatch(part -> exempt(riders.lasting(), part.exemptTypes(), participant))) {
+            hitSave = hitSave.withoutRiders();
+        }
         Effect.Attack delivery = attack.withHitSave(hitSave != null && !hitSave.guardsNothing() ? hitSave : null);
 
         List<Effect.DamagePart> damage = new ArrayList<>(effect.damage());
@@ -88,6 +100,115 @@ final class MonsterRiders {
         return new Against(new Effect(effect.name(), delivery, damage, effect.healing(), conditions,
                 effect.concentration(), effect.durationRounds(), effect.conditionEnds()), List.copyOf(notes));
     }
+
+    /**
+     * The conditions an Effect's riders keep from a target (D202, D203), with a log note for each: those it is too big
+     * for, those that pass over its creature type, a grapple its attack can't add to those it holds, and those that last
+     * only while one of these would.
+     */
+    static List<String> dropped(Effect effect, MonsterEffects.Riders riders, EncounterParticipant attacker,
+                                EncounterParticipant participant, List<String> notes) {
+        List<String> dropped = new ArrayList<>(tooBig(effect.name(), riders, participant, notes));
+        MonsterEffects.Lasting lasting = riders.lasting();
+        for (String condition : effect.conditions()) {
+            List<String> types = lasting.exemptTypes().getOrDefault(condition, List.of());
+            if (!dropped.contains(condition) && exempt(lasting, types, participant)) {
+                dropped.add(condition);
+                notes.add(effect.name() + " doesn't leave " + participant.getDisplayName() + " " + condition + ": it "
+                        + "passes over " + String.join(" and ", !types.isEmpty() ? types : lasting.actionExempt())
+                        + " creatures.");
+            }
+        }
+        if (effect.conditions().contains(GRAPPLED) && !dropped.contains(GRAPPLED) && lasting.grappleLimit() != null
+                && !lasting.grappleLimitBlocks() && attacker != null && !holds(attacker, lasting.action(), participant)
+                && held(attacker, lasting.action()).size() >= lasting.grappleLimit()) {
+            dropped.add(GRAPPLED);
+            notes.add(attacker.getDisplayName() + " already holds " + lasting.grappleLimit() + " creature"
+                    + (lasting.grappleLimit() == 1 ? "" : "s") + " with " + lasting.action() + ", so "
+                    + participant.getDisplayName() + " isn't grappled.");
+        }
+        // A condition that lasts while one kept away would is kept away too, as a restraint until a grapple ends
+        boolean more = true;
+        while (more) {
+            more = false;
+            for (Map.Entry<String, String> link : lasting.endsWith().entrySet()) {
+                if (dropped.contains(link.getValue()) && !dropped.contains(link.getKey())) {
+                    dropped.add(link.getKey());
+                    more = true;
+                }
+            }
+        }
+        return dropped;
+    }
+
+    /**
+     * Why the attack can't be used on these targets (D203): its grapple can't hold another creature and it can't be
+     * used on one while it holds its limit, as "the snake can't constrict another target" (MM p.324); null when it can.
+     */
+    static String refusal(MonsterEffects.Riders riders, EncounterParticipant attacker,
+                          List<EncounterParticipant> targets) {
+        MonsterEffects.Lasting lasting = riders.lasting();
+        if (lasting.grappleLimit() == null || !lasting.grappleLimitBlocks() || attacker == null) {
+            return null;
+        }
+        List<EncounterParticipant> holding = held(attacker, lasting.action());
+        long others = targets.stream().filter(target -> !holds(attacker, lasting.action(), target)).count();
+        if (others == 0 || holding.size() + others <= lasting.grappleLimit()) {
+            return null;
+        }
+        return attacker.getDisplayName() + "'s " + lasting.action() + " already holds "
+                + holding.stream().map(EncounterParticipant::getDisplayName).collect(Collectors.joining(" and "))
+                + ", and it can't be used on another creature until " + (holding.size() == 1 ? "that grapple ends"
+                : "one of those grapples ends");
+    }
+
+    // The creatures the attacker's action holds grappled, the living ones
+    static List<EncounterParticipant> held(EncounterParticipant attacker, String action) {
+        return everyone(attacker).stream()
+                .filter(creature -> creature.getLifeState() != com.tabletophelper.rules.combat.LifeState.DEAD
+                        && holds(attacker, action, creature))
+                .toList();
+    }
+
+    // Whether the attacker's action holds the creature grappled
+    static boolean holds(EncounterParticipant attacker, String action, EncounterParticipant creature) {
+        List<ConditionEntry> entries = creature.getActiveConditions() != null ? creature.getActiveConditions()
+                : List.of();
+        return entries.stream().anyMatch(c -> GRAPPLED.equalsIgnoreCase(c.name())
+                && Objects.equals(c.sourceParticipantId(), attacker.getId()) && action != null
+                && action.equalsIgnoreCase(c.sourceAction()));
+    }
+
+    /**
+     * Whether the creature is of one of the types, or of one the whole action passes over (D203): its creature type as
+     * spells read it, a stat block's tags included, such as "humanoid (elf)", or its race, so an elf passes but a
+     * half-elf, which isn't one, doesn't.
+     */
+    static boolean exempt(MonsterEffects.Lasting lasting, List<String> types, EncounterParticipant creature) {
+        List<String> all = new ArrayList<>(types);
+        all.addAll(lasting.actionExempt());
+        if (all.isEmpty()) {
+            return false;
+        }
+        String type = CreatureStats.typeForSpells(creature);
+        String race = creature.getCharacter() != null && creature.getCharacter().getRaceRef() != null
+                && creature.getCharacter().getRaceRef().getName() != null
+                ? creature.getCharacter().getRaceRef().getName() : "";
+        String described = ((type != null ? type : "") + " " + race).toLowerCase(Locale.ROOT);
+        return all.stream().anyMatch(wanted -> java.util.regex.Pattern.compile("(?<![a-z-])"
+                + java.util.regex.Pattern.quote(wanted.trim().toLowerCase(Locale.ROOT)) + "s?\\b")
+                .matcher(described).find());
+    }
+
+    // The participants of the creature's encounter, or itself alone without one, as in a unit test
+    private static List<EncounterParticipant> everyone(EncounterParticipant anyone) {
+        if (anyone.getEncounter() == null || anyone.getEncounter().getParticipants() == null) {
+            return List.of(anyone);
+        }
+        return anyone.getEncounter().getParticipants().stream().filter(Objects::nonNull).toList();
+    }
+
+    private static final String GRAPPLED = "grappled";
 
     /**
      * The conditions an Effect's riders keep from a target too big for them, with a log note for each, and a note to

@@ -35,8 +35,23 @@ poisoned", "have the prone condition"), with "until the end of the X's next turn
 smaller creature" as maxTargetSize. A clause that only applies sometimes ("if", "while", "until this grapple ends",
 "reduces ... to 0 hit points") or says more than the parts can is the dmNote's, "Also on a hit, applied by hand: ...".
 
+What lasts beyond a hit (D203) reuses what spells do: "its hit point maximum is reduced by an amount equal to the
+damage taken" is HP_MAX_REDUCTION (until a long rest, diesAtZero when "the target dies if this effect reduces its hit
+point maximum to 0"), "the vampire regains hit points equal to that amount" LIFE_DRAIN, "gain 1 level of exhaustion"
+EXHAUSTION, "can't regain hit points", a speed reduced or halved, disadvantage, advantage against it or no reactions
+until a turn's end or start MODIFIER, and damage at the start of each of its turns ONGOING_DAMAGE. A condition or rider
+that lasts while another of the hit does carries endsWith ("until this grapple ends, the target is restrained", "while
+poisoned in this way, the target can't regain hit points"), and takes that condition's save; "if the target is a
+creature other than an undead or a construct" is exemptTypes; a stirge's "attaches to the target" is an attached
+condition with its drain at the start of the stirge's turns. The attack keeps how many creatures its grapple holds
+(grappleLimit, "the crab has two claws, each of which can grapple only one target") and whether it can't be used on
+another meanwhile (grappleLimitBlocks, "the snake can't constrict another target"); a saving throw action keeps the
+immunity a success gives (immuneAfterSave) and the creature types it has no effect on (exemptTypes). A rider tied to a
+condition the parts don't give goes back to the DM's note.
+
 Then a rider pass gives every hand-built entry's attacks what their stat block's hit gives beyond their own parts,
-leaving their attack bonus and damage alone, and marks each change so the next run takes it away first (rider_pass).
+leaving their attack bonus and damage alone, and marks each change so the next run takes it away first (rider_pass);
+its saving throw actions get the immunity and exemptions their stat block gives (D203).
 
 Usage, from backend/:  python scripts/generate_monster_actions.py [--check]
 --check writes nothing and exits 1 if the file would change.
@@ -131,8 +146,8 @@ QUALIFIER = re.compile(r"\b(?:if|while|unless|when|whenever|instead|except|no lo
                        r"disease|curse|effect)|swallow\w*|engulf\w*|start of each|end of each|each of its turns|"
                        r"reduces?\b[^.]*\bto 0 hit points)\b")
 REPEAT_ANY = re.compile(r"(?:(?:the target|a target|it|the creature|a creature|the [a-z]+ target) )?(?:can |must )?repeat(?:s|ing)? "
-                        r"the saving throw at the end of each of its turns(?:, ending the effect on itself on a "
-                        r"success)?")
+                        r"the saving throw at the end of each of its turns(?:, ending the (?:effect|poison|condition) "
+                        r"on itself on a success)?")
 FAILED = re.compile(r'\bon a failed save\b|\bor (?:take|takes)\b|\bor (?:it )?(?:take|takes|suffer)\b')
 # The words a read clause may still hold; any other word in it is a rider the DM applies
 FILLER = set('''the target target's it is be become becomes has have condition conditions and or a an creature must
@@ -345,6 +360,438 @@ def read_clause(clause, following):
     return parts, bool(parts) and not unread_words(clause)
 
 
+# ── Lasting riders, linked conditions and grapple limits (D203) ──────────────────────────────────────────────────────
+# A hit's clauses that reuse what spells do: a hit point maximum reduced by the damage (HP_MAX_REDUCTION), life drain
+# (LIFE_DRAIN), exhaustion (EXHAUSTION), an Ongoing Modifier (MODIFIER: can't regain hit points, speed, disadvantage,
+# no reactions), and damage at the start of each turn (ONGOING_DAMAGE). A condition that lasts while another of the
+# hit does carries endsWith ("until this grapple ends, the target is restrained", "until this poison ends, the target
+# is paralyzed"); a part that passes over some creature types carries exemptTypes ("if the target is a creature other
+# than an undead or a construct"); and the attack keeps how many creatures its grapple holds (grappleLimit) and whether
+# it can't be used on another meanwhile (grappleLimitBlocks). A saving throw action keeps the immunity a success gives
+# (immuneAfterSave) and the creature types it has no effect on (exemptTypes).
+NAME = r"(?:the )?[a-z][a-z'-]*(?: [a-z'-]+){0,4}?"
+DICE = r'\d+ \((\d+d\d+(?:\s*[+-]\s*\d+)?)\)'
+ABILITY = r'(strength|dexterity|constitution|intelligence|wisdom|charisma)'
+SAVE_OR = r'(?:(?:the target|it|the creature|a creature) must succeed on a dc (\d+) ' + ABILITY + r' saving throw,? or )?'
+WHO = r"(?:the target|it|the creature|a creature|the target's|its|the creature's)"
+UNTIL = (r"(?: (until the (?:end|start) of (?:its|the target's|the creature's|" + NAME + r"'s) next turn|for 1 minute|"
+         r"until (?:it|the target|the creature) finishes a (?:long|short or long) rest))?")
+TYPES_RE = r'(?:an? )?(?:%s|elf|elves|monstrosities)s?' % '|'.join(CREATURE_TYPES)
+EXEMPTION = re.compile(r'^(?:if the target is (?:a creature other than|not) (' + TYPES_RE + r'(?:(?:, or |, | or | and )'
+                       + TYPES_RE + r')*)),?\s*', re.I)
+COUNT_WORDS = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9,
+               'ten': 10, 'only one': 1}
+
+
+def norm(clause):
+    """A clause as the readers below match it: plain, lower-cased, without a leading "and", "if the target is a
+    creature," or full stop."""
+    text = re.sub(r'^[\s,;]*(?:and\s+)?', '', plain(clause)).strip().rstrip('.').strip()
+    return re.sub(r'^if the target is a creature,\s*', '', text)
+
+
+def exemption(clause):
+    """The creature types a clause passes over ("If the target is a creature other than an elf or undead, ..."), and
+    the clause without them, its tags kept; none and the clause as it was when it names none."""
+    raw = re.sub(r'^[\s,;]*(?:and\s+)?', '', clause)
+    match = EXEMPTION.match(raw)
+    if not match:
+        return [], clause
+    rest = raw[match.end():]
+    return types_in(match.group(1).lower()), rest[:1].upper() + rest[1:]
+
+
+def until_of(text):
+    """The end a lasting rider's words give it: until the end or start of the target's or the user's next turn, for a
+    minute, or until a rest; {} for none."""
+    if not text:
+        return {}
+    if text == 'for 1 minute':
+        return {'durationRounds': 10}
+    if 'short or long rest' in text:
+        return {'until': 'SHORT_REST'}
+    if 'long rest' in text:
+        return {'until': 'LONG_REST'}
+    edge = 'END' if 'until the end' in text else 'START'
+    whose = 'TARGET' if re.search(r"of (?:its|the target's|the creature's) next turn", text) else 'USER'
+    return {'until': '%s_TURN_%s' % (whose, edge)}
+
+
+def save_keys(match_dc, match_ability):
+    return {'saveDC': int(match_dc), 'saveAbility': ABILITIES[match_ability]} if match_dc else {}
+
+
+# One Ongoing Modifier a hit leaves, as its words say it, each with the kind it is
+MODIFIER_WORDS = [
+    (re.compile(WHO + r" speed is reduced by (\d+) feet"), lambda m: {'kind': 'SPEED', 'flat': -int(m.group(1))}),
+    (re.compile(WHO + r" speed is halved"), lambda m: {'kind': 'SPEED_HALVED'}),
+    (re.compile(WHO + r" speed (?:becomes|is reduced to|is) 0"), lambda m: {'kind': 'SPEED_MAX', 'flat': 0}),
+    (re.compile(r"(?:(?:the target|it|the creature|a creature) )?(?:can't|be unable to|is unable to) take reactions"),
+     lambda m: {'kind': 'NO_REACTIONS'}),
+    (re.compile(r"(?:(?:the target|it|the creature|a creature) )?can't regain hit points"),
+     lambda m: {'kind': 'NO_HEALING'}),
+    (re.compile(r"(?:(?:the target|it|the creature) )?(?:has|have) disadvantage on attack rolls"),
+     lambda m: {'kind': 'ATTACK_MODE', 'mode': 'DISADVANTAGE'}),
+    (re.compile(r"(?:(?:the target|it|the creature) )?(?:has|have) disadvantage on (?:all )?(?:(strength|dexterity|"
+                r"constitution|intelligence|wisdom|charisma) )?saving throws"),
+     lambda m: dict({'kind': 'SAVE_MODE', 'mode': 'DISADVANTAGE'},
+                    **({'ability': ABILITIES[m.group(1)]} if m.group(1) else {}))),
+    (re.compile(r"(?:(?:the target|it|the creature) )?(?:has|have) disadvantage on (?:(strength|dexterity|"
+                r"constitution|intelligence|wisdom|charisma) checks|ability checks)"),
+     lambda m: dict({'kind': 'CHECK_MODE', 'mode': 'DISADVANTAGE'},
+                    **({'ability': ABILITIES[m.group(1)]} if m.group(1) else {}))),
+    (re.compile(r"attack rolls (?:made )?against (?:it|the target|the creature) have advantage"),
+     lambda m: {'kind': 'ATTACKED_MODE', 'mode': 'ADVANTAGE'}),
+]
+
+
+def modifier_part(text):
+    """A MODIFIER part for one Ongoing Modifier's words, or None."""
+    for pattern, make in MODIFIER_WORDS:
+        match = pattern.fullmatch(text)
+        if match:
+            return {'effectType': 'MODIFIER', 'modifier': make(match)}
+    return None
+
+
+def modifiers_of(text):
+    """The MODIFIER parts of words joined with "and" or commas ("its speed is halved, and it can't take reactions"),
+    or None when any of them isn't one."""
+    pieces = [p for p in re.split(r',\s*and\s+|,\s*|\s+and\s+', text) if p]
+    parts = [modifier_part(p) for p in pieces]
+    return parts if parts and all(parts) else None
+
+
+HP_MAX = re.compile(SAVE_OR + r"(?:(?:the target's|its|the creature's) hit point maximum is (?:also )?reduced|"
+                    r"(?:have|has) its hit point maximum reduced) by (?:an amount equal to (half )?(?:the )?"
+                    r"(?:(acid|cold|fire|lightning|necrotic|poison|psychic|radiant|thunder|force) )?damage "
+                    r"(?:taken|dealt|the target takes)|" + DICE + r")"
+                    r"(?:,? and (" + NAME + r") (?:magically )?regains hit points equal to (?:that amount|the damage "
+                    r"(?:dealt|taken)))?")
+HP_MAX_LASTS = re.compile(r"(?:this|the) reduction(?: to (?:the target's|its|a creature's|the creature's) hit point "
+                          r"maximum)? lasts until (?:the target|the creature|it) finishes a (long|short or long) rest")
+HP_MAX_DIES = re.compile(r"(?:the (?:target|creature) dies if (?:this effect|this attack|the reduction|this|it) "
+                         r"reduces its hit point maximum to 0|the (?:target|creature) dies if its hit point maximum "
+                         r"is reduced to 0|if this (?:effect|attack) reduces (?:a creature's|the target's|its) hit "
+                         r"point maximum to 0, the (?:target|creature) dies)")
+DRAIN = re.compile(r"(" + NAME + r") (?:magically )?(regains hit points|gains temporary hit points) equal to (half )?"
+                   r"(?:the (?:amount of )?|that amount)(?:(acid|cold|fire|lightning|necrotic|poison|psychic|radiant|"
+                   r"thunder|force) )?(?:damage (?:dealt|taken|the target takes))?(?: if the target is a creature)?")
+EXHAUST = re.compile(SAVE_OR + r"(?:gain|gains|suffer|suffers) (1|one|a|2|two) levels? of exhaustion")
+MODIFIER_CLAUSE = re.compile(SAVE_OR + r"(.+?)" + UNTIL)
+WHILE_POISONED = re.compile(r"(?:while poisoned in this way|until this poison ends),? (?:the target|a creature|it) "
+                            r"(?:is (?:also )?|has the )(paralyzed|unconscious|incapacitated|stunned|restrained)"
+                            r"(?: condition)?(?:,? and (can't regain hit points))?")
+POISONED_TAIL = re.compile(r"(?:the target|it) is (?:also )?(paralyzed|unconscious|incapacitated) while poisoned in "
+                           r"this way")
+WHILE_POISONED_RIDERS = re.compile(r"while poisoned in this way, (?:the target|a creature|it) (.+)")
+GRAPPLE_RESTRAINS = re.compile(r"(?:(?:until (?:this|the) grapple ends|until the grappled condition ends|while "
+                               r"grappled(?: in this way)?),? (?:the target|the creature|it) (?:is|has the|also has "
+                               r"the) (restrained|blinded|frightened|incapacitated)(?: condition)?|(?:it|the target) is "
+                               r"(restrained) until (?:this|the) grapple ends)(.*)")
+GRAPPLED_AND = re.compile(r"(.*?\(escape dc \d+\)) and (is restrained|has the restrained condition|takes " + DICE
+                          + r" ([a-z]+) damage at the start of each of its turns) until (?:this|the) grapple ends")
+GRAPPLE_DAMAGE = re.compile(r"(?:until (?:this|the) grapple ends,? )?(?:the target|the creature|it) takes " + DICE
+                            + r" ([a-z]+) damage at the start of each of (its|" + NAME + r"'s) turns(?: until "
+                            r"(?:this|the) grapple ends)?(.*)")
+CANT_OTHER = re.compile(r"(?:(?:until (?:this|the) grapple ends|while (?:the )?[a-z' -]+ is grappling (?:a|the) "
+                        r"(?:target|creature)),? )?(?:" + NAME + r"|it) can't (?:constrict|bite|use (?:its|the same|"
+                        r"this) [a-z ]+?(?: attack)? (?:on|against)|attack) (?:another|other) (?:target|creature)s?"
+                        r"(?: with (?:its|his|her|their) [a-z ]+)?")
+LIMIT = re.compile(r"(?:" + NAME + r"|it) can (?:grapple|constrain) (?:only one|one|(?:no more than|up to) (two|three|"
+                   r"four|five|six)) (?:target|creature)s?(?: (?:with|using) (?:its|his|her|the) [a-z' ]+?)?"
+                   r"(?: at a time)?(?: (?:with|using) (?:its|his|her|the) [a-z' ]+)?|(?:" + NAME + r") can have "
+                   r"(?:only one|up to (two|three|four)) (?:creature|target)s? grappled(?: (?:in )?this way)?"
+                   r"(?: at a time)?")
+LIMBS = re.compile(r"(?:" + NAME + r") has (two|three|four|five|six|seven|eight|nine|ten) ([a-z]+)(?:, each of which "
+                   r"can grapple (?:only )?one (?:target|creature))?")
+NOT_ALREADY = re.compile(r",? if (?:" + NAME + r") (?:isn't|is not) already (?:grappling|constricting) (?:a|another) "
+                         r"(?:creature|target)")
+NOT_ALREADY_RAW = re.compile(NOT_ALREADY.pattern, re.I)
+ATTACHES = re.compile(r"(" + NAME + r") attaches (?:itself )?to (?:the target|it)")
+ATTACHED_DRAIN = re.compile(r"(?:instead, )?at the start of each of (" + NAME + r")'s turns, the target (?:loses "
+                            + DICE + r" hit points(?: due to blood loss)?|takes " + DICE + r" ([a-z]+) damage)")
+TURN_LOSS = re.compile(SAVE_OR + r"(?:(?:the target|it|the creature) )?(?:lose|loses) " + DICE + r" hit points at the start of each of its turns"
+                       r"(?: due to an? [a-z ]+)?")
+TURN_TAKE = re.compile(SAVE_OR + r"(?:(?:the target|it|the creature) )?(?:take|takes) " + DICE + r" ([a-z]+) damage at the start of each of its turns"
+                       r"(?: due to an? [a-z ]+)?")
+DETACH = re.compile(r"(?:as an action, )?a creature(?: within reach of [a-z' -]+)?(?:, including the target,)? can "
+                    r"(?:try to |take its action to |use its action to )?detach (?:it|[a-z' -]+?)(?:,? doing so with a "
+                    r"successful| by (?:making a successful|succeeding on a)) dc (\d+) strength check(?: as an action)?")
+DRAINS_TOTAL = re.compile(r"it does so after it drains (\d+) hit points of blood from the target or the target dies")
+IMMUNE = re.compile(r"(?:is|are) immune to (?:the |this |that )?[a-z' -]*?(?:'s )?[a-z' -]+ (for (?:the next )?24 hours"
+                    r"|for (?:the next )?(?:1 hour|hour)|until (?:it|the creature) finishes a long rest)")
+NO_EFFECT_ON = re.compile(r"(?:this [a-z ]+ has no effect on|(?:it|they) (?:have|has) no effect on) (" + TYPES_RE
+                          + r"(?:(?:, or |, | or | and )" + TYPES_RE + r")*)|(" + TYPES_RE + r"(?:(?:, or |, | or | and )"
+                          + TYPES_RE + r")*) are immune to this effect")
+
+
+def types_in(text):
+    found = []
+    for word in re.findall(r'[a-z]+', text):
+        word = {'elves': 'elf', 'monstrosities': 'monstrosity'}.get(word, word)
+        if word.endswith('s') and word[:-1] in CREATURE_TYPES:
+            word = word[:-1]
+        if word in CREATURE_TYPES or word == 'elf':
+            found.append(word)
+    return sorted(set(found))
+
+
+def last(parts, effect_type, **match):
+    for part in reversed(parts):
+        if part.get('effectType') == effect_type and all(part.get(k) == v for k, v in match.items()):
+            return part
+    return None
+
+
+def read_more(clause, effects, conditions_read, action_keys, previous=None):
+    """What a clause of a hit says beyond read_clause (D203): new parts, and whether that is all it says; None when it
+    is none of these. Continuation clauses change the parts already read ("This reduction lasts until ...", "The target
+    dies if ...", "It does so after it drains 10 hit points ..."), and the attack's grapple limit goes in
+    action_keys. previous is the part read last, which a clause going on from it ("..., and it takes ...") follows."""
+    text = norm(clause)
+    built = effects + conditions_read
+    if not text:
+        return None
+    # Hit point maximum reduced, and life drain equal to that amount
+    match = HP_MAX.fullmatch(text)
+    if match:
+        dc, ability, half, kind, dice, drainer = match.groups()
+        part = dict({'effectType': 'HP_MAX_REDUCTION', 'until': 'LONG_REST'}, **save_keys(dc, ability))
+        if dice:
+            part['damageDice'] = dice.strip()
+        if kind:
+            part['damageType'] = kind
+        if half:
+            part['half'] = True
+        parts = [part]
+        if drainer:
+            parts.append(dict({'effectType': 'LIFE_DRAIN'}, **({'damageType': kind} if kind else {}),
+                              **save_keys(dc, ability)))
+        return parts, True
+    match = HP_MAX_LASTS.fullmatch(text)
+    if match and last(built, 'HP_MAX_REDUCTION'):
+        last(built, 'HP_MAX_REDUCTION')['until'] = 'SHORT_REST' if 'short' in match.group(1) else 'LONG_REST'
+        return [], True
+    if HP_MAX_DIES.fullmatch(text) and last(built, 'HP_MAX_REDUCTION'):
+        last(built, 'HP_MAX_REDUCTION')['diesAtZero'] = True
+        return [], True
+    if re.fullmatch(r"the reduction lasts until the target finishes a long rest\. the target dies if its hit point "
+                    r"maximum is reduced to 0", text) and last(built, 'HP_MAX_REDUCTION'):
+        last(built, 'HP_MAX_REDUCTION').update({'until': 'LONG_REST', 'diesAtZero': True})
+        return [], True
+    match = DRAIN.fullmatch(text)
+    if match:
+        part = {'effectType': 'LIFE_DRAIN'}
+        if 'temporary' in match.group(2):
+            part['tempHp'] = True
+        if match.group(3):
+            part['half'] = True
+        reduced = last(built, 'HP_MAX_REDUCTION') if 'that amount' in text else None
+        kind = match.group(4) or (reduced or {}).get('damageType')
+        if kind:
+            part['damageType'] = kind
+        if reduced is not None:
+            part.update({k: reduced[k] for k in ('saveDC', 'saveAbility') if k in reduced})
+        return [part], True
+    match = EXHAUST.fullmatch(text)
+    if match:
+        dc, ability, count = match.groups()
+        return [dict({'effectType': 'EXHAUSTION', 'levels': 2 if count in ('2', 'two') else 1},
+                     **save_keys(dc, ability))], True
+    # A condition that lasts while the poisoning does, with what else it brings meanwhile
+    match = WHILE_POISONED.fullmatch(text) or POISONED_TAIL.fullmatch(text)
+    if match:
+        parts = [{'effectType': 'CONDITION', 'condition': match.group(1), 'endsWith': 'poisoned'}]
+        if match.re is WHILE_POISONED and match.group(2):
+            parts.append({'effectType': 'MODIFIER', 'modifier': {'kind': 'NO_HEALING'}, 'endsWith': 'poisoned'})
+        return inherit(parts, built, 'poisoned'), True
+    match = WHILE_POISONED_RIDERS.fullmatch(text)
+    if match and last(built, 'CONDITION', condition='poisoned') is not None:
+        parts = linked_riders(match.group(1), 'poisoned')
+        if parts:
+            return inherit(parts, built, 'poisoned'), True
+    # A restraint while grappled, with damage each turn and the attack's limit after it
+    match = GRAPPLE_RESTRAINS.fullmatch(text)
+    if match:
+        parts = [{'effectType': 'CONDITION', 'condition': match.group(1) or match.group(2), 'endsWith': 'grappled'}]
+        rest = match.group(3).strip(' ,')
+        if rest:
+            more = grapple_tail(rest, action_keys)
+            if more is None:
+                return parts, False
+            parts.extend(more)
+        return parts, True
+    match = GRAPPLE_DAMAGE.fullmatch(text)
+    if match and (text.startswith('until') or 'until' in text):
+        parts = [{'effectType': 'ONGOING_DAMAGE', 'damageDice': match.group(1).strip(), 'damageType': match.group(2),
+                  'endsWith': 'grappled'}]
+        if match.group(3) != 'its':
+            parts[0]['turnOf'] = 'USER'
+        rest = match.group(4).strip(' ,')
+        if rest:
+            more = grapple_tail(rest, action_keys)
+            if more is None:
+                return parts, False
+            parts.extend(more)
+        return parts, True
+    # The attack's grapple limit
+    if CANT_OTHER.fullmatch(text):
+        action_keys['grappleLimitBlocks'] = True
+        action_keys.setdefault('grappleLimit', 1)
+        return [], True
+    match = LIMIT.fullmatch(text)
+    if match:
+        count = match.group(1) or match.group(2)
+        action_keys['grappleLimit'] = COUNT_WORDS.get(count, 1) if count else 1
+        return [], True
+    match = LIMBS.fullmatch(text)
+    if match and ('grapple' in text or match.group(2) in ('tentacles', 'claws', 'arms', 'tendrils', 'vines')):
+        action_keys['grappleLimit'] = COUNT_WORDS[match.group(1)]
+        return [], True
+    # Attached, with its drain at the start of the attacker's turns
+    match = ATTACHES.fullmatch(text)
+    if match:
+        return [{'effectType': 'CONDITION', 'condition': 'attached'}], True
+    match = ATTACHED_DRAIN.fullmatch(text)
+    if match and last(built, 'CONDITION', condition='attached') is not None:
+        dice = match.group(2) or match.group(3)
+        part = {'effectType': 'ONGOING_DAMAGE', 'damageDice': dice.strip(), 'turnOf': 'USER', 'endsWith': 'attached'}
+        if match.group(4):
+            part['damageType'] = match.group(4)
+        return [part], True
+    match = DRAINS_TOTAL.fullmatch(text)
+    if match and last(built, 'ONGOING_DAMAGE', endsWith='attached') is not None:
+        last(built, 'ONGOING_DAMAGE', endsWith='attached')['total'] = int(match.group(1))
+        return [], True
+    # Detaching it with a Strength check made as an action, which the attached creature can roll
+    match = DETACH.fullmatch(text)
+    if match and last(built, 'CONDITION', condition='attached') is not None:
+        last(built, 'CONDITION', condition='attached')['escapeDC'] = int(match.group(1))
+        return [], True
+    # Damage at the start of each of its turns until the DM ends it, as an infernal wound
+    match = TURN_LOSS.fullmatch(text) or TURN_TAKE.fullmatch(text)
+    if match:
+        dc, ability, dice = match.groups()[:3]
+        part = dict({'effectType': 'ONGOING_DAMAGE', 'damageDice': dice.strip()}, **save_keys(dc, ability))
+        if match.re is TURN_TAKE:
+            part['damageType'] = match.group(4)
+        # "..., and it takes 21 (6d6) poison damage at the start of each of its turns" goes on from the clause before,
+        # lasting while the same condition does
+        if not dc and text.startswith('it ') and isinstance(previous, dict) and previous.get('endsWith'):
+            part.update({k: previous[k] for k in ('endsWith', 'saveDC', 'saveAbility') if k in previous})
+        elif not dc:
+            # Damage each turn with neither a save nor an end it lasts while is the DM's: its end is in words the
+            # parts don't say
+            return None
+        return [part], True
+    # An Ongoing Modifier for a while, with or without a save
+    match = MODIFIER_CLAUSE.fullmatch(text)
+    if match and match.group(4):
+        dc, ability, words, until = match.groups()
+        parts = modifiers_of(words)
+        if parts:
+            for part in parts:
+                part.update(until_of(until))
+                part.update(save_keys(dc, ability))
+            return parts, True
+    return None
+
+
+def linked_riders(words, anchor):
+    """The riders of words that last while a condition does: "can't regain hit points, and it takes 7 (2d6) poison
+    damage at the start of each of its turns", or None when any piece isn't one."""
+    parts = []
+    for piece in re.split(r',?\s+and\s+(?:it\s+)?|,\s+', words):
+        piece = piece.strip()
+        if not piece:
+            continue
+        damage = re.fullmatch(r'(?:it )?takes ' + DICE + r' ([a-z]+) damage at the start of each of its turns', piece)
+        condition = re.fullmatch(r'(?:has the|is) (paralyzed|unconscious|incapacitated|stunned|restrained)'
+                                 r'(?: condition)?', piece)
+        modifier = modifier_part(piece) or modifier_part('it ' + piece)
+        if damage:
+            parts.append({'effectType': 'ONGOING_DAMAGE', 'damageDice': damage.group(1).strip(),
+                          'damageType': damage.group(2), 'endsWith': anchor})
+        elif condition:
+            parts.append({'effectType': 'CONDITION', 'condition': condition.group(1), 'endsWith': anchor})
+        elif modifier:
+            modifier['endsWith'] = anchor
+            parts.append(modifier)
+        else:
+            return None
+    return parts or None
+
+
+def inherit(parts, built, anchor):
+    """Parts that last while a condition does take that condition's save, so a success keeps them away as well."""
+    held = last(built, 'CONDITION', condition=anchor)
+    if held is not None and 'saveDC' in held:
+        for part in parts:
+            part.setdefault('saveDC', held['saveDC'])
+            part.setdefault('saveAbility', held['saveAbility'])
+    return parts
+
+
+def grapple_tail(rest, action_keys):
+    """What follows "until this grapple ends, the target is restrained": damage each turn and the attack's limit; None
+    when it says more."""
+    parts = []
+    for piece in re.split(r',?\s+and\s+', rest):
+        piece = re.sub(r'^and\s+', '', piece.strip(' ,'))
+        if not piece:
+            continue
+        damage = re.fullmatch(r'(?:it )?takes ' + DICE + r' ([a-z]+) damage at the start of each of its turns', piece)
+        if damage:
+            parts.append({'effectType': 'ONGOING_DAMAGE', 'damageDice': damage.group(1).strip(),
+                          'damageType': damage.group(2), 'endsWith': 'grappled'})
+        elif CANT_OTHER.fullmatch(piece):
+            action_keys['grappleLimitBlocks'] = True
+            action_keys.setdefault('grappleLimit', 1)
+        else:
+            return None
+    return parts
+
+
+def grapple_clause(clause, action_keys):
+    """A grapple clause that also restrains or deals damage until the grapple ends ("it is grappled (escape DC 16) and
+    is restrained until this grapple ends"), or holds only while the attacker grapples no one else ("if the devil
+    isn't already grappling a creature"): the clause to read for the grapple, and the parts the rest gives."""
+    raw = clause
+    extra = []
+    if NOT_ALREADY.search(plain(raw)):
+        action_keys.setdefault('grappleLimit', 1)
+        raw = NOT_ALREADY_RAW.sub('', raw)
+    match = GRAPPLED_AND.fullmatch(plain(raw).strip().rstrip('.'))
+    if match:
+        if match.group(2).startswith('takes'):
+            extra.append({'effectType': 'ONGOING_DAMAGE', 'damageDice': match.group(3).strip(),
+                          'damageType': match.group(4), 'endsWith': 'grappled'})
+        else:
+            extra.append({'effectType': 'CONDITION', 'condition': 'restrained', 'endsWith': 'grappled'})
+        # The grapple's own words, which read_clause reads
+        cut = re.search(r'\(escape \{@dc \d+\}\)', raw)
+        if cut:
+            raw = raw[:cut.end()] + '.'
+    return raw, extra
+
+
+def save_riders(raw):
+    """The action keys a saving throw action's text gives (D203): how long a success makes a creature immune to it,
+    and the creature types it has no effect on."""
+    keys = {}
+    text = plain(raw)
+    match = IMMUNE.search(text)
+    if match and re.search(r'success|succeeds|successful', text):
+        keys['immuneAfterSave'] = match.group(1)
+    match = NO_EFFECT_ON.search(text)
+    if match:
+        found = types_in(match.group(1) or match.group(2))
+        if found:
+            keys['exemptTypes'] = found
+    return keys
+
+
 def flatten(entries):
     """The raw text of a stat-block entry list, tags kept: strings, nested entries and list items."""
     parts = []
@@ -487,10 +934,15 @@ def attack(action, raw, description):
     reading = read_hit(hit)
     if reading['versatile']:
         action['versatile'] = reading['versatile']
-    effects = reading['effects']
+    # What is tied to a condition the hit doesn't give is the DM's (D203)
+    names = {p['condition'] for p in reading['effects'] if p['effectType'] == 'CONDITION'}
+    dropped, clauses = unanchored(reading, names)
+    reading['leftover'] = reading['leftover'] + clauses
+    effects = [p for p in reading['effects'] if not any(p is d for d in dropped)]
     if not effects:
         return manual(action, description, "The hit's effect is not damage the app can roll: " + describe(hit))
     action['effects'] = effects
+    action.update(reading['action'])
     note = hit_note(reading)
     if note:
         action['dmNote'] = note
@@ -519,6 +971,11 @@ def read_hit(hit):
     for sentence in rest:
         clauses.extend((c, False) for c in SUBCLAUSE.split(sentence) if c and c.strip(' .,;'))
     conditions_read, leftover = [], []
+    # The attack's grapple limit, which the action keeps (D203), and the part read last
+    action_keys = {}
+    previous = None
+    # Each part read with the clause it came from, so one tied to a condition no part gives goes back to the DM
+    sources = []
     # A hit with a list of effects to choose from ("one of the following") leaves them all to the DM
     options = bool(OPTIONS.search(hit))
     for index, (clause, in_first) in enumerate(clauses):
@@ -533,12 +990,31 @@ def read_hit(hit):
         # "The target can repeat the saving throw ..." once a condition it ends has been read
         if REPEAT_ANY.fullmatch(plain(clause).strip(' .'))                 and any(c.get('saveToEndEachTurn') for c in conditions_read):
             continue
-        parts, read = read_clause(clause, following)
+        # The creature types the clause passes over, then what it says that lasts or ties to another condition (D203)
+        types, readable = exemption(clause)
+        more = read_more(readable, effects, conditions_read, action_keys, previous)
+        if more is not None:
+            parts, read = more
+        else:
+            grapple_extra = []
+            if GRAPPLE.search(readable):
+                readable, grapple_extra = grapple_clause(readable, action_keys)
+            parts, read = read_clause(readable, following)
+            parts = parts + grapple_extra
         for part in parts:
-            if part['effectType'] == 'DAMAGE':
+            previous = part
+            sources.append((part, clause))
+            if types and part['effectType'] != 'DAMAGE':
+                part['exemptTypes'] = types
+            if part['effectType'] != 'CONDITION':
                 effects.append(part)
-            elif part['condition'] not in [c['condition'] for c in conditions_read]:
+                continue
+            same = next((c for c in conditions_read if c['condition'] == part['condition']), None)
+            if same is None:
                 conditions_read.append(part)
+            else:
+                for k, v in part.items():
+                    same.setdefault(k, v)
         # A clause of a first sentence left as a choice is already in the choice's note
         if not read and not (in_first and choice):
             leftover.append(clause)
@@ -552,7 +1028,20 @@ def read_hit(hit):
         elif not effects:
             effects.append({'effectType': 'CONDITION', 'condition': 'restrained',
                             'escapeDC': int(restrained.group(1))})
-    return {'effects': effects, 'choice': choice, 'first': first, 'leftover': leftover, 'versatile': two_handed}
+    return {'effects': effects, 'choice': choice, 'first': first, 'leftover': leftover, 'versatile': two_handed,
+            'action': action_keys, 'sources': sources}
+
+
+def unanchored(reading, names):
+    """The parts read that last while a condition none of the parts gives, as a restraint "until the grapple ends" of a
+    grapple the parts don't read ("grappled (DC 24)"), and their clauses, which go back to the DM (D203)."""
+    dropped, clauses = [], []
+    for part, clause in reading['sources']:
+        if part.get('endsWith') and part['endsWith'] not in names:
+            dropped.append(part)
+            if clause not in clauses and clause not in reading['leftover']:
+                clauses.append(clause)
+    return dropped, clauses
 
 
 def hit_note(reading, leftover=None):
@@ -615,6 +1104,8 @@ def saving_throw(action, raw, description):
         if targets:
             action['targetCount'] = COUNTS[targets.group(1)]
     action['effects'] = effects
+    # The immunity a success gives, and the creature types the action passes over (D203)
+    action.update(save_riders(raw))
     if choice:
         action['dmNote'] = 'The damage type or amount is a choice the DM settles by hand: ' + description
     elif RIDER.search(description):
@@ -758,7 +1249,8 @@ def merged(existing, generated):
 #   - a part the pass adds has "_rider": "added";
 #   - a key it adds to a part the entry had lists in that part's "_riderKeys", or "_riderNulls" when it replaced a null;
 #   - a part it takes away is kept in the action's "_riderRemoved" with its place;
-#   - what it adds to the dmNote is the action's "_riderNote", with "_riderNoteNew" when there was no dmNote.
+#   - what it adds to the dmNote is the action's "_riderNote", with "_riderNoteNew" when there was no dmNote;
+#   - a key it adds to the action itself, as a grapple limit or a save's immunity (D203), lists in "_riderActionKeys".
 RIDER_LISTS = (('action', 'actions', 'ACTION'), ('bonus', 'bonusActions', 'BONUS_ACTION'),
                ('reaction', 'reactions', 'REACTION'), ('legendary', 'legendaryActions', 'LEGENDARY'),
                ('mythic', 'mythicActions', 'MYTHIC'))
@@ -766,7 +1258,13 @@ DAMAGE_RIDER_KEYS = ('saveDC', 'saveAbility', 'halfOnSave', 'onlyIf', 'replacesD
 RIDER_STATS = ('attacks matched', 'attacks changed', 'damage given a save', 'damage given a condition',
                'damage added', 'base damage restored', 'flat damage added', 'conditions added', 'conditions given a save',
                'conditions given a size limit', 'conditions given a duration or end', 'conditions removed',
-               'dmNotes added', 'dmNotes extended')
+               'dmNotes added', 'dmNotes extended', 'lasting riders added', 'conditions linked',
+               'conditions given an exemption', 'turn damage moved off the hit', 'grapple limits added',
+               'save actions matched', 'save actions given an immunity or exemption')
+# The keys of a condition that tie it to another or keep it from some creatures (D203)
+LINK_KEYS = ('endsWith', 'exemptTypes', 'endsOnDamage')
+LASTING_TYPES = ('HP_MAX_REDUCTION', 'LIFE_DRAIN', 'EXHAUSTION', 'MODIFIER', 'ONGOING_DAMAGE')
+ACTION_KEYS = ('grappleLimit', 'grappleLimitBlocks', 'immuneAfterSave', 'exemptTypes')
 
 
 def strip_riders(action):
@@ -789,6 +1287,20 @@ def strip_riders(action):
             action.pop('dmNote', None)
         elif action.get('dmNote', '').endswith(' ' + note):
             action['dmNote'] = action['dmNote'][:-len(note) - 1]
+    for k in action.pop('_riderActionKeys', []):
+        action.pop(k, None)
+
+
+def add_action_keys(action, keys):
+    """Adds the action-level keys the action lacks, marking each (D203); whether any was added."""
+    added = False
+    for k, v in keys.items():
+        if k in action:
+            continue
+        action[k] = v
+        action.setdefault('_riderActionKeys', []).append(k)
+        added = True
+    return added
 
 
 def add_keys(part, keys):
@@ -828,7 +1340,12 @@ def add_riders(action, reading, stats):
     effects = action['effects']
     original = [p for p in effects if isinstance(p, dict)]
     before = json.dumps(action, sort_keys=True)
-    built = reading['effects']
+    # What is tied to a condition neither the entry nor its stat block gives is the DM's (D203)
+    names = {(p.get('condition') or '').lower() for p in original} | {p['condition'] for p in reading['effects']
+                                                                         if p['effectType'] == 'CONDITION'}
+    dropped, clauses = unanchored(reading, names)
+    reading = dict(reading, leftover=reading['leftover'] + clauses)
+    built = [p for p in reading['effects'] if not any(p is d for d in dropped)]
     for part in (p for p in built if p['effectType'] == 'DAMAGE' and ('saveDC' in p or 'onlyIf' in p)):
         keys = {k: part[k] for k in DAMAGE_RIDER_KEYS if k in part}
         same = next((p for p in original if p.get('effectType') == 'DAMAGE' and dice_key(p) == dice_key(part)
@@ -873,6 +1390,34 @@ def add_riders(action, reading, stats):
             ends['escapeDC'] = part['escapeDC']
         if ends and add_keys(same, ends):
             stats['conditions given a duration or end'] += 1
+        # Lasting while another condition does, ending on damage, passing over some creature types (D203)
+        if 'endsWith' in part and add_keys(same, {k: part[k] for k in ('endsWith',) + (('saveDC', 'saveAbility')
+                                                  if 'saveDC' in part and not action_save else ()) if k in part}):
+            stats['conditions linked'] += 1
+        if 'exemptTypes' in part and add_keys(same, {'exemptTypes': part['exemptTypes']}):
+            stats['conditions given an exemption'] += 1
+        if part.get('endsOnDamage'):
+            add_keys(same, {'endsOnDamage': True})
+    # What lasts beyond the hit (D203): added as the stat block gives it, beside any the entry has
+    for part in (p for p in built if p['effectType'] in LASTING_TYPES):
+        if any(p.get('effectType') == part['effectType'] and p.get('modifier') == part.get('modifier')
+               for p in original):
+            continue
+        effects.append(dict(part, _rider='added'))
+        stats['lasting riders added'] += 1
+        # Damage each turn the entry dealt on the hit instead, as a chain devil's 2d6 piercing, comes off the hit
+        if part['effectType'] == 'ONGOING_DAMAGE':
+            hit = {dice_key(p) for p in built if p['effectType'] == 'DAMAGE'}
+            for index, other in reversed(list(enumerate(effects))):
+                if any(other is o for o in original) and other.get('effectType') == 'DAMAGE' \
+                        and dice_key(other) == dice_key(part) and dice_key(other) not in hit \
+                        and not any(other.get(k) is not None for k in DAMAGE_RIDER_KEYS):
+                    action.setdefault('_riderRemoved', []).insert(0, {'at': index, 'part': other})
+                    del effects[index]
+                    stats['turn damage moved off the hit'] += 1
+                    break
+    if reading['action'] and add_action_keys(action, reading['action']):
+        stats['grapple limits added'] += 1
     # A condition the stat block gives only once its damage drops the target to 0 hit points, as the phase spider's
     # poisoning, doesn't come with a hit
     built_names = {p['condition'] for p in built if p['effectType'] == 'CONDITION'}
@@ -913,6 +1458,18 @@ def hand_built(actions, name):
     return alike[0] if len(alike) == 1 else None
 
 
+def save_pass(actions, stat, raw, stats):
+    """A hand-built saving throw action gets the immunity its stat block's success gives and the creature types it
+    has no effect on (D203)."""
+    action = hand_built(actions, parse_name(stat['name'])[0])
+    if action is None or action.get('deliveryMethod') != 'SAVING_THROW' or action.get('automatable') is False:
+        return
+    stats['save actions matched'] += 1
+    keys = save_riders(raw)
+    if keys and add_action_keys(action, keys):
+        stats['save actions given an immunity or exemption'] += 1
+
+
 def rider_pass(entry, monster, stats):
     """The rider pass over one hand-built entry and its stat block."""
     for key_5e, key_def, action_type in RIDER_LISTS:
@@ -923,6 +1480,9 @@ def rider_pass(entry, monster, stats):
             if not isinstance(stat, dict) or not stat.get('name') or stat['name'].startswith('Multiattack'):
                 continue
             raw = flatten(stat.get('entries'))
+            if not ATK.search(raw) and saves(raw):
+                save_pass(actions, stat, raw, stats)
+                continue
             if not ATK.search(raw) or '{@h}' not in raw:
                 continue
             action = hand_built(actions, parse_name(stat['name'])[0])
