@@ -104,24 +104,46 @@ public class MonsterEffects {
      * @param actionExempt    the creature types the whole action passes over
      * @param guardedByHit    whether the hit's save guards the lasting riders with a save of their own, so a success
      *                        keeps them away
+     * @param onlyIf          by condition, what must hold for the target to get it, as a kraken's bite swallows only a
+     *                        creature it is grappling (MM p.197, D204)
+     * @param swallows        by condition, the gullet a swallowed or engulfed condition puts the creature in (D204)
+     * @param targetTypes     the only creature types the action affects, as a ghost's Possession takes a humanoid (MM
+     *                        p.147, D204); empty for any
+     * @param targetGrappled  the action is only for a creature the monster is grappling, as a giant toad's Swallow (MM
+     *                        p.329, D204)
      */
     public record Lasting(String action, List<MonsterTemplates.Part> parts, Map<String, String> endsWith,
                           Map<String, List<String>> exemptTypes, List<String> actionExempt, Integer grappleLimit,
-                          boolean grappleLimitBlocks, String immuneAfterSave, boolean guardedByHit) {
+                          boolean grappleLimitBlocks, String immuneAfterSave, boolean guardedByHit,
+                          Map<String, MonsterTemplates.DamageCondition> onlyIf,
+                          Map<String, MonsterTemplates.Swallow> swallows, List<String> targetTypes,
+                          boolean targetGrappled) {
 
         public static final Lasting NONE = new Lasting(null, List.of(), Map.of(), Map.of(), List.of(), null, false,
-                null, false);
+                null, false, Map.of(), Map.of(), List.of(), false);
 
         public Lasting {
             parts = List.copyOf(parts);
             endsWith = Map.copyOf(endsWith);
             exemptTypes = Map.copyOf(exemptTypes);
             actionExempt = List.copyOf(actionExempt);
+            onlyIf = onlyIf != null ? Map.copyOf(onlyIf) : Map.of();
+            swallows = swallows != null ? Map.copyOf(swallows) : Map.of();
+            targetTypes = targetTypes != null ? List.copyOf(targetTypes) : List.of();
+        }
+
+        /** What lasts with no condition gates, gullets or target types (D203). */
+        public Lasting(String action, List<MonsterTemplates.Part> parts, Map<String, String> endsWith,
+                       Map<String, List<String>> exemptTypes, List<String> actionExempt, Integer grappleLimit,
+                       boolean grappleLimitBlocks, String immuneAfterSave, boolean guardedByHit) {
+            this(action, parts, endsWith, exemptTypes, actionExempt, grappleLimit, grappleLimitBlocks, immuneAfterSave,
+                    guardedByHit, Map.of(), Map.of(), List.of(), false);
         }
 
         public boolean none() {
             return parts.isEmpty() && endsWith.isEmpty() && exemptTypes.isEmpty() && actionExempt.isEmpty()
-                    && grappleLimit == null && immuneAfterSave == null;
+                    && grappleLimit == null && immuneAfterSave == null && onlyIf.isEmpty() && swallows.isEmpty()
+                    && targetTypes.isEmpty() && !targetGrappled;
         }
     }
 
@@ -397,7 +419,10 @@ public class MonsterEffects {
         // What the action leaves once applied (D203)
         Lasting lasting = new Lasting(name, parts.lasting(), parts.endsWith(), parts.exemptTypes(),
                 action.exemptTypes().stream().map(type -> type.trim().toLowerCase()).toList(), action.grappleLimit(),
-                action.grappleLimitBlocks(), action.immuneAfterSave(), delivery instanceof Effect.Attack);
+                action.grappleLimitBlocks(), action.immuneAfterSave(), delivery instanceof Effect.Attack,
+                parts.onlyIf(), parts.swallows(),
+                action.targetTypes().stream().map(type -> type.trim().toLowerCase()).toList(),
+                action.targetGrappled());
         riders = new Riders(riders.maxTargetSize(), riders.conditionalDamage(), riders.firstDamageParts(), lasting);
         return new Read(new Effect(name, delivery, damage, null, conditions, false, null,
                 parts.conditionEnds()), null, List.copyOf(notes), riders);
@@ -418,6 +443,12 @@ public class MonsterEffects {
                     + (part.damageType() != null ? " " + part.damageType() + " damage" : " hit points lost")
                     + " each turn";
             case MODIFIER -> part.modifier() != null ? modifierText(part.modifier()) : "an effect";
+            case COUNTED_SAVES -> "turning " + (part.counted() != null && part.counted().failureCondition() != null
+                    ? part.counted().failureCondition() : "for good");
+            case ABILITY_REDUCTION -> (part.ability() != null ? part.ability() : "an ability") + " score reduced";
+            case AT_ZERO -> "what a drop to 0 hit points brings";
+            case ON_KILL -> "rising when slain";
+            case POSSESSION -> "possession";
             default -> type.toLowerCase();
         };
     }
@@ -463,8 +494,14 @@ public class MonsterEffects {
     static final String EXHAUSTION = "EXHAUSTION";
     static final String MODIFIER = "MODIFIER";
     static final String ONGOING_DAMAGE = "ONGOING_DAMAGE";
+    /** The long tail's lasting riders (D204). */
+    static final String COUNTED_SAVES = "COUNTED_SAVES";
+    static final String ABILITY_REDUCTION = "ABILITY_REDUCTION";
+    static final String AT_ZERO = "AT_ZERO";
+    static final String ON_KILL = "ON_KILL";
+    static final String POSSESSION = "POSSESSION";
     private static final Set<String> LASTING = Set.of(HP_MAX_REDUCTION, LIFE_DRAIN, EXHAUSTION, MODIFIER,
-            ONGOING_DAMAGE);
+            ONGOING_DAMAGE, COUNTED_SAVES, ABILITY_REDUCTION, AT_ZERO, ON_KILL, POSSESSION);
 
     // "(if the target is prone)", the stat block's words for a conditional damage
     static String conditionText(ConditionalDamage conditional) {
@@ -521,7 +558,9 @@ public class MonsterEffects {
                          boolean healing, boolean other, List<Effect.DamagePart> guardedDamage,
                          Set<ConditionSave> damageSaves, boolean halfOnSave, Riders riders,
                          List<MonsterTemplates.Part> lasting, Set<ConditionSave> riderSaves,
-                         Map<String, String> endsWith, Map<String, List<String>> exemptTypes) {
+                         Map<String, String> endsWith, Map<String, List<String>> exemptTypes,
+                         Map<String, MonsterTemplates.DamageCondition> onlyIf,
+                         Map<String, MonsterTemplates.Swallow> swallows) {
     }
 
     // A saving throw against a condition: its ability and DC
@@ -558,6 +597,9 @@ public class MonsterEffects {
         Set<ConditionSave> riderSaves = new LinkedHashSet<>();
         Map<String, String> endsWith = new LinkedHashMap<>();
         Map<String, List<String>> exemptTypes = new LinkedHashMap<>();
+        // A condition only some targets get, and a swallower's gullet (D204)
+        Map<String, MonsterTemplates.DamageCondition> onlyIf = new LinkedHashMap<>();
+        Map<String, MonsterTemplates.Swallow> swallows = new LinkedHashMap<>();
         for (MonsterTemplates.Part effect : effects) {
             String effectType = effect.effectType() != null ? effect.effectType().toUpperCase() : "OTHER";
             if (LASTING.contains(effectType)) {
@@ -621,6 +663,12 @@ public class MonsterEffects {
                             exemptTypes.put(name, effect.exemptTypes().stream()
                                     .map(type -> type.trim().toLowerCase()).toList());
                         }
+                        if (effect.onlyIf() != null) {
+                            onlyIf.put(name, effect.onlyIf());
+                        }
+                        if (effect.swallow() != null) {
+                            swallows.put(name, effect.swallow());
+                        }
                         boolean ownSave = effect.saveDc() != null || effect.saveAbility() != null;
                         // Nor is a creature attached to it, as a stirge attaches (MM p.284, D203)
                         if (ownSave || !GRAPPLED.equals(name) && !ATTACHED.equals(name)) {
@@ -635,7 +683,7 @@ public class MonsterEffects {
         }
         return new Parts(damage, conditions, conditionEnds, conditionSaves, healing, other, guarded, damageSaves,
                 halfOnSave, new Riders(maxTargetSize, conditional, firstDamageParts), lasting, riderSaves, endsWith,
-                exemptTypes);
+                exemptTypes, onlyIf, swallows);
     }
 
     // Null when the effect gives the condition no duration, Repeat Save or escape DC. One that lasts while another

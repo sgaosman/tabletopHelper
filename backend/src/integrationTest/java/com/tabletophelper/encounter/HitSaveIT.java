@@ -29,7 +29,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * DC 13 Strength save against prone, bites Aria, a player's character with 40 HP, AC 12, STR 10 and INT 10. A Mind
  * Flayer's seeded tentacles (MM) grapple on a hit and keep their DC 15 Intelligence save against stunning apart from
  * saveDC. A Kraken's bite (MM) is read from the seeded data file itself: its DC 25 Constitution save is the kraken's own,
- * to regurgitate what it swallowed, so Aria takes the piercing damage and rolls nothing. The dice are scripted, so
+ * to regurgitate what it swallowed, so Aria takes the piercing damage and rolls nothing; not grappled, she isn't
+ * swallowed (D204). The dice are scripted, so
  * each attack hits and Aria's save succeeds or fails as the test needs.
  */
 class HitSaveIT extends IntegrationTest {
@@ -178,8 +179,8 @@ class HitSaveIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("A Kraken's bite deals its piercing damage, rolls no Constitution save for Aria and notes the "
-            + "swallowing for the DM")
+    @DisplayName("A Kraken's bite deals its piercing damage, rolls no Constitution save for Aria and swallows only a "
+            + "creature it grapples")
     void krakenBiteRollsNoSaveForTheTarget() {
         // 15 + 17 hits AC 12 for 4 + 4 + 4 + 10; nothing else is rolled
         dice.script(15, 4, 4, 4);
@@ -192,8 +193,8 @@ class HitSaveIT extends IntegrationTest {
         assertThat(dice.remaining()).isZero();
         List<String> log = descriptions(dmLog());
         assertThat(log).contains("Kraken uses Bite on Aria: d20(15) + 17 = 32 vs AC 12 — hit, 22 piercing damage.");
-        assertThat(log).anyMatch(entry -> entry.startsWith("Kraken uses Bite. Swallowing is applied by hand. On a hit,")
-                && entry.contains("DC 25 Constitution saving throw"));
+        // The bite swallows only a creature the kraken grapples (MM p.197, D204)
+        assertThat(log).contains("Aria isn't swallowed by Bite: only a creature it is grappling.");
         assertThat(log).noneMatch(entry -> entry.contains("CON save"));
     }
 

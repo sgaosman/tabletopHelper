@@ -165,7 +165,13 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
          * What the spell gives that the app doesn't roll, in {@link #note}, so it shows on the creature as long as the
          * spell lasts, as Darkvision's darkvision (PHB p.230) or Water Breathing's breathing underwater (PHB p.287, D199).
          */
-        NOTE
+        NOTE,
+        /**
+         * An ability score lowered by {@link #flat} (a negative amount), the score named by {@link #ability}, as a
+         * shadow's Strength Drain lowers Strength until a short or long rest (MM p.269, D204): the creature's saves,
+         * checks and the other numbers the engine works out from the score change with it.
+         */
+        ABILITY_SCORE
     }
 
     /** Whose rolls a modifier changes. */
@@ -313,6 +319,7 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
                     + (flat > 0 ? flat + " ft." : "equal to its walking speed");
             case BONUS_DASH -> "can Dash as a bonus action";
             case NOTE -> note != null && !note.isBlank() ? note : "an effect the DM applies";
+            case ABILITY_SCORE -> (ability != null ? abilityName(ability) : "ability") + " score " + signed(flat);
         } + (until != null ? " (" + untilWords() + ")" : "");
     }
 
@@ -365,6 +372,19 @@ public record OngoingModifier(UUID id, Kind kind, Scope scope, String dice, int 
         if (ability == null) return "saving throws";
         if (DEATH.equalsIgnoreCase(ability)) return "death saving throws";
         return ability.toUpperCase(Locale.ROOT) + " saving throws";
+    }
+
+    // "Strength" for "STR", for an ABILITY_SCORE modifier (D204)
+    private static String abilityName(String code) {
+        return switch (code.trim().toUpperCase(Locale.ROOT)) {
+            case "STR" -> "Strength";
+            case "DEX" -> "Dexterity";
+            case "CON" -> "Constitution";
+            case "INT" -> "Intelligence";
+            case "WIS" -> "Wisdom";
+            case "CHA" -> "Charisma";
+            default -> code;
+        };
     }
 
     private String untilWords() {

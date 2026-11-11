@@ -63,6 +63,8 @@ public class MonsterHitEffects {
     private final CreatureStats stats;
     private final CombatLogWriter combatLog;
     private final Rng rng;
+    // Raises what a monster's hit kills, as D189's Finger of Death does (D204)
+    private final Summoner summoner;
 
     /**
      * Applies what the step leaves on each creature it reached, logging it, and gives back the log's words.
@@ -78,6 +80,7 @@ public class MonsterHitEffects {
             EncounterParticipant target = result.target();
             stamp(target, result.conditionsAdded(), action);
             link(encounter, monster, action, lasting, target, result, notes);
+            swallow(encounter, monster, action, lasting, result, notes);
             if (lasting.immuneAfterSave() != null && step.effect().delivery() instanceof Effect.Save) {
                 immunity(encounter, monster, action, lasting, result, notes);
             }
@@ -90,7 +93,7 @@ public class MonsterHitEffects {
                 if (part.ownSave() && saved && lasting.guardedByHit()) {
                     continue;
                 }
-                apply(encounter, monster, action, lasting, part, result, notes, modifiers);
+                apply(encounter, monster, action, lasting, part, result, notes, modifiers, step);
             }
             if (!modifiers.isEmpty()) {
                 modify(encounter, monster, action, lasting, target, modifiers, notes);
@@ -108,12 +111,27 @@ public class MonsterHitEffects {
     public List<EncounterParticipant> immune(EncounterParticipant monster, MonsterEffects.Step step,
                                              List<EncounterParticipant> targets, List<String> notes) {
         MonsterEffects.Lasting lasting = step.riders().lasting();
-        if (!(step.effect().delivery() instanceof Effect.Save)) {
-            return List.of();
-        }
         String action = lasting.action() != null ? lasting.action() : step.effect().name();
         List<EncounterParticipant> immune = new ArrayList<>();
+        // An action for some creature types only, as a ghost's Possession takes "one humanoid" (MM p.147, D204)
+        if (!lasting.targetTypes().isEmpty()) {
+            MonsterEffects.Lasting only = new MonsterEffects.Lasting(action, List.of(), java.util.Map.of(),
+                    java.util.Map.of(), lasting.targetTypes(), null, false, null, false);
+            for (EncounterParticipant target : targets) {
+                if (!MonsterRiders.exempt(only, List.of(), target)) {
+                    immune.add(target);
+                    notes.add(action + " has no effect on " + target.getDisplayName() + ": it affects only "
+                            + String.join(" and ", lasting.targetTypes()) + " creatures.");
+                }
+            }
+        }
+        if (!(step.effect().delivery() instanceof Effect.Save)) {
+            return immune;
+        }
         for (EncounterParticipant target : targets) {
+            if (immune.contains(target)) {
+                continue;
+            }
             if (!lasting.actionExempt().isEmpty() && MonsterRiders.exempt(lasting, List.of(), target)) {
                 immune.add(target);
                 notes.add(action + " has no effect on " + target.getDisplayName() + ": it passes over "
@@ -175,7 +193,7 @@ public class MonsterHitEffects {
     // One lasting rider on one creature; the Ongoing Modifiers are gathered, to be left together
     private void apply(Encounter encounter, EncounterParticipant monster, String action,
                        MonsterEffects.Lasting lasting, MonsterTemplates.Part part, EffectApplier.Applied result,
-                       List<String> notes, List<Anchored> modifiers) {
+                       List<String> notes, List<Anchored> modifiers, MonsterEffects.Step step) {
         EncounterParticipant target = result.target();
         String label = monster.getDisplayName() + "'s " + action;
         if (MonsterRiders.exempt(lasting, part.exemptTypes(), target)) {
@@ -203,9 +221,311 @@ public class MonsterHitEffects {
             case MonsterEffects.MODIFIER -> modifiers.add(new Anchored(part, anchor));
             case MonsterEffects.ONGOING_DAMAGE -> turnDamage(encounter, monster, action, label, part, target, anchor,
                     notes);
+            case MonsterEffects.COUNTED_SAVES -> countSaves(encounter, monster, action, label, part, result, step,
+                    notes);
+            case MonsterEffects.ABILITY_REDUCTION -> reduceAbility(encounter, monster, action, label, part, target,
+                    notes);
+            case MonsterEffects.AT_ZERO -> atZero(encounter, monster, action, label, part, result, notes);
+            case MonsterEffects.ON_KILL -> onKill(encounter, monster, label, part, result, notes);
+            case MonsterEffects.POSSESSION -> possess(encounter, monster, action, label, target, notes);
             default -> {
             }
         }
+    }
+
+    // ── Swallowing (D204) ────────────────────────────────────────
+
+    /*
+     * A creature the action swallowed or engulfed goes into the monster's gullet (D204), as into a purple worm's (MM
+     * p.255): the monster's grapple on it ends ("and the grapple ends"), and the monster holds a Spell Effect for the
+     * gullet, named for the action, with every creature inside as its affected creatures and what makes it regurgitate
+     * them. The blindness, restraint and damage each turn are the action's other parts, tied to the condition, so they
+     * end with it.
+     */
+    private void swallow(Encounter encounter, EncounterParticipant monster, String action,
+                         MonsterEffects.Lasting lasting, EffectApplier.Applied result, List<String> notes) {
+        EncounterParticipant target = result.target();
+        for (ConditionEntry entry : result.conditionsAdded()) {
+            String name = entry.name().toLowerCase(Locale.ROOT);
+            MonsterTemplates.Swallow spec = lasting.swallows().get(name);
+            if (spec == null || current(target, entry.id()).isEmpty()) {
+                continue;
+            }
+            List<ConditionEntry> held = target.getActiveConditions() != null ? target.getActiveConditions()
+                    : List.of();
+            List<UUID> grapples = held.stream()
+                    .filter(c -> "grappled".equalsIgnoreCase(c.name())
+                            && Objects.equals(c.sourceParticipantId(), monster.getId()))
+                    .map(ConditionEntry::id)
+                    .toList();
+            // The grapple's own ties, whose names kept the swallow's from being given a moment ago
+            List<String> tiedToGrapple = held.stream()
+                    .filter(c -> c.linkedTo() != null && grapples.contains(c.linkedTo()))
+                    .map(c -> c.name().toLowerCase(Locale.ROOT))
+                    .toList();
+            grapples.forEach(grapple -> effectApplier.dropCondition(encounter, target, grapple, name + " by "
+                    + monster.getDisplayName() + ", the grapple ends"));
+            // What lasted only while the grapple did, as its restraint, ends with it
+            effectApplier.endLinked(encounter);
+            // The swallow's own restraint and blindness, which the grapple's of the same name kept from being given
+            // a moment ago, as a giant toad's restraint while it grapples (MM p.329)
+            for (java.util.Map.Entry<String, String> tied : lasting.endsWith().entrySet()) {
+                List<ConditionEntry> now = target.getActiveConditions() != null
+                        ? new ArrayList<>(target.getActiveConditions()) : new ArrayList<>();
+                if (!tied.getValue().equals(name) || !tiedToGrapple.contains(tied.getKey())
+                        || now.stream().anyMatch(c -> tied.getKey().equalsIgnoreCase(c.name())
+                        && entry.id().equals(c.linkedTo()))) {
+                    continue;
+                }
+                now.add(ConditionEntry.fromEffect(tied.getKey(), null, encounter.getRoundNumber(),
+                        monster.getDisplayName(), monster.getId(), null).fromAction(action).linkedTo(entry.id()));
+                target.setActiveConditions(now);
+            }
+            Optional<SpellEffectEntry> gullet = EffectApplier.effects(monster).stream()
+                    .filter(effect -> effect.monsterRider() != null
+                            && SpellEffectEntry.MonsterRider.SWALLOW.equals(effect.monsterRider().kind())
+                            && action.equalsIgnoreCase(effect.monsterRider().action()))
+                    .findFirst();
+            if (gullet.isPresent()) {
+                effectApplier.addAffected(monster, gullet.get().id(), List.of(target));
+            } else {
+                SpellEffectEntry effect = effectApplier.startEffect(encounter, monster, monster.getDisplayName()
+                        + "'s " + action + " (" + name + ")", null, null, null, null, false);
+                effectApplier.startModifiers(encounter, monster, effect.id(), List.of(target), List.of(), null, null,
+                        null, false);
+                effectApplier.holdMonsterRider(monster, effect.id(), new SpellEffectEntry.MonsterRider(
+                        SpellEffectEntry.MonsterRider.SWALLOW, action, null, name, null, null,
+                        new SpellEffectEntry.Gullet(name, spec.regurgitateDamage(), spec.regurgitateDc(),
+                                spec.escapeFeet(), 0)), null);
+            }
+            notes.add(target.getDisplayName() + " is " + name + " by " + monster.getDisplayName() + " (" + action
+                    + "): it has total cover against attacks and other effects outside it"
+                    + (spec.regurgitateDamage() != null ? "; " + spec.regurgitateDamage() + " damage or more from "
+                    + "inside on a single turn makes " + monster.getDisplayName() + (spec.regurgitateDc() != null
+                    ? " save (DC " + spec.regurgitateDc() + " Constitution) or" : "") + " regurgitate it" : "")
+                    + ".");
+        }
+    }
+
+    // ── The long tail (D204) ─────────────────────────────────────
+
+    /*
+     * Saves counted at the end of the creature's turns, as a cockatrice's bite: a creature that fails begins to turn to
+     * stone and is restrained, then repeats the save at the end of its next turn, the effect ending on a success and the
+     * creature petrified on a failure (MM p.42). It reuses D187's counted saves on a Spell Effect the monster holds; a
+     * first save failed by the part's margin or more, as a medusa's gaze failed by 5 (MM p.214), petrifies at once.
+     */
+    private void countSaves(Encounter encounter, EncounterParticipant monster, String action, String label,
+                            MonsterTemplates.Part part, EffectApplier.Applied result, MonsterEffects.Step step,
+                            List<String> notes) {
+        MonsterTemplates.Counted counted = part.counted();
+        EncounterParticipant target = result.target();
+        if (counted == null || target.getLifeState() == LifeState.DEAD) {
+            return;
+        }
+        String ability = part.saveToEndAbility() != null ? part.saveToEndAbility() : part.saveAbility();
+        Integer dc = part.saveToEndDc() != null ? part.saveToEndDc() : part.saveDc();
+        if (dc == null && step.effect().delivery() instanceof Effect.Save save) {
+            dc = save.dc();
+            ability = ability != null ? ability : save.ability() != null ? save.ability().name() : null;
+        }
+        if (ability == null || dc == null) {
+            notes.add(label + "'s saves on " + target.getDisplayName() + " are left to the DM.");
+            return;
+        }
+        if (counted.failBy() != null && counted.failureCondition() != null
+                && result.outcome().outcome() == Outcome.SAVE_FAIL
+                && step.effect().delivery() instanceof Effect.Save save
+                && result.outcome().total() <= save.dc() - counted.failBy()) {
+            endGiven(encounter, monster, action, target, counted.endsConditions(), "it fails by "
+                    + counted.failBy() + " or more");
+            effectApplier.addLastingCondition(encounter, monster, target, counted.failureCondition(), null, action);
+            notes.add(target.getDisplayName() + " fails the save by " + counted.failBy() + " or more and is "
+                    + counted.failureCondition() + " at once (" + label + ")"
+                    + (counted.onFailures() != null ? ": " + counted.onFailures() : "") + ".");
+            return;
+        }
+        SpellEffectEntry effect = effectApplier.startEffect(encounter, monster, label, null, null, null, null, false);
+        effectApplier.startModifiers(encounter, monster, effect.id(), List.of(target), List.of(), null, null, null,
+                false);
+        effectApplier.holdMonsterRider(monster, effect.id(), new SpellEffectEntry.MonsterRider(
+                SpellEffectEntry.MonsterRider.COUNTED, action, null, null, null, null), null);
+        int successes = counted.successes() != null ? counted.successes() : 1;
+        int failures = counted.failures() != null ? counted.failures() : 1;
+        effectApplier.startCountedSave(monster, effect.id(), new SpellEffectEntry.CountedSave(
+                ability.toUpperCase(Locale.ROOT), dc, successes, failures, counted.onFailures(),
+                counted.endsConditions(), List.of(), counted.failureCondition()), List.of(target));
+        notes.add(target.getDisplayName() + " makes a DC " + dc + " " + ability.toUpperCase(Locale.ROOT)
+                + " save at the end of its turns (" + label + "): " + (successes == 1 ? "a success ends it"
+                : successes + " successes end it") + ", " + (failures == 1 ? "a failure" : failures + " failures")
+                + " leave" + (failures == 1 ? "s" : "") + " it " + (counted.failureCondition() != null
+                ? counted.failureCondition() : "to the DM") + ".");
+    }
+
+    // Ends the conditions the monster's action gave the creature, of these names
+    private void endGiven(Encounter encounter, EncounterParticipant monster, String action,
+                          EncounterParticipant target, List<String> names, String why) {
+        for (String name : names) {
+            anchorOf(target, monster, action, name).ifPresent(entry ->
+                    effectApplier.dropCondition(encounter, target, entry.id(), why));
+        }
+    }
+
+    /*
+     * An ability score lowered by the part's dice, as a shadow's Strength Drain lowers Strength by 1d4 until a short or
+     * long rest, killing a creature it takes to 0 (MM p.269): an ABILITY_SCORE Ongoing Modifier on a Spell Effect the
+     * monster holds, so the creature's saves and checks use the lower score. Another hit adds to it. A rest is beyond the
+     * encounter, so the log reminds the table, and a player character's own sheet, whose weapon attacks the app reads,
+     * keeps its score until the DM changes it.
+     */
+    private void reduceAbility(Encounter encounter, EncounterParticipant monster, String action, String label,
+                               MonsterTemplates.Part part, EncounterParticipant target, List<String> notes) {
+        java.util.Optional<com.tabletophelper.rules.Ability> ability =
+                com.tabletophelper.rules.Ability.parse(part.ability());
+        if (ability.isEmpty() || target.getLifeState() == LifeState.DEAD) {
+            return;
+        }
+        int amount = part.damageDice() != null && !part.damageDice().isBlank() ? rolled(part.damageDice()) : 1;
+        if (amount <= 0) {
+            return;
+        }
+        Optional<SpellEffectEntry> held = held(monster, action, target, SpellEffectEntry.MonsterRider.ABILITY);
+        String rest = part.until() != null && part.until().equalsIgnoreCase(LONG_REST) ? LONG_REST : SHORT_REST;
+        int before = held.map(effect -> effect.modifiers().stream().mapToInt(OngoingModifier::flat).sum()).orElse(0);
+        OngoingModifier lowered = new OngoingModifier(UUID.randomUUID(), OngoingModifier.Kind.ABILITY_SCORE,
+                OngoingModifier.Scope.AFFECTED, null, before - amount, null, ability.get().name(), List.of(), false,
+                false, false, null, false, null, List.of(), null, null);
+        if (held.isPresent()) {
+            effectApplier.startModifiers(encounter, monster, held.get().id(), List.of(target), List.of(lowered), null,
+                    null, held.get().endReminder(), false);
+        } else {
+            SpellEffectEntry effect = effectApplier.startEffect(encounter, monster, label, null, null, null, null,
+                    false);
+            effectApplier.startModifiers(encounter, monster, effect.id(), List.of(target), List.of(lowered), null,
+                    null, "{target}'s " + ability.get().name() + " score returns to normal (" + label + ")", false);
+            effectApplier.holdMonsterRider(monster, effect.id(), new SpellEffectEntry.MonsterRider(
+                    SpellEffectEntry.MonsterRider.ABILITY, action, null, null, rest, null), null);
+        }
+        int score = stats.abilityScore(target, ability.get());
+        String until = SHORT_REST.equals(rest) ? "a short or long rest" : "a long rest";
+        notes.add(target.getDisplayName() + "'s " + ability.get().name() + " score is reduced by " + amount + " ("
+                + label + ") until it finishes " + until + "; it is now " + score + "."
+                + (target.getParticipantType() == ParticipantType.PLAYER ? " Its sheet's attacks keep the old score "
+                + "until the DM changes them; if the rest comes after the encounter, note it after Write-back." : ""));
+        if (part.diesAtZero() && score <= 0) {
+            notes.add(effectApplier.killOutright(encounter, monster, target, action + " (its "
+                    + ability.get().name() + " reduced to 0)"));
+        }
+    }
+
+    /*
+     * What a hit that drops a creature to 0 hit points does beyond that (D204): "the target dies", through D189's
+     * kill-outright path, which Death Ward stops; or "the target is stable but poisoned for 1 hour, even after
+     * regaining hit points, and is paralyzed while poisoned in this way", as a giant spider's bite (MM p.328), when the
+     * part's damage type was in the hit. A monster at 0 hit points is dead already.
+     */
+    private void atZero(Encounter encounter, EncounterParticipant monster, String action, String label,
+                        MonsterTemplates.Part part, EffectApplier.Applied result, List<String> notes) {
+        MonsterTemplates.AtZero rule = part.atZero();
+        EncounterParticipant target = result.target();
+        if (rule == null || !result.droppedToZero() || target.getLifeState() == LifeState.DEAD) {
+            return;
+        }
+        if (part.damageType() != null && !part.damageType().isBlank() && taken(result, part.damageType()) <= 0) {
+            return;
+        }
+        if (rule.dies()) {
+            notes.add(effectApplier.killOutright(encounter, monster, target, action + " (it dropped to 0 hit points)"));
+            return;
+        }
+        if (rule.stable() && target.getLifeState() == LifeState.DYING) {
+            effectApplier.stabilise(encounter, target, label);
+        }
+        if (rule.condition() != null && !rule.condition().isBlank()) {
+            String name = rule.condition().trim().toLowerCase(Locale.ROOT);
+            effectApplier.addLastingCondition(encounter, monster, target, name, rule.durationRounds(), action);
+            Optional<ConditionEntry> anchor = target.getActiveConditions() == null ? Optional.empty()
+                    : target.getActiveConditions().stream()
+                    .filter(c -> name.equalsIgnoreCase(c.name()) && Objects.equals(c.sourceParticipantId(),
+                            monster.getId()) && action.equalsIgnoreCase(c.sourceSpellName()))
+                    .reduce((first, second) -> second);
+            anchor.ifPresent(entry -> {
+                effectApplier.replaceCondition(target, entry.fromAction(action));
+                for (String linked : rule.linked()) {
+                    effectApplier.addLastingCondition(encounter, monster, target, linked.trim().toLowerCase(Locale.ROOT),
+                            null, action);
+                    target.getActiveConditions().stream()
+                            .filter(c -> linked.trim().equalsIgnoreCase(c.name()) && c.linkedTo() == null
+                                    && Objects.equals(c.sourceParticipantId(), monster.getId())
+                                    && action.equalsIgnoreCase(c.sourceSpellName()))
+                            .reduce((first, second) -> second)
+                            .ifPresent(made -> effectApplier.replaceCondition(target,
+                                    made.fromAction(action).linkedTo(entry.id())));
+                }
+            });
+        }
+    }
+
+    /*
+     * What rises from a creature the hit killed (D204): at once, as a humanoid a barrowghast slays rises as a zombie
+     * (BGG), through D189's raising, which adds it as the monster's creature when its stat block is loaded; or later, as
+     * a wight's zombie 24 hours on (MM p.300), which the log only reminds the DM of.
+     */
+    private void onKill(Encounter encounter, EncounterParticipant monster, String label, MonsterTemplates.Part part,
+                        EffectApplier.Applied result, List<String> notes) {
+        MonsterTemplates.OnKill rule = part.onKill();
+        EncounterParticipant target = result.target();
+        if (rule == null || !result.droppedToZero() || target.getLifeState() != LifeState.DEAD) {
+            return;
+        }
+        if (!rule.creatureTypes().isEmpty()) {
+            MonsterEffects.Lasting only = new MonsterEffects.Lasting(label, List.of(), java.util.Map.of(),
+                    java.util.Map.of(), rule.creatureTypes(), null, false, null, false);
+            if (!MonsterRiders.exempt(only, List.of(), target)) {
+                return;
+            }
+        }
+        if (rule.immediately() && rule.form() != null && summoner != null) {
+            summoner.raise(encounter, monster, label, null, rule.form(), target);
+            notes.add(target.getDisplayName() + " rises as " + article(rule.form()) + " under "
+                    + monster.getDisplayName() + "'s command (" + label + ").");
+        } else {
+            notes.add(target.getDisplayName() + " was slain by " + label + ": "
+                    + (rule.text() != null && !rule.text().isBlank() ? rule.text().trim()
+                    : "it rises later as " + article(rule.form())) + " (the DM's, after the fight).");
+        }
+    }
+
+    private static String article(String form) {
+        String word = form != null ? form.trim().toLowerCase(Locale.ROOT) : "something";
+        return (word.matches("^[aeiou].*") ? "an " : "a ") + word;
+    }
+
+    /*
+     * A ghost's Possession (MM p.147, D204): the body it possesses is under the ghost's controller's control, the DM's,
+     * through D187's control transfer, while its possessed condition lasts; the ghost disappears into it, untargetable
+     * and with no turns of its own, as a banished creature (D185). The possession ends when the body drops to 0 hit
+     * points or the DM ends it, and the ghost reappears beside the body; the creature is then immune for the encounter,
+     * as the action's immunity says. The target keeps its awareness, so the app doesn't mark it incapacitated: the ghost
+     * acts with the body (rules call).
+     */
+    private void possess(Encounter encounter, EncounterParticipant monster, String action, String label,
+                         EncounterParticipant target, List<String> notes) {
+        Optional<ConditionEntry> possessed = anchorOf(target, monster, action, EffectApplier.POSSESSED);
+        if (possessed.isEmpty() || target.getLifeState() != LifeState.ALIVE) {
+            return;
+        }
+        SpellEffectEntry effect = effectApplier.startEffect(encounter, monster, label, null, null, null, null, false);
+        effectApplier.startModifiers(encounter, monster, effect.id(), List.of(target), List.of(), null, null, null,
+                false);
+        effectApplier.holdMonsterRider(monster, effect.id(), new SpellEffectEntry.MonsterRider(
+                SpellEffectEntry.MonsterRider.POSSESSION, action, possessed.get().id(), EffectApplier.POSSESSED, null,
+                null), null);
+        effectApplier.takeControl(encounter, monster, effect.id(), List.of(target), EffectApplier.POSSESSED);
+        effectApplier.addCondition(encounter, monster, EffectApplier.POSSESSING, null);
+        notes.add(monster.getDisplayName() + " disappears into " + target.getDisplayName() + "'s body, which it "
+                + "now controls (" + label + "); it can't be targeted until the possession ends: the body drops to 0 "
+                + "hit points, or the DM ends it.");
     }
 
     /*
@@ -387,12 +707,21 @@ public class MonsterHitEffects {
     private void turnDamage(Encounter encounter, EncounterParticipant monster, String action, String label,
                             MonsterTemplates.Part part, EncounterParticipant target, ConditionEntry anchor,
                             List<String> notes) {
-        if (part.damageDice() == null || target.getLifeState() == LifeState.DEAD
-                || held(monster, action, target, SpellEffectEntry.MonsterRider.TURN_DAMAGE).isPresent()) {
-            return;
-        }
         String type = part.damageType() != null && !part.damageType().isBlank()
                 ? part.damageType().trim().toLowerCase(Locale.ROOT) : null;
+        // The same damage again adds nothing; another of the action's, as a giant ice toad's cold beside its acid
+        // (TftYP), comes too (D204)
+        boolean dealing = EffectApplier.effects(monster).stream()
+                .anyMatch(effect -> effect.monsterRider() != null
+                        && SpellEffectEntry.MonsterRider.TURN_DAMAGE.equals(effect.monsterRider().kind())
+                        && action.equalsIgnoreCase(effect.monsterRider().action())
+                        && effect.affected().contains(target.getId())
+                        && effect.monsterRider().turnDamage() != null
+                        && Objects.equals(effect.monsterRider().turnDamage().type(), type)
+                        && Objects.equals(effect.monsterRider().turnDamage().dice(), part.damageDice()));
+        if (part.damageDice() == null || target.getLifeState() == LifeState.DEAD || dealing) {
+            return;
+        }
         String turnOf = "USER".equalsIgnoreCase(part.turnOf()) ? "USER" : "TARGET";
         Integer rounds = part.durationRounds() != null && part.durationRounds() > 0 && anchor == null
                 ? part.durationRounds() : null;

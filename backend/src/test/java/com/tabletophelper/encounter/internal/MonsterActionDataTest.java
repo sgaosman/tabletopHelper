@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * template records. A condition an attack gives on a hit records no DC without its ability: a grapple's or a
  * restraint's escape DC is an escapeDC, never a save. The bites whose DC is the monster's own save to regurgitate what
  * it swallowed, the Kraken's (MM), the Froghemoth's (VGM, MPMM), the Froghemoth Elder's (QftIS) and Slarkrethel's
- * (SKT), deal their piercing damage with no save for the target and leave the swallowing to the DM in a note. The
+ * (SKT), deal their piercing damage with no save for the target and swallow, the DC on their gullet (D204). The
  * Mindwitness's and Ulitharid's tentacles (VGM and MPMM) grapple on every hit, and only the restraint or the stun
  * waits for the Intelligence save their text gives. No saving throw records a DC without its ability: where the text
  * names no single ability, or calls for a check rather than a save, the action is the DM's, with a note.
@@ -250,18 +250,22 @@ class MonsterActionDataTest {
     @ParameterizedTest(name = "{0} ({1})")
     @CsvSource({"Kraken, MM, 3d8+10", "Froghemoth, VGM, 3d10 + 6", "Froghemoth, MPMM, 3d10 + 6",
             "Froghemoth Elder, QftIS, 3d10 + 7", "Slarkrethel, SKT, 3d8 + 10"})
-    @DisplayName("A swallowing bite deals its piercing damage with no save for the target, and notes the swallowing")
+    @DisplayName("A swallowing bite deals its piercing damage with no save for the target, and swallows (D204)")
     void swallowingBites(String monster, String source, String piercing) {
         JsonNode bite = action(monster, source, "Bite");
 
         assertFalse(bite.has("saveDC") || bite.has("saveAbility") || bite.has("secondarySaveDC")
                 || bite.has("secondarySaveAbility") || bite.has("targetType") || bite.has("aoeSize"), bite::toString);
-        assertEquals(1, bite.path("effects").size());
         assertEquals("DAMAGE", bite.path("effects").get(0).path("effectType").asString());
         assertEquals(piercing, bite.path("effects").get(0).path("damageDice").asString());
         assertEquals("piercing", bite.path("effects").get(0).path("damageType").asString());
-        assertTrue(bite.path("dmNote").asString().startsWith("Swallowing is applied by hand. On a hit, "));
-        assertTrue(bite.path("dmNote").asString().contains("Constitution saving throw"));
+        // The regurgitation's Constitution save is the swallower's own, on its gullet (D204)
+        JsonNode swallowed = bite.path("effects").get(1);
+        assertEquals("swallowed", swallowed.path("condition").asString());
+        assertTrue(swallowed.path("swallow").path("regurgitateDC").isNumber(), swallowed::toString);
+        assertFalse(swallowed.has("saveDC"));
+        assertFalse(bite.has("dmNote"), bite::toString);
+        assertTrue(bite.path("_riderNoteReplaced").asString().startsWith("Swallowing is applied by hand. On a hit, "));
 
         MonsterTemplates templates = MonsterTemplates.of(definition(monster, source));
         MonsterEffects.MonsterAction plan = monsterEffects.plan(templates.find("ACTION", "Bite").orElseThrow(),
@@ -269,8 +273,8 @@ class MonsterActionDataTest {
         Effect effect = plan.steps().getFirst().effect();
         Effect.Attack attack = assertInstanceOf(Effect.Attack.class, effect.delivery());
         assertNull(attack.hitSave());
-        assertEquals(List.of(), effect.conditions());
-        assertEquals(List.of(bite.path("dmNote").asString()), plan.notes());
+        assertEquals(List.of("swallowed", "blinded", "restrained"), effect.conditions());
+        assertEquals(List.of(), plan.notes());
     }
 
     @ParameterizedTest(name = "{0} ({1})")

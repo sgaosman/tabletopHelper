@@ -234,6 +234,11 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      *                                ends for a creature that failed; null for none (D203)
      * @param exemptTypes             creature types the whole action has no effect on, as a banshee's wail on
      *                                constructs and undead (MM p.23); empty for none (D203)
+     * @param targetTypes             the only creature types the action affects, as a ghost's Possession takes "one
+     *                                humanoid" (MM p.147); any other target is unaffected, and the log says so; empty
+     *                                for any (D204)
+     * @param targetGrappled          the action can be used only on a creature the monster is grappling, as a giant
+     *                                toad's Swallow (MM p.329); another target is refused (D204)
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Action(String name, String description, Boolean automatable, String deliveryMethod,
@@ -246,13 +251,14 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                          String multiattackDescription, @JsonProperty("_multiattackNote") String multiattackNote,
                          @JsonProperty("isEyeRays") boolean eyeRays, Integer rayCount, List<Ray> rays,
                          String dmNote, Integer grappleLimit, boolean grappleLimitBlocks, String immuneAfterSave,
-                         List<String> exemptTypes) {
+                         List<String> exemptTypes, List<String> targetTypes, boolean targetGrappled) {
 
         public Action {
             effects = listOf(effects);
             multiattackComponents = listOf(multiattackComponents);
             rays = listOf(rays);
             exemptTypes = listOf(exemptTypes);
+            targetTypes = listOf(targetTypes);
         }
 
         /** A legendary action's cost: its number, or 1 when it has none or gives a range. */
@@ -281,7 +287,9 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      *                          save allows, as a phase spider's poison (MM p.334): whether a success halves it, else
      *                          it prevents it (D202)
      * @param onlyIf            for a DAMAGE part, what must hold for it to be dealt, as a gray render's claw's
-     *                          bludgeoning against a prone target (MTF p.209); null for always (D202)
+     *                          bludgeoning against a prone target (MTF p.209); null for always (D202). For a CONDITION
+     *                          part, what must hold for the target to get it, as a kraken's bite swallows only a
+     *                          creature it is grappling (MM p.197) (D204)
      * @param replacesDamage    for a DAMAGE part with onlyIf, whether it replaces the action's first unconditional
      *                          damage, as a duergar's war pick's 2d8 + 2 while enlarged (MM p.122), rather than adding
      *                          to it (D202)
@@ -310,6 +318,15 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      *                          stirge drains blood at the start of each of its own turns (MM p.284)
      * @param total             for ONGOING_DAMAGE, the most it deals in all, as a stirge's 10 hit points, after which
      *                          it and its endsWith condition end; null for no limit
+     * @param swallow           for a swallowed or engulfed CONDITION, what the swallower's gullet does: how many it
+     *                          holds, the damage from inside that makes it regurgitate, and the escape when it dies
+     *                          (D204); null for any other condition
+     * @param counted           for COUNTED_SAVES, the saves the creature counts at the end of its turns and what the
+     *                          failures leave, as a cockatrice's petrification (MM p.42) (D204)
+     * @param ability           for ABILITY_REDUCTION, the ability score it lowers, such as "STR" for a shadow's Strength
+     *                          Drain (MM p.269), by damageDice (D204)
+     * @param atZero            for AT_ZERO, what happens to a creature the hit drops to 0 hit points (D204)
+     * @param onKill            for ON_KILL, what rises from a creature the hit kills (D204)
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Part(String effectType, String damageDice, String damageType, String condition,
@@ -319,10 +336,24 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                        @JsonProperty("escapeDC") Integer escapeDc, boolean halfOnSave, DamageCondition onlyIf,
                        boolean replacesDamage, String maxTargetSize, boolean endOfUsersTurn, String endsWith,
                        boolean endsOnDamage, List<String> exemptTypes, String until, boolean diesAtZero, boolean half,
-                       boolean tempHp, Integer levels, Modifier modifier, String turnOf, Integer total) {
+                       boolean tempHp, Integer levels, Modifier modifier, String turnOf, Integer total,
+                       Swallow swallow, Counted counted, String ability, AtZero atZero, OnKill onKill) {
 
         public Part {
             exemptTypes = listOf(exemptTypes);
+        }
+
+        /** A part with none of the riders D204 reads. */
+        public Part(String effectType, String damageDice, String damageType, String condition, Integer saveDc,
+                    String saveAbility, Integer durationRounds, boolean saveToEndEachTurn, Integer saveToEndDc,
+                    String saveToEndAbility, Integer escapeDc, boolean halfOnSave, DamageCondition onlyIf,
+                    boolean replacesDamage, String maxTargetSize, boolean endOfUsersTurn, String endsWith,
+                    boolean endsOnDamage, List<String> exemptTypes, String until, boolean diesAtZero, boolean half,
+                    boolean tempHp, Integer levels, Modifier modifier, String turnOf, Integer total) {
+            this(effectType, damageDice, damageType, condition, saveDc, saveAbility, durationRounds, saveToEndEachTurn,
+                    saveToEndDc, saveToEndAbility, escapeDc, halfOnSave, onlyIf, replacesDamage, maxTargetSize,
+                    endOfUsersTurn, endsWith, endsOnDamage, exemptTypes, until, diesAtZero, half, tempHp, levels,
+                    modifier, turnOf, total, null, null, null, null, null);
         }
 
         /** A part with none of the riders D203 reads. */
@@ -364,6 +395,84 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
 
         public Modifier {
             damageTypes = listOf(damageTypes);
+        }
+    }
+
+    /**
+     * What a swallowing creature's gullet does (D204), on its swallowed or engulfed CONDITION part, as a purple worm's
+     * (MM p.255): the creature inside is blinded and restrained, with total cover against everything outside, and takes
+     * damage at the start of each of the swallower's turns, which the action's other parts give, tied to this condition.
+     *
+     * @param limit              how many creatures it can hold at once, as a giant toad's one (MM p.329) or a
+     *                           froghemoth's two (VGM p.145); null for no limit
+     * @param regurgitateDamage  the damage it must take on a single turn from creatures inside it to make the save that
+     *                           keeps them down, as a purple worm's 30; null for none
+     * @param regurgitateDc      that Constitution save's DC, as a purple worm's 21; null when it regurgitates without one,
+     *                           as an eye monger does (BAM)
+     * @param escapeFeet         the movement a swallowed creature spends to leave the corpse once the swallower dies,
+     *                           exiting prone, as a purple worm's 20 feet; null when the stat block gives none
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Swallow(Integer limit, Integer regurgitateDamage, @JsonProperty("regurgitateDC") Integer regurgitateDc,
+                          Integer escapeFeet) {
+    }
+
+    /**
+     * The saves a creature counts at the end of its turns after a monster's effect, reusing D187's counted saves (D204):
+     * a cockatrice's bite restrains as the creature begins to turn to stone, and the save at the end of its next turn
+     * ends it on a success or petrifies on a failure (MM p.42). The save is the part's saveToEndAbility and saveToEndDC.
+     *
+     * @param successes        how many successes end it
+     * @param failures         how many failures leave failureCondition
+     * @param endsConditions   the conditions the action gave that end on either count, as the restraint
+     * @param failureCondition the condition the failures leave for good, as petrified
+     * @param onFailures       what the log reminds the table of then, as "petrified for 24 hours"
+     * @param failBy           a first save failed by this much or more leaves failureCondition at once, as a medusa's
+     *                         gaze failed by 5 or more (MM p.214); null for none
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Counted(Integer successes, Integer failures, List<String> endsConditions, String failureCondition,
+                          String onFailures, Integer failBy) {
+
+        public Counted {
+            endsConditions = listOf(endsConditions);
+        }
+    }
+
+    /**
+     * What happens to a creature a monster's hit drops to 0 hit points (D204): it dies, where the stat block says "the
+     * target dies if this attack reduces it to 0 hit points", or it is stable but poisoned, as from a giant spider's
+     * bite (MM p.328). A monster at 0 hit points is dead already, so this matters for player characters.
+     *
+     * @param dies           it dies outright, through D189's kill-outright path
+     * @param stable         it is stable rather than dying, as the poison of a giant spider leaves it
+     * @param condition      the condition it gains then, as "poisoned"
+     * @param durationRounds how long that lasts, as 600 for an hour, "even after regaining hit points"
+     * @param linked         the conditions it has while that condition lasts, as "paralyzed while poisoned in this way"
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record AtZero(boolean dies, boolean stable, String condition, Integer durationRounds, List<String> linked) {
+
+        public AtZero {
+            linked = listOf(linked);
+        }
+    }
+
+    /**
+     * What rises from a creature a monster's hit kills (D204), reusing D189's raising: a humanoid a barrowghast slays
+     * rises at once as a zombie (BGG), while a wight's rises 24 hours later (MM p.300), which the log only reminds the DM
+     * of.
+     *
+     * @param creatureTypes the creature types that rise, as "humanoid"; empty for any
+     * @param form          what it rises as, a stat block's name, such as "Zombie"
+     * @param immediately   it rises in the fight, at the start of the monster's next turn; otherwise later
+     * @param text          the stat block's words, which the log quotes
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record OnKill(List<String> creatureTypes, String form, boolean immediately, String text) {
+
+        public OnKill {
+            creatureTypes = listOf(creatureTypes);
         }
     }
 

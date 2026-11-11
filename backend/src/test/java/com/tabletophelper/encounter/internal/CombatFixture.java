@@ -141,7 +141,7 @@ class CombatFixture {
             characterService, stats, metamagicCasting, summoner, formSpells, spellCounters, defensiveSpells);
     final FontOfMagicService fontOfMagic = new FontOfMagicService(access, economy, combatLog, encounterRepository,
             encounterService);
-    final MonsterHitEffects monsterHitEffects = new MonsterHitEffects(effectApplier, stats, combatLog, dice);
+    final MonsterHitEffects monsterHitEffects = new MonsterHitEffects(effectApplier, stats, combatLog, dice, summoner);
     final MonsterActionService monsterActions = new MonsterActionService(access, accessPolicy, monsterEffects,
             monsterHitEffects, resolver, stats, effectApplier, economy, resourcePoolService, objectMapper,
             monsterRepository, encounterRepository, encounterService, combatLog);

@@ -108,15 +108,18 @@ class MonsterRidersDataTest {
 
     @Test
     @DisplayName("The phase spider's poisoning and paralysis come only at 0 hit points, so the pass takes them off its "
-            + "bite, keeps them for a later run, and notes the rule for the DM")
+            + "bite, keeps them for a later run, and reads the rule (D204)")
     void phaseSpiderConditionsAtZeroHitPoints() {
         MonsterEffects.Step step = step("Phase Spider", "MM", "Bite");
         assertEquals(List.of(), step.effect().conditions());
         assertEquals(List.of(), hitSave(step).conditions());
         JsonNode bite = json("Phase Spider", "MM", "Bite");
         assertEquals(2, bite.path("_riderRemoved").size());
-        assertTrue(bite.path("dmNote").asString().startsWith("Also on a hit, applied by hand: If the poison damage "
-                + "reduces the target to 0 hit points"), bite.path("dmNote").asString());
+        // D204 reads the rule: stable but poisoned, and paralyzed while poisoned, when the poison drops it to 0
+        assertFalse(bite.has("dmNote"), bite::toString);
+        JsonNode atZero = bite.path("effects").get(bite.path("effects").size() - 1);
+        assertEquals("AT_ZERO", atZero.path("effectType").asString());
+        assertEquals("poison", atZero.path("damageType").asString());
     }
 
     @Test

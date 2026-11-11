@@ -188,7 +188,9 @@ public class CombatAccess {
                 .filter(CombatAccess::banished)
                 .findFirst()
                 .ifPresent(target -> {
-                    throw new ConflictException(target.getDisplayName() + " is banished");
+                    // A possessing ghost can't be targeted while it is in the body (MM p.147, D204)
+                    throw new ConflictException(target.getDisplayName() + (has(target, EffectApplier.POSSESSING)
+                            ? " is inside the body it possesses, where it can't be targeted" : " is banished"));
                 });
         // A blinking creature on the Ethereal Plane can't be affected from the material plane (PHB p.219, D196)
         targets.stream()
@@ -222,15 +224,58 @@ public class CombatAccess {
                 throw new ConflictException(actor.getDisplayName() + " is enclosed (Otiluke's Resilient Sphere or a "
                         + "Forcecage box), which nothing passes through");
             }
+            requireNotInside(actor, target);
         }
     }
 
+    /*
+     * A swallowed or engulfed creature has total cover against attacks and other effects outside its swallower, as in a
+     * purple worm (MM p.255) or a gelatinous cube (MM p.242) (D204): only the swallower and the creatures inside the same
+     * one reach it, and it reaches only them. The DM's own hand (no actor) still reaches it.
+     */
+    private static void requireNotInside(EncounterParticipant actor, EncounterParticipant target) {
+        if (actor == null) {
+            return;
+        }
+        UUID targetIn = swallowedBy(target);
+        UUID actorIn = swallowedBy(actor);
+        if (targetIn != null && !targetIn.equals(actor.getId()) && !targetIn.equals(actorIn)) {
+            throw new ConflictException(target.getDisplayName() + " is " + insideWord(target) + ", with total cover "
+                    + "against attacks and other effects from outside");
+        }
+        if (actorIn != null && !actorIn.equals(target.getId()) && !actorIn.equals(targetIn)) {
+            throw new ConflictException(actor.getDisplayName() + " is " + insideWord(actor) + " and can reach only "
+                    + "the creature that holds it, or others inside it");
+        }
+    }
+
+    /** The creature that has swallowed or engulfed this one (D204), or null. */
+    public static UUID swallowedBy(EncounterParticipant participant) {
+        return participant.getActiveConditions() == null ? null : participant.getActiveConditions().stream()
+                .filter(c -> c != null && c.sourceParticipantId() != null && EffectApplier.INSIDE.contains(
+                        c.name() != null ? c.name().toLowerCase(java.util.Locale.ROOT) : ""))
+                .map(c -> c.sourceParticipantId())
+                .findFirst()
+                .orElse(null);
+    }
+
+    // "swallowed" or "engulfed"
+    private static String insideWord(EncounterParticipant participant) {
+        return participant.getActiveConditions().stream()
+                .filter(c -> c != null && c.name() != null
+                        && EffectApplier.INSIDE.contains(c.name().toLowerCase(java.util.Locale.ROOT)))
+                .map(c -> c.name().toLowerCase(java.util.Locale.ROOT))
+                .findFirst()
+                .orElse(EffectApplier.SWALLOWED);
+    }
+
     /**
-     * Whether Banishment has removed the creature from the fight (PHB p.217, D185), or Plane Shift has taken it to
-     * another plane (PHB p.266, D189).
+     * Whether Banishment has removed the creature from the fight (PHB p.217, D185), Plane Shift has taken it to
+     * another plane (PHB p.266, D189), or it is inside the body it possesses, as a ghost is (MM p.147, D204).
      */
     public static boolean banished(EncounterParticipant participant) {
-        return has(participant, EffectApplier.BANISHED) || has(participant, EffectApplier.PLANE_SHIFTED);
+        return has(participant, EffectApplier.BANISHED) || has(participant, EffectApplier.PLANE_SHIFTED)
+                || has(participant, EffectApplier.POSSESSING);
     }
 
     /** Whether the creature is inside Otiluke's Resilient Sphere (PHB p.264, D185). */

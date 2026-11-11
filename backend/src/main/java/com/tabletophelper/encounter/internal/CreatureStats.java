@@ -643,7 +643,20 @@ public class CreatureStats {
         if (feebleminded(participant) && (ability == Ability.INT || ability == Ability.CHA)) {
             return FEEBLEMINDED_SCORE;
         }
-        return ownAbilityScore(participant, ability);
+        return drained(participant, ability, ownAbilityScore(participant, ability));
+    }
+
+    /**
+     * The score less what a monster's drain has taken from it, as a shadow's Strength Drain (MM p.269, D204): the
+     * creature's ABILITY_SCORE Ongoing Modifiers of that ability, never below 0.
+     */
+    static int drained(EncounterParticipant participant, Ability ability, int score) {
+        int change = ActiveModifiers.modifiersOn(participant).stream()
+                .filter(modifier -> modifier.kind() == com.tabletophelper.rules.combat.OngoingModifier.Kind.ABILITY_SCORE
+                        && ability.name().equalsIgnoreCase(modifier.ability()))
+                .mapToInt(com.tabletophelper.rules.combat.OngoingModifier::flat)
+                .sum();
+        return change == 0 ? score : Math.max(0, score + change);
     }
 
     /** The Intelligence and Charisma of a feebleminded creature (PHB p.239, D195). */
@@ -656,13 +669,16 @@ public class CreatureStats {
 
     /*
      * A bonus a stat block or form lists for a save or skill of the ability, with a feebleminded creature's modifier of
-     * 1 in place of its own Intelligence or Charisma modifier (PHB p.239, D195): the proficiency in it stays.
+     * 1 in place of its own Intelligence or Charisma modifier (PHB p.239, D195), or a drained score's modifier in place
+     * of its own (D204): the proficiency in it stays.
      */
     private Integer feeble(EncounterParticipant participant, Ability ability, Integer listed) {
-        if (listed == null || !feebleminded(participant) || (ability != Ability.INT && ability != Ability.CHA)) {
-            return listed;
+        if (listed == null) {
+            return null;
         }
-        return listed - Ability.modifier(ownAbilityScore(participant, ability)) + Ability.modifier(FEEBLEMINDED_SCORE);
+        int own = ownAbilityScore(participant, ability);
+        int now = abilityScore(participant, ability);
+        return now == own ? listed : listed - Ability.modifier(own) + Ability.modifier(now);
     }
 
     // The ability score before feeblemind

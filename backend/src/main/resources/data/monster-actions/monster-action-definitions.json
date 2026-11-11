@@ -17025,11 +17025,6 @@
             "damageType": "bludgeoning"
           },
           {
-            "effectType": "DAMAGE",
-            "damageDice": "9d6 + 5",
-            "damageType": "bludgeoning"
-          },
-          {
             "effectType": "CONDITION",
             "condition": "grappled",
             "escapeDC": 15,
@@ -17043,6 +17038,16 @@
             "endsWith": "grappled",
             "turnOf": "USER",
             "_rider": "added"
+          }
+        ],
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "9d6 + 5",
+              "damageType": "bludgeoning"
+            }
           }
         ],
         "_riderNote": "Also on a hit, applied by hand: The hag can't make attacks while grappling a creature in this way.",
@@ -17131,13 +17136,6 @@
             "damageType": "bludgeoning"
           },
           {
-            "effectType": "DAMAGE",
-            "damageDice": "9d6 + 5",
-            "damageType": "bludgeoning",
-            "recurring": true,
-            "recurringTiming": "START_OF_TURN"
-          },
-          {
             "effectType": "CONDITION",
             "condition": "grappled",
             "durationText": null,
@@ -17155,6 +17153,18 @@
             "endsWith": "grappled",
             "turnOf": "USER",
             "_rider": "added"
+          }
+        ],
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "9d6 + 5",
+              "damageType": "bludgeoning",
+              "recurring": true,
+              "recurringTiming": "START_OF_TURN"
+            }
           }
         ],
         "_riderNote": "Also on a hit, applied by hand: The hag can't make attacks while grappling a creature in this way.",
@@ -25427,21 +25437,69 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "blinded"
+            "condition": "swallowed",
+            "saveDC": 17,
+            "saveAbility": "STR",
+            "maxTargetSize": "Large",
+            "swallow": {
+              "limit": 2,
+              "regurgitateDamage": 30,
+              "regurgitateDC": 16,
+              "escapeFeet": 15
+            },
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "blinded",
+            "endsWith": "swallowed",
+            "saveDC": 17,
+            "saveAbility": "STR",
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
-            "condition": "prone"
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "saveDC": 17,
+            "saveAbility": "STR",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "3d6",
+            "damageType": "lightning",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "saveDC": 17,
+            "saveAbility": "STR",
+            "_rider": "added"
           }
         ],
         "automatable": true,
-        "_riderNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature, it must succeed on a DC 17 Strength saving throw or be swallowed by the bakunawa. A swallowed creature is blinded and restrained. It has Cover against attacks and other effects outside the bakunawa. At the start of each of the bakunawa's turns, each swallowed creature takes 10 (3d6) lightning damage. The bakunawa's gullet can hold up to two creatures at a time. If the bakunawa takes 30 damage or more on a single turn from a swallowed creature, the bakunawa must succeed on a DC 16 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 15 feet of the bakunawa. If the bakunawa dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 15 feet of movement, exiting prone.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature, it must succeed on a DC 17 Strength saving throw or be swallowed by the bakunawa. A swallowed creature is blinded and restrained. It has Cover against attacks and other effects outside the bakunawa. At the start of each of the bakunawa's turns, each swallowed creature takes 10 (3d6) lightning damage. The bakunawa's gullet can hold up to two creatures at a time. If the bakunawa takes 30 damage or more on a single turn from a swallowed creature, the bakunawa must succeed on a DC 16 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 15 feet of the bakunawa. If the bakunawa dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 15 feet of movement, exiting prone."
+        "_riderRemoved": [
+          {
+            "at": 2,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "blinded"
+            }
+          },
+          {
+            "at": 3,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            }
+          },
+          {
+            "at": 4,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          }
+        ]
       },
       {
         "name": "Storm Slam",
@@ -25921,14 +25979,52 @@
             "damageType": "piercing"
           },
           {
-            "effectType": "DAMAGE",
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "swallow": {
+              "limit": 1
+            },
+            "maxTargetSize": "Medium",
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
             "damageDice": "3d6",
-            "damageType": "necrotic"
+            "damageType": "necrotic",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: The creature is also swallowed, and the grapple ends. The swallowed creature is blinded and restrained, it has Cover against attacks and other effects outside the banderhobb. It takes 10 (3d6) necrotic damage at the start of each of the banderhobb's turns. A creature reduced to 0 hit points in this way stops taking the necrotic damage and becomes stable. The banderhobb can have only one creature swallowed at a time. While the banderhobb isn't incapacitated, it can regurgitate the creature at any time (no action required) in a space within 5 feet of it. The creature exits prone. If the banderhobb dies, it likewise regurgitates a swallowed creature.",
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "3d6",
+              "damageType": "necrotic"
+            }
+          }
+        ],
+        "targetGrappled": true,
+        "_riderActionKeys": [
+          "targetGrappled"
+        ],
+        "_riderNote": "Also on a hit, applied by hand: A creature reduced to 0 hit points in this way stops taking the necrotic damage and becomes stable. While the banderhobb isn't incapacitated, it can regurgitate the creature at any time (no action required) in a space within 5 feet of it. The creature exits prone. If the banderhobb dies, it likewise regurgitates a swallowed creature.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: The creature is also swallowed, and the grapple ends. The swallowed creature is blinded and restrained, it has Cover against attacks and other effects outside the banderhobb. It takes 10 (3d6) necrotic damage at the start of each of the banderhobb's turns. A creature reduced to 0 hit points in this way stops taking the necrotic damage and becomes stable. The banderhobb can have only one creature swallowed at a time. While the banderhobb isn't incapacitated, it can regurgitate the creature at any time (no action required) in a space within 5 feet of it. The creature exits prone. If the banderhobb dies, it likewise regurgitates a swallowed creature."
+        "dmNote": "Also on a hit, applied by hand: A creature reduced to 0 hit points in this way stops taking the necrotic damage and becomes stable. While the banderhobb isn't incapacitated, it can regurgitate the creature at any time (no action required) in a space within 5 feet of it. The creature exits prone. If the banderhobb dies, it likewise regurgitates a swallowed creature."
       }
     ],
     "bonusActions": [
@@ -26017,41 +26113,85 @@
       {
         "name": "Swallow",
         "actionType": "ACTION",
-        "deliveryMethod": "OTHER",
+        "description": "The banderhobb makes a bite attack against a Medium or smaller creature it is grappling. If the attack hits, the target is swallowed, and the grapple ends. The swallowed creature is blinded and restrained, it has Cover against attacks and other effects outside the banderhobb and it takes 10 (3d6) necrotic damage at the start of each of the banderhobb's turns. A creature reduced to 0 hit points in this way stops taking necrotic damage and becomes stable. The banderhobb can have only one target swallowed at a time. While the banderhobb isn't incapacitated, it can regurgitate the creature at any time (no action required) in a space within 5 feet of it. The creature exits prone. If the banderhobb dies, it likewise regurgitates a swallowed creature.",
+        "deliveryMethod": "ATTACK_ROLL",
+        "attackType": "MELEE_WEAPON",
+        "attackBonus": 8,
+        "reach": 5,
+        "targetCount": 1,
+        "targetGrappled": true,
         "effects": [
           {
             "effectType": "DAMAGE",
-            "damageDice": "3d6",
-            "damageType": "necrotic"
+            "damageDice": "5d6 + 5",
+            "damageType": "piercing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "swallow": {
+              "limit": 1
+            },
+            "maxTargetSize": "Medium"
           },
           {
             "effectType": "CONDITION",
             "condition": "blinded",
-            "durationText": null,
-            "durationRounds": null
+            "endsWith": "swallowed"
           },
           {
             "effectType": "CONDITION",
             "condition": "restrained",
-            "durationText": null,
-            "durationRounds": null
+            "endsWith": "swallowed"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "incapacitated",
-            "durationText": null,
-            "durationRounds": null
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone",
-            "durationText": null,
-            "durationRounds": null
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "3d6",
+            "damageType": "necrotic",
+            "endsWith": "swallowed",
+            "turnOf": "USER"
           }
         ],
-        "description": "The banderhobb makes a bite attack against a Medium or smaller creature it is grappling. If the attack hits, the target is swallowed, and the grapple ends. The swallowed creature is blinded and restrained, it has Cover against attacks and other effects outside the banderhobb and it takes 10 (3d6) necrotic damage at the start of each of the banderhobb's turns. A creature reduced to 0 hit points in this way stops taking necrotic damage and becomes stable. The banderhobb can have only one target swallowed at a time. While the banderhobb isn't incapacitated, it can regurgitate the creature at any time (no action required) in a space within 5 feet of it. The creature exits prone. If the banderhobb dies, it likewise regurgitates a swallowed creature.",
-        "automatable": false,
-        "notes": "REVIEW: Complex swallow mechanic - creature is swallowed on hit, takes ongoing damage, freed on specific conditions"
+        "dmNote": "Also on a hit, applied by hand: A creature reduced to 0 hit points in this way stops taking necrotic damage and becomes stable. While the banderhobb isn't incapacitated, it can regurgitate the creature at any time (no action required) in a space within 5 feet of it. The creature exits prone. If the banderhobb dies, it likewise regurgitates a swallowed creature.",
+        "_riderReplaced": {
+          "name": "Swallow",
+          "actionType": "ACTION",
+          "deliveryMethod": "OTHER",
+          "effects": [
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "3d6",
+              "damageType": "necrotic"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "blinded",
+              "durationText": null,
+              "durationRounds": null
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "restrained",
+              "durationText": null,
+              "durationRounds": null
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "incapacitated",
+              "durationText": null,
+              "durationRounds": null
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "prone",
+              "durationText": null,
+              "durationRounds": null
+            }
+          ],
+          "description": "The banderhobb makes a bite attack against a Medium or smaller creature it is grappling. If the attack hits, the target is swallowed, and the grapple ends. The swallowed creature is blinded and restrained, it has Cover against attacks and other effects outside the banderhobb and it takes 10 (3d6) necrotic damage at the start of each of the banderhobb's turns. A creature reduced to 0 hit points in this way stops taking necrotic damage and becomes stable. The banderhobb can have only one target swallowed at a time. While the banderhobb isn't incapacitated, it can regurgitate the creature at any time (no action required) in a space within 5 feet of it. The creature exits prone. If the banderhobb dies, it likewise regurgitates a swallowed creature.",
+          "automatable": false,
+          "notes": "REVIEW: Complex swallow mechanic - creature is swallowed on hit, takes ongoing damage, freed on specific conditions"
+        }
       },
       {
         "name": "Shadow Step",
@@ -27681,11 +27821,23 @@
             "saveAbility": "CON",
             "diesAtZero": true,
             "_rider": "added"
+          },
+          {
+            "effectType": "ON_KILL",
+            "onKill": {
+              "creatureTypes": [
+                "humanoid"
+              ],
+              "form": "Zombie",
+              "immediately": true,
+              "text": "A Humanoid slain by this attack immediately rises as a zombie (see the Monster Manual)."
+            },
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: A Humanoid slain by this attack immediately rises as a zombie (see the Monster Manual). The zombie acts as an ally of the barrowghast but isn't under its control.",
+        "_riderNote": "Also on a hit, applied by hand: The zombie acts as an ally of the barrowghast but isn't under its control.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: A Humanoid slain by this attack immediately rises as a zombie (see the Monster Manual). The zombie acts as an ally of the barrowghast but isn't under its control."
+        "dmNote": "Also on a hit, applied by hand: The zombie acts as an ally of the barrowghast but isn't under its control."
       }
     ],
     "reactions": [
@@ -28025,27 +28177,63 @@
       {
         "name": "Swallow",
         "actionType": "BONUS_ACTION",
-        "deliveryMethod": "AUTO_DAMAGE",
+        "deliveryMethod": "AUTO_HIT",
+        "targetCount": 1,
+        "targetGrappled": true,
         "effects": [
           {
-            "effectType": "DAMAGE",
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "swallow": {
+              "limit": 1,
+              "escapeFeet": 5
+            },
+            "maxTargetSize": "Small"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
             "damageDice": "3d6",
-            "damageType": "acid"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "blinded"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "restrained"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone"
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "TARGET"
           }
         ],
-        "targetCount": 1
+        "dmNote": "Also on a hit, applied by hand: If the swallowed creature is one of Bavlorna's lornlings, Bavlorna gains all the lornling's memories when the acid damage reduces it to 0 hit points.",
+        "_riderReplaced": {
+          "name": "Swallow",
+          "actionType": "BONUS_ACTION",
+          "deliveryMethod": "AUTO_DAMAGE",
+          "effects": [
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "3d6",
+              "damageType": "acid"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "blinded"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          ],
+          "targetCount": 1
+        }
       }
     ],
     "spellcasting": {
@@ -28127,24 +28315,67 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "swallowed",
+            "saveDC": 22,
+            "saveAbility": "DEX",
+            "maxTargetSize": "Large",
+            "swallow": {
+              "limit": 2,
+              "regurgitateDamage": 30,
+              "regurgitateDC": 22,
+              "escapeFeet": 10
+            },
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
-            "condition": "prone"
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "saveDC": 22,
+            "saveAbility": "DEX",
+            "_rider": "added"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "restrained"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone"
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "8d6",
+            "damageType": "piercing",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "saveDC": 22,
+            "saveAbility": "DEX",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature, it must succeed on a DC 22 Dexterity saving throw or be swallowed by the wurm. A swallowed creature has the restrained condition, has Cover against attacks and other effects outside the wurm, and takes 28 (8d6) piercing damage at the start of each of the wurm's turns from thorns in the wurm's gullet. The wurm's stomach can hold up to two creatures at a time. If the wurm takes 30 damage or more on a single turn from a creature inside it, the wurm must succeed on a DC 22 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, each of which falls in a space within 10 feet of the wurm and has the prone condition. If the wurm dies, a swallowed creature no longer has the restrained condition and can escape from the corpse by using 10 feet of movement, exiting with the prone condition.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature, it must succeed on a DC 22 Dexterity saving throw or be swallowed by the wurm. A swallowed creature has the restrained condition, has Cover against attacks and other effects outside the wurm, and takes 28 (8d6) piercing damage at the start of each of the wurm's turns from thorns in the wurm's gullet. The wurm's stomach can hold up to two creatures at a time. If the wurm takes 30 damage or more on a single turn from a creature inside it, the wurm must succeed on a DC 22 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, each of which falls in a space within 10 feet of the wurm and has the prone condition. If the wurm dies, a swallowed creature no longer has the restrained condition and can escape from the corpse by using 10 feet of movement, exiting with the prone condition."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            }
+          },
+          {
+            "at": 2,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          },
+          {
+            "at": 3,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            }
+          },
+          {
+            "at": 4,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          }
+        ]
       }
     ],
     "traits": [
@@ -37086,35 +37317,86 @@
             "damageType": "piercing"
           },
           {
-            "effectType": "DAMAGE",
-            "damageDice": "3d8",
-            "damageType": "poison"
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "saveDC": 13,
+            "saveAbility": "DEX",
+            "maxTargetSize": "Medium",
+            "swallow": {
+              "limit": 1,
+              "regurgitateDamage": 15,
+              "regurgitateDC": 20,
+              "escapeFeet": 10
+            },
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
             "condition": "blinded",
-            "durationText": null,
-            "durationRounds": null
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone",
-            "durationText": null,
-            "durationRounds": null
+            "endsWith": "swallowed",
+            "saveDC": 13,
+            "saveAbility": "DEX",
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
             "condition": "restrained",
-            "durationText": null,
-            "durationRounds": null
+            "endsWith": "swallowed",
+            "saveDC": 13,
+            "saveAbility": "DEX",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "3d8",
+            "damageType": "poison",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "saveDC": 13,
+            "saveAbility": "DEX",
+            "_rider": "added"
           }
         ],
         "additionalSaveDC": 13,
         "additionalSaveAbility": "DEX",
         "automatable": true,
-        "_riderNote": "Also on a hit, applied by hand: If the target is a Medium or smaller creature, it must succeed on a DC 13 Dexterity saving throw or be swallowed by the scavver. The scavver can have one creature swallowed at a time. A swallowed creature is blinded and restrained, has Cover against attacks and other effects outside the scavver, and takes 13 (3d8) poison damage at the start of each of the scavver's turns from the poisonous gas in the scavver's gullet. If the scavver takes 15 damage or more on a single turn from a creature inside it, the scavver must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate the swallowed creature, which falls prone in a space within 10 feet of the scavver. If the scavver dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 10 feet of movement, exiting prone.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the target is a Medium or smaller creature, it must succeed on a DC 13 Dexterity saving throw or be swallowed by the scavver. The scavver can have one creature swallowed at a time. A swallowed creature is blinded and restrained, has Cover against attacks and other effects outside the scavver, and takes 13 (3d8) poison damage at the start of each of the scavver's turns from the poisonous gas in the scavver's gullet. If the scavver takes 15 damage or more on a single turn from a creature inside it, the scavver must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate the swallowed creature, which falls prone in a space within 10 feet of the scavver. If the scavver dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 10 feet of movement, exiting prone."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "3d8",
+              "damageType": "poison"
+            }
+          },
+          {
+            "at": 2,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "blinded",
+              "durationText": null,
+              "durationRounds": null
+            }
+          },
+          {
+            "at": 3,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "prone",
+              "durationText": null,
+              "durationRounds": null
+            }
+          },
+          {
+            "at": 4,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained",
+              "durationText": null,
+              "durationRounds": null
+            }
+          }
+        ]
       }
     ],
     "traits": [
@@ -43280,21 +43562,50 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "petrified",
+            "condition": "restrained",
             "saveDC": 11,
             "saveAbility": "CON",
-            "durationText": "24 hours",
-            "saveToEndEachTurn": true
+            "_rider": "added"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "restrained",
-            "escapeDC": 11
+            "effectType": "COUNTED_SAVES",
+            "saveToEndDC": 11,
+            "saveToEndAbility": "CON",
+            "counted": {
+              "successes": 1,
+              "failures": 1,
+              "endsConditions": [
+                "restrained"
+              ],
+              "failureCondition": "petrified",
+              "onFailures": "Petrified for 24 hours."
+            },
+            "saveDC": 11,
+            "saveAbility": "CON",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: The target must succeed on a DC 11 Constitution saving throw against being magically petrified. On a failed save, the creature begins to turn to stone and is restrained. It must repeat the saving throw at the end of its next turn. On a success, the effect ends. On a failure, the creature is petrified for 24 hours.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: The target must succeed on a DC 11 Constitution saving throw against being magically petrified. On a failed save, the creature begins to turn to stone and is restrained. It must repeat the saving throw at the end of its next turn. On a success, the effect ends. On a failure, the creature is petrified for 24 hours."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "petrified",
+              "saveDC": 11,
+              "saveAbility": "CON",
+              "durationText": "24 hours",
+              "saveToEndEachTurn": true
+            }
+          },
+          {
+            "at": 2,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained",
+              "escapeDC": 11
+            }
+          }
+        ]
       }
     ]
   },
@@ -49955,11 +50266,23 @@
             "saveAbility": "CON",
             "diesAtZero": true,
             "_rider": "added"
+          },
+          {
+            "effectType": "ON_KILL",
+            "onKill": {
+              "creatureTypes": [
+                "humanoid"
+              ],
+              "form": "Zombie",
+              "immediately": false,
+              "text": "A Humanoid slain by this attack rises 24 hours later as a zombie under the deathlock's control, unless the Humanoid is restored to life or its body is destroyed."
+            },
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: A Humanoid slain by this attack rises 24 hours later as a zombie under the deathlock's control, unless the Humanoid is restored to life or its body is destroyed. The deathlock can have no more than twelve zombies under its control at one time.",
+        "_riderNote": "Also on a hit, applied by hand: The deathlock can have no more than twelve zombies under its control at one time.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: A Humanoid slain by this attack rises 24 hours later as a zombie under the deathlock's control, unless the Humanoid is restored to life or its body is destroyed. The deathlock can have no more than twelve zombies under its control at one time."
+        "dmNote": "Also on a hit, applied by hand: The deathlock can have no more than twelve zombies under its control at one time."
       },
       {
         "name": "Grave Bolt",
@@ -50057,11 +50380,23 @@
             "saveAbility": "CON",
             "diesAtZero": true,
             "_rider": "added"
+          },
+          {
+            "effectType": "ON_KILL",
+            "onKill": {
+              "creatureTypes": [
+                "humanoid"
+              ],
+              "form": "Zombie",
+              "immediately": false,
+              "text": "A humanoid slain by this attack rises 24 hours later as a zombie under the wight's control, unless the humanoid is restored to life or its body is destroyed."
+            },
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: A humanoid slain by this attack rises 24 hours later as a zombie under the wight's control, unless the humanoid is restored to life or its body is destroyed. The wight can have no more than twelve zombie under its control at one time.",
+        "_riderNote": "Also on a hit, applied by hand: The wight can have no more than twelve zombie under its control at one time.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: A humanoid slain by this attack rises 24 hours later as a zombie under the wight's control, unless the humanoid is restored to life or its body is destroyed. The wight can have no more than twelve zombie under its control at one time."
+        "dmNote": "Also on a hit, applied by hand: The wight can have no more than twelve zombie under its control at one time."
       }
     ],
     "spellcasting": {
@@ -51110,6 +51445,19 @@
             "saveDC": 14,
             "saveAbility": "CON",
             "halfOnSave": true
+          },
+          {
+            "effectType": "AT_ZERO",
+            "atZero": {
+              "stable": true,
+              "condition": "poisoned",
+              "durationRounds": 600,
+              "linked": [
+                "paralyzed"
+              ]
+            },
+            "damageType": "poison",
+            "_rider": "added"
           }
         ],
         "_riderRemoved": [
@@ -51131,10 +51479,7 @@
               "durationText": "1 hour"
             }
           }
-        ],
-        "_riderNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and has the paralyzed condition while poisoned in this way.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and has the paralyzed condition while poisoned in this way."
+        ]
       },
       {
         "name": "Foreleg",
@@ -54013,12 +54358,17 @@
             "effectType": "DAMAGE",
             "damageDice": "3d12 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "ABILITY_REDUCTION",
+            "ability": "DEX",
+            "damageDice": "1d4",
+            "until": "SHORT_REST",
+            "diesAtZero": true,
+            "_rider": "added"
           }
         ],
-        "automatable": true,
-        "_riderNote": "Also on a hit, applied by hand: The target's Dexterity score is reduced by 2 (1d4). The target is killed if this reduces its Dexterity to 0. The reduction lasts until the target finishes a short or long rest.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: The target's Dexterity score is reduced by 2 (1d4). The target is killed if this reduces its Dexterity to 0. The reduction lasts until the target finishes a short or long rest."
+        "automatable": true
       }
     ],
     "bonusActions": [
@@ -66884,27 +67234,58 @@
         "recharge": "5-6",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
-        "saveAbility": "CON",
         "saveDC": 13,
+        "saveAbility": "CON",
         "halfOnSave": false,
         "targetType": "AOE_CONE",
         "aoeSize": 30,
         "effects": [
           {
             "effectType": "CONDITION",
-            "condition": "restrained",
-            "saveToEndEachTurn": true,
-            "saveToEndAbility": "CON",
-            "saveToEndDC": 13
+            "condition": "restrained"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "petrified",
-            "saveToEndEachTurn": true,
+            "effectType": "COUNTED_SAVES",
+            "saveToEndDC": 13,
             "saveToEndAbility": "CON",
-            "saveToEndDC": 13
+            "counted": {
+              "successes": 1,
+              "failures": 1,
+              "endsConditions": [
+                "restrained"
+              ],
+              "failureCondition": "petrified",
+              "onFailures": "Petrified until freed by the greater restoration spell or other magic."
+            }
           }
-        ]
+        ],
+        "_riderReplaced": {
+          "name": "Petrifying Breath",
+          "recharge": "5-6",
+          "actionType": "ACTION",
+          "deliveryMethod": "SAVING_THROW",
+          "saveAbility": "CON",
+          "saveDC": 13,
+          "halfOnSave": false,
+          "targetType": "AOE_CONE",
+          "aoeSize": 30,
+          "effects": [
+            {
+              "effectType": "CONDITION",
+              "condition": "restrained",
+              "saveToEndEachTurn": true,
+              "saveToEndAbility": "CON",
+              "saveToEndDC": 13
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "petrified",
+              "saveToEndEachTurn": true,
+              "saveToEndAbility": "CON",
+              "saveToEndDC": 13
+            }
+          ]
+        }
       }
     ],
     "traits": [
@@ -68251,35 +68632,85 @@
             "damageType": "piercing"
           },
           {
-            "effectType": "DAMAGE",
-            "damageDice": "10d6",
-            "damageType": "acid"
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "saveDC": 18,
+            "saveAbility": "DEX",
+            "maxTargetSize": "Medium",
+            "swallow": {
+              "limit": 1,
+              "regurgitateDamage": 25,
+              "escapeFeet": 10
+            },
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
             "condition": "blinded",
-            "durationText": null,
-            "durationRounds": null
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone",
-            "durationText": null,
-            "durationRounds": null
+            "endsWith": "swallowed",
+            "saveDC": 18,
+            "saveAbility": "DEX",
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
             "condition": "restrained",
-            "durationText": null,
-            "durationRounds": null
+            "endsWith": "swallowed",
+            "saveDC": 18,
+            "saveAbility": "DEX",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "10d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "TARGET",
+            "saveDC": 18,
+            "saveAbility": "DEX",
+            "_rider": "added"
           }
         ],
         "additionalSaveDC": 18,
         "additionalSaveAbility": "DEX",
         "automatable": true,
-        "_riderNote": "Also on a hit, applied by hand: If the target is a Medium or smaller creature, it must succeed on a DC 18 Dexterity saving throw or be swallowed by the eye monger and deposited in the eye monger's gullet (see Antimagic Gullet). The eye monger can swallow one creature at a time. A swallowed creature is blinded and restrained, has Cover against attacks and other effects originating outside the eye monger, and takes 35 (10d6) acid damage at the start of each of its turns. If the eye monger takes 25 damage or more on a single turn from a creature inside its gullet, the eye monger regurgitates the swallowed creature, which falls prone in a space within 10 feet of the eye monger. If the eye monger dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 10 feet of movement, exiting prone.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the target is a Medium or smaller creature, it must succeed on a DC 18 Dexterity saving throw or be swallowed by the eye monger and deposited in the eye monger's gullet (see Antimagic Gullet). The eye monger can swallow one creature at a time. A swallowed creature is blinded and restrained, has Cover against attacks and other effects originating outside the eye monger, and takes 35 (10d6) acid damage at the start of each of its turns. If the eye monger takes 25 damage or more on a single turn from a creature inside its gullet, the eye monger regurgitates the swallowed creature, which falls prone in a space within 10 feet of the eye monger. If the eye monger dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 10 feet of movement, exiting prone."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "10d6",
+              "damageType": "acid"
+            }
+          },
+          {
+            "at": 2,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "blinded",
+              "durationText": null,
+              "durationRounds": null
+            }
+          },
+          {
+            "at": 3,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "prone",
+              "durationText": null,
+              "durationRounds": null
+            }
+          },
+          {
+            "at": 4,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained",
+              "durationText": null,
+              "durationRounds": null
+            }
+          }
+        ]
       }
     ],
     "traits": [
@@ -72362,25 +72793,75 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "swallowed",
+            "maxTargetSize": "Large",
+            "onlyIf": {
+              "targetCondition": "grappled",
+              "byAttacker": true,
+              "text": "a creature it is grappling"
+            },
+            "swallow": {
+              "regurgitateDamage": 50,
+              "regurgitateDC": 23,
+              "escapeFeet": 15
+            },
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
-            "condition": "blinded"
+            "condition": "blinded",
+            "endsWith": "swallowed",
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "_rider": "added"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "prone"
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "12d6",
+            "damageType": "fire",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "_rider": "added"
           }
         ],
         "automatable": true,
-        "_riderNote": "Also on a hit, applied by hand: 7 (2d6) fire damage. If the target is a Large or smaller creature grappled by the kraken, the creature is swallowed and the grapple ends. While swallowed, a creature has the blinded and restrained conditions, has Cover against attacks and other effects outside the kraken, and takes 42 (12d6) fire damage at the start of the kraken's turns. If the kraken takes 50 damage or more on a single turn from a creature inside it, it must succeed on a DC 23 Constitution saving throw or regurgitate all swallowed creatures, which fall into a space within 10 feet of the kraken and now have the prone condition. If the kraken dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 15 feet of movement, exiting with the prone condition.",
+        "_riderRemoved": [
+          {
+            "at": 2,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "grappled"
+            }
+          },
+          {
+            "at": 3,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "blinded"
+            }
+          },
+          {
+            "at": 4,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            }
+          },
+          {
+            "at": 5,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          }
+        ],
+        "_riderNote": "Also on a hit, applied by hand: 7 (2d6) fire damage.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: 7 (2d6) fire damage. If the target is a Large or smaller creature grappled by the kraken, the creature is swallowed and the grapple ends. While swallowed, a creature has the blinded and restrained conditions, has Cover against attacks and other effects outside the kraken, and takes 42 (12d6) fire damage at the start of the kraken's turns. If the kraken takes 50 damage or more on a single turn from a creature inside it, it must succeed on a DC 23 Constitution saving throw or regurgitate all swallowed creatures, which fall into a space within 10 feet of the kraken and now have the prone condition. If the kraken dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 15 feet of movement, exiting with the prone condition."
+        "dmNote": "Also on a hit, applied by hand: 7 (2d6) fire damage."
       },
       {
         "name": "Tentacle",
@@ -76007,10 +76488,41 @@
             "effectType": "DAMAGE",
             "damageDice": "3d10 + 7",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "maxTargetSize": "Medium",
+            "swallow": {
+              "limit": 3,
+              "regurgitateDamage": 25,
+              "regurgitateDC": 20,
+              "escapeFeet": 10
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "3d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "_rider": "added"
           }
         ],
-        "dmNote": "Swallowing is applied by hand. On a hit, a Medium or smaller target is swallowed, and the gullet holds up to three creatures. A swallowed creature is blinded and restrained, has total cover against attacks and other effects outside the froghemoth, and takes 10 (3d6) acid damage at the start of each of the froghemoth's turns. If the froghemoth takes 25 damage or more on a single turn from a creature inside it, the froghemoth must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which land prone within 10 feet of it. If the froghemoth dies, a swallowed creature can escape from the corpse using 10 feet of movement, exiting prone. Also on a hit, applied by hand: The target is swallowed if it is a Medium or smaller creature. A swallowed creature has the blinded and restrained conditions, has Cover against attacks and other effects outside the froghemoth, and takes 10 (3d6) acid damage at the start of each of the froghemoth's turns. The froghemoth's gullet can hold up to three creatures at a time. If the froghemoth takes 25 damage or more on a single turn from a creature inside it, the froghemoth must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, each of which lands in a space within 10 feet of the froghemoth and has the prone condition. If the froghemoth dies, any swallowed creatures are no longer restrained by it and can escape from the corpse using 10 feet of movement, exiting with the prone condition.",
-        "_riderNote": "Also on a hit, applied by hand: The target is swallowed if it is a Medium or smaller creature. A swallowed creature has the blinded and restrained conditions, has Cover against attacks and other effects outside the froghemoth, and takes 10 (3d6) acid damage at the start of each of the froghemoth's turns. The froghemoth's gullet can hold up to three creatures at a time. If the froghemoth takes 25 damage or more on a single turn from a creature inside it, the froghemoth must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, each of which lands in a space within 10 feet of the froghemoth and has the prone condition. If the froghemoth dies, any swallowed creatures are no longer restrained by it and can escape from the corpse using 10 feet of movement, exiting with the prone condition."
+        "_riderNoteReplaced": "Swallowing is applied by hand. On a hit, a Medium or smaller target is swallowed, and the gullet holds up to three creatures. A swallowed creature is blinded and restrained, has total cover against attacks and other effects outside the froghemoth, and takes 10 (3d6) acid damage at the start of each of the froghemoth's turns. If the froghemoth takes 25 damage or more on a single turn from a creature inside it, the froghemoth must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which land prone within 10 feet of it. If the froghemoth dies, a swallowed creature can escape from the corpse using 10 feet of movement, exiting prone."
       },
       {
         "name": "Tentacle",
@@ -76150,10 +76662,41 @@
             "effectType": "DAMAGE",
             "damageDice": "3d10 + 6",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "maxTargetSize": "Medium",
+            "swallow": {
+              "limit": 2,
+              "regurgitateDamage": 20,
+              "regurgitateDC": 20,
+              "escapeFeet": 10
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "3d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "_rider": "added"
           }
         ],
-        "dmNote": "Swallowing is applied by hand. On a hit, a Medium or smaller target is swallowed, and the gullet holds up to two creatures. A swallowed creature is blinded and restrained, has total cover against attacks and other effects outside the froghemoth, and takes 10 (3d6) acid damage at the start of each of the froghemoth's turns. If the froghemoth takes 20 damage or more on a single turn from a creature inside it, the froghemoth must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone within 10 feet of it. If the froghemoth dies, a swallowed creature can escape from the corpse using 10 feet of movement, exiting prone. Also on a hit, applied by hand: The target is swallowed if it is a Medium or smaller creature. A swallowed creature is blinded and restrained, has Cover against attacks and other effects outside the froghemoth, and takes 10 (3d6) acid damage at the start of each of the froghemoth's turns. The froghemoth's gullet can hold up to two creatures at a time. If the froghemoth takes 20 damage or more on a single turn from a creature inside it, the froghemoth must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, each of which falls prone in a space within 10 feet of the froghemoth. If the froghemoth dies, any swallowed creature is no longer restrained by it and can escape from the corpse using 10 feet of movement, exiting prone.",
-        "_riderNote": "Also on a hit, applied by hand: The target is swallowed if it is a Medium or smaller creature. A swallowed creature is blinded and restrained, has Cover against attacks and other effects outside the froghemoth, and takes 10 (3d6) acid damage at the start of each of the froghemoth's turns. The froghemoth's gullet can hold up to two creatures at a time. If the froghemoth takes 20 damage or more on a single turn from a creature inside it, the froghemoth must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, each of which falls prone in a space within 10 feet of the froghemoth. If the froghemoth dies, any swallowed creature is no longer restrained by it and can escape from the corpse using 10 feet of movement, exiting prone."
+        "_riderNoteReplaced": "Swallowing is applied by hand. On a hit, a Medium or smaller target is swallowed, and the gullet holds up to two creatures. A swallowed creature is blinded and restrained, has total cover against attacks and other effects outside the froghemoth, and takes 10 (3d6) acid damage at the start of each of the froghemoth's turns. If the froghemoth takes 20 damage or more on a single turn from a creature inside it, the froghemoth must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone within 10 feet of it. If the froghemoth dies, a swallowed creature can escape from the corpse using 10 feet of movement, exiting prone."
       },
       {
         "name": "Tentacle",
@@ -76273,10 +76816,41 @@
             "effectType": "DAMAGE",
             "damageDice": "3d10 + 6",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "maxTargetSize": "Medium",
+            "swallow": {
+              "limit": 2,
+              "regurgitateDamage": 20,
+              "regurgitateDC": 20,
+              "escapeFeet": 10
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "3d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "_rider": "added"
           }
         ],
-        "dmNote": "Swallowing is applied by hand. On a hit, a Medium or smaller target is swallowed, and the gullet holds up to two creatures. A swallowed creature is blinded and restrained, has total cover against attacks and other effects outside the froghemoth, and takes 10 (3d6) acid damage at the start of each of the froghemoth's turns. If the froghemoth takes 20 damage or more on a single turn from a creature inside it, the froghemoth must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone within 10 feet of it. If the froghemoth dies, a swallowed creature can escape from the corpse using 10 feet of movement, exiting prone. Also on a hit, applied by hand: The target is swallowed if it is a Medium or smaller creature. A swallowed creature is blinded and restrained, has Cover against attacks and other effects outside the froghemoth, and takes 10 (3d6) acid damage at the start of each of the froghemoth's turns. The froghemoth's gullet can hold up to two creatures at a time. If the Froghemoth takes 20 damage or more on a single turn from a creature inside it, the Froghemoth must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, each of which falls prone in a space within 10 feet of the froghemoth. If the froghemoth dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 10 feet of movement, exiting prone.",
-        "_riderNote": "Also on a hit, applied by hand: The target is swallowed if it is a Medium or smaller creature. A swallowed creature is blinded and restrained, has Cover against attacks and other effects outside the froghemoth, and takes 10 (3d6) acid damage at the start of each of the froghemoth's turns. The froghemoth's gullet can hold up to two creatures at a time. If the Froghemoth takes 20 damage or more on a single turn from a creature inside it, the Froghemoth must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, each of which falls prone in a space within 10 feet of the froghemoth. If the froghemoth dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 10 feet of movement, exiting prone."
+        "_riderNoteReplaced": "Swallowing is applied by hand. On a hit, a Medium or smaller target is swallowed, and the gullet holds up to two creatures. A swallowed creature is blinded and restrained, has total cover against attacks and other effects outside the froghemoth, and takes 10 (3d6) acid damage at the start of each of the froghemoth's turns. If the froghemoth takes 20 damage or more on a single turn from a creature inside it, the froghemoth must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone within 10 feet of it. If the froghemoth dies, a swallowed creature can escape from the corpse using 10 feet of movement, exiting prone."
       },
       {
         "name": "Tongue",
@@ -77482,11 +78056,6 @@
             "damageType": "slashing"
           },
           {
-            "effectType": "DAMAGE",
-            "damageDice": "2d6 + 3",
-            "damageType": "slashing"
-          },
-          {
             "effectType": "CONDITION",
             "condition": "grappled",
             "durationText": "until grapple ends",
@@ -77506,6 +78075,16 @@
           }
         ],
         "automatable": true,
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "2d6 + 3",
+              "damageType": "slashing"
+            }
+          }
+        ],
         "_riderNote": "Also on a hit, applied by hand: While it is grappling a creature, the gaj can't use its mandibles to attack other creatures.",
         "_riderNoteNew": true,
         "dmNote": "Also on a hit, applied by hand: While it is grappling a creature, the gaj can't use its mandibles to attack other creatures."
@@ -79437,28 +80016,49 @@
         "actionType": "ACTION",
         "recharge": "6",
         "deliveryMethod": "SAVING_THROW",
-        "saveAbility": "CHA",
         "saveDC": 13,
+        "saveAbility": "CHA",
         "halfOnSave": false,
-        "targetType": "AOE_SPHERE",
-        "aoeSize": 5,
+        "targetCount": 1,
         "effects": [
           {
             "effectType": "CONDITION",
-            "condition": "incapacitated",
-            "durationText": "24 hours"
+            "condition": "possessed"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "charmed",
-            "durationText": "24 hours"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "frightened",
-            "durationText": "24 hours"
+            "effectType": "POSSESSION"
           }
-        ]
+        ],
+        "immuneAfterSave": "for 24 hours",
+        "dmNote": "The possessor can't be targeted except by what its stat block allows, keeps its alignment, Intelligence, Wisdom, Charisma and immunities, and otherwise uses the body's statistics; it can end the possession as a bonus action, or be forced out (dispel evil and good): the DM removes possessed.",
+        "_riderReplaced": {
+          "name": "Possession",
+          "actionType": "ACTION",
+          "recharge": "6",
+          "deliveryMethod": "SAVING_THROW",
+          "saveAbility": "CHA",
+          "saveDC": 13,
+          "halfOnSave": false,
+          "targetType": "AOE_SPHERE",
+          "aoeSize": 5,
+          "effects": [
+            {
+              "effectType": "CONDITION",
+              "condition": "incapacitated",
+              "durationText": "24 hours"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "charmed",
+              "durationText": "24 hours"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "frightened",
+              "durationText": "24 hours"
+            }
+          ]
+        }
       }
     ],
     "traits": [
@@ -79533,9 +80133,45 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "engulfed",
+            "escapeDC": 12,
+            "swallow": {},
+            "maxTargetSize": "Large"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "engulfed"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "6d6",
+            "damageType": "acid",
+            "endsWith": "engulfed",
+            "turnOf": "USER"
           }
-        ]
+        ],
+        "dmNote": "Applied by hand: the engulfed creature can't breathe and moves with the cube; a creature that succeeds can choose to be pushed 5 feet aside or take the failure; the cube holds one Large creature or up to four Medium or smaller ones.",
+        "_riderReplaced": {
+          "name": "Engulf",
+          "actionType": "ACTION",
+          "deliveryMethod": "SAVING_THROW",
+          "saveDC": 12,
+          "saveAbility": "DEX",
+          "halfOnSave": false,
+          "targetCount": 1,
+          "effects": [
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "3d6",
+              "damageType": "acid"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            }
+          ]
+        }
       }
     ]
   },
@@ -80592,26 +81228,50 @@
         "actionType": "ACTION",
         "recharge": "6",
         "deliveryMethod": "SAVING_THROW",
-        "saveAbility": "CHA",
         "saveDC": 13,
+        "saveAbility": "CHA",
         "halfOnSave": false,
-        "targetType": "AOE_SPHERE",
-        "aoeSize": 5,
+        "targetCount": 1,
         "effects": [
           {
             "effectType": "CONDITION",
-            "condition": "incapacitated"
+            "condition": "possessed"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "charmed"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "frightened"
+            "effectType": "POSSESSION"
           }
         ],
-        "notes": "REVIEW: Target is possessed (incapacitated, ghost controls body). Complex effect - not fully automatable."
+        "targetTypes": [
+          "humanoid"
+        ],
+        "immuneAfterSave": "for 24 hours",
+        "dmNote": "The possessor can't be targeted except by what its stat block allows, keeps its alignment, Intelligence, Wisdom, Charisma and immunities, and otherwise uses the body's statistics; it can end the possession as a bonus action, or be forced out (dispel evil and good): the DM removes possessed.",
+        "_riderReplaced": {
+          "name": "Possession",
+          "actionType": "ACTION",
+          "recharge": "6",
+          "deliveryMethod": "SAVING_THROW",
+          "saveAbility": "CHA",
+          "saveDC": 13,
+          "halfOnSave": false,
+          "targetType": "AOE_SPHERE",
+          "aoeSize": 5,
+          "effects": [
+            {
+              "effectType": "CONDITION",
+              "condition": "incapacitated"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "charmed"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "frightened"
+            }
+          ],
+          "notes": "REVIEW: Target is possessed (incapacitated, ghost controls body). Complex effect - not fully automatable."
+        }
       }
     ],
     "traits": [
@@ -80932,6 +81592,19 @@
             "saveDC": 11,
             "saveAbility": "CON",
             "halfOnSave": false
+          },
+          {
+            "effectType": "AT_ZERO",
+            "atZero": {
+              "stable": true,
+              "condition": "poisoned",
+              "durationRounds": 600,
+              "linked": [
+                "paralyzed"
+              ]
+            },
+            "damageType": "poison",
+            "_rider": "added"
           }
         ],
         "_riderRemoved": [
@@ -80955,10 +81628,7 @@
               "durationText": "1 hour"
             }
           }
-        ],
-        "_riderNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way."
+        ]
       }
     ]
   },
@@ -81556,9 +82226,53 @@
       {
         "name": "Swallow",
         "actionType": "ACTION",
-        "deliveryMethod": "NONE",
         "description": "The frog makes one bite attack against a Small or smaller target it is grappling. If the attack hits, the target is swallowed, and the grapple ends. The swallowed target is blinded and restrained, it has Cover against attacks and other effects outside the frog, and it takes 5 (2d4) acid damage at the start of each of the frog's turns. The frog can have only one target swallowed at a time. If the frog dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 5 feet of movement, exiting prone.",
-        "automatable": false
+        "deliveryMethod": "ATTACK_ROLL",
+        "attackType": "MELEE_WEAPON",
+        "attackBonus": 3,
+        "reach": 5,
+        "targetCount": 1,
+        "targetGrappled": true,
+        "effects": [
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1d6 + 1",
+            "damageType": "piercing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "swallow": {
+              "limit": 1,
+              "escapeFeet": 5
+            },
+            "maxTargetSize": "Small"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "2d4",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER"
+          }
+        ],
+        "_riderReplaced": {
+          "name": "Swallow",
+          "actionType": "ACTION",
+          "deliveryMethod": "NONE",
+          "description": "The frog makes one bite attack against a Small or smaller target it is grappling. If the attack hits, the target is swallowed, and the grapple ends. The swallowed target is blinded and restrained, it has Cover against attacks and other effects outside the frog, and it takes 5 (2d4) acid damage at the start of each of the frog's turns. The frog can have only one target swallowed at a time. If the frog dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 5 feet of movement, exiting prone.",
+          "automatable": false
+        }
       }
     ]
   },
@@ -81802,25 +82516,75 @@
             "damageType": "piercing"
           },
           {
-            "effectType": "DAMAGE",
-            "damageDice": "3d6",
-            "damageType": "acid"
-          },
-          {
-            "effectType": "DAMAGE",
-            "damageDice": "2d10",
-            "damageType": "cold"
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "swallow": {
+              "limit": 1,
+              "escapeFeet": 5
+            },
+            "maxTargetSize": "Medium",
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
             "condition": "blinded",
-            "durationRounds": null,
-            "durationText": null
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "3d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "2d10",
+            "damageType": "cold",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: The target is swallowed, and the grapple ends. The swallowed target is blinded and restrained, it has Cover against attacks and other effects outside the toad. It takes 10 (3d6) acid damage and 11 (2d10) cold damage at the start of each of the toad's turns. The toad can have only one target swallowed at a time. If the toad dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 5 feet of movement, exiting prone.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: The target is swallowed, and the grapple ends. The swallowed target is blinded and restrained, it has Cover against attacks and other effects outside the toad. It takes 10 (3d6) acid damage and 11 (2d10) cold damage at the start of each of the toad's turns. The toad can have only one target swallowed at a time. If the toad dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 5 feet of movement, exiting prone."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "3d6",
+              "damageType": "acid"
+            }
+          },
+          {
+            "at": 2,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "2d10",
+              "damageType": "cold"
+            }
+          },
+          {
+            "at": 3,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "blinded",
+              "durationRounds": null,
+              "durationText": null
+            }
+          }
+        ],
+        "targetGrappled": true,
+        "_riderActionKeys": [
+          "targetGrappled"
+        ]
       }
     ],
     "notes": [
@@ -82827,6 +83591,19 @@
             "saveDC": 11,
             "saveAbility": "CON",
             "halfOnSave": true
+          },
+          {
+            "effectType": "AT_ZERO",
+            "atZero": {
+              "stable": true,
+              "condition": "poisoned",
+              "durationRounds": 600,
+              "linked": [
+                "paralyzed"
+              ]
+            },
+            "damageType": "poison",
+            "_rider": "added"
           }
         ],
         "_riderRemoved": [
@@ -82850,10 +83627,7 @@
               "durationText": "1 hour"
             }
           }
-        ],
-        "_riderNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way."
+        ]
       },
       {
         "name": "Web",
@@ -83078,20 +83852,59 @@
             "damageType": "piercing"
           },
           {
-            "effectType": "DAMAGE",
-            "damageDice": "3d6",
-            "damageType": "acid"
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "swallow": {
+              "limit": 1,
+              "escapeFeet": 10
+            },
+            "maxTargetSize": "Medium",
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
             "condition": "blinded",
-            "durationRounds": null,
-            "durationText": null
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "3d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: The target is swallowed, and the grapple ends. The swallowed target is blinded and restrained, it has Cover against attacks and other effects outside the lizard. It takes 10 (3d6) acid damage at the start of each of the lizard's turns. The lizard can have only one target swallowed at a time. If the lizard dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 10 feet of movement, exiting prone.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: The target is swallowed, and the grapple ends. The swallowed target is blinded and restrained, it has Cover against attacks and other effects outside the lizard. It takes 10 (3d6) acid damage at the start of each of the lizard's turns. The lizard can have only one target swallowed at a time. If the lizard dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 10 feet of movement, exiting prone."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "3d6",
+              "damageType": "acid"
+            }
+          },
+          {
+            "at": 2,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "blinded",
+              "durationRounds": null,
+              "durationText": null
+            }
+          }
+        ],
+        "targetGrappled": true,
+        "_riderActionKeys": [
+          "targetGrappled"
+        ]
       }
     ],
     "notes": [
@@ -83245,9 +84058,58 @@
       {
         "name": "Swallow",
         "actionType": "ACTION",
-        "deliveryMethod": "NONE",
         "description": "The toad makes one bite attack against a Medium or smaller target it is grappling. If the attack hits, the target is swallowed, and the grapple ends. The swallowed target is blinded and restrained, it has Cover against attacks and other effects outside the toad, and it takes 10 (3d6) acid damage at the start of each of the toad's turns. The toad can have only one target swallowed at a time. If the toad dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 5 feet of movement, exiting prone.",
-        "automatable": false
+        "deliveryMethod": "ATTACK_ROLL",
+        "attackType": "MELEE_WEAPON",
+        "attackBonus": 4,
+        "reach": 5,
+        "targetCount": 1,
+        "targetGrappled": true,
+        "effects": [
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1d10 + 2",
+            "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1d10",
+            "damageType": "poison"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "swallow": {
+              "limit": 1,
+              "escapeFeet": 5
+            },
+            "maxTargetSize": "Medium"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "3d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER"
+          }
+        ],
+        "_riderReplaced": {
+          "name": "Swallow",
+          "actionType": "ACTION",
+          "deliveryMethod": "NONE",
+          "description": "The toad makes one bite attack against a Medium or smaller target it is grappling. If the attack hits, the target is swallowed, and the grapple ends. The swallowed target is blinded and restrained, it has Cover against attacks and other effects outside the toad, and it takes 10 (3d6) acid damage at the start of each of the toad's turns. The toad can have only one target swallowed at a time. If the toad dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 5 feet of movement, exiting prone.",
+          "automatable": false
+        }
       }
     ]
   },
@@ -83400,6 +84262,19 @@
             "saveDC": 11,
             "saveAbility": "CON",
             "halfOnSave": true
+          },
+          {
+            "effectType": "AT_ZERO",
+            "atZero": {
+              "stable": true,
+              "condition": "poisoned",
+              "durationRounds": 600,
+              "linked": [
+                "paralyzed"
+              ]
+            },
+            "damageType": "poison",
+            "_rider": "added"
           }
         ],
         "_riderRemoved": [
@@ -83423,10 +84298,7 @@
               "durationText": "1 hour"
             }
           }
-        ],
-        "_riderNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way."
+        ]
       }
     ]
   },
@@ -83512,6 +84384,19 @@
             "saveDC": 11,
             "saveAbility": "CON",
             "halfOnSave": true
+          },
+          {
+            "effectType": "AT_ZERO",
+            "atZero": {
+              "stable": true,
+              "condition": "poisoned",
+              "durationRounds": 600,
+              "linked": [
+                "paralyzed"
+              ]
+            },
+            "damageType": "poison",
+            "_rider": "added"
           }
         ],
         "_riderRemoved": [
@@ -83535,10 +84420,7 @@
               "durationText": "1 hour"
             }
           }
-        ],
-        "_riderNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way."
+        ]
       }
     ]
   },
@@ -84736,39 +85618,83 @@
       {
         "name": "Swallow",
         "actionType": "ACTION",
-        "deliveryMethod": "SAVING_THROW",
-        "saveAbility": "CON",
-        "saveDC": 18,
-        "halfOnSave": false,
-        "targetType": "AOE_SPHERE",
-        "aoeSize": 10,
+        "deliveryMethod": "ATTACK_ROLL",
+        "attackType": "MELEE_WEAPON",
+        "attackBonus": 11,
+        "reach": 15,
+        "targetCount": 1,
+        "targetGrappled": true,
         "effects": [
           {
             "effectType": "DAMAGE",
+            "damageDice": "5d12 + 7",
+            "damageType": "piercing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "swallow": {
+              "regurgitateDamage": 30,
+              "regurgitateDC": 18,
+              "escapeFeet": 20
+            },
+            "maxTargetSize": "Large"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
             "damageDice": "6d6",
-            "damageType": "acid"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "blinded"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "restrained"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "restrained"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone"
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER"
           }
-        ]
+        ],
+        "_riderReplaced": {
+          "name": "Swallow",
+          "actionType": "ACTION",
+          "deliveryMethod": "SAVING_THROW",
+          "saveAbility": "CON",
+          "saveDC": 18,
+          "halfOnSave": false,
+          "targetType": "AOE_SPHERE",
+          "aoeSize": 10,
+          "effects": [
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "6d6",
+              "damageType": "acid"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "blinded"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          ]
+        }
       },
       {
         "name": "Stomp",
@@ -89633,8 +90559,8 @@
         "actionType": "ACTION",
         "recharge": "5-6",
         "deliveryMethod": "SAVING_THROW",
-        "saveAbility": "CON",
         "saveDC": 13,
+        "saveAbility": "CON",
         "halfOnSave": false,
         "targetType": "AOE_CONE",
         "aoeSize": 30,
@@ -89644,11 +90570,42 @@
             "condition": "restrained"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "petrified"
+            "effectType": "COUNTED_SAVES",
+            "saveToEndDC": 13,
+            "saveToEndAbility": "CON",
+            "counted": {
+              "successes": 1,
+              "failures": 1,
+              "endsConditions": [
+                "restrained"
+              ],
+              "failureCondition": "petrified",
+              "onFailures": "Petrified until freed by the greater restoration spell or other magic."
+            }
           }
         ],
-        "notes": "REVIEW: Two-stage: fail = restrained; must repeat save end of next turn; second fail = petrified permanently. Success at either stage ends effect."
+        "_riderReplaced": {
+          "name": "Petrifying Breath",
+          "actionType": "ACTION",
+          "recharge": "5-6",
+          "deliveryMethod": "SAVING_THROW",
+          "saveAbility": "CON",
+          "saveDC": 13,
+          "halfOnSave": false,
+          "targetType": "AOE_CONE",
+          "aoeSize": 30,
+          "effects": [
+            {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "petrified"
+            }
+          ],
+          "notes": "REVIEW: Two-stage: fail = restrained; must repeat save end of next turn; second fail = petrified permanently. Success at either stage ends effect."
+        }
       }
     ],
     "traits": [
@@ -95955,16 +96912,40 @@
         "recharge": "6",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 16,
-        "halfOnSave": false,
         "saveAbility": "CHA",
+        "halfOnSave": false,
+        "targetCount": 1,
         "effects": [
           {
             "effectType": "CONDITION",
-            "condition": "incapacitated",
-            "durationRounds": 14400,
-            "durationText": "24 hours"
+            "condition": "possessed"
+          },
+          {
+            "effectType": "POSSESSION"
           }
-        ]
+        ],
+        "targetTypes": [
+          "humanoid"
+        ],
+        "immuneAfterSave": "for 24 hours",
+        "dmNote": "The possessor can't be targeted except by what its stat block allows, keeps its alignment, Intelligence, Wisdom, Charisma and immunities, and otherwise uses the body's statistics; it can end the possession as a bonus action, or be forced out (dispel evil and good): the DM removes possessed.",
+        "_riderReplaced": {
+          "name": "Possession",
+          "actionType": "ACTION",
+          "recharge": "6",
+          "deliveryMethod": "SAVING_THROW",
+          "saveDC": 16,
+          "halfOnSave": false,
+          "saveAbility": "CHA",
+          "effects": [
+            {
+              "effectType": "CONDITION",
+              "condition": "incapacitated",
+              "durationRounds": 14400,
+              "durationText": "24 hours"
+            }
+          ]
+        }
       }
     ],
     "reactions": [
@@ -96603,34 +97584,91 @@
             "damageType": "poison"
           },
           {
-            "effectType": "DAMAGE",
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "saveDC": 20,
+            "saveAbility": "STR",
+            "maxTargetSize": "Large",
+            "swallow": {
+              "limit": 2,
+              "regurgitateDamage": 40,
+              "regurgitateDC": 15,
+              "escapeFeet": 10
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed",
+            "saveDC": 20,
+            "saveAbility": "STR",
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "saveDC": 20,
+            "saveAbility": "STR",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
             "damageDice": "2d12",
-            "damageType": "poison"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "blinded"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "restrained"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "restrained"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone"
+            "damageType": "poison",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "saveDC": 20,
+            "saveAbility": "STR",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature, it must succeed on a DC 20 Strength saving throw or be swallowed by the hertilod. A swallowed creature has the blinded and restrained conditions. It has Cover against attacks and other effects outside the hertilod. At the start of each of the hertilod's turns, each swallowed creature takes 13 (2d12) poison damage from the poisonous secretion in the hertilod's gullet. The hertilod's gullet can hold up to two creatures at a time. If the hertilod takes 40 damage or more on a single turn from a swallowed creature, the hertilod must succeed on a DC 15 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, each of which lands in a space within 10 feet of the hertilod and has the prone condition. If the hertilod dies, a swallowed creature is no longer restrained and can escape from the corpse by using 10 feet of movement, exiting with the prone condition.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature, it must succeed on a DC 20 Strength saving throw or be swallowed by the hertilod. A swallowed creature has the blinded and restrained conditions. It has Cover against attacks and other effects outside the hertilod. At the start of each of the hertilod's turns, each swallowed creature takes 13 (2d12) poison damage from the poisonous secretion in the hertilod's gullet. The hertilod's gullet can hold up to two creatures at a time. If the hertilod takes 40 damage or more on a single turn from a swallowed creature, the hertilod must succeed on a DC 15 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, each of which lands in a space within 10 feet of the hertilod and has the prone condition. If the hertilod dies, a swallowed creature is no longer restrained and can escape from the corpse by using 10 feet of movement, exiting with the prone condition."
+        "_riderRemoved": [
+          {
+            "at": 2,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "2d12",
+              "damageType": "poison"
+            }
+          },
+          {
+            "at": 3,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "blinded"
+            }
+          },
+          {
+            "at": 4,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            }
+          },
+          {
+            "at": 5,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          },
+          {
+            "at": 6,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            }
+          },
+          {
+            "at": 7,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          }
+        ]
       },
       {
         "name": "Claw",
@@ -101601,6 +102639,12 @@
             "damageDice": "3d6 + 5",
             "damageType": "bludgeoning",
             "endsWith": "grappled",
+            "_rider": "added"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d10 + 5",
+            "damageType": "bludgeoning",
             "_rider": "added"
           }
         ],
@@ -107755,14 +108799,55 @@
             "damageType": "piercing"
           },
           {
-            "effectType": "DAMAGE",
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "maxTargetSize": "Medium",
+            "onlyIf": {
+              "targetCondition": "grappled",
+              "byAttacker": true,
+              "text": "a creature it is grappling"
+            },
+            "swallow": {
+              "regurgitateDamage": 35,
+              "regurgitateDC": 23,
+              "escapeFeet": 10
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
             "damageDice": "6d6",
-            "damageType": "acid"
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the target is a Medium or smaller creature grappled by the kraken, that creature is swallowed and the grapple ends. While swallowed, the creature is blinded and restrained, it has Cover against attacks and other effects outside the kraken. It takes 21 (6d6) acid damage at the start of each of the kraken's turns. One Medium or two smaller creatures can be swallowed at the same time. If the kraken takes 35 damage or more on a single turn from a creature inside it, the kraken must succeed on a DC 23 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in spaces within 10 feet of the kraken. If the kraken dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 10 feet of movement, exiting prone.",
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "6d6",
+              "damageType": "acid"
+            }
+          }
+        ],
+        "_riderNote": "Also on a hit, applied by hand: One Medium or two smaller creatures can be swallowed at the same time.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the target is a Medium or smaller creature grappled by the kraken, that creature is swallowed and the grapple ends. While swallowed, the creature is blinded and restrained, it has Cover against attacks and other effects outside the kraken. It takes 21 (6d6) acid damage at the start of each of the kraken's turns. One Medium or two smaller creatures can be swallowed at the same time. If the kraken takes 35 damage or more on a single turn from a creature inside it, the kraken must succeed on a DC 23 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in spaces within 10 feet of the kraken. If the kraken dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 10 feet of movement, exiting prone."
+        "dmNote": "Also on a hit, applied by hand: One Medium or two smaller creatures can be swallowed at the same time."
       },
       {
         "name": "Tentacle",
@@ -112689,10 +113774,45 @@
             "effectType": "DAMAGE",
             "damageDice": "3d8+10",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "maxTargetSize": "Large",
+            "onlyIf": {
+              "targetCondition": "grappled",
+              "byAttacker": true,
+              "text": "a creature it is grappling"
+            },
+            "swallow": {
+              "regurgitateDamage": 50,
+              "regurgitateDC": 25,
+              "escapeFeet": 15
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "12d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "_rider": "added"
           }
         ],
-        "dmNote": "Swallowing is applied by hand. On a hit, a Large or smaller creature the kraken has grappled is swallowed by this bite, and the grapple ends. A swallowed creature is blinded and restrained, has total cover against attacks and other effects outside the kraken, and takes 42 (12d6) acid damage at the start of each of the kraken's turns. If the kraken takes 50 damage or more on a single turn from a creature inside it, the kraken must succeed on a DC 25 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone within 10 feet of it. If the kraken dies, a swallowed creature can escape from the corpse using 15 feet of movement, exiting prone. Also on a hit, applied by hand: If the target is a Large or smaller creature grappled by the kraken, that creature is swallowed, and the grapple ends. While swallowed, the creature is blinded and restrained, it has Cover against attacks and other effects outside the kraken. It takes 42 (12d6) acid damage at the start of each of the kraken's turns. If the kraken takes 50 damage or more on a single turn from a creature inside it, the kraken must succeed on a DC 25 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the kraken. If the kraken dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 15 feet of movement, exiting prone.",
-        "_riderNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature grappled by the kraken, that creature is swallowed, and the grapple ends. While swallowed, the creature is blinded and restrained, it has Cover against attacks and other effects outside the kraken. It takes 42 (12d6) acid damage at the start of each of the kraken's turns. If the kraken takes 50 damage or more on a single turn from a creature inside it, the kraken must succeed on a DC 25 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the kraken. If the kraken dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 15 feet of movement, exiting prone."
+        "_riderNoteReplaced": "Swallowing is applied by hand. On a hit, a Large or smaller creature the kraken has grappled is swallowed by this bite, and the grapple ends. A swallowed creature is blinded and restrained, has total cover against attacks and other effects outside the kraken, and takes 42 (12d6) acid damage at the start of each of the kraken's turns. If the kraken takes 50 damage or more on a single turn from a creature inside it, the kraken must succeed on a DC 25 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone within 10 feet of it. If the kraken dies, a swallowed creature can escape from the corpse using 15 feet of movement, exiting prone."
       },
       {
         "name": "Tentacle",
@@ -130795,11 +131915,6 @@
             "damageType": "bludgeoning"
           },
           {
-            "effectType": "DAMAGE",
-            "damageDice": "3d8 + 2",
-            "damageType": "bludgeoning"
-          },
-          {
             "effectType": "CONDITION",
             "condition": "grappled",
             "escapeDC": 14,
@@ -130818,6 +131933,16 @@
             "damageType": "bludgeoning",
             "endsWith": "grappled",
             "_rider": "added"
+          }
+        ],
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "3d8 + 2",
+              "damageType": "bludgeoning"
+            }
           }
         ],
         "grappleLimitBlocks": true,
@@ -133481,23 +134606,47 @@
         "recharge": "6",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
-        "saveAbility": "CHA",
         "saveDC": 14,
+        "saveAbility": "CHA",
         "halfOnSave": false,
+        "targetCount": 1,
         "effects": [
           {
             "effectType": "CONDITION",
-            "condition": "incapacitated"
+            "condition": "possessed"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "charmed"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "frightened"
+            "effectType": "POSSESSION"
           }
-        ]
+        ],
+        "targetTypes": [
+          "humanoid"
+        ],
+        "immuneAfterSave": "for 24 hours",
+        "dmNote": "The possessor can't be targeted except by what its stat block allows, keeps its alignment, Intelligence, Wisdom, Charisma and immunities, and otherwise uses the body's statistics; it can end the possession as a bonus action, or be forced out (dispel evil and good): the DM removes possessed.",
+        "_riderReplaced": {
+          "name": "Possession",
+          "recharge": "6",
+          "actionType": "ACTION",
+          "deliveryMethod": "SAVING_THROW",
+          "saveAbility": "CHA",
+          "saveDC": 14,
+          "halfOnSave": false,
+          "effects": [
+            {
+              "effectType": "CONDITION",
+              "condition": "incapacitated"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "charmed"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "frightened"
+            }
+          ]
+        }
       }
     ],
     "spellcasting": {
@@ -137822,6 +138971,12 @@
             "damageDice": "2d4",
             "saveDC": 16,
             "saveAbility": "CON",
+            "damageType": "slashing",
+            "_rider": "added"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6 + 5",
             "damageType": "slashing",
             "_rider": "added"
           }
@@ -144261,6 +145416,19 @@
             "saveDC": 11,
             "saveAbility": "CON",
             "halfOnSave": true
+          },
+          {
+            "effectType": "AT_ZERO",
+            "atZero": {
+              "stable": true,
+              "condition": "poisoned",
+              "durationRounds": 600,
+              "linked": [
+                "paralyzed"
+              ]
+            },
+            "damageType": "poison",
+            "_rider": "added"
           }
         ],
         "notes": "REVIEW: On failed DC 11 CON save, target takes 4d8 poison damage (half on success). If this reduces target to 0 HP, target is stable but poisoned for 1 hour (even after regaining HP), and while poisoned is paralyzed.",
@@ -144284,10 +145452,7 @@
               "saveAbility": "CON"
             }
           }
-        ],
-        "_riderNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way."
+        ]
       }
     ],
     "traits": [
@@ -147271,34 +148436,96 @@
         "aoeSize": 10,
         "effects": [
           {
-            "effectType": "DAMAGE",
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "saveDC": 13,
+            "saveAbility": "DEX",
+            "maxTargetSize": "Small",
+            "swallow": {
+              "regurgitateDamage": 10,
+              "regurgitateDC": 21,
+              "escapeFeet": 5
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed",
+            "saveDC": 13,
+            "saveAbility": "DEX",
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "saveDC": 13,
+            "saveAbility": "DEX",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
             "damageDice": "1d6",
-            "damageType": "acid"
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "saveDC": 13,
+            "saveAbility": "DEX",
+            "_rider": "added"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "blinded"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "restrained"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "restrained"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone"
+            "effectType": "DAMAGE",
+            "damageDice": "1d8 + 5",
+            "damageType": "piercing",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the target is a Small or smaller creature, it must succeed on a DC 13 Dexterity saving throw or be swallowed by the worm. A swallowed creature is blinded and restrained, it has Cover against attacks and other effects outside the wormling. It takes 3 (1d6) acid damage at the start of each of the wormling's turns. If the wormling takes 10 damage or more on a single turn from a creature inside it, the wormling must succeed on a DC 21 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the wormling. If the wormling dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 5 feet of movement, exiting prone.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the target is a Small or smaller creature, it must succeed on a DC 13 Dexterity saving throw or be swallowed by the worm. A swallowed creature is blinded and restrained, it has Cover against attacks and other effects outside the wormling. It takes 3 (1d6) acid damage at the start of each of the wormling's turns. If the wormling takes 10 damage or more on a single turn from a creature inside it, the wormling must succeed on a DC 21 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the wormling. If the wormling dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 5 feet of movement, exiting prone."
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "1d6",
+              "damageType": "acid"
+            }
+          },
+          {
+            "at": 1,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "blinded"
+            }
+          },
+          {
+            "at": 2,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            }
+          },
+          {
+            "at": 3,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          },
+          {
+            "at": 4,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            }
+          },
+          {
+            "at": 5,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          }
+        ]
       },
       {
         "name": "Tail Stinger",
@@ -159895,11 +161122,28 @@
             "effectType": "DAMAGE",
             "damageDice": "2d6 + 2",
             "damageType": "necrotic"
+          },
+          {
+            "effectType": "ABILITY_REDUCTION",
+            "ability": "STR",
+            "damageDice": "1d4",
+            "until": "SHORT_REST",
+            "diesAtZero": true,
+            "_rider": "added"
+          },
+          {
+            "effectType": "ON_KILL",
+            "onKill": {
+              "creatureTypes": [
+                "humanoid"
+              ],
+              "form": "Shadow",
+              "immediately": false,
+              "text": "If a non-evil humanoid dies from this attack, a new shadow rises from the corpse 1d4 hours later."
+            },
+            "_rider": "added"
           }
-        ],
-        "_riderNote": "Also on a hit, applied by hand: The target's Strength score is reduced by 1d4. The target dies if this reduces its Strength to 0. Otherwise, the reduction lasts until the target finishes a short or long rest. If a non-evil humanoid dies from this attack, a new shadow rises from the corpse 1d4 hours later.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: The target's Strength score is reduced by 1d4. The target dies if this reduces its Strength to 0. Otherwise, the reduction lasts until the target finishes a short or long rest. If a non-evil humanoid dies from this attack, a new shadow rises from the corpse 1d4 hours later."
+        ]
       }
     ]
   },
@@ -163750,6 +164994,19 @@
             "saveDC": 11,
             "saveAbility": "CON",
             "halfOnSave": true
+          },
+          {
+            "effectType": "AT_ZERO",
+            "atZero": {
+              "stable": true,
+              "condition": "poisoned",
+              "durationRounds": 600,
+              "linked": [
+                "paralyzed"
+              ]
+            },
+            "damageType": "poison",
+            "_rider": "added"
           }
         ],
         "_riderRemoved": [
@@ -163777,10 +165034,7 @@
               "durationText": "1 hour"
             }
           }
-        ],
-        "_riderNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way."
+        ]
       }
     ]
   },
@@ -164258,28 +165512,81 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "blinded"
+            "condition": "swallowed",
+            "saveDC": 18,
+            "saveAbility": "DEX",
+            "maxTargetSize": "Large",
+            "swallow": {
+              "regurgitateDamage": 30,
+              "regurgitateDC": 21,
+              "escapeFeet": 20
+            },
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "blinded",
+            "endsWith": "swallowed",
+            "saveDC": 18,
+            "saveAbility": "DEX",
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
-            "condition": "prone"
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "saveDC": 18,
+            "saveAbility": "DEX",
+            "_rider": "added"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "restrained"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone"
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "6d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "saveDC": 18,
+            "saveAbility": "DEX",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature, it must succeed on a DC 18 Dexterity saving throw or be swallowed by the leviathan. A swallowed creature is blinded and restrained, it has Cover against attacks and other effects outside the leviathan. It takes 21 (6d6) acid damage at the start of each of the leviathan's turns. If the leviathan takes 30 damage or more on a single turn from a creature inside it, the leviathan must succeed on a DC 21 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the leviathan. If the leviathan dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 20 feet of movement, exiting prone.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature, it must succeed on a DC 18 Dexterity saving throw or be swallowed by the leviathan. A swallowed creature is blinded and restrained, it has Cover against attacks and other effects outside the leviathan. It takes 21 (6d6) acid damage at the start of each of the leviathan's turns. If the leviathan takes 30 damage or more on a single turn from a creature inside it, the leviathan must succeed on a DC 21 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the leviathan. If the leviathan dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 20 feet of movement, exiting prone."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "blinded"
+            }
+          },
+          {
+            "at": 2,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            }
+          },
+          {
+            "at": 3,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          },
+          {
+            "at": 4,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            }
+          },
+          {
+            "at": 5,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          }
+        ]
       }
     ]
   },
@@ -164541,10 +165848,45 @@
             "effectType": "DAMAGE",
             "damageDice": "3d8 + 10",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "maxTargetSize": "Large",
+            "onlyIf": {
+              "targetCondition": "grappled",
+              "byAttacker": true,
+              "text": "a creature it is grappling"
+            },
+            "swallow": {
+              "regurgitateDamage": 50,
+              "regurgitateDC": 25,
+              "escapeFeet": 15
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "12d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "_rider": "added"
           }
         ],
-        "dmNote": "Swallowing is applied by hand. On a hit, a Large or smaller creature Slarkrethel has grappled is swallowed by this bite, and the grapple ends. A swallowed creature is blinded and restrained, has total cover against attacks and other effects outside Slarkrethel, and takes 42 (12d6) acid damage at the start of each of Slarkrethel's turns. If Slarkrethel takes 50 damage or more on a single turn from a creature inside it, Slarkrethel must succeed on a DC 25 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone within 10 feet of it. If Slarkrethel dies, a swallowed creature can escape from the corpse using 15 feet of movement, exiting prone. Also on a hit, applied by hand: If the target is a Large or smaller creature grappled by Slarkrethel, that creature is swallowed, and the grapple ends. While swallowed, the creature is blinded and restrained, it has Cover against attacks and other effects outside Slarkrethel. It takes 42 (12d6) acid damage at the start of each of Slarkrethel's turns. If Slarkrethel takes 50 damage or more on a single turn from a creature inside it, Slarkrethel must succeed on a DC 25 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of Slarkrethel. If Slarkrethel dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 15 feet of movement, exiting prone.",
-        "_riderNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature grappled by Slarkrethel, that creature is swallowed, and the grapple ends. While swallowed, the creature is blinded and restrained, it has Cover against attacks and other effects outside Slarkrethel. It takes 42 (12d6) acid damage at the start of each of Slarkrethel's turns. If Slarkrethel takes 50 damage or more on a single turn from a creature inside it, Slarkrethel must succeed on a DC 25 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of Slarkrethel. If Slarkrethel dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 15 feet of movement, exiting prone."
+        "_riderNoteReplaced": "Swallowing is applied by hand. On a hit, a Large or smaller creature Slarkrethel has grappled is swallowed by this bite, and the grapple ends. A swallowed creature is blinded and restrained, has total cover against attacks and other effects outside Slarkrethel, and takes 42 (12d6) acid damage at the start of each of Slarkrethel's turns. If Slarkrethel takes 50 damage or more on a single turn from a creature inside it, Slarkrethel must succeed on a DC 25 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone within 10 feet of it. If Slarkrethel dies, a swallowed creature can escape from the corpse using 15 feet of movement, exiting prone."
       },
       {
         "name": "Tentacle",
@@ -167084,18 +168426,46 @@
             "damageType": "piercing"
           },
           {
-            "effectType": "DAMAGE",
-            "damageDice": "1d6",
-            "damageType": "acid"
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "saveDC": 14,
+            "saveAbility": "DEX",
+            "maxTargetSize": "Large",
+            "swallow": {
+              "regurgitateDamage": 30,
+              "regurgitateDC": 16,
+              "escapeFeet": 20
+            },
+            "_rider": "added"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "prone"
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "1d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "saveDC": 14,
+            "saveAbility": "DEX",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature, it must succeed on a DC 14 Dexterity saving throw or be swallowed by the whale. A swallowed creature has Cover against attacks and other effects outside the whale. It takes 3 (1d6) acid damage at the start of each of the whale's turns. If the whale takes 30 damage or more on a single turn from a creature inside it, the whale must succeed on a DC 16 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the whale. If the whale dies, a swallowed creature can escape from the corpse by using 20 feet of movement, exiting prone.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature, it must succeed on a DC 14 Dexterity saving throw or be swallowed by the whale. A swallowed creature has Cover against attacks and other effects outside the whale. It takes 3 (1d6) acid damage at the start of each of the whale's turns. If the whale takes 30 damage or more on a single turn from a creature inside it, the whale must succeed on a DC 16 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the whale. If the whale dies, a swallowed creature can escape from the corpse by using 20 feet of movement, exiting prone."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "1d6",
+              "damageType": "acid"
+            }
+          },
+          {
+            "at": 2,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          }
+        ]
       },
       {
         "name": "Tail",
@@ -169343,31 +170713,55 @@
         "actionType": "ACTION",
         "recharge": "6",
         "deliveryMethod": "SAVING_THROW",
-        "saveAbility": "CHA",
         "saveDC": 14,
+        "saveAbility": "CHA",
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
           {
             "effectType": "CONDITION",
-            "condition": "charmed",
-            "durationText": "24 hours",
-            "durationRounds": 14400
+            "condition": "possessed"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "frightened",
-            "durationText": "24 hours",
-            "durationRounds": 14400
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "incapacitated",
-            "durationText": "24 hours",
-            "durationRounds": 14400
+            "effectType": "POSSESSION"
           }
         ],
-        "automatable": true
+        "targetTypes": [
+          "humanoid"
+        ],
+        "immuneAfterSave": "for 24 hours",
+        "dmNote": "The possessor can't be targeted except by what its stat block allows, keeps its alignment, Intelligence, Wisdom, Charisma and immunities, and otherwise uses the body's statistics; it can end the possession as a bonus action, or be forced out (dispel evil and good): the DM removes possessed.",
+        "_riderReplaced": {
+          "name": "Possession",
+          "actionType": "ACTION",
+          "recharge": "6",
+          "deliveryMethod": "SAVING_THROW",
+          "saveAbility": "CHA",
+          "saveDC": 14,
+          "halfOnSave": false,
+          "targetCount": 1,
+          "effects": [
+            {
+              "effectType": "CONDITION",
+              "condition": "charmed",
+              "durationText": "24 hours",
+              "durationRounds": 14400
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "frightened",
+              "durationText": "24 hours",
+              "durationRounds": 14400
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "incapacitated",
+              "durationText": "24 hours",
+              "durationRounds": 14400
+            }
+          ],
+          "automatable": true
+        }
       }
     ],
     "traits": [
@@ -169879,29 +171273,58 @@
           {
             "effectType": "CONDITION",
             "condition": "restrained",
-            "durationText": "until end of next turn",
-            "durationRounds": 1,
-            "saveToEndEachTurn": true,
-            "saveToEndDC": 12,
-            "saveToEndAbility": "CON",
             "saveDC": 12,
-            "saveAbility": "CON"
+            "saveAbility": "CON",
+            "_rider": "added"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "petrified",
-            "durationText": "until end of next turn",
-            "durationRounds": 1,
-            "saveToEndEachTurn": true,
+            "effectType": "COUNTED_SAVES",
             "saveToEndDC": 12,
             "saveToEndAbility": "CON",
+            "counted": {
+              "successes": 1,
+              "failures": 1,
+              "endsConditions": [
+                "restrained"
+              ],
+              "failureCondition": "petrified",
+              "onFailures": "Petrified for 24 hours."
+            },
             "saveDC": 12,
-            "saveAbility": "CON"
+            "saveAbility": "CON",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the target is a creature, it must succeed on a DC 12 Constitution saving throw, or it begins to turn to stone and is restrained until the end of its next turn, when it must repeat the saving throw. The effect ends if the second save is successful. Otherwise the target is petrified for 24 hours.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the target is a creature, it must succeed on a DC 12 Constitution saving throw, or it begins to turn to stone and is restrained until the end of its next turn, when it must repeat the saving throw. The effect ends if the second save is successful. Otherwise the target is petrified for 24 hours."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained",
+              "durationText": "until end of next turn",
+              "durationRounds": 1,
+              "saveToEndEachTurn": true,
+              "saveToEndDC": 12,
+              "saveToEndAbility": "CON",
+              "saveDC": 12,
+              "saveAbility": "CON"
+            }
+          },
+          {
+            "at": 2,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "petrified",
+              "durationText": "until end of next turn",
+              "durationRounds": 1,
+              "saveToEndEachTurn": true,
+              "saveToEndDC": 12,
+              "saveToEndAbility": "CON",
+              "saveDC": 12,
+              "saveAbility": "CON"
+            }
+          }
+        ]
       }
     ],
     "traits": [
@@ -169942,18 +171365,6 @@
             "damageType": "slashing"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "restrained",
-            "durationText": "until end of next turn",
-            "durationRounds": 1
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "petrified",
-            "durationText": "24 hours",
-            "durationRounds": null
-          },
-          {
             "effectType": "DAMAGE",
             "damageDice": "2d10 + 3",
             "damageType": "slashing",
@@ -169963,11 +171374,52 @@
             },
             "replacesDamage": true,
             "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "saveDC": 12,
+            "saveAbility": "CON",
+            "_rider": "added"
+          },
+          {
+            "effectType": "COUNTED_SAVES",
+            "saveToEndDC": 12,
+            "saveToEndAbility": "CON",
+            "counted": {
+              "successes": 1,
+              "failures": 1,
+              "endsConditions": [
+                "restrained"
+              ],
+              "failureCondition": "petrified",
+              "onFailures": "Petrified for 24 hours."
+            },
+            "saveDC": 12,
+            "saveAbility": "CON",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the target is a creature, it must succeed on a DC 12 Constitution saving throw, or it begins to turn to stone and is restrained until the end of its next turn, when it must repeat the saving throw. The effect ends if the second save is successful. Otherwise the target is petrified for 24 hours.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the target is a creature, it must succeed on a DC 12 Constitution saving throw, or it begins to turn to stone and is restrained until the end of its next turn, when it must repeat the saving throw. The effect ends if the second save is successful. Otherwise the target is petrified for 24 hours."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained",
+              "durationText": "until end of next turn",
+              "durationRounds": 1
+            }
+          },
+          {
+            "at": 2,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "petrified",
+              "durationText": "24 hours",
+              "durationRounds": null
+            }
+          }
+        ]
       }
     ],
     "traits": [
@@ -173221,11 +174673,20 @@
             "damageDice": "4d4",
             "damageType": "piercing",
             "_rider": "added"
+          },
+          {
+            "effectType": "AT_ZERO",
+            "atZero": {
+              "stable": true,
+              "condition": "poisoned",
+              "durationRounds": 600,
+              "linked": [
+                "paralyzed"
+              ]
+            },
+            "_rider": "added"
           }
-        ],
-        "_riderNote": "Also on a hit, applied by hand: A creature reduced to 0 hit points by a swarm of centipedes is stable but poisoned for 1 hour, even after regaining hit points, and paralyzed while poisoned in this way.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: A creature reduced to 0 hit points by a swarm of centipedes is stable but poisoned for 1 hour, even after regaining hit points, and paralyzed while poisoned in this way."
+        ]
       }
     ]
   },
@@ -174819,6 +176280,19 @@
             "saveDC": 12,
             "saveAbility": "CON",
             "halfOnSave": true
+          },
+          {
+            "effectType": "AT_ZERO",
+            "atZero": {
+              "stable": true,
+              "condition": "poisoned",
+              "durationRounds": 600,
+              "linked": [
+                "paralyzed"
+              ]
+            },
+            "damageType": "poison",
+            "_rider": "added"
           }
         ],
         "_riderRemoved": [
@@ -174840,10 +176314,7 @@
               "durationText": "1 hour"
             }
           }
-        ],
-        "_riderNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and has the paralyzed condition while poisoned in this way.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and has the paralyzed condition while poisoned in this way."
+        ]
       },
       {
         "name": "Foreleg",
@@ -176215,31 +177686,75 @@
       {
         "name": "Swallow",
         "actionType": "ACTION",
-        "deliveryMethod": "SAVING_THROW",
-        "saveDC": 20,
-        "saveAbility": "CON",
-        "halfOnSave": false,
+        "deliveryMethod": "ATTACK_ROLL",
+        "attackType": "MELEE_WEAPON",
+        "attackBonus": 19,
+        "reach": 10,
+        "targetCount": 1,
+        "targetGrappled": true,
         "effects": [
           {
             "effectType": "DAMAGE",
+            "damageDice": "4d12+10",
+            "damageType": "piercing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "swallow": {
+              "regurgitateDamage": 60,
+              "regurgitateDC": 20,
+              "escapeFeet": 30
+            },
+            "maxTargetSize": "Large"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
             "damageDice": "16d6",
-            "damageType": "acid"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "blinded"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "restrained"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone",
-            "durationText": "knocked prone",
-            "durationRounds": null
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER"
           }
-        ]
+        ],
+        "_riderReplaced": {
+          "name": "Swallow",
+          "actionType": "ACTION",
+          "deliveryMethod": "SAVING_THROW",
+          "saveDC": 20,
+          "saveAbility": "CON",
+          "halfOnSave": false,
+          "effects": [
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "16d6",
+              "damageType": "acid"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "blinded"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "prone",
+              "durationText": "knocked prone",
+              "durationRounds": null
+            }
+          ]
+        }
       }
     ],
     "legendaryActions": [
@@ -178526,25 +180041,72 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "swallowed",
+            "maxTargetSize": "Medium",
+            "onlyIf": {
+              "targetCondition": "grappled",
+              "byAttacker": true,
+              "text": "a creature it is grappling"
+            },
+            "swallow": {
+              "regurgitateDamage": 35,
+              "regurgitateDC": 23,
+              "escapeFeet": 10
+            },
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
-            "condition": "blinded"
+            "condition": "blinded",
+            "endsWith": "swallowed",
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "_rider": "added"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "prone"
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "6d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "_rider": "added"
           }
         ],
         "automatable": true,
-        "_riderNote": "Also on a hit, applied by hand: If the target is a Medium or smaller creature grappled by the thessalkraken, that creature is swallowed, and the grapple ends. While swallowed, the creature is blinded and restrained, it has Cover against attacks and other effects outside the thessalkraken. It takes 21 (6d6) acid damage at the start of each of the thessalkraken's turns. If the thessalkraken takes 35 damage or more on a single turn from a creature inside it, it must succeed on a DC 23 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the thessalkraken. If the thessalkraken dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 10 feet of movement, exiting prone.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the target is a Medium or smaller creature grappled by the thessalkraken, that creature is swallowed, and the grapple ends. While swallowed, the creature is blinded and restrained, it has Cover against attacks and other effects outside the thessalkraken. It takes 21 (6d6) acid damage at the start of each of the thessalkraken's turns. If the thessalkraken takes 35 damage or more on a single turn from a creature inside it, it must succeed on a DC 23 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the thessalkraken. If the thessalkraken dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 10 feet of movement, exiting prone."
+        "_riderRemoved": [
+          {
+            "at": 2,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "grappled"
+            }
+          },
+          {
+            "at": 3,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "blinded"
+            }
+          },
+          {
+            "at": 4,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "restrained"
+            }
+          },
+          {
+            "at": 5,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          }
+        ]
       },
       {
         "name": "Tentacle",
@@ -184411,20 +185973,61 @@
             "damageType": "piercing"
           },
           {
-            "effectType": "DAMAGE",
-            "damageDice": "12d6",
-            "damageType": "acid"
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "maxTargetSize": "Large",
+            "onlyIf": {
+              "targetCondition": "grappled",
+              "byAttacker": true,
+              "text": "a creature it is grappling"
+            },
+            "swallow": {
+              "regurgitateDamage": 50,
+              "regurgitateDC": 20,
+              "escapeFeet": 15
+            },
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
             "condition": "blinded",
-            "durationRounds": null,
-            "durationText": null
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "_rider": "added"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "12d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature grappled by Tromokratis, that creature is swallowed, and the grapple ends. While swallowed, the creature is blinded and restrained, it has Cover against attacks and other effects outside Tromokratis. It takes 42 (12d6) acid damage at the start of each of Tromokratis's turns. If Tromokratis takes 50 damage or more on a single turn from a creature inside it, Tromokratis must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of Tromokratis. If Tromokratis dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 15 feet of movement, exiting prone.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature grappled by Tromokratis, that creature is swallowed, and the grapple ends. While swallowed, the creature is blinded and restrained, it has Cover against attacks and other effects outside Tromokratis. It takes 42 (12d6) acid damage at the start of each of Tromokratis's turns. If Tromokratis takes 50 damage or more on a single turn from a creature inside it, Tromokratis must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of Tromokratis. If Tromokratis dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 15 feet of movement, exiting prone."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "12d6",
+              "damageType": "acid"
+            }
+          },
+          {
+            "at": 2,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "blinded",
+              "durationRounds": null,
+              "durationText": null
+            }
+          }
+        ]
       }
     ],
     "legendaryActions": [
@@ -184778,16 +186381,40 @@
         "recharge": "6",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 14,
-        "halfOnSave": false,
         "saveAbility": "CHA",
+        "halfOnSave": false,
+        "targetCount": 1,
         "effects": [
           {
             "effectType": "CONDITION",
-            "condition": "incapacitated",
-            "durationRounds": 14400,
-            "durationText": "24 hours"
+            "condition": "possessed"
+          },
+          {
+            "effectType": "POSSESSION"
           }
-        ]
+        ],
+        "targetTypes": [
+          "humanoid"
+        ],
+        "immuneAfterSave": "for 24 hours",
+        "dmNote": "The possessor can't be targeted except by what its stat block allows, keeps its alignment, Intelligence, Wisdom, Charisma and immunities, and otherwise uses the body's statistics; it can end the possession as a bonus action, or be forced out (dispel evil and good): the DM removes possessed.",
+        "_riderReplaced": {
+          "name": "Possession",
+          "actionType": "ACTION",
+          "recharge": "6",
+          "deliveryMethod": "SAVING_THROW",
+          "saveDC": 14,
+          "halfOnSave": false,
+          "saveAbility": "CHA",
+          "effects": [
+            {
+              "effectType": "CONDITION",
+              "condition": "incapacitated",
+              "durationRounds": 14400,
+              "durationText": "24 hours"
+            }
+          ]
+        }
       }
     ],
     "spellcasting": {
@@ -185969,25 +187596,55 @@
         "name": "Petrifying Gaze",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
-        "saveAbility": "CON",
         "saveDC": 14,
+        "saveAbility": "CON",
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
           {
             "effectType": "CONDITION",
-            "condition": "petrified",
-            "durationText": null,
-            "durationRounds": null
+            "condition": "restrained"
           },
           {
-            "effectType": "CONDITION",
-            "condition": "restrained",
-            "durationText": null,
-            "durationRounds": null
+            "effectType": "COUNTED_SAVES",
+            "saveToEndDC": 14,
+            "saveToEndAbility": "CON",
+            "counted": {
+              "successes": 1,
+              "failures": 1,
+              "endsConditions": [
+                "restrained"
+              ],
+              "failureCondition": "petrified",
+              "onFailures": "Petrified until the creature is freed by a greater restoration spell or similar magic.",
+              "failBy": 5
+            }
           }
         ],
-        "automatable": true
+        "_riderReplaced": {
+          "name": "Petrifying Gaze",
+          "actionType": "ACTION",
+          "deliveryMethod": "SAVING_THROW",
+          "saveAbility": "CON",
+          "saveDC": 14,
+          "halfOnSave": false,
+          "targetCount": 1,
+          "effects": [
+            {
+              "effectType": "CONDITION",
+              "condition": "petrified",
+              "durationText": null,
+              "durationRounds": null
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "restrained",
+              "durationText": null,
+              "durationRounds": null
+            }
+          ],
+          "automatable": true
+        }
       }
     ],
     "traits": [
@@ -196179,12 +197836,24 @@
             "saveAbility": "CON",
             "diesAtZero": true,
             "_rider": "added"
+          },
+          {
+            "effectType": "ON_KILL",
+            "onKill": {
+              "creatureTypes": [
+                "humanoid"
+              ],
+              "form": "Zombie",
+              "immediately": false,
+              "text": "A humanoid slain by this attack rises 24 hours later as a zombie under the wight's control, unless the humanoid is restored to life or its body is destroyed."
+            },
+            "_rider": "added"
           }
         ],
         "notes": "REVIEW: On failed DC 13 CON save, target HP max reduced by damage taken (lasts until long rest). Humanoid killed by this rises as zombie under wight's control.",
-        "_riderNote": "Also on a hit, applied by hand: A humanoid slain by this attack rises 24 hours later as a zombie under the wight's control, unless the humanoid is restored to life or its body is destroyed. The wight can have no more than twelve zombies under its control at one time.",
+        "_riderNote": "Also on a hit, applied by hand: The wight can have no more than twelve zombies under its control at one time.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: A humanoid slain by this attack rises 24 hours later as a zombie under the wight's control, unless the humanoid is restored to life or its body is destroyed. The wight can have no more than twelve zombies under its control at one time."
+        "dmNote": "Also on a hit, applied by hand: The wight can have no more than twelve zombies under its control at one time."
       },
       {
         "name": "Longsword",
@@ -197579,11 +199248,23 @@
             "saveAbility": "CON",
             "diesAtZero": true,
             "_rider": "added"
+          },
+          {
+            "effectType": "ON_KILL",
+            "onKill": {
+              "creatureTypes": [
+                "humanoid"
+              ],
+              "form": "Zombie",
+              "immediately": false,
+              "text": "A humanoid slain by this attack rises 24 hours later as a zombie under the Withers's control, unless the humanoid is restored to life or its body is destroyed."
+            },
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: A humanoid slain by this attack rises 24 hours later as a zombie under the Withers's control, unless the humanoid is restored to life or its body is destroyed. Withers can have no more than twelve zombies under its control at one time.",
+        "_riderNote": "Also on a hit, applied by hand: Withers can have no more than twelve zombies under its control at one time.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: A humanoid slain by this attack rises 24 hours later as a zombie under the Withers's control, unless the humanoid is restored to life or its body is destroyed. Withers can have no more than twelve zombies under its control at one time."
+        "dmNote": "Also on a hit, applied by hand: Withers can have no more than twelve zombies under its control at one time."
       },
       {
         "name": "Longsword",
@@ -205225,11 +206906,6 @@
             "damageType": "slashing"
           },
           {
-            "effectType": "DAMAGE",
-            "damageDice": "2d4 + 3",
-            "damageType": "slashing"
-          },
-          {
             "effectType": "CONDITION",
             "condition": "grappled",
             "_riderKeys": [
@@ -205243,6 +206919,16 @@
             "damageType": "slashing",
             "endsWith": "grappled",
             "_rider": "added"
+          }
+        ],
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "2d4 + 3",
+              "damageType": "slashing"
+            }
           }
         ],
         "_riderNote": "Also on a hit, applied by hand: Until this grapple ends, the target takes 8 (2d4 + 3) slashing damage at the start of each of its turns, and Zarak can't grapple another creature or use Assassin's Whim.",
@@ -208714,9 +210400,14 @@
               "kind": "NO_HEALING"
             },
             "until": "TARGET_TURN_END"
+          },
+          {
+            "effectType": "AT_ZERO",
+            "atZero": {
+              "dies": true
+            }
           }
         ],
-        "dmNote": "Also on a hit, applied by hand: The target dies if it is reduced to 0 hit points by this attack.",
         "description": "Melee Spell Attack: +11 to hit, reach 15 ft., one creature. Hit: 38 (7d10) necrotic damage, and the target can't regain hit points until the end of its next turn. The target dies if it is reduced to 0 hit points by this attack."
       }
     ],
@@ -210564,7 +212255,25 @@
         "name": "Possession",
         "actionType": "ACTION",
         "recharge": "6",
-        "automatable": false,
+        "deliveryMethod": "SAVING_THROW",
+        "saveDC": 21,
+        "saveAbility": "CHA",
+        "halfOnSave": false,
+        "targetCount": 1,
+        "effects": [
+          {
+            "effectType": "CONDITION",
+            "condition": "possessed"
+          },
+          {
+            "effectType": "POSSESSION"
+          }
+        ],
+        "targetTypes": [
+          "humanoid"
+        ],
+        "immuneAfterSave": "for 24 hours",
+        "dmNote": "The possessor can't be targeted except by what its stat block allows, keeps its alignment, Intelligence, Wisdom, Charisma and immunities, and otherwise uses the body's statistics; it can end the possession as a bonus action, or be forced out (dispel evil and good): the DM removes possessed.",
         "description": "One humanoid that the quori can see within 5 feet of it must succeed on a DC 21 Charisma saving throw or be possessed by the quori; the quori then disappears, and the target is incapacitated and loses control of its body. The quori now controls the body but doesn't deprive the target of awareness. The quori can't be targeted by any attack, spell, or other effect, and it retains its alignment, Intelligence, Wisdom, Charisma, and immunity to being charmed and frightened. It otherwise uses the possessed target's statistics, but doesn't gain access to the target's knowledge, class features, or proficiencies. The possession lasts until the body drops to 0 hit points, the quori ends it as a bonus action, or the quori is forced out by an effect like the dispel evil and good spell. When the possession ends, the quori reappears in an unoccupied space within 5 feet of the body. The target is immune to this quori's Possession for 24 hours after succeeding on the saving throw or after the possession ends."
       }
     ],
@@ -214540,9 +216249,20 @@
             "saveDC": 15,
             "saveAbility": "CON",
             "halfOnSave": true
+          },
+          {
+            "effectType": "AT_ZERO",
+            "atZero": {
+              "stable": true,
+              "condition": "poisoned",
+              "durationRounds": 600,
+              "linked": [
+                "paralyzed"
+              ]
+            },
+            "damageType": "poison"
           }
         ],
-        "dmNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way.",
         "description": "Melee Weapon Attack: +8 to hit, reach 5 ft., one target. Hit: 12 (2d8 + 3) piercing damage, and the target must make a DC 15 Constitution saving throw, taking 31 (7d8) poison damage on a failed save, or half as much damage on a successful one. If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way."
       },
       {
@@ -215301,9 +217021,43 @@
             "effectType": "DAMAGE",
             "damageDice": "2d10",
             "damageType": "psychic"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "6d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "saveDC": 18,
+            "saveAbility": "STR"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "saveDC": 18,
+            "saveAbility": "STR",
+            "maxTargetSize": "Large",
+            "swallow": {
+              "regurgitateDamage": 30,
+              "regurgitateDC": 18,
+              "escapeFeet": 20
+            }
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed",
+            "saveDC": 18,
+            "saveAbility": "STR"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "saveDC": 18,
+            "saveAbility": "STR"
           }
         ],
-        "dmNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature, it must succeed on a DC 18 Strength saving throw or be swallowed by the neothelid. A swallowed creature is blinded and restrained, it has Cover against attacks and other effects outside the neothelid. It takes 21 (6d6) acid damage at the start of each of the neothelid's turns. If the neothelid takes 30 damage or more on a single turn from a creature inside it, the neothelid must succeed on a DC 18 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the neothelid. If the neothelid dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 20 feet of movement, exiting prone.",
         "description": "Melee Weapon Attack: +13 to hit, reach 15 ft., one target. Hit: 21 (3d8 + 8) bludgeoning damage plus 11 (2d10) psychic damage. If the target is a Large or smaller creature, it must succeed on a DC 18 Strength saving throw or be swallowed by the neothelid. A swallowed creature is blinded and restrained, it has Cover against attacks and other effects outside the neothelid, and it takes 21 (6d6) acid damage at the start of each of the neothelid's turns. If the neothelid takes 30 damage or more on a single turn from a creature inside it, the neothelid must succeed on a DC 18 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the neothelid. If the neothelid dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 20 feet of movement, exiting prone."
       },
       {
@@ -216891,9 +218645,20 @@
             "saveDC": 15,
             "saveAbility": "CON",
             "halfOnSave": true
+          },
+          {
+            "effectType": "AT_ZERO",
+            "atZero": {
+              "stable": true,
+              "condition": "poisoned",
+              "durationRounds": 600,
+              "linked": [
+                "paralyzed"
+              ]
+            },
+            "damageType": "poison"
           }
         ],
-        "dmNote": "Also on a hit, applied by hand: If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way.",
         "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 12 (2d8 + 3) piercing damage, and the target must make a DC 15 Constitution saving throw, taking 26 (4d12) poison damage on a failed save, or half as much damage on a successful one. If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way."
       },
       {
@@ -219455,9 +221220,43 @@
             "effectType": "DAMAGE",
             "damageDice": "3d8",
             "damageType": "psychic"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "10d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "saveDC": 18,
+            "saveAbility": "STR"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "saveDC": 18,
+            "saveAbility": "STR",
+            "maxTargetSize": "Large",
+            "swallow": {
+              "regurgitateDamage": 30,
+              "regurgitateDC": 18,
+              "escapeFeet": 20
+            }
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed",
+            "saveDC": 18,
+            "saveAbility": "STR"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed",
+            "saveDC": 18,
+            "saveAbility": "STR"
           }
         ],
-        "dmNote": "Also on a hit, applied by hand: If the target is a Large or smaller creature, it must succeed on a DC 18 Strength saving throw or be swallowed by the neothelid. A swallowed creature is blinded and restrained, it has Cover against attacks and other effects outside the neothelid. It takes 35 (10d6) acid damage at the start of each of the neothelid's turns. If the neothelid takes 30 damage or more on a single turn from a creature inside it, the neothelid must succeed on a DC 18 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the neothelid. If the neothelid dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 20 feet of movement, exiting prone.",
         "description": "Melee Weapon Attack: +13 to hit, reach 15 ft., one target. Hit: 21 (3d8 + 8) bludgeoning damage plus 13 (3d8) psychic damage. If the target is a Large or smaller creature, it must succeed on a DC 18 Strength saving throw or be swallowed by the neothelid. A swallowed creature is blinded and restrained, it has Cover against attacks and other effects outside the neothelid, and it takes 35 (10d6) acid damage at the start of each of the neothelid's turns. If the neothelid takes 30 damage or more on a single turn from a creature inside it, the neothelid must succeed on a DC 18 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the neothelid. If the neothelid dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 20 feet of movement, exiting prone."
       },
       {

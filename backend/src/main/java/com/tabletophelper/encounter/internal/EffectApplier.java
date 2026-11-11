@@ -117,6 +117,26 @@ public class EffectApplier {
      */
     public static final String PLANE_SHIFTED = "plane shifted";
 
+    /** The condition of a creature a monster has swallowed, as a purple worm does (MM p.255, D204). */
+    public static final String SWALLOWED = "swallowed";
+
+    /** The condition of a creature a gelatinous cube has engulfed (MM p.242, D204). */
+    public static final String ENGULFED = "engulfed";
+
+    /** The conditions of a creature inside another, with total cover against everything outside (D204). */
+    public static final Set<String> INSIDE = Set.of(SWALLOWED, ENGULFED);
+
+    /** The condition of a body a ghost possesses (MM p.147, D204), whose controller the ghost's becomes. */
+    public static final String POSSESSED = "possessed";
+
+    /**
+     * The condition of a ghost inside the body it possesses (MM p.147, D204): it can't be targeted and takes no turns of
+     * its own, as a banished creature (D185), until the possession ends.
+     */
+    public static final String POSSESSING = "possessing";
+
+    private static final String PRONE = "prone";
+
     private final Resolver resolver;
     private final CreatureStats stats;
     private final CombatLogWriter combatLog;
@@ -182,11 +202,15 @@ public class EffectApplier {
      * @param logEntryId                   that entry's ID, as the log gave it
      * @param concentrationCheck           the concentration check its damage made the target roll, or the earlier one
      *                                     it was judged by again (PHB p.203); null when it made none
+     * @param droppedToZero                its damage took the target from above 0 hit points to 0, dying, stable or
+     *                                     dead, as a monster's "if this damage reduces the target to 0 hit points"
+     *                                     asks (D204)
      */
     public record Applied(EncounterParticipant target, Resolver.TargetOutcome outcome, int damageTaken,
                           String damageType, int healed, List<ConditionEntry> conditionsAdded,
                           boolean legendaryResistanceOffered, int legendaryResistanceRemaining,
-                          String description, UUID logEntryId, ConcentrationCheck concentrationCheck) {
+                          String description, UUID logEntryId, ConcentrationCheck concentrationCheck,
+                          boolean droppedToZero) {
 
         public List<String> conditionNames() {
             return conditionsAdded.stream().map(ConditionEntry::name).toList();
@@ -298,7 +322,7 @@ public class EffectApplier {
                 List.of(), null, outcome.inspiration(), outcome.guidedStrike(), outcome.rerolledD20s(),
                 outcome.automaticSources());
         return new Applied(CombatAccess.participant(encounter, outcome.targetId()), missed, 0, null, 0, List.of(),
-                false, 0, description, null, null);
+                false, 0, description, null, null, false);
     }
 
     /*
@@ -549,8 +573,13 @@ public class EffectApplier {
         // The one-shot Ongoing Modifiers the roll used are spent (D184)
         spendModifiers(encounter, outcome.spentOneShots());
 
+        // Swallowed creatures' damage to their swallower counts toward its regurgitation (MM p.255, D204)
+        countInside(use.actor(), target, dealt);
+        // Whether the damage took it from above 0 hit points to 0, for what a monster's hit does then (D204)
+        boolean droppedToZero = before.lifeState() == LifeState.ALIVE && taken.form() == null
+                && healingChange.vitals().lifeState() != LifeState.ALIVE;
         return new Applied(target, outcome, dealt, damage.firstType(), healed, added, offered, remaining,
-                description, saved != null ? saved.getId() : null, check);
+                description, saved != null ? saved.getId() : null, check, droppedToZero);
     }
 
     // The damage a floor lets through: none below it, as Harm's 1 hit point (PHB p.249, D188); all of it without one
@@ -650,6 +679,8 @@ public class EffectApplier {
                 actor, target).damageDealt(total));
         logReverted(encounter, target, taken);
         afterDamage(encounter, target, before, change, total, null);
+        // A swallowed creature's damage to its swallower, entered by hand, counts too (D204)
+        countInside(actor, target, total);
         endLinked(encounter);
     }
 
@@ -1169,11 +1200,18 @@ public class EffectApplier {
                 List<ConditionEntry> conditions = conditions(creature);
                 Set<UUID> ids = conditions.stream().map(ConditionEntry::id).collect(Collectors.toSet());
                 Map<ConditionEntry, String> ending = new java.util.LinkedHashMap<>();
+                List<String> escapes = new ArrayList<>();
                 for (ConditionEntry condition : conditions) {
                     if (condition.linkedTo() != null && !ids.contains(condition.linkedTo())) {
                         ending.put(condition, "what it lasted while has ended");
                     } else {
                         String gone = grapplerGone(encounter, condition);
+                        if (gone == null) {
+                            gone = swallowerGone(encounter, creature, condition, escapes);
+                        }
+                        if (gone == null) {
+                            gone = bodyDown(creature, condition);
+                        }
                         if (gone != null) {
                             ending.put(condition, gone);
                         }
@@ -1186,12 +1224,33 @@ public class EffectApplier {
                 creature.setActiveConditions(conditions.isEmpty() ? null : conditions);
                 ending.forEach((condition, why) -> combatLog.write(encounter, CombatActionType.CONDITION_REMOVE,
                         condition.name() + " ends on " + creature.getDisplayName() + " (" + why + ")", null, creature));
+                // A creature that leaves a dead swallower's corpse exits prone (MM p.255, D204)
+                for (String escape : escapes) {
+                    proneAfterRelease(encounter, creature, escape);
+                }
                 changed = true;
             }
         }
         for (EncounterParticipant holder : List.copyOf(encounter.getParticipants())) {
             for (SpellEffectEntry effect : effects(holder)) {
                 SpellEffectEntry.MonsterRider rider = effect.monsterRider();
+                if (rider != null && SpellEffectEntry.MonsterRider.SWALLOW.equals(rider.kind())) {
+                    pruneGullet(encounter, holder, effect);
+                    continue;
+                }
+                // A ghost the DM brings out of the body ends its possession (MM p.147, D204)
+                if (rider != null && SpellEffectEntry.MonsterRider.POSSESSION.equals(rider.kind())
+                        && conditions(holder).stream().noneMatch(c -> POSSESSING.equalsIgnoreCase(c.name()))) {
+                    Optional<EncounterParticipant> body = effect.affected().stream().findFirst()
+                            .flatMap(id -> participant(encounter, id));
+                    if (body.isPresent()) {
+                        endMonsterRider(encounter, holder, effect, body.get(), holder.getDisplayName()
+                                + " has left the body");
+                    } else {
+                        endEffect(encounter, holder, effect.id(), holder.getDisplayName() + " has left the body");
+                    }
+                    continue;
+                }
                 if (rider == null || rider.anchor() == null
                         || SpellEffectEntry.MonsterRider.IMMUNITY.equals(rider.kind())) {
                     continue;
@@ -1303,6 +1362,187 @@ public class EffectApplier {
                 creature.setActiveConditions(conditions.isEmpty() ? null : conditions);
                 combatLog.write(encounter, CombatActionType.CONDITION_REMOVE, anchor.get().name() + " ends on "
                         + creature.getDisplayName() + " (" + effect.spell() + " ends)", null, creature);
+            }
+        }
+        endLinked(encounter);
+    }
+
+    /**
+     * A dying creature is stable, its death saves done with (PHB p.197), as one a giant spider's poison drops to 0 hit
+     * points is "stable but poisoned" (MM p.328, D204); nothing for a creature that isn't dying.
+     */
+    public void stabilise(Encounter encounter, EncounterParticipant target, String source) {
+        Vitals before = vitals(target);
+        if (before.lifeState() != LifeState.DYING) {
+            return;
+        }
+        setVitals(target, new Vitals(before.hp(), before.maxHp(), before.tempHp(), LifeState.STABLE, 0, 0,
+                before.playerCharacter()));
+        combatLog.write(encounter, CombatActionType.STABILIZE, target.getDisplayName() + " is stable at 0 hit points ("
+                + source + ")", null, target);
+    }
+
+    // ── Swallowing and possession (D204) ─────────────────────────
+
+    /*
+     * Why a creature is no longer inside its swallower (D204): the swallower is gone from the encounter, or dead, when
+     * a creature in a purple worm "is no longer restrained by it and can escape from the corpse by using 20 feet of
+     * movement, exiting prone" (MM p.255); the escape, when the stat block gives one, goes in escapes. Null while it
+     * holds.
+     */
+    private String swallowerGone(Encounter encounter, EncounterParticipant creature, ConditionEntry condition,
+                                 List<String> escapes) {
+        if (condition.name() == null || !INSIDE.contains(condition.name().toLowerCase(Locale.ROOT))
+                || condition.sourceParticipantId() == null) {
+            return null;
+        }
+        Optional<EncounterParticipant> swallower = participant(encounter, condition.sourceParticipantId());
+        if (swallower.isEmpty() || EncounterTurns.dismissed(swallower.get())) {
+            return "the creature that held it is gone";
+        }
+        if (swallower.get().getLifeState() != LifeState.DEAD) {
+            return null;
+        }
+        gullet(swallower.get(), condition).map(SpellEffectEntry.Gullet::escapeFeet).ifPresent(feet ->
+                escapes.add(creature.getDisplayName() + " escapes from " + swallower.get().getDisplayName()
+                        + "'s corpse using " + feet + " feet of movement, exiting prone"));
+        return swallower.get().getDisplayName() + " is dead";
+    }
+
+    // The gullet of the swallower's action that gave the condition, or of any of its actions
+    private static Optional<SpellEffectEntry.Gullet> gullet(EncounterParticipant swallower, ConditionEntry condition) {
+        return effects(swallower).stream()
+                .map(SpellEffectEntry::monsterRider)
+                .filter(rider -> rider != null && SpellEffectEntry.MonsterRider.SWALLOW.equals(rider.kind())
+                        && rider.swallow() != null && (condition.sourceAction() == null
+                        || condition.sourceAction().equalsIgnoreCase(rider.action())))
+                .map(SpellEffectEntry.MonsterRider::swallow)
+                .findFirst();
+    }
+
+    // A possessed body that drops to 0 hit points ends the possession (MM p.147, D204); null while it holds
+    private static String bodyDown(EncounterParticipant creature, ConditionEntry condition) {
+        if (!POSSESSED.equalsIgnoreCase(condition.name())) {
+            return null;
+        }
+        boolean down = creature.getLifeState() != LifeState.ALIVE
+                || creature.getHpCurrent() != null && creature.getHpCurrent() <= 0;
+        return down ? "the body drops to 0 hit points" : null;
+    }
+
+    // The creature lands prone, as one regurgitated or leaving a corpse does, the log saying how (D204)
+    private void proneAfterRelease(Encounter encounter, EncounterParticipant creature, String how) {
+        List<ConditionEntry> conditions = conditions(creature);
+        if (creature.getLifeState() != LifeState.DEAD
+                && conditions.stream().noneMatch(c -> PRONE.equalsIgnoreCase(c.name()))) {
+            conditions.add(ConditionEntry.manual(PRONE, null, encounter.getRoundNumber()));
+            creature.setActiveConditions(conditions);
+        }
+        combatLog.write(encounter, CombatActionType.CONDITION_ADD, how + "; it is prone.", null, creature);
+    }
+
+    // The gullet holds only the creatures still inside; once none is, it ends (D204)
+    private void pruneGullet(Encounter encounter, EncounterParticipant holder, SpellEffectEntry effect) {
+        List<UUID> kept = effect.affected().stream()
+                .filter(id -> participant(encounter, id)
+                        .filter(creature -> holder.getId().equals(CombatAccess.swallowedBy(creature)))
+                        .isPresent())
+                .toList();
+        if (kept.isEmpty()) {
+            endEffect(encounter, holder, effect.id(), "no creature is inside");
+        } else if (kept.size() != effect.affected().size()) {
+            replaceEffect(holder, effect.withAffected(kept));
+        }
+    }
+
+    /*
+     * Damage a creature inside deals its swallower counts toward the swallower's regurgitation, as a purple worm's 30
+     * on a single turn (MM p.255, D204). All the damage from inside counts together, the creatures inside being the
+     * ones the stat block names (rules call).
+     */
+    private void countInside(EncounterParticipant actor, EncounterParticipant target, int dealt) {
+        if (actor == null || dealt <= 0 || !target.getId().equals(CombatAccess.swallowedBy(actor))) {
+            return;
+        }
+        for (SpellEffectEntry effect : effects(target)) {
+            SpellEffectEntry.MonsterRider rider = effect.monsterRider();
+            if (rider != null && SpellEffectEntry.MonsterRider.SWALLOW.equals(rider.kind()) && rider.swallow() != null
+                    && rider.swallow().regurgitateDamage() != null && effect.affected().contains(actor.getId())) {
+                replaceEffect(target, effect.withMonsterRider(rider.withSwallow(
+                        rider.swallow().withTaken(rider.swallow().takenThisTurn() + dealt))));
+                return;
+            }
+        }
+    }
+
+    /*
+     * The end of any turn for the swallowers (D204): one that took its threshold of damage from creatures inside this
+     * turn makes the Constitution save, or regurgitates them all without one when its stat block gives none, as an eye
+     * monger does; a failure regurgitates every creature in that gullet, which falls prone within 10 feet (MM p.255).
+     * Each gullet's count starts again for the next turn.
+     */
+    private void regurgitations(Encounter encounter) {
+        for (EncounterParticipant holder : List.copyOf(encounter.getParticipants())) {
+            for (SpellEffectEntry effect : effects(holder)) {
+                SpellEffectEntry.MonsterRider rider = effect.monsterRider();
+                if (rider == null || !SpellEffectEntry.MonsterRider.SWALLOW.equals(rider.kind())
+                        || rider.swallow() == null || rider.swallow().takenThisTurn() <= 0) {
+                    continue;
+                }
+                SpellEffectEntry.Gullet gullet = rider.swallow();
+                replaceEffect(holder, effect.withMonsterRider(rider.withSwallow(gullet.withTaken(0))));
+                if (gullet.regurgitateDamage() == null || gullet.takenThisTurn() < gullet.regurgitateDamage()
+                        || holder.getLifeState() == LifeState.DEAD) {
+                    continue;
+                }
+                String name = holder.getDisplayName();
+                boolean keeps = false;
+                if (gullet.regurgitateDc() != null) {
+                    int modifier = stats.saveModifier(holder, Ability.CON);
+                    CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(holder, Ability.CON);
+                    Resolver.SaveRoll roll = resolver.savingThrow(Ability.CON, modifier, gullet.regurgitateDc(),
+                            CreatureStats.conditionNames(holder), stats.armourPenalty(holder), modifiers.modes(),
+                            modifiers.bonuses());
+                    keeps = roll.success();
+                    String rolled = roll.autoFailed() ? " vs DC " + gullet.regurgitateDc() + " — fails automatically"
+                            : ": " + saveDice(roll) + signed(modifier) + bonusText(roll.bonuses()) + " = "
+                            + roll.total() + " vs DC " + gullet.regurgitateDc() + (keeps ? " — succeeds" : " — fails");
+                    boolean resistance = !keeps && legendaryResistanceRemaining(holder) > 0;
+                    combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.REPEAT_SAVE,
+                                    name + " took " + gullet.takenThisTurn() + " damage from inside it this turn ("
+                                            + effect.spell() + ") and makes a Constitution save" + rolled
+                                            + (keeps ? ", keeping what it swallowed down." : ".")
+                                            + (resistance ? " It has Legendary Resistance left: if the DM uses it, "
+                                            + "the DM puts the regurgitated creatures back by hand." : "")),
+                                    holder, null)
+                            .rollValue(roll.d20()).rollTotal(roll.total()));
+                    spendModifiers(encounter, roll.spentOneShots());
+                } else {
+                    combatLog.write(encounter, CombatActionType.SPELL_EFFECT_REPEAT, name + " took "
+                            + gullet.takenThisTurn() + " damage from inside it this turn (" + effect.spell() + ").",
+                            holder, null);
+                }
+                if (!keeps) {
+                    regurgitate(encounter, holder, effect, gullet);
+                }
+            }
+        }
+    }
+
+    // Every creature in the gullet comes out, prone (MM p.255, D204)
+    private void regurgitate(Encounter encounter, EncounterParticipant holder, SpellEffectEntry effect,
+                             SpellEffectEntry.Gullet gullet) {
+        for (UUID id : effect.affected()) {
+            Optional<EncounterParticipant> creature = participant(encounter, id);
+            if (creature.isEmpty()) {
+                continue;
+            }
+            List<ConditionEntry> conditions = conditions(creature.get());
+            if (conditions.removeIf(c -> c.name() != null && c.name().equalsIgnoreCase(gullet.condition())
+                    && holder.getId().equals(c.sourceParticipantId()))) {
+                creature.get().setActiveConditions(conditions.isEmpty() ? null : conditions);
+                proneAfterRelease(encounter, creature.get(), holder.getDisplayName() + " regurgitates "
+                        + creature.get().getDisplayName() + ", which lands within 10 feet of it");
             }
         }
         endLinked(encounter);
@@ -1608,6 +1848,16 @@ public class EffectApplier {
         dismissSummons(encounter, effectId, ended.get().spell() + " ends");
         // The creatures it controlled go back to their controllers (D187)
         releaseAll(encounter, caster, ended.get());
+        // A ghost whose possession ends reappears beside the body (MM p.147, D204)
+        if (ended.get().monsterRider() != null
+                && SpellEffectEntry.MonsterRider.POSSESSION.equals(ended.get().monsterRider().kind())) {
+            List<ConditionEntry> own = conditions(caster);
+            if (own.removeIf(c -> POSSESSING.equalsIgnoreCase(c.name()))) {
+                caster.setActiveConditions(own.isEmpty() ? null : own);
+                combatLog.write(encounter, CombatActionType.CONDITION_REMOVE, caster.getDisplayName()
+                        + " reappears within 5 feet of the body it possessed", null, caster);
+            }
+        }
         // The exhaustion it gave goes with it, as Sickening Radiance's (XGE p.164, D185)
         for (SpellEffectEntry.ExhaustionGiven given : ended.get().exhaustion()) {
             encounter.getParticipants().stream()
@@ -2130,7 +2380,8 @@ public class EffectApplier {
                     for (String condition : saves.endsConditions()) {
                         List<ConditionEntry> conditions = conditions(creature);
                         if (conditions.removeIf(c -> c.name().equalsIgnoreCase(condition)
-                                && effect.spell().equalsIgnoreCase(c.sourceSpellName()))) {
+                                && (effect.spell().equalsIgnoreCase(c.sourceSpellName())
+                                || givenBy(caster, effect, c)))) {
                             creature.setActiveConditions(conditions.isEmpty() ? null : conditions);
                             combatLog.write(encounter, CombatActionType.CONDITION_REMOVE, condition + " ends on " + name
                                     + " (" + effect.spell() + ")", null, creature);
@@ -2139,7 +2390,8 @@ public class EffectApplier {
                 }
                 // The failures' lasting condition, as the indigo ray's petrified, for good (PHB p.267, D189)
                 if (takesHold && saves.failureCondition() != null) {
-                    addLastingCondition(encounter, caster, creature, saves.failureCondition(), null, effect.spell());
+                    addLastingCondition(encounter, caster, creature, saves.failureCondition(), null,
+                            effect.monsterRider() != null ? effect.monsterRider().action() : effect.spell());
                 }
                 SpellEffectEntry.Tally changed = new SpellEffectEntry.Tally(id, successes, failures,
                         cured || takesHold);
@@ -2154,6 +2406,12 @@ public class EffectApplier {
                 }
             }
         }
+    }
+
+    // Whether a monster's action, whose counted saves the effect holds, gave the condition (D204)
+    private static boolean givenBy(EncounterParticipant caster, SpellEffectEntry effect, ConditionEntry condition) {
+        return effect.monsterRider() != null && caster.getId().equals(condition.sourceParticipantId())
+                && effect.monsterRider().action().equalsIgnoreCase(condition.sourceAction());
     }
 
     /**
@@ -2456,6 +2714,8 @@ public class EffectApplier {
                 }
             }
         }
+        // A swallower that took enough damage from inside it this turn saves or regurgitates (MM p.255, D204)
+        regurgitations(encounter);
     }
 
     // ── What the 7th-level spells leave on a Spell Effect (D189) ─────
