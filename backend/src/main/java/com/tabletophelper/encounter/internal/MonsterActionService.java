@@ -198,6 +198,8 @@ public class MonsterActionService {
                 "uses " + actionName + costNote, "on", monster.getDisplayName(), null), description);
 
         List<EffectApplier.Applied> applied = new ArrayList<>();
+        // What the riders came to that the hit's entry doesn't show, such as a target too big to grapple (D202)
+        List<String> riderNotes = new ArrayList<>();
         if (plan.automated()) {
             Map<UUID, EncounterParticipant> byId = targets.stream()
                     .collect(Collectors.toMap(EncounterParticipant::getId, Function.identity(), (a, b) -> a));
@@ -215,11 +217,21 @@ public class MonsterActionService {
                         "uses " + label + costNote, "on", monster.getDisplayName(), null);
                 // Ray of Enfeeblement halves a melee weapon attack's damage, taken as using Strength (PHB p.271, D197)
                 boolean halved = Enfeeblement.strengthAttack(step.effect()) && Enfeeblement.weakened(monster);
+                if (!step.riders().none() && step.effect().delivery() instanceof Effect.Attack) {
+                    applied.addAll(attackWithRiders(encounter, use, logType, monster, step, stepTargets, halved,
+                            riderNotes));
+                    continue;
+                }
                 Effect effect = halved ? Enfeeblement.noted(step.effect()) : step.effect();
                 List<Resolver.TargetOutcome> outcomes = resolver.resolve(effect, CreatureStats.side(monster),
                         stats.targets(stepTargets, effect, monster));
+                List<RiderNote> sizeNotes = new ArrayList<>();
+                if (!step.riders().maxTargetSize().isEmpty()) {
+                    outcomes = withoutTooBig(step, stepTargets, outcomes, sizeNotes);
+                }
                 applied.addAll(effectApplier.apply(encounter, use, effect,
                         halved ? Enfeeblement.halved(outcomes) : outcomes));
+                riderNotes.addAll(logged(encounter, logType, monster, sizeNotes));
             }
         }
 
@@ -234,6 +246,9 @@ public class MonsterActionService {
         String fullDescription = applied.isEmpty() ? description
                 : description + " " + applied.stream().map(EffectApplier.Applied::description)
                 .collect(Collectors.joining(" "));
+        if (!riderNotes.isEmpty()) {
+            fullDescription = fullDescription + " " + String.join(" ", riderNotes);
+        }
         return new MonsterActionResponse(
                 plan.automated(),
                 fullDescription,
@@ -246,6 +261,70 @@ public class MonsterActionService {
                 results.stream().anyMatch(MonsterActionResponse.TargetResult::legendaryResistanceAvailable),
                 results.stream().mapToInt(MonsterActionResponse.TargetResult::legendaryResistanceRemaining).max().orElse(0),
                 encounterService.toResponse(encounterRepository.save(encounter)));
+    }
+
+    // A note the log writes about one target, after the hit's own entry (D202)
+    private record RiderNote(String text, EncounterParticipant target) {
+    }
+
+    /**
+     * An attack whose riders depend on each target (D202): each target gets the Effect {@link MonsterRiders} works out
+     * for it, every attack is rolled before any is applied, as a step's attacks always are, and what the riders came
+     * to is logged after each hit. Its targets' attacks are rolled one by one, as the Resolver rolls them anyway.
+     */
+    private List<EffectApplier.Applied> attackWithRiders(Encounter encounter, EffectApplier.Use use,
+                                                         CombatActionType logType, EncounterParticipant monster,
+                                                         MonsterEffects.Step step,
+                                                         List<EncounterParticipant> stepTargets, boolean halved,
+                                                         List<String> riderNotes) {
+        List<Effect> effects = new ArrayList<>();
+        List<Resolver.TargetOutcome> outcomes = new ArrayList<>();
+        List<RiderNote> notes = new ArrayList<>();
+        for (EncounterParticipant target : stepTargets) {
+            MonsterRiders.Against against = MonsterRiders.against(step.effect(), step.riders(), monster, target,
+                    stats.target(target, step.effect(), monster));
+            Effect effect = halved ? Enfeeblement.noted(against.effect()) : against.effect();
+            effects.add(effect);
+            outcomes.addAll(resolver.resolve(effect, CreatureStats.side(monster),
+                    List.of(stats.target(target, effect, monster))));
+            against.notes().forEach(note -> notes.add(new RiderNote(note, target)));
+        }
+        List<EffectApplier.Applied> applied = new ArrayList<>();
+        for (int i = 0; i < outcomes.size(); i++) {
+            List<Resolver.TargetOutcome> one = List.of(outcomes.get(i));
+            applied.addAll(effectApplier.apply(encounter, use, effects.get(i), halved ? Enfeeblement.halved(one) : one));
+        }
+        riderNotes.addAll(logged(encounter, logType, monster, notes));
+        return applied;
+    }
+
+    // The outcomes without the conditions each target is too big for, as a save action's (D202)
+    private static List<Resolver.TargetOutcome> withoutTooBig(MonsterEffects.Step step,
+                                                              List<EncounterParticipant> stepTargets,
+                                                              List<Resolver.TargetOutcome> outcomes,
+                                                              List<RiderNote> notes) {
+        Map<UUID, EncounterParticipant> byId = stepTargets.stream()
+                .collect(Collectors.toMap(EncounterParticipant::getId, Function.identity(), (a, b) -> a));
+        List<Resolver.TargetOutcome> kept = new ArrayList<>();
+        for (Resolver.TargetOutcome outcome : outcomes) {
+            EncounterParticipant target = byId.get(outcome.targetId());
+            List<String> said = new ArrayList<>();
+            List<String> tooBig = target != null
+                    ? MonsterRiders.tooBig(step.effect().name(), step.riders(), target, said) : List.of();
+            said.forEach(note -> notes.add(new RiderNote(note, target)));
+            kept.add(tooBig.isEmpty() ? outcome : outcome.withConditions(outcome.conditions().stream()
+                    .filter(condition -> !tooBig.contains(condition)).toList()));
+        }
+        return kept;
+    }
+
+    // Writes each note on its own entry about its target, and gives back their texts
+    private List<String> logged(Encounter encounter, CombatActionType logType, EncounterParticipant monster,
+                                List<RiderNote> notes) {
+        for (RiderNote note : notes) {
+            combatLog.write(encounter, logType, note.text(), monster, note.target());
+        }
+        return notes.stream().map(RiderNote::text).toList();
     }
 
     /**

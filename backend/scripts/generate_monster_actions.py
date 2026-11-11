@@ -25,6 +25,19 @@ What is read from the stat block's text:
   - Legendary Resistance (N/Day) as legendaryResistanceCount, with its trait.
 Anything else is the DM's: automatable false with the stat block's description, as existing entries do.
 
+A hit's riders (D202): the hit's first sentence is its damage, extra damage joined with "plus" (flat amounts such as
+"plus 3 lightning damage" too) and alternatives with "or"; extra or alternative damage under a condition the app can
+tell (the target prone or of a creature type, the attacker's advantage, form or half hit points) carries an onlyIf,
+and an alternative replacesDamage. The rest of that sentence and each later one are clauses: a save for damage
+("taking 18 (4d8) poison damage on a failed save, or half as much") gives DAMAGE parts with the save's saveDC,
+saveAbility and halfOnSave, which the hit's save guards; a condition with or without a save, in either wording ("be
+poisoned", "have the prone condition"), with "until the end of the X's next turn" as endOfUsersTurn and "a Large or
+smaller creature" as maxTargetSize. A clause that only applies sometimes ("if", "while", "until this grapple ends",
+"reduces ... to 0 hit points") or says more than the parts can is the dmNote's, "Also on a hit, applied by hand: ...".
+
+Then a rider pass gives every hand-built entry's attacks what their stat block's hit gives beyond their own parts,
+leaving their attack bonus and damage alone, and marks each change so the next run takes it away first (rider_pass).
+
 Usage, from backend/:  python scripts/generate_monster_actions.py [--check]
 --check writes nothing and exits 1 if the file would change.
 """
@@ -66,7 +79,9 @@ PER_DAY = re.compile(r'\((\d+)/Day(?: each)?\)', re.I)
 DAMAGE = re.compile(r'(\d+)\s*\((?:\{@damage )?(\d+d\d+(?:\s*[+-]\s*\d+)?)\}?\)\s*'
                     r'([a-z]+(?:(?:, or |, | or )[a-z]+)*)\s+damage')
 FLAT_DAMAGE = re.compile(r'^\s*(\d+) ([a-z]+) damage')
-VERSATILE = re.compile(r',?\s*or (\d+) \(\{@damage ([^}]+)\}\) ([a-z]+) damage if used with two hands')
+# "if used with two hands", and the later wording "when used with two hands to make a melee attack" (D202)
+VERSATILE = re.compile(r',?\s*or (\d+) \(\{@damage ([^}]+)\}\) ([a-z]+) damage (?:if|when) (?:used|wielded) with '
+                       r'(?:two|both) hands(?: to make a melee attack)?')
 SAVE = re.compile(r'\{@dc (\d+)\}\s+(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)'
                   r'(?: or (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma))?\s+saving throw')
 ACT_SAVE = re.compile(r'\{@actSave (str|dex|con|int|wis|cha)\}\s*\{@dc (\d+)\}')
@@ -76,9 +91,10 @@ RESTRAINED = re.compile(r'\{@condition restrained\}[^.]*\.[^.]*?\{@dc (\d+)\} St
 PLAIN_RECHARGE = re.compile(r'[;\s]*Recharge (\d)(?:\s*[\u2013-]\s*6)?')
 ATTACK_WORDS = {'mw': 'Melee Weapon Attack:', 'rw': 'Ranged Weapon Attack:', 'mw,rw': 'Melee or Ranged Weapon Attack:',
                 'ms': 'Melee Spell Attack:', 'rs': 'Ranged Spell Attack:', 'ms,rs': 'Melee or Ranged Spell Attack:'}
-# "or be {@condition poisoned}", "is knocked {@condition prone}", with any conditions joined to it ("and {@condition X}")
-CONDITION = re.compile(r'\b(?:be|become|becomes|is|are|knocked|falls?)\s+(?:knocked\s+)?\{@condition (\w+)\}'
-                       r'((?:,?\s*(?:and|or)?\s*\{@condition \w+\})*)')
+# "or be {@condition poisoned}", "is knocked {@condition prone}", and the later wording "or have the {@condition prone}
+# condition" (D202), with any conditions joined to it ("and {@condition X}")
+CONDITION = re.compile(r'\b(?:be|become|becomes|is|are|knocked|falls?|(?:has|have|gains?) the)\s+(?:knocked\s+)?'
+                       r'\{@condition (\w+)\}((?:,?\s*(?:and|or)?\s*(?:the\s+)?\{@condition \w+\})*)')
 JOINED = re.compile(r'\{@condition (\w+)\}')
 # What a save action does beyond damage and conditions, which the DM applies by hand
 RIDER = re.compile(r"exhaustion|disadvantage|advantage|hit point maximum|can't regain|push|pull|teleport|speed|"
@@ -90,6 +106,243 @@ TRIGGERED = re.compile(r'\b(?:that enters|enters the|starts its turn|start of ea
 PARRY = ('The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and '
          'removes anything else the hit did, by hand.')
 UNCANNY_DODGE = 'The damage was already applied in full: the DM restores the part this reaction prevents, by hand.'
+
+# ── A hit's riders (D202) ─────────────────────────────────────────────────────────────────────────────────────────────
+# A hit's first sentence is its damage, "N (XdY + Z) type damage", then any extra damage joined to it with "plus" or
+# an alternative with "or", each possibly with a condition ("if the target is prone"); what follows ("..., and the
+# target must succeed on ...") is cut into clauses, as each later sentence is one.
+DICE_DAMAGE = r'(\d+)\s*\((?:\{@damage )?(\d+d\d+(?:\s*[+-]\s*\d+)?)\}?\)\s*([a-z]+(?:(?:, or |, | or )[a-z]+)*)\s+damage'
+ONE_DAMAGE = re.compile(r'\s*(?:' + DICE_DAMAGE + r'|(\d+)\s+([a-z]+)\s+damage)')
+LINK = re.compile(r'\s*,?\s*(plus|or|and)\s+(?:an? (?:extra|additional)\s+)?')
+TAIL = re.compile(r'\s+((?:if|while|when|against|to|in)\b[^,;.]*)')
+SUBCLAUSE = re.compile(r',?\s+and\s+(?=(?:the target|if|each|it|its|the [a-z]+ (?:must|is|can|has))\b)|;\s+')
+SIZES = ('tiny', 'small', 'medium', 'large', 'huge', 'gargantuan')
+SIZE_CAP = re.compile(r'\b(tiny|small|medium|large|huge)(?: size)? or smaller\b')
+CREATURE_TYPES = ('aberration', 'beast', 'celestial', 'construct', 'dragon', 'elemental', 'fey', 'fiend', 'giant',
+                  'humanoid', 'monstrosity', 'ooze', 'plant', 'undead')
+TYPE_WORD = r'(?:an? )?(?:%s)s?' % '|'.join(['monstrosities'] + list(CREATURE_TYPES))
+TYPE_LIST = TYPE_WORD + r'(?:(?:, or |, | or )' + TYPE_WORD + r')*'
+CONDITION_WORD = r'(%s)' % '|'.join(sorted(CONDITIONS - {'invisible'}))
+# The qualifiers a clause may carry and still be read: the target being a creature, or no bigger than a size
+NEUTRAL = re.compile(r'\bif (?:the target|it) is (?:a creature|(?:an? )?(?:tiny|small|medium|large|huge) or smaller'
+                     r'(?: creature| target)?)\b,?|\b(?:tiny|small|medium|large|huge) or smaller\b')
+# A clause that only applies sometimes, or is something else (ongoing damage, swallowing), is read by the DM
+QUALIFIER = re.compile(r"\b(?:if|while|unless|when|whenever|instead|except|no longer|not|until (?:this|the) (?:grapple|poison|"
+                       r"disease|curse|effect)|swallow\w*|engulf\w*|start of each|end of each|each of its turns|"
+                       r"reduces?\b[^.]*\bto 0 hit points)\b")
+REPEAT_ANY = re.compile(r"(?:(?:the target|a target|it|the creature|a creature|the [a-z]+ target) )?(?:can |must )?repeat(?:s|ing)? "
+                        r"the saving throw at the end of each of its turns(?:, ending the effect on itself on a "
+                        r"success)?")
+FAILED = re.compile(r'\bon a failed save\b|\bor (?:take|takes)\b|\bor (?:it )?(?:take|takes|suffer)\b')
+# The words a read clause may still hold; any other word in it is a rider the DM applies
+FILLER = set('''the target target's it is be become becomes has have condition conditions and or a an creature must
+succeed on make makes saving throw strength dexterity constitution intelligence wisdom charisma knocked falls fall for
+minute minutes hour hours also are taking take takes failed save half as much damage one successful its which then
+to this that with'''.split())
+
+
+def plain(text):
+    return strip_tags(text).lower()
+
+
+def qualified(text):
+    """Whether a clause applies only sometimes, or does something the parts can't say."""
+    lowered = NEUTRAL.sub(' ', REPEAT_ANY.sub(' ', plain(text)))
+    return bool(QUALIFIER.search(lowered))
+
+
+def unread_words(text):
+    """The words of a clause the parts don't say: none when the clause is read in full."""
+    lowered = NEUTRAL.sub(' ', REPEAT_ANY.sub(' ', plain(text)))
+    lowered = re.sub(r"until the (?:end|start) of (?:its|the target's|(?:the )?[a-z][a-z' -]*?'s) next turn", ' ',
+                     lowered)
+    lowered = re.sub(r'\d+ \(\d+d\d+(?:\s*[+-]\s*\d+)?\) [a-z]+(?:(?:, or |, | or )[a-z]+)* damage', ' ', lowered)
+    lowered = re.sub(r'\(escape dc \d+\)|\bdc \d+', ' ', lowered)
+    return [w for w in re.findall(r"[a-z']+", lowered) if w not in FILLER and w not in CONDITIONS]
+
+
+def size_cap(text):
+    """The largest size a clause's condition reaches, "Large" for "a Large or smaller creature"; None for any."""
+    match = SIZE_CAP.search(plain(text))
+    return match.group(1).capitalize() if match else None
+
+
+def predicate(tail):
+    """What a damage's condition asks, as an onlyIf object, or None when the app can't tell (D202): the target's
+    condition or creature type, the attacker's advantage on the roll, its form, or its hit points at half or fewer."""
+    text = plain(tail).strip().rstrip('.').strip()
+    if re.search(r'\bor if\b|\bwithin\b|\bmoved?\b|\bstraight\b', text):
+        return None
+    when = None
+    if re.fullmatch(r"(?:if|when|while) (?:[a-z' -]+ )?(?:has|had) advantage on (?:the|its|this|that) attack roll"
+                    r"(?: and hits(?: the target)?)?|if the attack roll had advantage", text):
+        when = {'attackerAdvantage': True}
+    condition = (re.fullmatch(r"(?:if|while) the target (?:is|has the) (?:already )?" + CONDITION_WORD
+                              + r"(?: condition)?( by (?:the )?[a-z' -]+)?", text)
+                 or re.fullmatch(r"against (?:a |an |any )?" + CONDITION_WORD + r" (?:target|creature)s?()", text))
+    if condition:
+        when = {'targetCondition': condition.group(1)}
+        if condition.group(2):
+            when['byAttacker'] = True
+    types = re.fullmatch(r'(?:if the target is |against |to )(' + TYPE_LIST + ')', text)
+    if types:
+        found = [t for t in CREATURE_TYPES if re.search(r'\b' + t, types.group(1))]
+        if 'monstrosities' in types.group(1):
+            found.append('monstrosity')
+        when = {'targetType': sorted(set(found))}
+    if re.fullmatch(r"while (?:(?:it is|(?:the )?[a-z' -]+ is) )?enlarged|while under the effect of enlarge", text):
+        when = {'attackerForm': 'enlarged'}
+    form = re.fullmatch(r'(?:while )?in ([a-z]+(?: [a-z]+)?) form', text)
+    if form and ' or ' not in form.group(1):
+        when = {'attackerForm': form.group(1) + ' form'}
+    if re.fullmatch(r"while (?:(?:it is|(?:the )?[a-z' -]+ is) )?raging", text):
+        when = {'attackerForm': 'raging'}
+    if re.fullmatch(r"if the [a-z' -]+ (?:has|is at) half (?:of )?its hit points(?: \(\d+\))? or fewer", text):
+        when = {'attackerBloodied': True}
+    if when:
+        when['text'] = text
+    return when
+
+
+def damage_part(match):
+    """A DAMAGE part of a ONE_DAMAGE match, and whether its type is a choice."""
+    if match.group(2):
+        damage_type, choice = match.group(3), False
+        if ' or ' in damage_type or ',' in damage_type:
+            choice = True
+            damage_type = damage_type.split(',')[0].split(' or ')[0]
+        return {'effectType': 'DAMAGE', 'damageDice': match.group(2).strip(), 'damageType': damage_type}, choice
+    return {'effectType': 'DAMAGE', 'damageDice': match.group(4), 'damageType': match.group(5),
+            'flatDamage': True}, False
+
+
+def base_damage(first):
+    """A hit's damage from the start of its first sentence: the parts, whether a choice is left to the DM, and the rest
+    of the sentence. Extra damage that only applies sometimes carries an onlyIf, and an alternative that replaces the
+    first damage also replacesDamage; one whose condition the app can't tell is the DM's (D202)."""
+    match = ONE_DAMAGE.match(first)
+    if not match:
+        return [], False, first
+    part, choice = damage_part(match)
+    parts, position = [part], match.end()
+    # Damage joined with "and" to extra damage ("plus 10 (3d6) necrotic damage and 10 (3d6) poison damage") is one
+    # group with it, and a condition after the last holds for the whole group: where it starts in parts, and the text
+    group = None
+    while True:
+        link = LINK.match(first, position)
+        found = ONE_DAMAGE.match(first, link.end()) if link else None
+        if not found:
+            break
+        kind = link.group(1)
+        if kind == 'and' and group is None:
+            break
+        part, typed_choice = damage_part(found)
+        end = found.end()
+        tail = TAIL.match(first, end)
+        when = predicate(tail.group(1)) if tail else None
+        if tail and not when:
+            if kind == 'or':
+                # An alternative the app can't tell apart ("at range"), so the DM settles it
+                choice, position, group = True, tail.end(), None
+                continue
+            if kind == 'and':
+                # "plus 4 piercing damage and 9 (2d8) cold damage if the javelin was used ...": all of it the DM's
+                del parts[group[0]:]
+                position = group[1]
+            break
+        if tail:
+            end = tail.end()
+        if kind == 'or':
+            if not when:
+                # "or 16 (2d12 + 3) piercing damage plus ..." with no condition: the DM's choice, and the rest with it
+                choice, position = True, len(first)
+                break
+            part['onlyIf'] = when
+            part['replacesDamage'] = True
+            group = None
+        else:
+            if kind == 'plus':
+                group = (len(parts), position)
+            if when:
+                part['onlyIf'] = when
+                for joined in parts[group[0]:]:
+                    joined.setdefault('onlyIf', dict(when))
+        choice = choice or typed_choice
+        parts.append(part)
+        position = end
+    return parts, choice, first[position:]
+
+
+# "If the darkling has advantage on the attack roll, the attack deals an extra 7 (2d6) piercing damage." and the
+# like, with the damage's condition before it or after it
+EXTRA_SENTENCE = re.compile(r"^(?:if (?P<pre>[^,]+?),?\s+)?(?:(?:the attack|it|the target|(?:the |this )?[a-z' -]+?) "
+                            r"(?:deals|takes|suffers)\s+)?an? (?:extra|additional)\s+(?P<dmg>" + DICE_DAMAGE + r")"
+                            r"(?:\s+is dealt to the target|\s+to the target)?(?:\s+(?P<post>(?:if|when|while|against)\b"
+                            r".+?))?\.?$")
+
+
+def extra_sentence(sentence):
+    """The conditional extra damage a later sentence of a hit gives, as one DAMAGE part with onlyIf, or None."""
+    match = EXTRA_SENTENCE.match(plain(sentence))
+    if not match or bool(match.group('pre')) == bool(match.group('post')):
+        return None
+    when = predicate('if ' + match.group('pre') if match.group('pre') else match.group('post'))
+    if not when:
+        return None
+    part, choice = damage_part(ONE_DAMAGE.match(match.group('dmg')))
+    if choice:
+        return None
+    part['onlyIf'] = when
+    return part
+
+
+def read_clause(clause, following):
+    """The parts a clause of a hit gives, and whether that is all it says (D202): a grapple, a condition with or
+    without a save, and damage a failed save deals; a size limit is kept on each condition as maxTargetSize. A
+    clause that only applies sometimes still gives its grapple, as before, and the rest is the DM's."""
+    found = saves(clause)
+    if len(found) > 1 or (found and found[0][2]):
+        return [], False
+    cap = size_cap(clause)
+    parts = []
+    grapple = GRAPPLE.search(clause)
+    if grapple:
+        part = {'effectType': 'CONDITION', 'condition': 'grappled', 'escapeDC': int(grapple.group(1))}
+        if cap:
+            part['maxTargetSize'] = cap
+        parts.append(part)
+    # A clause about a save made in another, "On a failure, the target is poisoned", is that save's, which the DM
+    # applies
+    if qualified(clause) or not found and re.search(r'\bfail|\bsucce', plain(clause)):
+        return parts, False
+    damage = list(DAMAGE.finditer(clause))
+    if found:
+        dc, ability = found[0][:2]
+        if damage:
+            if not FAILED.search(plain(clause)):
+                return parts, False
+            half = bool(re.search(r'half as much|half damage', plain(clause)))
+            for match in damage:
+                part, choice = damage_part(ONE_DAMAGE.match(match.group(0)))
+                if choice:
+                    return parts, False
+                part.update({'saveDC': dc, 'saveAbility': ability, 'halfOnSave': half})
+                parts.append(part)
+        given = [c for c in conditions(clause, (dc, ability)) if c['condition'] != 'grappled']
+        # How long they last and any save to end them can be said in the next sentences
+        later = conditions(' '.join([clause, following]), (dc, ability))
+        for c in given:
+            c.update({k: v for k, v in next(x for x in later if x['condition'] == c['condition']).items()
+                      if k not in c})
+    else:
+        if damage:
+            return parts, False
+        given = [c for c in conditions(clause) if c['condition'] != 'grappled']
+    for c in given:
+        if cap:
+            c['maxTargetSize'] = cap
+        parts.append(c)
+    return parts, bool(parts) and not unread_words(clause)
 
 
 def flatten(entries):
@@ -110,15 +363,21 @@ def flatten(entries):
 
 
 def duration(text):
-    """How long a condition lasts, in rounds and words, from the sentence that gives it."""
+    """How long a condition lasts, in rounds and words, from the sentence that gives it, and whether it ends at the end
+    of the user's next turn ("until the end of the nereid's next turn"), not the target's (D202)."""
     lowered = text.lower()
     if re.search(r'for 1 minute', lowered):
-        return 10, '1 minute'
+        return 10, '1 minute', False
     if re.search(r'for 1 hour', lowered):
-        return 600, '1 hour'
-    if re.search(r'until the (?:end|start) of (?:its|the target\'s|the [a-z]+\'s) next turn', lowered):
-        return 1, 'until the end of its next turn'
-    return None, None
+        return 600, '1 hour', False
+    if re.search(r"until the (?:end|start) of (?:its|(?:the|that|each) (?:target|creature)'s) next turn", lowered):
+        return 1, 'until the end of its next turn', False
+    users = re.search(r"until the (end|start) of ((?:the )?[a-z][a-z' -]*?'s) next turn", strip_tags(text).lower())
+    if users:
+        # The start of the user's next turn is where a condition's rounds are counted down anyway; its end needs the
+        # end-of-turn rule Stunning Strike's stun uses (PHB p.79)
+        return 1, 'until the %s of %s next turn' % users.groups(), users.group(1) == 'end'
+    return None, None, False
 
 
 def conditions(text, save=None):
@@ -129,7 +388,7 @@ def conditions(text, save=None):
             name = name.lower()
             if name in CONDITIONS and name not in [f['condition'] for f in found]:
                 found.append({'effectType': 'CONDITION', 'condition': name})
-    rounds, words = duration(text)
+    rounds, words, users_turn = duration(text)
     repeat = bool(REPEAT.search(text))
     for part in found:
         if save:
@@ -137,6 +396,8 @@ def conditions(text, save=None):
         if words:
             part['durationText'] = words
             part['durationRounds'] = rounds
+        if users_turn:
+            part['endOfUsersTurn'] = True
         if repeat and save:
             part['saveToEndEachTurn'] = True
             part['saveToEndDC'], part['saveToEndAbility'] = save
@@ -223,54 +484,96 @@ def attack(action, raw, description):
     targets = TARGETS.search(strip_tags(head))
     action['targetCount'] = COUNTS[targets.group(1)] if targets else 1
 
+    reading = read_hit(hit)
+    if reading['versatile']:
+        action['versatile'] = reading['versatile']
+    effects = reading['effects']
+    if not effects:
+        return manual(action, description, "The hit's effect is not damage the app can roll: " + describe(hit))
+    action['effects'] = effects
+    note = hit_note(reading)
+    if note:
+        action['dmNote'] = note
+    action['description'] = description
+    return action
+
+
+def read_hit(hit):
+    """What a hit's text gives (D202): its effects, whether a choice is left to the DM, its first sentence, the clauses
+    the effects don't say, and its versatile damage."""
     sentences = SENTENCE.split(hit.strip())
     first, rest = sentences[0], sentences[1:]
     versatile = VERSATILE.search(first)
+    two_handed = None
     if versatile:
-        action['versatile'] = {'twoHandedDamageDice': versatile.group(2).strip(),
-                               'twoHandedDamageType': versatile.group(3)}
+        two_handed = {'twoHandedDamageDice': versatile.group(2).strip(), 'twoHandedDamageType': versatile.group(3)}
         first = first[:versatile.start()] + first[versatile.end():]
-    effects, choice = damage_parts(first)
-    if not effects:
-        flat = FLAT_DAMAGE.match(strip_tags(first))
-        if flat:
-            effects.append({'effectType': 'DAMAGE', 'damageDice': flat.group(1), 'damageType': flat.group(2),
-                            'flatDamage': True})
-    grapple = GRAPPLE.search(hit)
-    if grapple:
-        effects.append({'effectType': 'CONDITION', 'condition': 'grappled', 'escapeDC': int(grapple.group(1))})
-    leftover = []
+    effects, choice, remainder = base_damage(first)
+    if not effects and DAMAGE.search(first) and not saves(first) and not qualified(first):
+        # A first sentence whose damage isn't at its start or lacks a word ("The target takes 55 (10d10) piercing
+        # damage", "5 (1d4 + 3) plus 10 (3d6) poison damage") is read as D194 read it
+        effects, choice = damage_parts(first)
+        remainder = ''
+    # The first sentence's clauses after its damage, then each later sentence's
+    clauses = [(c, True) for c in SUBCLAUSE.split(remainder) if c and c.strip(' .,;')]
     for sentence in rest:
-        found = saves(sentence)
-        if len(found) == 1 and not found[0][2] and not DAMAGE.search(sentence) and 'swallow' not in sentence:
-            # The conditions come from this sentence; how long they last can be said in the next ones
-            given = [c for c in conditions(sentence, found[0][:2]) if c['condition'] != 'grappled']
-            later = conditions(' '.join([sentence] + rest), found[0][:2])
-            for c in given:
-                c.update({k: v for k, v in next(x for x in later if x['condition'] == c['condition']).items()
-                          if k not in c})
-            if given:
-                effects.extend(given)
-                if RIDER.search(sentence):
-                    leftover.append(sentence)
-                continue
-        leftover.append(sentence)
+        clauses.extend((c, False) for c in SUBCLAUSE.split(sentence) if c and c.strip(' .,;'))
+    conditions_read, leftover = [], []
+    # A hit with a list of effects to choose from ("one of the following") leaves them all to the DM
+    options = bool(OPTIONS.search(hit))
+    for index, (clause, in_first) in enumerate(clauses):
+        if options:
+            leftover.append(clause)
+            continue
+        following = ' '.join(c for c, _ in clauses[index + 1:])
+        extra = None if in_first else extra_sentence(clause)
+        if extra:
+            effects.append(extra)
+            continue
+        # "The target can repeat the saving throw ..." once a condition it ends has been read
+        if REPEAT_ANY.fullmatch(plain(clause).strip(' .'))                 and any(c.get('saveToEndEachTurn') for c in conditions_read):
+            continue
+        parts, read = read_clause(clause, following)
+        for part in parts:
+            if part['effectType'] == 'DAMAGE':
+                effects.append(part)
+            elif part['condition'] not in [c['condition'] for c in conditions_read]:
+                conditions_read.append(part)
+        # A clause of a first sentence left as a choice is already in the choice's note
+        if not read and not (in_first and choice):
+            leftover.append(clause)
+    effects.extend(conditions_read)
     restrained = RESTRAINED.search(hit)
-    if not effects and restrained:
-        effects.append({'effectType': 'CONDITION', 'condition': 'restrained', 'escapeDC': int(restrained.group(1))})
-    if not effects:
-        return manual(action, description, 'The hit\'s effect is not damage the app can roll: ' + describe(hit))
-    action['effects'] = effects
+    if restrained:
+        # A web restrains until a Strength check breaks it, as the escape DC the log shows
+        held = next((c for c in conditions_read if c['condition'] == 'restrained'), None)
+        if held is not None and 'escapeDC' not in held and 'saveDC' not in held:
+            held['escapeDC'] = int(restrained.group(1))
+        elif not effects:
+            effects.append({'effectType': 'CONDITION', 'condition': 'restrained',
+                            'escapeDC': int(restrained.group(1))})
+    return {'effects': effects, 'choice': choice, 'first': first, 'leftover': leftover, 'versatile': two_handed}
+
+
+def hit_note(reading, leftover=None):
+    """The dmNote of a hit: its choice, and the clauses the DM applies by hand."""
     notes = []
-    if choice:
-        notes.append('On a hit: ' + strip_tags(first) + ' The DM settles the choice by hand.')
-    leftover_text = strip_tags(' '.join(s for s in leftover if not GRAPPLE.search(s) or DAMAGE.search(s)))
+    if reading['choice']:
+        notes.append('On a hit: ' + strip_tags(reading['first']) + ' The DM settles the choice by hand.')
+    leftover_text = ' '.join(sentence_of(c) for c in (reading['leftover'] if leftover is None else leftover))
     if leftover_text:
-        notes.append('Also on a hit, applied by hand: ' + leftover_text)
-    if notes:
-        action['dmNote'] = ' '.join(notes)
-    action['description'] = description
-    return action
+        notes.append(HAND_NOTE + leftover_text)
+    return ' '.join(notes)
+
+
+HAND_NOTE = 'Also on a hit, applied by hand: '
+
+
+def sentence_of(clause):
+    """A clause as a sentence of its own: capitalised, ending with a full stop."""
+    text = re.sub(r'^and\s+', '', strip_tags(clause).strip(' ,;'))
+    text = text[:1].upper() + text[1:]
+    return text if text.endswith(('.', '!', '?')) else text + '.'
 
 
 def saving_throw(action, raw, description):
@@ -449,6 +752,187 @@ def merged(existing, generated):
     return entry
 
 
+# ── The rider pass over the hand-built entries (D202) ─────────────────────────────────────────────────────────────────
+# A hand-built entry keeps its own attack bonus, damage and parts; each of its attacks matched by name to its stat block
+# gets what read_hit derives beyond them, marked so a later run takes it away first and adds it again:
+#   - a part the pass adds has "_rider": "added";
+#   - a key it adds to a part the entry had lists in that part's "_riderKeys", or "_riderNulls" when it replaced a null;
+#   - a part it takes away is kept in the action's "_riderRemoved" with its place;
+#   - what it adds to the dmNote is the action's "_riderNote", with "_riderNoteNew" when there was no dmNote.
+RIDER_LISTS = (('action', 'actions', 'ACTION'), ('bonus', 'bonusActions', 'BONUS_ACTION'),
+               ('reaction', 'reactions', 'REACTION'), ('legendary', 'legendaryActions', 'LEGENDARY'),
+               ('mythic', 'mythicActions', 'MYTHIC'))
+DAMAGE_RIDER_KEYS = ('saveDC', 'saveAbility', 'halfOnSave', 'onlyIf', 'replacesDamage')
+RIDER_STATS = ('attacks matched', 'attacks changed', 'damage given a save', 'damage given a condition',
+               'damage added', 'base damage restored', 'flat damage added', 'conditions added', 'conditions given a save',
+               'conditions given a size limit', 'conditions given a duration or end', 'conditions removed',
+               'dmNotes added', 'dmNotes extended')
+
+
+def strip_riders(action):
+    """The action as the hand-built data had it, before any rider pass."""
+    effects = [p for p in action.get('effects') or [] if not (isinstance(p, dict) and p.get('_rider'))]
+    for part in effects:
+        if not isinstance(part, dict):
+            continue
+        for k in part.pop('_riderKeys', []):
+            part.pop(k, None)
+        for k in part.pop('_riderNulls', []):
+            part[k] = None
+    for removed in sorted(action.pop('_riderRemoved', []), key=lambda r: r['at']):
+        effects.insert(removed['at'], removed['part'])
+    if 'effects' in action:
+        action['effects'] = effects
+    note = action.pop('_riderNote', None)
+    if note is not None:
+        if action.pop('_riderNoteNew', False):
+            action.pop('dmNote', None)
+        elif action.get('dmNote', '').endswith(' ' + note):
+            action['dmNote'] = action['dmNote'][:-len(note) - 1]
+
+
+def add_keys(part, keys):
+    """Adds the keys a part lacks, marking each; whether any was added."""
+    added = False
+    for k, v in keys.items():
+        if part.get(k) is not None:
+            continue
+        if k in part:
+            part.setdefault('_riderNulls', []).append(k)
+        else:
+            part.setdefault('_riderKeys', []).append(k)
+        part[k] = v
+        added = True
+    return added
+
+
+def dice_key(part):
+    return re.sub(r'\s+', '', str(part.get('damageDice') or '')).lower(), (part.get('damageType') or '').lower()
+
+
+def covered(clause, held):
+    """Whether a clause only gives conditions the entry gives already, such as "Until this grapple ends, the target is
+    restrained" beside a hand-built restraint."""
+    names = [n.lower() for n in JOINED.findall(clause)]
+    if not names or not all(n in held for n in names):
+        return False
+    return not unread_words(re.sub(r'until this grapple ends,?', ' ', plain(clause)))
+
+
+def add_riders(action, reading, stats):
+    """Adds to a hand-built attack what its stat block's hit gives beyond its own parts (D202). Damage its stat block
+    deals only on a failed save or under a condition gets that save or onlyIf, rather than coming with every hit; a
+    condition gets the save, size limit, duration and end its stat block gives when the entry has none; a condition
+    the stat block gives only at 0 hit points is taken away; anything else the stat block's hit says goes in the
+    dmNote."""
+    effects = action['effects']
+    original = [p for p in effects if isinstance(p, dict)]
+    before = json.dumps(action, sort_keys=True)
+    built = reading['effects']
+    for part in (p for p in built if p['effectType'] == 'DAMAGE' and ('saveDC' in p or 'onlyIf' in p)):
+        keys = {k: part[k] for k in DAMAGE_RIDER_KEYS if k in part}
+        same = next((p for p in original if p.get('effectType') == 'DAMAGE' and dice_key(p) == dice_key(part)
+                     and not any(p.get(k) is not None for k in DAMAGE_RIDER_KEYS)), None)
+        if same is not None:
+            add_keys(same, keys)
+            stats['damage given a save' if 'saveDC' in part else 'damage given a condition'] += 1
+        else:
+            effects.append(dict(part, _rider='added'))
+            stats['damage added'] += 1
+    # A hit whose every damage now needs a save or a condition lost its own damage, as the scorpion's 1 piercing
+    if not any(p.get('effectType') == 'DAMAGE' and not any(p.get(k) is not None for k in DAMAGE_RIDER_KEYS)
+               for p in effects):
+        for part in (p for p in built if p['effectType'] == 'DAMAGE' and 'saveDC' not in p and 'onlyIf' not in p):
+            effects.append(dict(part, _rider='added'))
+            stats['base damage restored'] += 1
+    # Flat extra damage of a type the entry deals none of, as "plus 3 lightning damage", which it didn't read
+    for part in (p for p in built if p['effectType'] == 'DAMAGE' and p.get('flatDamage')
+                 and 'saveDC' not in p and 'onlyIf' not in p):
+        if not any(p.get('effectType') == 'DAMAGE' and dice_key(p)[1] == part['damageType'] for p in effects):
+            effects.append(dict(part, _rider='added'))
+            stats['flat damage added'] += 1
+    action_save = action.get('saveDC') is not None or action.get('secondarySaveDC') is not None
+    for part in (p for p in built if p['effectType'] == 'CONDITION'):
+        same = next((p for p in original if p.get('effectType') == 'CONDITION'
+                     and (p.get('condition') or '').lower() == part['condition']), None)
+        if same is None:
+            effects.append(dict(part, _rider='added'))
+            stats['conditions added'] += 1
+            continue
+        if 'saveDC' in part and same.get('saveDC') is None and not action_save:
+            if add_keys(same, {'saveDC': part['saveDC'], 'saveAbility': part['saveAbility']}):
+                stats['conditions given a save'] += 1
+        if 'maxTargetSize' in part and add_keys(same, {'maxTargetSize': part['maxTargetSize']}):
+            stats['conditions given a size limit'] += 1
+        ends = {}
+        if same.get('durationRounds') is None and 'durationRounds' in part:
+            ends.update({k: part[k] for k in ('durationRounds', 'durationText', 'endOfUsersTurn') if k in part})
+        if not same.get('saveToEndEachTurn') and part.get('saveToEndEachTurn'):
+            ends.update({k: part[k] for k in ('saveToEndEachTurn', 'saveToEndDC', 'saveToEndAbility')})
+        if same.get('escapeDC') is None and 'escapeDC' in part:
+            ends['escapeDC'] = part['escapeDC']
+        if ends and add_keys(same, ends):
+            stats['conditions given a duration or end'] += 1
+    # A condition the stat block gives only once its damage drops the target to 0 hit points, as the phase spider's
+    # poisoning, doesn't come with a hit
+    built_names = {p['condition'] for p in built if p['effectType'] == 'CONDITION'}
+    for index, part in reversed(list(enumerate(effects))):
+        name = (part.get('condition') or '').lower() if isinstance(part, dict) else ''
+        if any(part is o for o in original) and part.get('effectType') == 'CONDITION' and name not in built_names:
+            mentions = [c for c in reading['leftover'] if '{@condition %s}' % name in c.lower()]
+            if mentions and all('0 hit points' in plain(c) for c in mentions):
+                action.setdefault('_riderRemoved', []).insert(0, {'at': index, 'part': part})
+                del effects[index]
+                stats['conditions removed'] += 1
+    held = {(p.get('condition') or '').lower() for p in effects if isinstance(p, dict)}
+    note = hit_note(reading, [c for c in reading['leftover'] if not covered(c, held)])
+    if note and note not in (action.get('dmNote') or ''):
+        action['_riderNote'] = note
+        if action.get('dmNote'):
+            action['dmNote'] = action['dmNote'] + ' ' + note
+            stats['dmNotes extended'] += 1
+        else:
+            action['_riderNoteNew'] = True
+            action['dmNote'] = note
+            stats['dmNotes added'] += 1
+    stats['attacks changed'] += json.dumps(action, sort_keys=True) != before
+
+
+def singular(name):
+    lowered = base_name(name).lower()
+    return lowered[:-3] + 'f' if lowered.endswith('ves') else lowered[:-1] if lowered.endswith('s') else lowered
+
+
+def hand_built(actions, name):
+    """The hand-built action of a stat-block name: the same name, or else the only one alike but for a plural or a
+    note in brackets ("Claws" for "Claw")."""
+    for action in actions:
+        if action.get('name') == name:
+            return action
+    alike = [a for a in actions if a.get('name') and singular(a['name']) == singular(name)]
+    return alike[0] if len(alike) == 1 else None
+
+
+def rider_pass(entry, monster, stats):
+    """The rider pass over one hand-built entry and its stat block."""
+    for key_5e, key_def, action_type in RIDER_LISTS:
+        actions = [a for a in entry.get(key_def) or [] if isinstance(a, dict)]
+        for action in actions:
+            strip_riders(action)
+        for stat in monster.get(key_5e) or []:
+            if not isinstance(stat, dict) or not stat.get('name') or stat['name'].startswith('Multiattack'):
+                continue
+            raw = flatten(stat.get('entries'))
+            if not ATK.search(raw) or '{@h}' not in raw:
+                continue
+            action = hand_built(actions, parse_name(stat['name'])[0])
+            if action is None or action.get('deliveryMethod') != 'ATTACK_ROLL' or action.get('automatable') is False \
+                    or not isinstance(action.get('effects'), list) or not HIT.search(raw.partition('{@h}')[0]):
+                continue
+            stats['attacks matched'] += 1
+            add_riders(action, read_hit(raw.partition('{@h}')[2]), stats)
+
+
 def main():
     check = '--check' in sys.argv
     with open(DEFINITIONS, 'rb') as f:
@@ -464,6 +948,7 @@ def main():
              'recharge': 0, 'perDay': 0, 'manual': 0, 'bonusActions': 0, 'reactions': 0, 'versatile': 0,
              'legendaryResistance': 0}
     missing = set(targets)
+    blocks = {}
     for path in sorted(glob.glob(BESTIARY)):
         if 'fluff' in os.path.basename(path) or 'index' in os.path.basename(path):
             continue
@@ -471,6 +956,8 @@ def main():
             monsters = json.load(f).get('monster', [])
         for monster in monsters:
             k = key(monster.get('name', ''), monster.get('source', ''))
+            if '_copy' not in monster:
+                blocks.setdefault(k, monster)
             if '_copy' in monster or k not in missing:
                 continue
             missing.discard(k)
@@ -492,6 +979,14 @@ def main():
     print(', '.join('%s %d' % item for item in stats.items()))
     for k in sorted(missing):
         print('  no stat block: ' + k)
+
+    # The rider pass over every other entry with a stat block (D202)
+    rider_stats = dict.fromkeys(RIDER_STATS, 0)
+    for position, entry in enumerate(definitions):
+        k = key(entry['monsterName'], entry['source'])
+        if targets.get(k) != position and k in blocks:
+            rider_pass(entry, blocks[k], rider_stats)
+    print('riders: ' + ', '.join('%s %d' % item for item in rider_stats.items()))
 
     text = json.dumps(definitions, indent=2, ensure_ascii=False)
     if crlf:

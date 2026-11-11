@@ -263,13 +263,52 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      * @param saveToEndAbility  that save's ability, when it isn't the condition's or the action's
      * @param escapeDc          the DC of the check that escapes a grapple, or the restraint that lasts while it does;
      *                          never a saving throw, so the condition comes with the hit
+     * @param halfOnSave        for a DAMAGE part with its own save (saveDC and saveAbility), dealt only as the hit's
+     *                          save allows, as a phase spider's poison (MM p.334): whether a success halves it, else
+     *                          it prevents it (D202)
+     * @param onlyIf            for a DAMAGE part, what must hold for it to be dealt, as a gray render's claw's
+     *                          bludgeoning against a prone target (MTF p.209); null for always (D202)
+     * @param replacesDamage    for a DAMAGE part with onlyIf, whether it replaces the action's first unconditional
+     *                          damage, as a duergar's war pick's 2d8 + 2 while enlarged (MM p.122), rather than adding
+     *                          to it (D202)
+     * @param maxTargetSize     for a CONDITION part, the largest size it reaches, such as "Large" for "a Large or
+     *                          smaller creature"; a bigger target doesn't get it (D202)
+     * @param endOfUsersTurn    for a CONDITION part, it lasts until the end of the user's next turn, as a scarecrow's
+     *                          frightening claw (MM p.268), not the target's (D202)
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Part(String effectType, String damageDice, String damageType, String condition,
                        @JsonProperty("saveDC") Integer saveDc, String saveAbility,
                        Integer durationRounds, boolean saveToEndEachTurn,
                        @JsonProperty("saveToEndDC") Integer saveToEndDc, String saveToEndAbility,
-                       @JsonProperty("escapeDC") Integer escapeDc) {
+                       @JsonProperty("escapeDC") Integer escapeDc, boolean halfOnSave, DamageCondition onlyIf,
+                       boolean replacesDamage, String maxTargetSize, boolean endOfUsersTurn) {
+
+        /** A part with none of the riders D202 reads. */
+        public Part(String effectType, String damageDice, String damageType, String condition, Integer saveDc,
+                    String saveAbility, Integer durationRounds, boolean saveToEndEachTurn, Integer saveToEndDc,
+                    String saveToEndAbility, Integer escapeDc) {
+            this(effectType, damageDice, damageType, condition, saveDc, saveAbility, durationRounds, saveToEndEachTurn,
+                    saveToEndDc, saveToEndAbility, escapeDc, false, null, false, null, false);
+        }
+    }
+
+    /**
+     * What must hold for a DAMAGE part to be dealt (D202), one of: the target has a condition (given by the attacker,
+     * with byAttacker, as "grappled by Geryon"), the target is of a creature type, the attacker had advantage on the
+     * attack roll, the attacker is in a form ("enlarged", "crocodile form", "raging"), or the attacker has half its
+     * hit points or fewer, as a swarm.
+     *
+     * @param text the stat block's words, such as "if the target is prone", which the combat log quotes
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DamageCondition(String targetCondition, boolean byAttacker, List<String> targetType,
+                                  boolean attackerAdvantage, String attackerForm, boolean attackerBloodied,
+                                  String text) {
+
+        public DamageCondition {
+            targetType = listOf(targetType);
+        }
     }
 
     /** One ray of an Eye Rays action: a saving throw and its effects. */
