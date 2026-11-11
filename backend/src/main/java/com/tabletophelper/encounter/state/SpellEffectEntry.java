@@ -106,8 +106,11 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
      * "Wight's Life Drain" (D203), so it lasts as the spells' effects do and its Ongoing Modifiers count as theirs.
      *
      * @param kind       HP_MAX (a lowered hit point maximum), MODIFIER (Ongoing Modifiers), TURN_DAMAGE (damage at the
-     *                   start of a turn) or IMMUNITY (the creature is immune to the action once its save succeeded or
-     *                   the anchor's condition ended)
+     *                   start of a turn), IMMUNITY (the creature is immune to the action once its save succeeded or
+     *                   the anchor's condition ended), SWALLOW (the creatures in the monster's gullet, D204), COUNTED
+     *                   (saves the creature counts, as a cockatrice's petrification, D204), ABILITY (a lowered ability
+     *                   score, D204), POSSESSION (the body a ghost possesses, D204) or RISING (a creature it killed
+     *                   that rises, D204)
      * @param action     the action's name, as the stat block gives it
      * @param anchor     the creature's condition entry it lasts while, ending with it, as a bearded devil's poisoning
      *                   while it can't regain hit points (MM p.70); null for none
@@ -115,18 +118,61 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
      * @param rest       LONG_REST or SHORT_REST when it lasts until the creature finishes a rest, which the encounter
      *                   doesn't reach, so the table carries it over after Write-back; null otherwise
      * @param turnDamage for TURN_DAMAGE, what it deals; null otherwise
+     * @param swallow    for SWALLOW, what the gullet does and the damage it has taken from inside this turn; null
+     *                   otherwise
      */
     public record MonsterRider(@Schema(requiredMode = REQUIRED) String kind,
                                @Schema(requiredMode = REQUIRED) String action,
                                @JsonInclude(JsonInclude.Include.NON_NULL) UUID anchor,
                                @JsonInclude(JsonInclude.Include.NON_NULL) String anchorName,
                                @JsonInclude(JsonInclude.Include.NON_NULL) String rest,
-                               @JsonInclude(JsonInclude.Include.NON_NULL) TurnDamage turnDamage) {
+                               @JsonInclude(JsonInclude.Include.NON_NULL) TurnDamage turnDamage,
+                               @JsonInclude(JsonInclude.Include.NON_NULL) Gullet swallow) {
 
         public static final String HP_MAX = "HP_MAX";
         public static final String MODIFIER = "MODIFIER";
         public static final String TURN_DAMAGE = "TURN_DAMAGE";
         public static final String IMMUNITY = "IMMUNITY";
+        public static final String SWALLOW = "SWALLOW";
+        public static final String COUNTED = "COUNTED";
+        public static final String ABILITY = "ABILITY";
+        public static final String POSSESSION = "POSSESSION";
+        public static final String RISING = "RISING";
+
+        /** A rider with no gullet (D203). */
+        public MonsterRider(String kind, String action, UUID anchor, String anchorName, String rest,
+                            TurnDamage turnDamage) {
+            this(kind, action, anchor, anchorName, rest, turnDamage, null);
+        }
+
+        /** The same rider with its gullet changed (D204). */
+        public MonsterRider withSwallow(Gullet changed) {
+            return new MonsterRider(kind, action, anchor, anchorName, rest, turnDamage, changed);
+        }
+    }
+
+    /**
+     * A swallowing monster's gullet (D204), as a purple worm's (MM p.255): the creatures in it are the effect's affected
+     * creatures. Damage they deal it is counted through each turn, and at the turn's end enough of it makes it save or
+     * regurgitate them all, prone.
+     *
+     * @param condition          "swallowed" or "engulfed", the condition the creatures inside have
+     * @param regurgitateDamage  the damage on a single turn that calls for the save; null for none
+     * @param regurgitateDc      the Constitution save's DC; null when that much damage regurgitates them without one
+     * @param escapeFeet         the movement a creature inside spends to leave the corpse, exiting prone, once the
+     *                           swallower dies; null when none is given, as for an engulfing cube
+     * @param takenThisTurn      the damage creatures inside have dealt it this turn
+     */
+    public record Gullet(@Schema(requiredMode = REQUIRED) String condition,
+                         @JsonInclude(JsonInclude.Include.NON_NULL) Integer regurgitateDamage,
+                         @JsonInclude(JsonInclude.Include.NON_NULL) Integer regurgitateDc,
+                         @JsonInclude(JsonInclude.Include.NON_NULL) Integer escapeFeet,
+                         @Schema(requiredMode = REQUIRED) int takenThisTurn) {
+
+        /** The same gullet having taken this much this turn. */
+        public Gullet withTaken(int taken) {
+            return new Gullet(condition, regurgitateDamage, regurgitateDc, escapeFeet, taken);
+        }
     }
 
     /**

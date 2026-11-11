@@ -3921,3 +3921,29 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D183, D184, D187, D188, D189, D199, D201, D202
 
 **Tests:** `MonsterRidersStepsTest` (22), `MonsterRidersStepsDataTest` (12), `MonsterRidersStepsIT` (6: wight, carrion crawler, giant constrictor snake's grapple, refusal and escape, stirge, ghoul against a zombie, an adult red dragon's Frightful Presence), 3 Vitest cases; 3,375 backend unit, 520 integration and 1,200 frontend tests.
+
+
+## D204: Monster Riders, Steps 6–7 — Swallowing, Engulfing and the Long Tail
+
+**Date:** 2026-11-11
+**Status:** Accepted — implemented (no migration; monster action data changed)
+
+**Context:** steps 6 and 7 of the bestiary rider survey ([[#D202]], [[#D203]]); step 8 needs a map and stays on its list.
+
+**Decision:**
+- **Swallowing:** the generator reads a swallow whole: its save, size limit and "grappled by", blinded and restrained tied to a new `swallowed` condition ([[#D203]]'s links), damage at the start of the swallower's turns, how many it holds, the regurgitation threshold and DC, and the feet needed to escape its corpse. Swallow actions that are "a bite against a creature it is grappling" (giant toad, giant frog, tarrasque, Gishath, Banderhobb, Bavlorna) become attacks with the monster's own Bite, refused with a 409 against a creature it isn't grappling; the tarrasque's broken Swallow is fixed. A swallowed or engulfed creature can be reached only by its swallower and others inside, and reaches only them (409), though the DM's own manual actions still reach it (total cover, MM p.255). Swallowing ends the grapple; the gullet is a Spell Effect the monster holds, and a full one means the bite hits without swallowing. Damage from creatures inside is counted each turn; at its end, the threshold calls for a CON save, and a failure regurgitates everyone prone. A dead swallower frees them, prone, the escape distance in the log.
+- **Engulfing:** the gelatinous cube's Engulf (MM p.242) is a DEX save for 3d6 acid and `engulfed`, restrained while engulfed, 6d6 acid at the start of the cube's turns, and an escape with a DC 12 Strength check as its action.
+- **Petrification over two saves** reuses [[#D187]]'s counted saves with [[#D189]]'s failure condition: the cockatrice, gorgon, stone cursed, Envy, and the undercity medusa, whose gaze petrifies at once on a save failed by 5. Petrified lasts until the DM ends it; the log quotes the book's cure.
+- **Ability drain:** a new modifier lowers an ability score until a short or long rest, so saves and checks use the lower score, and the creature dies at 0 (the shadow's Strength Drain, MM p.269; the Displacer Fiend). A player's weapon attacks from the sheet don't pick it up; the log says so.
+- **At 0 hit points:** "stable but poisoned" (11 actions: giant spider, giant wasp, giant centipede, phase spider…) makes a dying character stable, poisoned for an hour and paralyzed while poisoned; "dies" uses the kill-outright path, which Death Ward stops. **Spawn:** a creature that rises at once (the Barrowghast's zombie) joins through [[#D189]]'s raising; delayed risings (a wight's 24 hours, a shadow's 1d4 hours) are reminders.
+- **Possession** (7 ghost and quori actions, humanoids only): a failed CHA save makes the target `possessed`, its control the DM's ([[#D187]]); the ghost is `possessing`, untargetable and taking no turns like a banished creature; the possession ends when the body drops to 0 or the DM removes either condition, the ghost reappearing and the target immune afterwards (MM p.147).
+
+**Counts:** 28 swallows, 1 engulf, 6 petrifications, 2 ability drains, 12 effects at 0 hit points, 6 risings and 7 possessions in the data; 68 actions changed, 16 rebuilt whole. Rider clauses automated went from 2,111 to 2,357; attacks with a rider still by hand from 842 (734 monsters) to 801 (700). Side fixes: four grapples dealt their damage each turn on the hit too (two Annis Hags, Morkoth, Zarak); Hythonia's Constrict and the Nycaloth's Claw regained their base damage.
+
+**Trade-offs and open items:** the regurgitation threshold counts damage from all the creatures inside together; Legendary Resistance against the regurgitation save isn't offered (the log reminds the DM); a dead swallower frees its creatures at once, though by the text they spend movement to escape. The basilisk's and medusa's gazes are traits, which the app can't trigger as actions; the Shambling Mound's engulf deals damage each turn behind a save, which a rider can't yet express; the cube's capacity, a kraken's, the Banderhobb's free regurgitation, the Astral Dreadnought's demiplane, the Elder Dinosaur's swallow (no Bite in its data), Strength drain behind a save, banishment (mostly whole-action manual) and a ghost leaving the body stay with the DM. Purple Worm, Behir and Remorhaz had no action entry at all, which led to [[#D205]]. Needs a map: the cube moving into spaces and its push, gazes within 30 feet, regurgitated creatures landing within 10 feet, a ghost's 5 feet, an engulfed creature moving with the Shambling Mound.
+
+**Key files:** `backend/scripts/generate_monster_actions.py`, `data/monster-actions/monster-action-definitions.json`, `encounter/internal/MonsterHitEffects.java`, `EffectApplier.java`, `MonsterEffects.java`, `MonsterActionService.java`, `CombatAccess.java`, `rules/combat/OngoingModifier.java`
+
+**Related:** D185, D187, D189, D202, D203
+
+**Tests:** `MonsterRidersTailTest` (25), `MonsterRidersTailDataTest` (13), `MonsterRidersTailIT` (6: a giant toad swallowing and digesting a halfling who crawls out when it dies, a froghemoth regurgitating a death knight after 45 damage from inside, a gelatinous cube's engulf and escape, a cockatrice's two saves, a shadow draining a guard's Strength to death, a ghost's possession until the body drops); 3,413 backend unit, 526 integration and 1,200 frontend tests.

@@ -127,6 +127,28 @@ final class MonsterRiders {
                     + (lasting.grappleLimit() == 1 ? "" : "s") + " with " + lasting.action() + ", so "
                     + participant.getDisplayName() + " isn't grappled.");
         }
+        // A condition only some targets get, as a kraken's bite swallows only a creature it grapples (MM p.197), and a
+        // gullet that is full, as a giant toad's holds one (MM p.329) (D204)
+        for (Map.Entry<String, MonsterTemplates.DamageCondition> gate : lasting.onlyIf().entrySet()) {
+            String condition = gate.getKey();
+            if (effect.conditions().contains(condition) && !dropped.contains(condition) && attacker != null
+                    && !Boolean.TRUE.equals(holds(gate.getValue(), attacker, participant, false))) {
+                dropped.add(condition);
+                notes.add(participant.getDisplayName() + " isn't " + condition + " by " + effect.name() + ": "
+                        + (gate.getValue().text() != null && !gate.getValue().text().isBlank()
+                        ? "only " + gate.getValue().text().trim() : "it doesn't qualify") + ".");
+            }
+        }
+        for (Map.Entry<String, MonsterTemplates.Swallow> gullet : lasting.swallows().entrySet()) {
+            String condition = gullet.getKey();
+            Integer limit = gullet.getValue().limit();
+            if (limit != null && effect.conditions().contains(condition) && !dropped.contains(condition)
+                    && attacker != null && inside(attacker).size() >= limit) {
+                dropped.add(condition);
+                notes.add(attacker.getDisplayName() + " already holds " + limit + " creature" + (limit == 1 ? "" : "s")
+                        + " " + condition + ", so " + participant.getDisplayName() + " isn't " + condition + ".");
+            }
+        }
         // A condition that lasts while one kept away would is kept away too, as a restraint until a grapple ends
         boolean more = true;
         while (more) {
@@ -148,6 +170,19 @@ final class MonsterRiders {
     static String refusal(MonsterEffects.Riders riders, EncounterParticipant attacker,
                           List<EncounterParticipant> targets) {
         MonsterEffects.Lasting lasting = riders.lasting();
+        // An action only for a creature the monster is grappling, as a giant toad's Swallow (MM p.329, D204)
+        if (lasting.targetGrappled() && attacker != null) {
+            List<String> free = targets.stream()
+                    .filter(target -> target.getActiveConditions() == null || target.getActiveConditions().stream()
+                            .noneMatch(c -> GRAPPLED.equalsIgnoreCase(c.name())
+                                    && Objects.equals(c.sourceParticipantId(), attacker.getId())))
+                    .map(EncounterParticipant::getDisplayName)
+                    .toList();
+            if (!free.isEmpty()) {
+                return attacker.getDisplayName() + "'s " + lasting.action() + " can be used only on a creature it is "
+                        + "grappling, and it isn't grappling " + String.join(" or ", free);
+            }
+        }
         if (lasting.grappleLimit() == null || !lasting.grappleLimitBlocks() || attacker == null) {
             return null;
         }
@@ -167,6 +202,14 @@ final class MonsterRiders {
         return everyone(attacker).stream()
                 .filter(creature -> creature.getLifeState() != com.tabletophelper.rules.combat.LifeState.DEAD
                         && holds(attacker, action, creature))
+                .toList();
+    }
+
+    // The living creatures the attacker has swallowed or engulfed, by any action (D204)
+    static List<EncounterParticipant> inside(EncounterParticipant attacker) {
+        return everyone(attacker).stream()
+                .filter(creature -> creature.getLifeState() != com.tabletophelper.rules.combat.LifeState.DEAD
+                        && attacker.getId().equals(CombatAccess.swallowedBy(creature)))
                 .toList();
     }
 

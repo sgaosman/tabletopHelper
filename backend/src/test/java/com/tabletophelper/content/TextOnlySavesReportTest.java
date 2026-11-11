@@ -145,8 +145,10 @@ class TextOnlySavesReportTest {
         return false;
     }
 
+    // A swallowing bite records the swallower's own save to keep what it swallowed down on its gullet (D204)
     private static boolean hasSave(JsonNode node) {
-        return node.path("saveDC").isNumber() || node.path("saveAbility").isString();
+        return node.path("saveDC").isNumber() || node.path("saveAbility").isString()
+                || node.path("swallow").path("regurgitateDC").isNumber();
     }
 
     // Every bestiary monster by lower-case "name|source", the first of any that share one

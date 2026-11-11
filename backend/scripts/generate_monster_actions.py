@@ -782,7 +782,7 @@ def save_riders(raw):
     keys = {}
     text = plain(raw)
     match = IMMUNE.search(text)
-    if match and re.search(r'success|succeeds|successful', text):
+    if match and re.search(r'success|succeeds|successful|succeeding', text):
         keys['immuneAfterSave'] = match.group(1)
     match = NO_EFFECT_ON.search(text)
     if match:
@@ -790,6 +790,406 @@ def save_riders(raw):
         if found:
             keys['exemptTypes'] = found
     return keys
+
+
+# ── Swallowing and the long tail (D204) ─────────────────────────────────────────────────────────────────────────────
+# A swallow is read from a hit's sentences as a whole: the clause that swallows (with its save, size limit and "grappled
+# by the X"), the state ("blinded and restrained, ... cover against attacks and other effects outside the X, and ...
+# takes 21 (6d6) acid damage at the start of each of the X's turns"), how many it holds, what regurgitates them and the
+# escape from the corpse. It becomes a swallowed CONDITION with a swallow object, the conditions and damage each turn
+# tied to it (endsWith), and the action's targetGrappled when only a grappled creature can be swallowed. A creature that
+# "begins to turn to stone and is restrained" and repeats the save at the end of its next turn is a restrained CONDITION
+# with a COUNTED_SAVES part whose failure petrifies; an ability score "reduced by 1d4" is ABILITY_REDUCTION; "if the
+# poison damage reduces the target to 0 hit points, the target is stable but poisoned" and "the target dies if ... 0 hit
+# points" are AT_ZERO; "a humanoid slain by this attack rises ... as a zombie" is ON_KILL; a ghost's Possession is a
+# possessed CONDITION with a POSSESSION part.
+SIZE_WORD = r'(tiny|small|medium|large|huge)'
+GULLET = r"(?:(?:the )?" + NAME + r"|it)"
+SWALLOW_TRIGGERS = [
+    # "If the target is a Large or smaller creature [grappled by the kraken], it [must succeed on a DC 19 Dexterity
+    # saving throw or be swallowed by the worm | is swallowed, and the grapple ends]"
+    re.compile(r"(?:if the target is an? " + SIZE_WORD + r" or smaller creature( grappled by " + NAME + r")?,? )?"
+               r"(?:it|that creature|the creature|the target) (?:must succeed on a dc (\d+) " + ABILITY
+               + r" saving throw or be swallowed(?: by " + NAME + r")?(?: and deposited in [a-z' ]+?)?"
+               r"(?: \(see [a-z ]+\))?|is (?:also )?swallowed(?: by " + NAME + r")?(?:,? and the grapple ends)?)"),
+    # "the target is swallowed if it is a Medium or smaller creature"
+    re.compile(r"the target is swallowed if it is an? " + SIZE_WORD + r" or smaller creature()()()"),
+    # "The bloodfin swallows the target." / "The creature is also swallowed, and the grapple ends."
+    re.compile(r"()()()()(?:" + NAME + r" swallows the target|(?:the|that) (?:creature|target) is (?:also )?"
+               r"swallowed,? and the grapple ends)"),
+]
+SWALLOW_DAMAGE = re.compile(r"(?:it )?takes " + DICE + r" ([a-z]+) damage(?: and " + DICE + r" ([a-z]+) damage)? at the "
+                            r"start of (?:each of )?(" + NAME + r"'s|its) turns(?: from [a-z' ]+)?")
+SWALLOW_EACH_TURN = re.compile(r"at the start of each of (" + NAME + r")'s turns, each swallowed creature takes " + DICE
+                               + r" ([a-z]+) damage(?: from [a-z' ]+)?")
+SWALLOW_LIMIT = re.compile(r"(?:" + GULLET + r"(?:'s (?:gullet|stomach))? can (?:have|hold|swallow) (?:only |up to )?"
+                           r"(one|two|three|four) (?:target|creature)s?(?: swallowed)? at a time)")
+REGURGITATE = re.compile(r"if " + GULLET + r" takes (\d+) damage or more on a single turn from (?:a creature inside "
+                         r"(?:it|its gullet)|the swallowed creature|a swallowed creature), " + GULLET
+                         + r" (?:must succeed on a dc (\d+) constitution saving throw(?: at the end of that turn)? or "
+                         r"regurgitate|regurgitates) (?:all swallowed creatures|the (?:swallowed )?creature)"
+                         r"(?:,? (?:which|each of which) (?:falls?|lands?) (?:prone )?(?:in|into) (?:a space|spaces) "
+                         r"within \d+ feet of " + GULLET + r"(?: and (?:now )?(?:has|have) the prone condition)?)?")
+CORPSE = re.compile(r"if " + GULLET + r" dies, (?:a|any) swallowed creatures? (?:(?:is|are) no longer restrained(?: by "
+                    r"(?:it|" + NAME + r"))? and |no longer has the restrained condition and )?can escape from the corpse "
+                    r"(?:by )?using (\d+) feet of movement, exiting (?:prone|with the prone condition)")
+COVER = re.compile(r"(?:it )?(?:has|have) (?:total )?cover against attacks and other effects (?:originating )?outside "
+                   + GULLET)
+
+
+def without_whole(part):
+    """A part without the mark that it came from a whole reading, which the output never keeps."""
+    return {k: v for k, v in part.items() if k != '_whole'}
+
+
+def swallow_state(text):
+    """The conditions, damage each turn and whether a sentence about a swallowed creature's state says only those, as
+    "a swallowed creature is blinded and restrained, it has cover against attacks and other effects outside the worm,
+    and it takes 21 (6d6) acid damage at the start of each of the worm's turns"; None when it isn't one."""
+    match = re.match(r"(?:while swallowed, (?:the|a) (?:creature|target)|(?:a|the) swallowed (?:creature|target))"
+                     r"(?: is no longer grappled but)? (.*)", text)
+    if not match or 'cover' not in text and 'damage' not in text:
+        return None
+    rest = match.group(1)
+    conditions, damage = [], []
+    for piece in re.split(r',\s*and\s+|,\s+|\s+and\s+(?=it\b|has\b|takes\b)', rest):
+        piece = piece.strip()
+        if not piece:
+            continue
+        named = re.fullmatch(r"(?:is|has the) (blinded|restrained)(?: and (blinded|restrained))?(?: conditions?)?",
+                             piece)
+        if named:
+            conditions.extend(c for c in named.groups() if c)
+            continue
+        if COVER.fullmatch(piece):
+            continue
+        turn = SWALLOW_DAMAGE.fullmatch(piece)
+        if turn:
+            damage.extend(turn_parts(turn))
+            continue
+        return None
+    return conditions, damage
+
+
+def turn_parts(match):
+    """The ONGOING_DAMAGE parts of a SWALLOW_DAMAGE match, at the start of the swallower's turns or the creature's."""
+    whose = 'TARGET' if match.group(5) == 'its' else 'USER'
+    parts = [{'effectType': 'ONGOING_DAMAGE', 'damageDice': match.group(1).strip(), 'damageType': match.group(2),
+              'endsWith': 'swallowed', 'turnOf': whose}]
+    if match.group(3):
+        parts.append({'effectType': 'ONGOING_DAMAGE', 'damageDice': match.group(3).strip(),
+                      'damageType': match.group(4), 'endsWith': 'swallowed', 'turnOf': whose})
+    return parts
+
+
+def read_swallow(units):
+    """A swallow read from a hit's or an action's sentences (D204): its parts, the action keys, and the indexes of the
+    sentences it reads; None when no sentence swallows. A sentence it can't read stays for the dmNote."""
+    trigger, used, conditions, damage, keys, swallow = None, [], [], [], {}, {}
+    for index, unit in enumerate(units):
+        text = norm(unit)
+        if not text:
+            continue
+        for pattern in SWALLOW_TRIGGERS:
+            match = pattern.fullmatch(text)
+            if match and trigger is None:
+                trigger = match
+                used.append(index)
+                break
+        else:
+            state = swallow_state(text)
+            if state is not None:
+                conditions.extend(c for c in state[0] if c not in conditions)
+                damage.extend(state[1])
+                used.append(index)
+                continue
+            match = SWALLOW_EACH_TURN.fullmatch(text)
+            if match:
+                damage.append({'effectType': 'ONGOING_DAMAGE', 'damageDice': match.group(2).strip(),
+                               'damageType': match.group(3), 'endsWith': 'swallowed', 'turnOf': 'USER'})
+                used.append(index)
+                continue
+            match = SWALLOW_DAMAGE.fullmatch(text)
+            if match and used:
+                damage.extend(turn_parts(match))
+                used.append(index)
+                continue
+            match = SWALLOW_LIMIT.fullmatch(text)
+            if match:
+                swallow['limit'] = COUNT_WORDS[match.group(1)]
+                used.append(index)
+                continue
+            match = REGURGITATE.fullmatch(text)
+            if match:
+                swallow['regurgitateDamage'] = int(match.group(1))
+                if match.group(2):
+                    swallow['regurgitateDC'] = int(match.group(2))
+                used.append(index)
+                continue
+            match = CORPSE.fullmatch(text)
+            if match:
+                swallow['escapeFeet'] = int(match.group(1))
+                used.append(index)
+    if trigger is None:
+        return None
+    size, grappled, dc, ability = trigger.group(1), trigger.group(2), trigger.group(3), trigger.group(4)
+    part = {'effectType': 'CONDITION', 'condition': 'swallowed'}
+    save = save_keys(dc, ability) if dc else {}
+    part.update(save)
+    if size:
+        part['maxTargetSize'] = size.capitalize()
+    if grappled:
+        part['onlyIf'] = {'targetCondition': 'grappled', 'byAttacker': True,
+                          'text': 'a creature it is grappling'}
+    part['swallow'] = swallow
+    part['_whole'] = True
+    parts = [part]
+    for condition in conditions:
+        parts.append(dict({'effectType': 'CONDITION', 'condition': condition, 'endsWith': 'swallowed', '_whole': True},
+                          **save))
+    for turn in damage:
+        parts.append(dict(turn, **save))
+    return parts, keys, used
+
+
+# A Swallow action that makes a bite attack against a creature the monster is grappling (MM p.329, D204)
+SWALLOW_ACTION = re.compile(r"(?:the )?" + NAME + r" makes (?:one|a) (bite) attack against an? " + SIZE_WORD
+                            + r" or smaller (?:target|creature) (?:it|she|he) is grappling")
+SWALLOW_ACTION_HIT = re.compile(r"if the attack hits, (?:the target|that creature) (?:takes the bite's damage(?:,| and) )?"
+                                r"(?:the target )?is (?:also )?swallowed,? and the grapple ends")
+SWALLOWS_GRAPPLED = re.compile(NAME + r" swallows an? " + SIZE_WORD + r" or smaller creature (?:she|he|it) is "
+                               r"grappling, ending the grapple on it")
+# "one Medium or smaller creature the toad is grappling" / "grappled by the banderhobb" in an attack's head
+HEAD_GRAPPLED = re.compile(r"one " + SIZE_WORD + r" or smaller creature (?:(?:the )?" + NAME + r" is grappling|grappled "
+                           r"by (?:the )?" + NAME + r")", re.I)
+
+
+def swallow_action(raw):
+    """The swallow of a Swallow action that is a bite against a grappled creature, as a giant toad's (MM p.329), or that
+    swallows a grappled creature outright, as Bavlorna's (WBtW): (kind, parts, the sentences it doesn't read), kind
+    being 'bite' or 'auto'; None for anything else."""
+    sentences = [s for s in SENTENCE.split(raw.strip()) if s.strip()]
+    if not sentences:
+        return None
+    first = norm(sentences[0])
+    match = SWALLOW_ACTION.fullmatch(first)
+    auto = SWALLOWS_GRAPPLED.fullmatch(first)
+    if match and len(sentences) > 1 and SWALLOW_ACTION_HIT.fullmatch(norm(sentences[1])):
+        kind, size, rest = 'bite', match.group(2), sentences[2:]
+    elif auto:
+        kind, size, rest = 'auto', auto.group(1), sentences[1:]
+    else:
+        return None
+    read = read_swallow(['The target is swallowed.'] + rest)
+    if read is None:
+        return None
+    parts, _, used = read
+    parts = [without_whole(p) for p in parts]
+    parts[0]['maxTargetSize'] = size.capitalize()
+    leftover = [s for i, s in enumerate(rest) if i + 1 not in used]
+    return kind, parts, leftover
+
+
+# Petrification over two saves (D204): "begins to turn to stone and is restrained ... must repeat the saving throw at
+# the end of its next turn ... petrified"
+PETRIFY_START = re.compile(r"(?:on a failed save, |otherwise, )?(?:the target|a target|the creature|a creature|it)(?: that "
+                           r"fails the save)? (?:magically )?begins to turn to stone and is restrained")
+PETRIFY_SAVE_OR = re.compile(r"(?:if the target is a creature, )?(?:the target|it) must succeed on a dc (\d+) " + ABILITY
+                             + r" saving throw(?: against being magically petrified)?(?:,? or it (?:magically )?begins "
+                             r"to turn to stone and is restrained until the end of its next turn, when it must repeat "
+                             r"the saving throw)?")
+PETRIFY_REPEAT = re.compile(r"(?:it|the (?:restrained|affected) (?:target|creature)) must repeat the saving throw at "
+                            r"the end of its next turn(?:, becoming petrified on a failure or ending the effect on a "
+                            r"success)?")
+PETRIFY_SUCCESS = re.compile(r"on a success(?:ful save)?, the effect ends(?: on the target)?|the effect ends if the "
+                             r"second save is successful(?:; otherwise the target is petrified (for 24 hours))?")
+PETRIFY_FAILURE = re.compile(r"on a failure, (?:the creature|the target) is petrified (for 24 hours|until freed by (?:the |a )?"
+                             r"greater restoration spell or (?:other|similar) magic)")
+PETRIFY_LASTS = re.compile(r"the petrification lasts (until the creature is freed by (?:the |a )?greater restoration spell"
+                           r" or (?:other|similar) magic)")
+PETRIFY_FAIL_BY = re.compile(r"if the saving throw fails by (\d+) or more, the creature is instantly petrified")
+PETRIFY_SAVE = re.compile(r"(?:the target|each creature in that area|the creature) must (?:make|succeed on) a dc (\d+) "
+                          + ABILITY + r" saving throw")
+
+
+def read_petrify(units, attack_hit):
+    """A petrification over two saves read from sentences (D204), as a cockatrice's bite (MM p.42) or a gorgon's breath
+    (MM p.171): the restrained CONDITION and the COUNTED_SAVES part whose failure petrifies, and the indexes of the
+    sentences read; None when the sentences aren't one. On a hit, the first save guards both."""
+    used, dc, ability, lasts, fail_by, started, repeated, ended = [], None, None, None, None, False, False, False
+    for index, unit in enumerate(units):
+        text = norm(unit)
+        match = PETRIFY_SAVE_OR.fullmatch(text) or (PETRIFY_SAVE.fullmatch(text) if not attack_hit else None)
+        if match:
+            dc, ability = int(match.group(1)), ABILITIES[match.group(2)]
+            started = started or 'turn to stone' in text
+            repeated = repeated or 'repeat' in text
+            used.append(index)
+            continue
+        if PETRIFY_START.fullmatch(text):
+            started = True
+            used.append(index)
+            continue
+        if PETRIFY_REPEAT.fullmatch(text):
+            repeated = True
+            if 'becoming petrified' in text:
+                ended = True
+            used.append(index)
+            continue
+        match = PETRIFY_SUCCESS.fullmatch(text)
+        if match:
+            if match.group(1):
+                lasts, ended = match.group(1), True
+            used.append(index)
+            continue
+        match = PETRIFY_FAILURE.fullmatch(text)
+        if match:
+            lasts, ended = match.group(1), True
+            used.append(index)
+            continue
+        match = PETRIFY_LASTS.fullmatch(text)
+        if match:
+            lasts = match.group(1)
+            used.append(index)
+            continue
+        match = PETRIFY_FAIL_BY.fullmatch(text)
+        if match:
+            fail_by = int(match.group(1))
+            used.append(index)
+    if not (started and repeated and ended and dc):
+        return None
+    words = 'petrified ' + (lasts or 'until freed by greater restoration or other magic')
+    restrained = {'effectType': 'CONDITION', 'condition': 'restrained', '_whole': True}
+    counted = {'effectType': 'COUNTED_SAVES', 'saveToEndDC': dc, 'saveToEndAbility': ability,
+               'counted': {'successes': 1, 'failures': 1, 'endsConditions': ['restrained'],
+                           'failureCondition': 'petrified', 'onFailures': words[:1].upper() + words[1:] + '.'}}
+    if fail_by:
+        counted['counted']['failBy'] = fail_by
+    if attack_hit:
+        restrained.update({'saveDC': dc, 'saveAbility': ability})
+        counted.update({'saveDC': dc, 'saveAbility': ability})
+    return [restrained, counted], used
+
+
+# An ability score reduced (D204): "the target's Strength score is reduced by 1d4"
+ABILITY_REDUCED = re.compile(r"(?:the target's|its) " + ABILITY + r" score is reduced by (?:\d+ \((\d+d\d+)\)|(\d+d\d+)|"
+                             r"(\d+))")
+ABILITY_DIES = re.compile(r"the target (?:dies|is killed) if this reduces its " + ABILITY + r"(?: score)? to 0")
+ABILITY_LASTS = re.compile(r"(?:otherwise, )?(?:the|this) reduction lasts until the target finishes a (short or long|long) "
+                           r"rest")
+# At 0 hit points (D204)
+STABLE_POISONED = re.compile(r"(?:if the (poison) damage reduces the target to 0 hit points, the target|a creature "
+                             r"reduced to 0 hit points by [a-z' ]+) is stable but poisoned for 1 hour, even after "
+                             r"regaining hit points, and (?:is |has the )?paralyzed(?: condition)? while poisoned in "
+                             r"this way")
+DIES_AT_ZERO = re.compile(r"the target dies if (?:this|the) (?:attack|damage) reduces it to 0 hit points|the target dies "
+                          r"if it is reduced to 0 hit points by this attack|if this damage reduces the target to 0 hit "
+                          r"points, (?:the target|it) dies")
+# What rises from the slain (D204)
+RISES = re.compile(r"(?:an? |any )?(humanoid|creature)s? (?:slain|killed) by this (?:attack|damage) (immediately |"
+                   r"instantly )?rises?(?: (\d+ hours later|at the start of [a-z' ]+ next turn))? as an? ([a-z ]+?)"
+                   r"(?: under [a-z' ]+ control)?(?:,? unless .*)?(?: \(.*\))?")
+RISES_LATER = re.compile(r"if a (?:non-evil )?(humanoid|creature) dies from this attack, a new ([a-z]+) rises from the "
+                         r"corpse ([0-9d]+ hours?) later")
+
+
+def read_tail(clause, built):
+    """The long tail's parts a single clause of a hit gives (D204), and whether that is all it says; None for none.
+    Continuations change the part read before ("The target dies if this reduces its Strength to 0")."""
+    text = norm(clause)
+    match = ABILITY_REDUCED.fullmatch(text)
+    if match:
+        dice = match.group(2) or match.group(3) or match.group(4)
+        return [{'effectType': 'ABILITY_REDUCTION', 'ability': ABILITIES[match.group(1)], 'damageDice': dice,
+                 'until': 'SHORT_REST'}], True
+    reduced = last(built, 'ABILITY_REDUCTION')
+    match = ABILITY_DIES.fullmatch(text)
+    if match and reduced is not None and reduced['ability'] == ABILITIES[match.group(1)]:
+        reduced['diesAtZero'] = True
+        return [], True
+    match = ABILITY_LASTS.fullmatch(text)
+    if match and reduced is not None:
+        reduced['until'] = 'LONG_REST' if match.group(1) == 'long' else 'SHORT_REST'
+        return [], True
+    match = STABLE_POISONED.fullmatch(text)
+    if match:
+        part = {'effectType': 'AT_ZERO', 'atZero': {'stable': True, 'condition': 'poisoned', 'durationRounds': 600,
+                                                     'linked': ['paralyzed']}}
+        if match.group(1):
+            part['damageType'] = match.group(1)
+        return [part], True
+    if DIES_AT_ZERO.fullmatch(text):
+        return [{'effectType': 'AT_ZERO', 'atZero': {'dies': True}}], True
+    match = RISES.fullmatch(text)
+    if match:
+        immediately = bool(match.group(2)) or (match.group(3) or '').startswith('at the start')
+        types = [match.group(1)] if match.group(1) == 'humanoid' else []
+        return [{'effectType': 'ON_KILL', 'onKill': {'creatureTypes': types, 'form': match.group(4).strip().title(),
+                                                      'immediately': immediately, 'text': sentence_of(clause)}}], True
+    match = RISES_LATER.fullmatch(text)
+    if match:
+        types = [match.group(1)] if match.group(1) == 'humanoid' else []
+        return [{'effectType': 'ON_KILL', 'onKill': {'creatureTypes': types, 'form': match.group(2).title(),
+                                                      'immediately': False, 'text': sentence_of(clause)}}], True
+    return None
+
+
+# A ghost's Possession (MM p.147, D204)
+POSSESS = re.compile(r"one (humanoid|creature) that (?:the )?" + NAME + r" can see within 5 feet of (?:it|itself|him|"
+                     r"himself|her|herself) must succeed on a dc (\d+) charisma saving throw or be possessed by "
+                     r"(?:the )?" + NAME + r"; (?:the )?" + NAME + r" then disappears, and the target is incapacitated and "
+                     r"loses control of its body")
+POSSESSION_NOTE = ("The possessor can't be targeted except by what its stat block allows, keeps its alignment, "
+                   "Intelligence, Wisdom, Charisma and immunities, and otherwise uses the body's statistics; it can end "
+                   "the possession as a bonus action, or be forced out (dispel evil and good): the DM removes "
+                   "possessed.")
+
+
+def possession(raw, description):
+    """The saving throw action of a possession (D204), as a ghost's (MM p.147): a possessed CONDITION and a POSSESSION
+    part on a failed Charisma save, for a humanoid when it says so, with the immunity its success gives; None for any
+    other action."""
+    sentences = SENTENCE.split(raw.strip())
+    match = POSSESS.fullmatch(norm(sentences[0])) if sentences else None
+    if not match or 'controls the body' not in plain(raw):
+        return None
+    action = {'deliveryMethod': 'SAVING_THROW', 'saveDC': int(match.group(2)), 'saveAbility': 'CHA',
+              'halfOnSave': False, 'targetCount': 1,
+              'effects': [{'effectType': 'CONDITION', 'condition': 'possessed'}, {'effectType': 'POSSESSION'}]}
+    if match.group(1) == 'humanoid':
+        action['targetTypes'] = ['humanoid']
+    action.update(save_riders(raw))
+    action['dmNote'] = POSSESSION_NOTE
+    return action
+
+
+# A gelatinous cube's Engulf (MM p.242, D204)
+ENGULFED = re.compile(r"(?:the|an?) engulfed (?:creature|target) can't breathe, is restrained, and takes " + DICE
+                      + r" ([a-z]+) damage at the start of each of (" + NAME + r"'s) turns")
+ENGULF_ESCAPE = re.compile(r"an engulfed creature can try to escape by taking an action to make a dc (\d+) strength check")
+ENGULF_SIZE = re.compile(r"it can enter " + SIZE_WORD + r" or smaller creatures' spaces")
+
+
+def engulf(raw):
+    """The engulfed parts of a gelatinous cube's Engulf (D204): the engulfed CONDITION, escaped with a Strength check
+    made as an action, the restraint and acid each turn tied to it; None for any other action."""
+    text = plain(raw)
+    state = ENGULFED.search(text)
+    escape = ENGULF_ESCAPE.search(text)
+    if not state or not escape or 'is engulfed' not in text:
+        return None
+    part = {'effectType': 'CONDITION', 'condition': 'engulfed', 'escapeDC': int(escape.group(1)), 'swallow': {}}
+    size = ENGULF_SIZE.search(text)
+    if size:
+        part['maxTargetSize'] = size.group(1).capitalize()
+    return [part, {'effectType': 'CONDITION', 'condition': 'restrained', 'endsWith': 'engulfed'},
+            {'effectType': 'ONGOING_DAMAGE', 'damageDice': state.group(1).strip(), 'damageType': state.group(2),
+             'endsWith': 'engulfed', 'turnOf': 'USER'}]
+
+
+ENGULF_NOTE = ("Applied by hand: the engulfed creature can't breathe and moves with the cube; a creature that succeeds "
+               "can choose to be pushed 5 feet aside or take the failure; the cube holds one Large creature or up to four "
+               "Medium or smaller ones. ")
 
 
 def flatten(entries):
@@ -931,7 +1331,7 @@ def attack(action, raw, description):
     targets = TARGETS.search(strip_tags(head))
     action['targetCount'] = COUNTS[targets.group(1)] if targets else 1
 
-    reading = read_hit(hit)
+    reading = read_attack(raw)
     if reading['versatile']:
         action['versatile'] = reading['versatile']
     # What is tied to a condition the hit doesn't give is the DM's (D203)
@@ -941,13 +1341,27 @@ def attack(action, raw, description):
     effects = [p for p in reading['effects'] if not any(p is d for d in dropped)]
     if not effects:
         return manual(action, description, "The hit's effect is not damage the app can roll: " + describe(hit))
-    action['effects'] = effects
+    action['effects'] = [without_whole(p) for p in effects]
     action.update(reading['action'])
     note = hit_note(reading)
     if note:
         action['dmNote'] = note
     action['description'] = description
     return action
+
+
+def read_attack(raw):
+    """What an attack's hit gives, read_hit's reading, with what its head adds (D204): a swallow made only on "one
+    Medium or smaller creature the toad is grappling" keeps the action for a grappled target, of that size."""
+    head, _, hit = raw.partition('{@h}')
+    reading = read_hit(hit)
+    match = HEAD_GRAPPLED.search(strip_tags(head))
+    swallowed = [p for p in reading['effects'] if p.get('condition') == 'swallowed']
+    if match and swallowed:
+        reading['action']['targetGrappled'] = True
+        for part in swallowed:
+            part.setdefault('maxTargetSize', match.group(1).capitalize())
+    return reading
 
 
 def read_hit(hit):
@@ -966,13 +1380,32 @@ def read_hit(hit):
         # damage", "5 (1d4 + 3) plus 10 (3d6) poison damage") is read as D194 read it
         effects, choice = damage_parts(first)
         remainder = ''
+    # A swallow or a petrification over two saves, read from the sentences as a whole (D204)
+    conditions_read, leftover = [], []
+    action_keys = {}
+    whole = []
+    units = ([remainder] if remainder.strip(' .,;') else []) + rest
+    offset = len(units) - len(rest)
+    for reader in (lambda u: read_swallow(u), lambda u: read_petrify(u, True)):
+        found = reader(units) if not OPTIONS.search(hit) else None
+        if found is None:
+            continue
+        parts, used = found[0], found[-1]
+        if len(found) == 3:
+            action_keys.update(found[1])
+        for part in parts:
+            (conditions_read if part['effectType'] == 'CONDITION' else effects).append(part)
+        whole.extend(units[i] for i in used)
+        if offset and 0 in used:
+            remainder = ''
+        rest = [s for i, s in enumerate(rest) if i + offset not in used]
+        units = ([remainder] if remainder.strip(' .,;') else []) + rest
+        offset = len(units) - len(rest)
     # The first sentence's clauses after its damage, then each later sentence's
     clauses = [(c, True) for c in SUBCLAUSE.split(remainder) if c and c.strip(' .,;')]
     for sentence in rest:
         clauses.extend((c, False) for c in SUBCLAUSE.split(sentence) if c and c.strip(' .,;'))
-    conditions_read, leftover = [], []
-    # The attack's grapple limit, which the action keeps (D203), and the part read last
-    action_keys = {}
+    # The part read last, which a clause going on from it follows (D203)
     previous = None
     # Each part read with the clause it came from, so one tied to a condition no part gives goes back to the DM
     sources = []
@@ -992,7 +1425,12 @@ def read_hit(hit):
             continue
         # The creature types the clause passes over, then what it says that lasts or ties to another condition (D203)
         types, readable = exemption(clause)
-        more = read_more(readable, effects, conditions_read, action_keys, previous)
+        # The long tail: an ability score reduced, a drop to 0 hit points, what rises from the slain (D204)
+        more = read_tail(readable, effects)
+        if more is not None and any(p['effectType'] == 'AT_ZERO' for p in more[0]):
+            whole.append(clause)
+        if more is None:
+            more = read_more(readable, effects, conditions_read, action_keys, previous)
         if more is not None:
             parts, read = more
         else:
@@ -1029,7 +1467,7 @@ def read_hit(hit):
             effects.append({'effectType': 'CONDITION', 'condition': 'restrained',
                             'escapeDC': int(restrained.group(1))})
     return {'effects': effects, 'choice': choice, 'first': first, 'leftover': leftover, 'versatile': two_handed,
-            'action': action_keys, 'sources': sources}
+            'action': action_keys, 'sources': sources, 'whole': whole}
 
 
 def unanchored(reading, names):
@@ -1065,7 +1503,58 @@ def sentence_of(clause):
     return text if text.endswith(('.', '!', '?')) else text + '.'
 
 
+def special_save(raw, description):
+    """The keys of a saving throw action the long tail reads as a whole (D204): a possession, a petrification over two
+    saves, or a gelatinous cube's engulfing; None for any other."""
+    held = possession(raw, description)
+    if held is not None:
+        return held
+    sentences = [s for s in SENTENCE.split(raw.strip()) if s.strip()]
+    text = strip_tags(raw)
+    found = read_petrify(sentences, False)
+    engulfed = engulf(raw) if found is None else None
+    if found is None and engulfed is None:
+        return None
+    if found is not None:
+        parts, used = found
+        dc, ability = parts[1]['saveToEndDC'], parts[1]['saveToEndAbility']
+        effects = [without_whole(p) for p in parts]
+    else:
+        save = saves(raw)
+        if len({(d, a) for d, a, _ in save}) != 1:
+            return None
+        dc, ability = save[0][0], save[0][1]
+        hit = next((s for s in sentences if 'is {@condition engulfed}' in s or 'is engulfed' in plain(s)), '')
+        damage, choice = damage_parts(hit.partition('engulfed')[0])
+        if choice:
+            return None
+        effects = damage + engulfed
+        used = list(range(len(sentences)))
+    action = {'deliveryMethod': 'SAVING_THROW', 'saveDC': dc, 'saveAbility': ability, 'halfOnSave': False}
+    for pattern, kind in AREAS:
+        area = pattern.search(text)
+        if area:
+            action['targetType'] = kind
+            action['aoeSize'] = int(area.group(1))
+            break
+    else:
+        action['targetCount'] = 1
+    action['effects'] = effects
+    leftover = [sentence_of(s) for i, s in enumerate(sentences) if i and i not in used]
+    if engulfed is not None:
+        action['dmNote'] = ENGULF_NOTE.strip()
+    elif leftover:
+        action['dmNote'] = 'Applied by hand: ' + ' '.join(leftover)
+    return action
+
+
 def saving_throw(action, raw, description):
+    # A possession, a petrification over two saves or an engulfing is read as a whole (D204)
+    special = special_save(raw, description)
+    if special is not None:
+        action.update(special)
+        action['description'] = description
+        return action
     found = saves(raw)
     pairs = {(dc, ability) for dc, ability, _ in found}
     if len(pairs) != 1 or any(other for _, _, other in found):
@@ -1260,15 +1749,22 @@ RIDER_STATS = ('attacks matched', 'attacks changed', 'damage given a save', 'dam
                'conditions given a size limit', 'conditions given a duration or end', 'conditions removed',
                'dmNotes added', 'dmNotes extended', 'lasting riders added', 'conditions linked',
                'conditions given an exemption', 'turn damage moved off the hit', 'grapple limits added',
-               'save actions matched', 'save actions given an immunity or exemption')
+               'save actions matched', 'save actions given an immunity or exemption', 'actions rebuilt')
 # The keys of a condition that tie it to another or keep it from some creatures (D203)
 LINK_KEYS = ('endsWith', 'exemptTypes', 'endsOnDamage')
-LASTING_TYPES = ('HP_MAX_REDUCTION', 'LIFE_DRAIN', 'EXHAUSTION', 'MODIFIER', 'ONGOING_DAMAGE')
+LASTING_TYPES = ('HP_MAX_REDUCTION', 'LIFE_DRAIN', 'EXHAUSTION', 'MODIFIER', 'ONGOING_DAMAGE', 'COUNTED_SAVES',
+                 'ABILITY_REDUCTION', 'AT_ZERO', 'ON_KILL', 'POSSESSION')
 ACTION_KEYS = ('grappleLimit', 'grappleLimitBlocks', 'immuneAfterSave', 'exemptTypes')
 
 
 def strip_riders(action):
     """The action as the hand-built data had it, before any rider pass."""
+    # An action the pass rebuilt as a whole, as a giant toad's Swallow or a ghost's Possession (D204)
+    original = action.pop('_riderReplaced', None)
+    if original is not None:
+        action.clear()
+        action.update(original)
+        return
     effects = [p for p in action.get('effects') or [] if not (isinstance(p, dict) and p.get('_rider'))]
     for part in effects:
         if not isinstance(part, dict):
@@ -1287,6 +1783,10 @@ def strip_riders(action):
             action.pop('dmNote', None)
         elif action.get('dmNote', '').endswith(' ' + note):
             action['dmNote'] = action['dmNote'][:-len(note) - 1]
+    # A hand-written note the pass's reading made stale, as "Swallowing is applied by hand" (D204)
+    replaced = action.pop('_riderNoteReplaced', None)
+    if replaced is not None:
+        action['dmNote'] = replaced
     for k in action.pop('_riderActionKeys', []):
         action.pop(k, None)
 
@@ -1339,6 +1839,7 @@ def add_riders(action, reading, stats):
     dmNote."""
     effects = action['effects']
     original = [p for p in effects if isinstance(p, dict)]
+    start = list(effects)
     before = json.dumps(action, sort_keys=True)
     # What is tied to a condition neither the entry nor its stat block gives is the DM's (D203)
     names = {(p.get('condition') or '').lower() for p in original} | {p['condition'] for p in reading['effects']
@@ -1372,6 +1873,17 @@ def add_riders(action, reading, stats):
     for part in (p for p in built if p['effectType'] == 'CONDITION'):
         same = next((p for p in original if p.get('effectType') == 'CONDITION'
                      and (p.get('condition') or '').lower() == part['condition']), None)
+        # A swallow's or a petrification's conditions replace the entry's own, which can't say how they end (D204)
+        if part.get('_whole'):
+            for index in reversed([i for i, p in enumerate(effects) if any(p is o for o in original)
+                                   and p.get('effectType') == 'CONDITION'
+                                   and (p.get('condition') or '').lower() == part['condition']]):
+                action.setdefault('_riderRemoved', []).append({'at': index, 'part': effects[index]})
+                del effects[index]
+                stats['conditions removed'] += 1
+            effects.append(dict(without_whole(part), _rider='added'))
+            stats['conditions added'] += 1
+            continue
         if same is None:
             effects.append(dict(part, _rider='added'))
             stats['conditions added'] += 1
@@ -1407,10 +1919,14 @@ def add_riders(action, reading, stats):
         stats['lasting riders added'] += 1
         # Damage each turn the entry dealt on the hit instead, as a chain devil's 2d6 piercing, comes off the hit
         if part['effectType'] == 'ONGOING_DAMAGE':
-            hit = {dice_key(p) for p in built if p['effectType'] == 'DAMAGE'}
+            # The hit's own damage of the same dice stays, unless the entry deals it more often than the hit does, as a
+            # hertilod's 2d12 poison on the hit and again each turn in its gullet (D204)
+            hit = sum(1 for p in built if p['effectType'] == 'DAMAGE' and dice_key(p) == dice_key(part))
+            dealt = sum(1 for p in effects if any(p is o for o in original) and p.get('effectType') == 'DAMAGE'
+                        and dice_key(p) == dice_key(part))
             for index, other in reversed(list(enumerate(effects))):
                 if any(other is o for o in original) and other.get('effectType') == 'DAMAGE' \
-                        and dice_key(other) == dice_key(part) and dice_key(other) not in hit \
+                        and dice_key(other) == dice_key(part) and dealt > hit \
                         and not any(other.get(k) is not None for k in DAMAGE_RIDER_KEYS):
                     action.setdefault('_riderRemoved', []).insert(0, {'at': index, 'part': other})
                     del effects[index]
@@ -1425,12 +1941,45 @@ def add_riders(action, reading, stats):
         name = (part.get('condition') or '').lower() if isinstance(part, dict) else ''
         if any(part is o for o in original) and part.get('effectType') == 'CONDITION' and name not in built_names:
             mentions = [c for c in reading['leftover'] if '{@condition %s}' % name in c.lower()]
-            if mentions and all('0 hit points' in plain(c) for c in mentions):
+            # Or only once a creature is swallowed, regurgitated or turning to stone, as a purple wormling's prone on
+            # leaving its gullet, which the reading gives in its own way (D204)
+            whole = [c for c in reading.get('whole', []) if re.search(r'\b%s\b' % name, plain(c))]
+            if mentions and all('0 hit points' in plain(c) for c in mentions) or whole and not mentions:
                 action.setdefault('_riderRemoved', []).insert(0, {'at': index, 'part': part})
                 del effects[index]
                 stats['conditions removed'] += 1
+    # A condition the entry gives twice where the reading gives it once, beside a swallow (D204)
+    if any(p.get('condition') == 'swallowed' for p in built):
+        seen, twice = set(), []
+        for index, part in enumerate(effects):
+            name = (part.get('condition') or '').lower() if isinstance(part, dict) else ''
+            if name and part.get('effectType') == 'CONDITION' and any(part is o for o in original):
+                if name in seen:
+                    twice.append(index)
+                seen.add(name)
+        for index in reversed(twice):
+            action.setdefault('_riderRemoved', []).insert(0, {'at': index, 'part': effects[index]})
+            del effects[index]
+            stats['conditions removed'] += 1
+        if twice:
+            action['_riderRemoved'].sort(key=lambda r: r['at'])
+    # A hit that lost all its own damage to the riders gets its base damage back (D204)
+    if not any(p.get('effectType') == 'DAMAGE' and not any(p.get(k) is not None for k in DAMAGE_RIDER_KEYS)
+               for p in effects if isinstance(p, dict)):
+        for part in (p for p in built if p['effectType'] == 'DAMAGE' and 'saveDC' not in p and 'onlyIf' not in p):
+            effects.append(dict(part, _rider='added'))
+            stats['base damage restored'] += 1
     held = {(p.get('condition') or '').lower() for p in effects if isinstance(p, dict)}
     note = hit_note(reading, [c for c in reading['leftover'] if not covered(c, held)])
+    # Each part taken away keeps its place in the entry's own list, so taking several away restores in order (D204)
+    for removed in action.get('_riderRemoved', []):
+        removed['at'] = next(i for i, p in enumerate(start) if p is removed['part'])
+    if action.get('_riderRemoved'):
+        action['_riderRemoved'].sort(key=lambda r: r['at'])
+    # A hand-written note that the swallow is applied by hand is stale once the swallow is read (D204)
+    if any(p.get('condition') == 'swallowed' for p in built) \
+            and (action.get('dmNote') or '').startswith('Swallowing is applied by hand'):
+        action['_riderNoteReplaced'] = action.pop('dmNote')
     if note and note not in (action.get('dmNote') or ''):
         action['_riderNote'] = note
         if action.get('dmNote'):
@@ -1470,6 +2019,78 @@ def save_pass(actions, stat, raw, stats):
         stats['save actions given an immunity or exemption'] += 1
 
 
+# The keys of a hand-built action a rebuilt one keeps: its name, its limits and its description (D204)
+REBUILT_KEEPS = ('name', 'actionType', 'recharge', 'usesPerDay', 'uses', 'usesRecharge', 'rechargeType', 'cost',
+                 'description')
+
+
+def rebuilt(action, keys):
+    """Rebuilds a hand-built action from its name, limits and description and these keys, keeping the action as it was
+    in "_riderReplaced", so a later run restores it whole first (D204)."""
+    original = json.loads(json.dumps(action))
+    new = {k: v for k, v in action.items() if k in REBUILT_KEEPS}
+    new.update(keys)
+    action.clear()
+    action.update(new)
+    action['_riderReplaced'] = original
+
+
+def unmarked(part):
+    """A part without the rider pass's marks."""
+    return {k: v for k, v in part.items() if not k.startswith('_rider')}
+
+
+def special_pass(entry, monster, actions, stat, raw, stats):
+    """Rebuilds a hand-built action the stat block makes something the parts couldn't say before (D204): a Swallow that
+    is a bite against a grappled creature, made with the entry's own Bite, as a giant toad's (MM p.329), or that
+    swallows a grappled creature outright; a possession; a petrification over two saves; a gelatinous cube's
+    engulfing. The entry's own damage is kept. Whether the stat block's action was one of these."""
+    action = hand_built(actions, parse_name(stat['name'])[0])
+    if action is None:
+        return False
+    swallowing = swallow_action(raw)
+    if swallowing is not None:
+        kind, parts, leftover = swallowing
+        if kind == 'bite':
+            bite = hand_built([a for a in entry.get('actions') or [] if isinstance(a, dict)], 'Bite')
+            if bite is None:
+                # An entry without its bite takes the stat block's, as the elder dinosaur's (PSX)
+                stat_bite = next((e for e in monster.get('action') or [] if isinstance(e, dict)
+                                  and parse_name(e.get('name', ''))[0] == 'Bite'), None)
+                bite = build(stat_bite, 'ACTION', monster.get('name')) if stat_bite else None
+            if bite is None or bite.get('deliveryMethod') != 'ATTACK_ROLL' or bite.get('automatable') is False \
+                    or bite.get('attackBonus') is None:
+                return False
+            damage = [unmarked(p) for p in bite.get('effects') or [] if isinstance(p, dict)
+                      and p.get('effectType') == 'DAMAGE' and not p.get('_rider')
+                      and not any(p.get(k) is not None for k in DAMAGE_RIDER_KEYS)]
+            keys = {'deliveryMethod': 'ATTACK_ROLL', 'attackType': bite.get('attackType') or 'MELEE_WEAPON',
+                    'attackBonus': bite['attackBonus'], 'reach': bite.get('reach') or 5, 'targetCount': 1,
+                    'targetGrappled': True, 'effects': damage + parts}
+        else:
+            keys = {'deliveryMethod': 'AUTO_HIT', 'targetCount': 1, 'targetGrappled': True, 'effects': parts}
+        if leftover:
+            keys['dmNote'] = HAND_NOTE + ' '.join(sentence_of(s) for s in leftover)
+        rebuilt(action, keys)
+        stats['actions rebuilt'] += 1
+        return True
+    if ATK.search(raw):
+        return False
+    special = special_save(raw, describe(raw))
+    if special is None:
+        return False
+    own = [unmarked(p) for p in action.get('effects') or [] if isinstance(p, dict)
+           and p.get('effectType') == 'DAMAGE']
+    read = [p for p in special['effects'] if p['effectType'] == 'DAMAGE']
+    if own and read:
+        special['effects'] = own + [p for p in special['effects'] if p['effectType'] != 'DAMAGE']
+    if action.get('saveDC') is not None:
+        special['saveDC'] = action['saveDC']
+    rebuilt(action, special)
+    stats['actions rebuilt'] += 1
+    return True
+
+
 def rider_pass(entry, monster, stats):
     """The rider pass over one hand-built entry and its stat block."""
     for key_5e, key_def, action_type in RIDER_LISTS:
@@ -1480,6 +2101,9 @@ def rider_pass(entry, monster, stats):
             if not isinstance(stat, dict) or not stat.get('name') or stat['name'].startswith('Multiattack'):
                 continue
             raw = flatten(stat.get('entries'))
+            # A Swallow action, a possession, a petrification or an engulfing, rebuilt as a whole (D204)
+            if special_pass(entry, monster, actions, stat, raw, stats):
+                continue
             if not ATK.search(raw) and saves(raw):
                 save_pass(actions, stat, raw, stats)
                 continue
@@ -1490,7 +2114,7 @@ def rider_pass(entry, monster, stats):
                     or not isinstance(action.get('effects'), list) or not HIT.search(raw.partition('{@h}')[0]):
                 continue
             stats['attacks matched'] += 1
-            add_riders(action, read_hit(raw.partition('{@h}')[2]), stats)
+            add_riders(action, read_attack(raw), stats)
 
 
 def main():

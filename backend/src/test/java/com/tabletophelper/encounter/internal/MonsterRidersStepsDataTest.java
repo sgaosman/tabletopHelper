@@ -83,8 +83,9 @@ class MonsterRidersStepsDataTest {
 
     @Test
     @DisplayName("The counts the rider pass and the generator give: 43 hit point maximums, 25 life drains, 5 "
-            + "exhaustions, 57 Ongoing Modifiers, 30 damages each turn, 118 tied conditions, 5 condition exemptions, "
-            + "149 grapple limits (64 refusing another target), 96 immunities after a save and 8 action exemptions")
+            + "exhaustions, 57 Ongoing Modifiers, 60 damages each turn, 172 tied conditions, 5 condition exemptions, "
+            + "149 grapple limits (64 refusing another target), 103 immunities after a save (7 possessions, D204) "
+            + "and 8 action exemptions")
     void counts() {
         Map<String, Integer> counts = new TreeMap<>();
         for (Found found : actions()) {
@@ -115,10 +116,10 @@ class MonsterRidersStepsDataTest {
             }
         }
         assertEquals(Map.ofEntries(Map.entry("EXHAUSTION", 5), Map.entry("HP_MAX_REDUCTION", 43),
-                Map.entry("LIFE_DRAIN", 25), Map.entry("MODIFIER", 57), Map.entry("ONGOING_DAMAGE", 30),
-                Map.entry("actionExempt", 8), Map.entry("conditionExempt", 5), Map.entry("endsWith", 118),
+                Map.entry("LIFE_DRAIN", 25), Map.entry("MODIFIER", 57), Map.entry("ONGOING_DAMAGE", 60),
+                Map.entry("actionExempt", 8), Map.entry("conditionExempt", 5), Map.entry("endsWith", 172),
                 Map.entry("grappleLimit", 149), Map.entry("grappleLimitBlocks", 64),
-                Map.entry("immuneAfterSave", 96)), counts);
+                Map.entry("immuneAfterSave", 103)), counts);
     }
 
     @Test
