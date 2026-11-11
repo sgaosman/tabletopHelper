@@ -33,16 +33,23 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * The action templates backend/scripts/generate_monster_actions.py builds from the stat blocks of the 126 bestiary
- * monsters D193 gave spellcasting only (D194), checked against the 5etools stat blocks they come from: every one has
- * an action, every attack's bonus and first damage part are the stat block's, every multiattack names its own actions,
- * and the samples read as their stat blocks do.
+ * monsters D193 gave spellcasting only (D194), and of the 168 it gives a whole entry because they had none (D205),
+ * checked against the 5etools stat blocks they come from: every one has an action, every attack's bonus and first
+ * damage part are the stat block's, every multiattack names its own actions, and the samples read as their stat blocks
+ * do. GeneratedMonstersTest has D205's own samples.
  */
 class StatBlockActionsTest {
 
     private static final String DEFINITIONS = "data/monster-actions/monster-action-definitions.json";
     private static final String BESTIARY = "classpath:data/5etools/bestiary/bestiary-*.json";
     private static final String MARK = "_actionsFromStatBlock";
-    private static final int GENERATED_MONSTERS = 126;
+    // The entries the generator added whole (D205), which carry MARK too
+    private static final String ADDED = "_entryFromStatBlock";
+    private static final int SPELLCASTER_MONSTERS = 126;
+    private static final int ADDED_MONSTERS = 168;
+    // The multiattacks whose count the stat block ties to a hydra's heads, which the DM makes by hand (D205)
+    private static final List<String> MULTIATTACKS_FOR_THE_DM = List.of("Dracohydra (FTD)", "Snapping Hydra (MCV4EC)",
+            "Ironscale Hydra (MOT)");
 
     // A tag such as {@condition poisoned} or {@spell fly|phb}, read as its first part
     private static final Pattern TAG = Pattern.compile("\\{@\\w+ ([^|}]*)[^}]*}");
@@ -95,19 +102,29 @@ class StatBlockActionsTest {
     }
 
     @Test
-    @DisplayName("All 126 monsters D193 gave spellcasting only now have at least one action, and every entry fits the "
-            + "template records")
+    @DisplayName("All 126 monsters D193 gave spellcasting only and the 168 D205 gave a whole entry have at least one "
+            + "action, and every entry fits the template records")
     void everyGeneratedMonsterHasAnAction() {
-        assertEquals(GENERATED_MONSTERS, generated.size());
+        assertEquals(SPELLCASTER_MONSTERS + ADDED_MONSTERS, generated.size());
         List<String> without = new ArrayList<>();
+        int added = 0;
         for (JsonNode definition : generated) {
             MonsterTemplates templates = MonsterTemplates.of(definition);
             assertNull(templates.unreadable(), () -> name(definition) + ": " + templates.unreadable());
-            assertNotNull(templates.spellcasting(), name(definition));
+            if (definition.path(ADDED).asBoolean(false)) {
+                added++;
+                // None of the 168 stat blocks has spellcasting, legendary actions or Legendary Resistance (D205)
+                assertNull(templates.spellcasting(), name(definition));
+                assertTrue(templates.legendaryActions().isEmpty(), name(definition));
+                assertNull(templates.legendaryResistanceCount(), name(definition));
+            } else {
+                assertNotNull(templates.spellcasting(), name(definition));
+            }
             if (templates.actions().isEmpty()) {
                 without.add(name(definition));
             }
         }
+        assertEquals(ADDED_MONSTERS, added);
         assertEquals(List.of(), without);
     }
 
@@ -127,7 +144,9 @@ class StatBlockActionsTest {
                         continue;
                     }
                     attacks++;
-                    String text = statBlockText(statBlock.path(lists[1]), action.path("name").asString());
+                    // A Swallow made against a grappled creature is the monster's own Bite (D204, D205)
+                    String text = statBlockText(statBlock.path(lists[1]), action.path("targetGrappled").asBoolean(false)
+                            ? "Bite" : action.path("name").asString());
                     String what = name(definition) + " " + action.path("name").asString();
                     if (text == null) {
                         mismatches.add(what + ": not in the stat block");
@@ -139,7 +158,10 @@ class StatBlockActionsTest {
                     }
                     Matcher damage = HIT_DAMAGE.matcher(text);
                     JsonNode first = action.path("effects").path(0);
-                    if (damage.find() && (!damage.group(1).equals(first.path("damageDice").asString())
+                    // An attack left to the DM rolls no damage, as the dracohydra's bite of "a type determined by the
+                    // head" (FTD) (D205)
+                    boolean rolled = action.path("automatable").asBoolean(true);
+                    if (rolled && damage.find() && (!damage.group(1).equals(first.path("damageDice").asString())
                             || !damage.group(2).equals(first.path("damageType").asString()))) {
                         mismatches.add(what + ": damage " + first.path("damageDice").asString() + " "
                                 + first.path("damageType").asString() + ", stat block " + damage.group(1) + " "
@@ -149,17 +171,26 @@ class StatBlockActionsTest {
             }
         }
         assertEquals(List.of(), mismatches);
-        assertTrue(attacks >= 190, "attacks checked: " + attacks);
+        // 192 attacks of D194's 126 monsters and 285 of D205's 168 (the behirs', remorhaz's and udaak's Swallows among
+        // them, made with their Bites)
+        assertTrue(attacks >= 477, "attacks checked: " + attacks);
     }
 
     @Test
-    @DisplayName("Every generated multiattack names only its own actions, so it resolves")
+    @DisplayName("Every generated multiattack names only its own actions, so it resolves, but the three hydras' \"as "
+            + "many Bite attacks as it has heads\", which the DM makes by hand with a note (D205)")
     void everyMultiattackResolves() {
         List<String> unreadable = new ArrayList<>();
+        List<String> forTheDm = new ArrayList<>();
         for (JsonNode definition : generated) {
             MonsterTemplates templates = MonsterTemplates.of(definition);
             for (MonsterTemplates.Action action : templates.actions()) {
                 if (!action.multiattack()) {
+                    continue;
+                }
+                if (action.multiattackNote() != null) {
+                    forTheDm.add(name(definition));
+                    assertTrue(action.multiattackComponents().isEmpty(), name(definition));
                     continue;
                 }
                 MonsterEffects.Multiattack multiattack =
@@ -170,6 +201,7 @@ class StatBlockActionsTest {
             }
         }
         assertEquals(List.of(), unreadable);
+        assertEquals(MULTIATTACKS_FOR_THE_DM, forTheDm);
     }
 
     @ParameterizedTest(name = "{0} ({1}) {2}")

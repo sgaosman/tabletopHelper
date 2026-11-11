@@ -6,6 +6,13 @@ in the format the hand-built entries use, and marks the entry `_actionsFromStatB
 An entry is a target when it has that mark, or when it holds spellcasting and nothing else (only its name, source,
 challenge rating and spellcasting blocks); every other entry is left exactly as it is.
 
+A bestiary monster with actions, bonus actions or reactions but no entry at all (188 when D205 was built, the purple
+worm, balor and iron golem among them) gets one, appended in bestiary order and marked `_entryFromStatBlock` as well,
+except for the summoned creatures and the deck defender, whose numbers scale with their caster (NO_ENTRY). Its
+multiattack is read more widely than the 126 D194 entries' (see multiattack), and its Swallow is made with its own
+Bite (swallows). None of these stat blocks has legendary or mythic actions, Legendary Resistance or spellcasting, so
+neither is read for them; the spellcasting would come from generate_monster_spellcasting.py's reading.
+
 What is read from the stat block's text:
   - an attack ({@atk mw} and the like): attackType, attackBonus ({@hit N}), reach, range and rangeLong, targetCount,
     and the damage of its hit as DAMAGE parts, one per "N (XdY + Z) type damage", with a "... if used with two hands"
@@ -62,9 +69,16 @@ import os
 import re
 import sys
 
-from generate_monster_spellcasting import BESTIARY, DEFINITIONS, key, strip_tags
+from generate_monster_spellcasting import BESTIARY, DEFINITIONS, definition, key, rating, strip_tags
 
 MARK = '_actionsFromStatBlock'
+# An entry this script added whole, for a monster with actions and no entry at all (D205); it carries MARK too
+ADDED = '_entryFromStatBlock'
+# Stat blocks with actions that get no entry (D205). A creature summoned by a spell or a class feature (5etools'
+# summonedBySpell or summonedByClass) has numbers that scale with its caster, "+ PB" or "your spell attack modifier",
+# so its attacks have no bonus to read; the TCE, FTD and BMT spirits take their actions from summon-spirits.json when
+# summoned (D182). The deck defender's numbers come from whoever drew the Knight card (BMT), "PB + 3 to hit".
+NO_ENTRY = {key('Deck Defender', 'BMT')}
 # The keys of an entry D193 appended, which holds a monster's spellcasting and nothing else
 SPELLCASTING_ONLY = {'monsterName', 'source', 'challengeRating', 'spellcasting', 'additionalSpellcasting'}
 ABILITIES = {'strength': 'STR', 'dexterity': 'DEX', 'constitution': 'CON', 'intelligence': 'INT',
@@ -1633,6 +1647,10 @@ def build(entry, action_type, monster_name):
         action['usesPerDay'] = per_day
     if action_type == 'REACTION' and name in ('Parry', 'Uncanny Dodge'):
         return manual(action, description, description + ' ' + (PARRY if name == 'Parry' else UNCANNY_DODGE))
+    # An attack among "one of the following options", as the hellfire engine's Hellfire Weapons (MTF p.165), is one
+    # choice of several, which the DM makes (D205)
+    if ATK.search(raw) and OPTIONS.search(raw[:ATK.search(raw).start()]):
+        return manual(action, description)
     if ATK.search(raw):
         return attack(action, raw, description)
     if saves(raw):
@@ -1644,23 +1662,40 @@ def base_name(name):
     return re.sub(r'\s*\([^()]*\)\s*$', '', name).strip()
 
 
-def multiattack(entry, actions):
+def multiattack(entry, actions, wider=False):
+    """A multiattack's components. With wider (D205, for the monsters given a whole entry then; the 126 of D194 are read
+    as before, so their entries stay as they are), the reading also takes a name in the singular or plural ("four Claw
+    attacks" for Claws), by its last word ("one with its stinger" for Tail Stinger), a count said before the names
+    ("three attacks, either with his longsword or longbow"), an attack replaceable "each of which"/"one of which" with
+    another, and a bare "makes two attacks:" as two of each attack; a count the stat block ties to something the
+    encounter doesn't know ("as many Bite attacks as it has heads") is left to the DM with a note."""
     raw = flatten(entry.get('entries'))
     text = strip_tags(raw)
     attacks = [a for a in actions if a.get('deliveryMethod') == 'ATTACK_ROLL']
     names = sorted({base_name(a['name']) for a in actions}, key=lambda n: (-len(n), n))
     components = []
+    if wider and AS_MANY.search(text):
+        return {'name': 'Multiattack', 'actionType': 'ACTION', 'isMultiattack': True,
+                'multiattackDescription': text, 'multiattackComponents': [], '_multiattackNote': AS_MANY_NOTE}
     for sentence in SENTENCE.split(text):
+        if wider:
+            # "Cold- Iron Ranseur" as the stat block breaks it; "two tentacle attacks, each of which it can replace
+            # with one use of Fling" makes the two attacks
+            sentence = re.sub(r'(\w)- (\w)', r'\1-\2', sentence)
+            sentence = re.split(r',\s*(?:each|one|any) of which\b', sentence)[0]
         if re.search(r'\b(replace|replaced|substitute|in place of|instead|after one of)\b',
                      sentence, re.I):
             continue
-        for phrase in re.split(r'[,:;]|\band then\b|\bthen\b|\band\b', sentence):
+        carried = None
+        pieces = re.split(r'([,:;]|\band then\b|\bthen\b|\band\b)', sentence)
+        for index in range(0, len(pieces), 2):
+            phrase, joined = pieces[index], pieces[index - 1] if index else None
             lowered = phrase.lower()
             count_match = re.search(r'\b(' + '|'.join(COUNTS) + r')\b', lowered)
             count = COUNTS[count_match.group(1)] if count_match else 1
             found, spans = [], []
             for candidate in names:
-                for match in re.finditer(r'\b' + re.escape(candidate.lower()) + r'(?:e?s)?\b', lowered):
+                for match in re.finditer(r'\b' + name_pattern(candidate, wider) + r'(?:e?s)?\b', lowered):
                     if any(s <= match.start() < e for s, e in spans):
                         continue
                     spans.append((match.start(), match.end()))
@@ -1670,16 +1705,41 @@ def multiattack(entry, actions):
                     first = candidate.split()[0].lower()
                     unique = sum(1 for n in names if n.split()[0].lower() == first) == 1
                     word = r'\b' + re.escape(first) + r'\b'
-                    if len(candidate.split()) > 1 and unique and re.search(word, lowered):
-                        found.append((0, candidate))
+                    match = re.search(word, lowered)
+                    if len(candidate.split()) > 1 and unique and match:
+                        found.append((match.start() if wider else 0, candidate))
+                        break
+            if not found and wider:
+                # A name's last word as an attack: "one with its stinger", "two claw attacks"
+                for candidate in names:
+                    last = candidate.split()[-1].lower()
+                    unique = sum(1 for n in names if n.split()[-1].lower() == last) == 1
+                    word = name_pattern(last, True) + r'(?:e?s)?'
+                    match = re.search(r'\b(?:its|his|her|their) ' + word + r'\b|\b' + word + r' attacks?\b', lowered)
+                    if len(candidate.split()) > 1 and unique and match:
+                        found.append((match.start(), candidate))
                         break
             found.sort()
+            if wider:
+                # The count is the one said before the first name; or else, in a list joined by commas ("two attacks
+                # using its Claw, Trunk, or a combination of the two"), the last one said before it; or else one
+                # after the name, as "twice"
+                before = re.findall(r'\b(' + '|'.join(COUNTS) + r')\b', lowered[:found[0][0]] if found else lowered)
+                if before:
+                    count = COUNTS[before[-1]]
+                elif carried and joined == ',' and not re.search(r'\b(?:uses?|makes?|casts?)\b', lowered):
+                    count = carried
+                if before and before[-1] not in ('a', 'an'):
+                    carried = COUNTS[before[-1]]
             if not found:
                 # "makes three melee attacks", unless the sentence goes on to name them ("four attacks: one with its
                 # bite, ...")
                 generic = re.search(r'\b(' + '|'.join(COUNTS) + r')\s+(melee |ranged |weapon )?attacks?\b', lowered)
-                if generic and not re.search(r':|\busing\b|\bwith (?:its|his|her|their)\b', sentence.lower()) \
-                        and not re.search(r'\b(cast|spell)', lowered):
+                named_later = re.search(r':|\busing\b|\bwith (?:its|his|her|their)\b', sentence.lower())
+                if wider and named_later and re.fullmatch(r'[^:]*\battacks?:\s*', sentence.lower()):
+                    # "The worm makes two attacks:" with nothing after it
+                    named_later = None
+                if generic and not named_later and not re.search(r'\b(cast|spell)', lowered):
                     kind = (generic.group(2) or '').strip()
                     fitting = [a for a in attacks if not kind or kind.upper() in a.get('attackType', '')]
                     for a in fitting:
@@ -1692,13 +1752,31 @@ def multiattack(entry, actions):
             'multiattackDescription': text, 'multiattackComponents': components}
 
 
-def actions_of(monster):
-    """The action lists of a stat block in the definitions' format, and the legendary resistance count."""
+# "as many Bite attacks as it has heads" (a hydra's, MM p.190): how many the DM knows (D205)
+AS_MANY = re.compile(r'\bas many\b[^.]*\bas it has\b', re.I)
+AS_MANY_NOTE = 'The number of attacks depends on what the stat block names; the DM makes them by hand.'
+
+
+def name_pattern(name, wider):
+    """An action's name as the multiattack's text may say it: as written, or with wider (D205) also in the singular,
+    "claw" for Claws."""
+    lowered = name.lower()
+    if wider and lowered.endswith('s') and not lowered.endswith('ss'):
+        return '(?:' + re.escape(lowered) + '|' + re.escape(lowered[:-1]) + ')'
+    return re.escape(lowered)
+
+
+def actions_of(monster, wider=False):
+    """The action lists of a stat block in the definitions' format, and the legendary resistance count. With wider
+    (D205), for a monster given a whole entry then, the multiattack is read more widely and a Swallow that is a bite
+    against a grappled creature is made with the monster's own Bite, as the rider pass rebuilds a hand-built one."""
     result = {}
     entries = [e for e in monster.get('action') or [] if isinstance(e, dict) and e.get('name')]
     built = [build(e, 'ACTION', monster['name']) for e in entries if not e['name'].startswith('Multiattack')]
     built = [b for b in built if b]
-    multi = [multiattack(e, built) for e in entries if e['name'].startswith('Multiattack')]
+    if wider:
+        swallows(entries, built)
+    multi = [multiattack(e, built, wider) for e in entries if e['name'].startswith('Multiattack')]
     result['actions'] = multi + built
     for key_5e, key_def, action_type in (('bonus', 'bonusActions', 'BONUS_ACTION'),
                                          ('reaction', 'reactions', 'REACTION')):
@@ -1713,6 +1791,24 @@ def actions_of(monster):
             result['traits'] = [{'name': strip_tags(trait['name']), 'isLegendaryResistance': True,
                                  'uses': int(match.group(1)), 'recharge': 'LONG_REST'}]
     return result
+
+
+def needs_entry(monster):
+    """Whether a stat block with no entry gets one (D205): it has actions, bonus actions or reactions, and isn't a
+    summoned creature or on NO_ENTRY."""
+    return any(monster.get(k) for k in ('action', 'bonus', 'reaction')) \
+        and not monster.get('summonedBySpell') and not monster.get('summonedByClass') \
+        and key(monster.get('name', ''), monster.get('source', '')) not in NO_ENTRY
+
+
+def new_entry(monster):
+    """The head of an entry for a monster that has none (D205): its name, source and challenge rating, with its
+    spellcasting as generate_monster_spellcasting.py builds it when the stat block has any, and marked ADDED."""
+    entry = {'monsterName': monster['name'], 'source': monster['source'], 'challengeRating': rating(monster)}
+    if monster.get('spellcasting'):
+        entry = definition(monster, entry) or entry
+    entry[ADDED] = True
+    return entry
 
 
 def merged(existing, generated):
@@ -2040,6 +2136,50 @@ def unmarked(part):
     return {k: v for k, v in part.items() if not k.startswith('_rider')}
 
 
+def swallow_keys(swallowing, bite):
+    """The keys of a Swallow action from swallow_action's reading: for a bite against a grappled creature, an attack
+    with that Bite's bonus, reach and damage (its riders left out) and the swallow's parts; for an outright swallow, an
+    AUTO_HIT on the grappled creature. None when the bite can't be made (D204)."""
+    kind, parts, leftover = swallowing
+    if kind == 'bite':
+        if bite is None or bite.get('deliveryMethod') != 'ATTACK_ROLL' or bite.get('automatable') is False \
+                or bite.get('attackBonus') is None:
+            return None
+        damage = [unmarked(p) for p in bite.get('effects') or [] if isinstance(p, dict)
+                  and p.get('effectType') == 'DAMAGE' and not p.get('_rider')
+                  and not any(p.get(k) is not None for k in DAMAGE_RIDER_KEYS)]
+        keys = {'deliveryMethod': 'ATTACK_ROLL', 'attackType': bite.get('attackType') or 'MELEE_WEAPON',
+                'attackBonus': bite['attackBonus'], 'reach': bite.get('reach') or 5, 'targetCount': 1,
+                'targetGrappled': True, 'effects': damage + parts}
+    else:
+        keys = {'deliveryMethod': 'AUTO_HIT', 'targetCount': 1, 'targetGrappled': True, 'effects': parts}
+    if leftover:
+        keys['dmNote'] = HAND_NOTE + ' '.join(sentence_of(s) for s in leftover)
+    return keys
+
+
+def swallows(entries, built):
+    """Makes each generated Swallow that is a bite against a grappled creature an attack with the monster's own
+    generated Bite, as a behir's or remorhaz's (MM p.25, p.258), and one that swallows a grappled creature outright an
+    AUTO_HIT on it, keeping its name, limits and stat-block text (D205, as D204 rebuilds a hand-built one)."""
+    bite = next((b for b in built if b.get('name') == 'Bite'), None)
+    for stat in entries:
+        raw = flatten(stat.get('entries'))
+        swallowing = swallow_action(raw)
+        if swallowing is None:
+            continue
+        name = parse_name(stat['name'])[0]
+        action = next((b for b in built if b.get('name') == name), None)
+        keys = swallow_keys(swallowing, bite) if action is not None else None
+        if keys is None:
+            continue
+        new = {k: v for k, v in action.items() if k in ('name', 'actionType', 'recharge', 'usesPerDay')}
+        new.update(keys)
+        new['description'] = describe(raw)
+        action.clear()
+        action.update(new)
+
+
 def special_pass(entry, monster, actions, stat, raw, stats):
     """Rebuilds a hand-built action the stat block makes something the parts couldn't say before (D204): a Swallow that
     is a bite against a grappled creature, made with the entry's own Bite, as a giant toad's (MM p.329), or that
@@ -2050,27 +2190,17 @@ def special_pass(entry, monster, actions, stat, raw, stats):
         return False
     swallowing = swallow_action(raw)
     if swallowing is not None:
-        kind, parts, leftover = swallowing
-        if kind == 'bite':
+        bite = None
+        if swallowing[0] == 'bite':
             bite = hand_built([a for a in entry.get('actions') or [] if isinstance(a, dict)], 'Bite')
             if bite is None:
                 # An entry without its bite takes the stat block's, as the elder dinosaur's (PSX)
                 stat_bite = next((e for e in monster.get('action') or [] if isinstance(e, dict)
                                   and parse_name(e.get('name', ''))[0] == 'Bite'), None)
                 bite = build(stat_bite, 'ACTION', monster.get('name')) if stat_bite else None
-            if bite is None or bite.get('deliveryMethod') != 'ATTACK_ROLL' or bite.get('automatable') is False \
-                    or bite.get('attackBonus') is None:
-                return False
-            damage = [unmarked(p) for p in bite.get('effects') or [] if isinstance(p, dict)
-                      and p.get('effectType') == 'DAMAGE' and not p.get('_rider')
-                      and not any(p.get(k) is not None for k in DAMAGE_RIDER_KEYS)]
-            keys = {'deliveryMethod': 'ATTACK_ROLL', 'attackType': bite.get('attackType') or 'MELEE_WEAPON',
-                    'attackBonus': bite['attackBonus'], 'reach': bite.get('reach') or 5, 'targetCount': 1,
-                    'targetGrappled': True, 'effects': damage + parts}
-        else:
-            keys = {'deliveryMethod': 'AUTO_HIT', 'targetCount': 1, 'targetGrappled': True, 'effects': parts}
-        if leftover:
-            keys['dmNote'] = HAND_NOTE + ' '.join(sentence_of(s) for s in leftover)
+        keys = swallow_keys(swallowing, bite)
+        if keys is None:
+            return False
         rebuilt(action, keys)
         stats['actions rebuilt'] += 1
         return True
@@ -2130,8 +2260,8 @@ def main():
 
     stats = {'monsters': 0, 'actions': 0, 'attacks': 0, 'saves': 0, 'multiattacks': 0, 'multiattacksEmpty': 0,
              'recharge': 0, 'perDay': 0, 'manual': 0, 'bonusActions': 0, 'reactions': 0, 'versatile': 0,
-             'legendaryResistance': 0}
-    missing = set(targets)
+             'legendaryResistance': 0, 'added': 0}
+    # The stat blocks the bestiary loads: not a _copy (MonsterLoader skips those), the first of a name and source
     blocks = {}
     for path in sorted(glob.glob(BESTIARY)):
         if 'fluff' in os.path.basename(path) or 'index' in os.path.basename(path):
@@ -2139,13 +2269,24 @@ def main():
         with open(path, encoding='utf-8') as f:
             monsters = json.load(f).get('monster', [])
         for monster in monsters:
-            k = key(monster.get('name', ''), monster.get('source', ''))
             if '_copy' not in monster:
-                blocks.setdefault(k, monster)
-            if '_copy' in monster or k not in missing:
-                continue
+                blocks.setdefault(key(monster.get('name', ''), monster.get('source', '')), monster)
+
+    # A monster with actions and no entry at all gets one, appended in bestiary order (D205)
+    known = {key(entry['monsterName'], entry['source']) for entry in definitions}
+    for k, monster in blocks.items():
+        if k not in known and needs_entry(monster):
+            definitions.append(new_entry(monster))
+            targets[k] = len(definitions) - 1
+            known.add(k)
+            stats['added'] += 1
+
+    missing = set(targets)
+    for k, monster in blocks.items():
+        if k in missing:
             missing.discard(k)
-            generated = actions_of(monster)
+            # The 126 of D194 are read as they were, so their entries stay as they are
+            generated = actions_of(monster, wider=bool(definitions[targets[k]].get(ADDED)))
             definitions[targets[k]] = merged(definitions[targets[k]], generated)
             stats['monsters'] += 1
             stats['legendaryResistance'] += 'legendaryResistanceCount' in generated

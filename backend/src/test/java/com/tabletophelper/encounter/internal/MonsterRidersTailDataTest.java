@@ -96,9 +96,9 @@ class MonsterRidersTailDataTest {
     }
 
     @Test
-    @DisplayName("The counts: 28 swallows (21 regurgitating, 15 with a limit, 6 only for a grappled creature), 1 "
-            + "engulfing, 9 actions only for a grappled target, 6 petrifications over two saves, 2 ability drains, 12 "
-            + "drops to 0 (11 stable but poisoned), 6 risings, 7 possessions, 16 actions rebuilt and 5 stale notes "
+    @DisplayName("The counts: 40 swallows (32 regurgitating, 19 with a limit, 7 only for a grappled creature), 1 "
+            + "engulfing, 14 actions only for a grappled target, 6 petrifications over two saves, 2 ability drains, 12 "
+            + "drops to 0 (11 stable but poisoned), 7 risings, 7 possessions, 16 actions rebuilt and 5 stale notes "
             + "replaced")
     void counts() {
         Map<String, Integer> counts = new TreeMap<>();
@@ -136,11 +136,14 @@ class MonsterRidersTailDataTest {
                 }
             }
         }
+        // D205's whole entries add 12 swallows (the purple worm's, both behirs', the remorhaz's, the young kraken's,
+        // the udaak's, ...), 11 regurgitating, 4 with a limit and 1 only for a grappled creature, 5 actions only for a
+        // grappled target and the spectral cloud's rising; 28, 21, 15, 6, 9 and 6 before
         assertEquals(Map.ofEntries(Map.entry("ABILITY_REDUCTION", 2), Map.entry("AT_ZERO", 12),
-                Map.entry("COUNTED_SAVES", 6), Map.entry("ON_KILL", 6), Map.entry("POSSESSION", 7),
-                Map.entry("engulfed", 1), Map.entry("limit", 15), Map.entry("noteReplaced", 5),
-                Map.entry("onlyIfGrappled", 6), Map.entry("rebuilt", 16), Map.entry("regurgitates", 21),
-                Map.entry("stable", 11), Map.entry("swallowed", 28), Map.entry("targetGrappled", 9)), counts);
+                Map.entry("COUNTED_SAVES", 6), Map.entry("ON_KILL", 7), Map.entry("POSSESSION", 7),
+                Map.entry("engulfed", 1), Map.entry("limit", 19), Map.entry("noteReplaced", 5),
+                Map.entry("onlyIfGrappled", 7), Map.entry("rebuilt", 16), Map.entry("regurgitates", 32),
+                Map.entry("stable", 11), Map.entry("swallowed", 40), Map.entry("targetGrappled", 14)), counts);
     }
 
     @Test

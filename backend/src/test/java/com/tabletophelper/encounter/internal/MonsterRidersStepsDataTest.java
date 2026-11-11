@@ -82,9 +82,9 @@ class MonsterRidersStepsDataTest {
     }
 
     @Test
-    @DisplayName("The counts the rider pass and the generator give: 43 hit point maximums, 25 life drains, 5 "
-            + "exhaustions, 57 Ongoing Modifiers, 60 damages each turn, 172 tied conditions, 5 condition exemptions, "
-            + "149 grapple limits (64 refusing another target), 103 immunities after a save (7 possessions, D204) "
+    @DisplayName("The counts the rider pass and the generator give: 48 hit point maximums, 25 life drains, 5 "
+            + "exhaustions, 59 Ongoing Modifiers, 78 damages each turn, 210 tied conditions, 5 condition exemptions, "
+            + "165 grapple limits (70 refusing another target), 113 immunities after a save (7 possessions, D204) "
             + "and 8 action exemptions")
     void counts() {
         Map<String, Integer> counts = new TreeMap<>();
@@ -115,11 +115,14 @@ class MonsterRidersStepsDataTest {
                 }
             }
         }
-        assertEquals(Map.ofEntries(Map.entry("EXHAUSTION", 5), Map.entry("HP_MAX_REDUCTION", 43),
-                Map.entry("LIFE_DRAIN", 25), Map.entry("MODIFIER", 57), Map.entry("ONGOING_DAMAGE", 60),
-                Map.entry("actionExempt", 8), Map.entry("conditionExempt", 5), Map.entry("endsWith", 172),
-                Map.entry("grappleLimit", 149), Map.entry("grappleLimitBlocks", 64),
-                Map.entry("immuneAfterSave", 103)), counts);
+        // D205's 168 whole entries add 5 hit point maximums, 2 Ongoing Modifiers, 18 damages each turn (13 of them inside
+        // a swallower), 38 tied conditions, 16 grapple limits (6 refusing another target) and 10 immunities; 43,
+        // 57, 60, 172, 149, 64 and 103 before
+        assertEquals(Map.ofEntries(Map.entry("EXHAUSTION", 5), Map.entry("HP_MAX_REDUCTION", 48),
+                Map.entry("LIFE_DRAIN", 25), Map.entry("MODIFIER", 59), Map.entry("ONGOING_DAMAGE", 78),
+                Map.entry("actionExempt", 8), Map.entry("conditionExempt", 5), Map.entry("endsWith", 210),
+                Map.entry("grappleLimit", 165), Map.entry("grappleLimitBlocks", 70),
+                Map.entry("immuneAfterSave", 113)), counts);
     }
 
     @Test

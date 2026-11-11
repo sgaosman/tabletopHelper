@@ -71,8 +71,8 @@ class MonsterActionDataTest {
     }
 
     @Test
-    @DisplayName("350 actions, bonus actions, reactions and legendary actions have limited uses the pools count (MM "
-            + "p.11): 246 actions, 46 bonus actions, 56 reactions and 2 legendary actions; none also has a d6 recharge")
+    @DisplayName("364 actions, bonus actions, reactions and legendary actions have limited uses the pools count (MM "
+            + "p.11): 256 actions, 48 bonus actions, 58 reactions and 2 legendary actions; none also has a d6 recharge")
     void limitedUses() {
         Map<String, Integer> counts = new LinkedHashMap<>();
         List<String> alsoRecharge = new ArrayList<>();
@@ -90,13 +90,15 @@ class MonsterActionDataTest {
                 }
             }
         }
-        assertEquals(Map.of("ACTION", 246, "BONUS", 46, "REACTION", 56, "LEGENDARY", 2), counts);
+        // D205's 168 new entries add 10 actions, 2 bonus actions and 2 reactions with limited uses: 246, 46 and 56
+        // before
+        assertEquals(Map.of("ACTION", 256, "BONUS", 48, "REACTION", 58, "LEGENDARY", 2), counts);
         assertEquals(List.of(), alsoRecharge);
     }
 
     @Test
-    @DisplayName("Every bonus action and reaction is found under its source and plans: 65 of the 266 bonus actions "
-            + "and 86 of the 359 reactions resolve automatically, and the rest are logged for the DM (D137, D138)")
+    @DisplayName("Every bonus action and reaction is found under its source and plans: 73 of the 295 bonus actions "
+            + "and 89 of the 388 reactions resolve automatically, and the rest are logged for the DM (D137, D138)")
     void bonusActionsAndReactions() {
         List<String> missing = new ArrayList<>();
         Map<String, int[]> counts = new LinkedHashMap<>(Map.of("BONUS", new int[2], "REACTION", new int[2]));
@@ -118,12 +120,14 @@ class MonsterActionDataTest {
         // D202 reads the later "has the X condition" wording, so the Death Giant Shrouded One's Frightening Teleport,
         // the Fomorian Noble's Beguiling Presence (bonus actions) and the Shator Warden's Poisonous Slime (a reaction)
         // now give their conditions automatically: 63 and 85 before
-        assertArrayEquals(new int[]{65, 201}, counts.get("BONUS"));
-        assertArrayEquals(new int[]{86, 273}, counts.get("REACTION"));
+        // D205's 168 new entries add 29 bonus actions (8 automatic) and 29 reactions (3 automatic): 65 of 266 and 86
+        // of 359 before
+        assertArrayEquals(new int[]{73, 222}, counts.get("BONUS"));
+        assertArrayEquals(new int[]{89, 299}, counts.get("REACTION"));
     }
 
     @Test
-    @DisplayName("A reaction that changes a hit or its damage after it is resolved, such as each of the 47 Parries and "
+    @DisplayName("A reaction that changes a hit or its damage after it is resolved, such as each of the 52 Parries and "
             + "19 Uncanny Dodges, is the DM's: it logs its stat block and what to adjust by hand (Q4)")
     void reactionsThatChangeAResolvedHit() {
         int parries = 0;
@@ -149,7 +153,8 @@ class MonsterActionDataTest {
                 uncannyDodges += uncannyDodge ? 1 : 0;
             }
         }
-        assertEquals(47, parries);
+        // D205 adds the parries of the marilith, erinyes, Barachiel, Duvessa Shane and Sirac of Suzail: 47 before
+        assertEquals(52, parries);
         assertEquals(19, uncannyDodges);
     }
 
