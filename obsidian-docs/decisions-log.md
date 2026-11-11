@@ -3947,3 +3947,24 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D185, D187, D189, D202, D203
 
 **Tests:** `MonsterRidersTailTest` (25), `MonsterRidersTailDataTest` (13), `MonsterRidersTailIT` (6: a giant toad swallowing and digesting a halfling who crawls out when it dies, a froghemoth regurgitating a death knight after 45 damage from inside, a gelatinous cube's engulf and escape, a cockatrice's two saves, a shadow draining a guard's Strength to death, a ghost's possession until the body drops); 3,413 backend unit, 526 integration and 1,200 frontend tests.
+
+
+## D205: Action Entries for the Monsters That Had None
+
+**Date:** 2026-11-11
+**Status:** Accepted — implemented (no migration; monster action data changed)
+
+**Context:** while automating swallowing ([[#D204]]) it turned out that the Purple Worm, Behir and Remorhaz had no entry in `monster-action-definitions.json` at all. A count found 188 bestiary monsters with actions but no entry, the DM unable to use any of their actions: MPMM 20, MTF 17, TCE 17, SKT 16, CoA 15, MM 14 (Balor, Behir, Dragon Turtle, Erinyes, Goristro, Horned Devil, Ice Devil, Iron Golem, Marilith, Nalfeshnee, Purple Worm, Remorhaz, Roc, Young Red Shadow Dragon), BGG 13, VEoR 10 and others.
+
+**Decision:**
+- **Generated entries:** `generate_monster_actions.py` now gives each such monster a full entry as it does the 126 of [[#D194]] (marked `_actionsFromStatBlock` and `_entryFromStatBlock`), with every reading of [[#D202]]–[[#D204]]: 168 entries, 519 actions, 29 bonus actions and 29 reactions; 128 multiattacks (all resolved except three hydras' "as many Bite attacks as it has heads", a note as on the MM Hydra); of 449 other actions 351 are automated (283 attacks, 68 saves) and 98 manual with their text; 53 recharges and 12 per-day uses; 12 swallows, all automated, the Behir's, Remorhaz's and Udaak's as attacks with their own Bite. Recharge and per-day pools come from `MonsterPools` as for the others. None of the 188 has legendary, mythic or lair actions, Legendary Resistance or spellcasting.
+- **Existing entries unchanged:** all 2,489 are byte-identical; the wider multiattack reading and the Bite-based swallow apply only to new entries. One rule applies everywhere: an attack inside "one of the following options" is manual (it fixes the Hellfire Engine's Hellfire Weapons and changes no existing entry).
+- **Left out (20):** 19 summoned creatures whose numbers scale with their summoner ("+ PB", "your spell attack modifier": the TCE spell spirits, Draconic and Reaper Spirits, the Steel Defender, Homunculus Servant, Wildfire Spirit, Drake Companion, the Primal Beasts and the Dancing Item; the spirits already act from `summon-spirits.json`, [[#D182]]), and the Deck Defender, whose numbers come from whoever drew its card. 46 `_copy` monsters with actions of their own have no entry either, but the app's loader skips copies, so they never exist in it. A test now requires an entry for every bestiary monster with actions, or a place on the justified exclusion list.
+
+**Trade-offs and open items:** the Regisaur's 2024-style swallow and the Dracohydra's head-dependent bite stay manual; the Marilith's tail limits and automatic hit stay in its note; "X or Y" multiattacks list every option for the DM to skip.
+
+**Key files:** `backend/scripts/generate_monster_actions.py`, `data/monster-actions/monster-action-definitions.json`
+
+**Related:** D182, D193, D194, D202, D203, D204
+
+**Tests:** `GeneratedMonstersTest` (9), `GeneratedMonstersIT` (3: a Purple Worm swallowing a guard who crawls out of its corpse, a Balor's Longsword and Whip, a Horned Devil's bleeding tail wound); updated counts in `StatBlockActionsTest` (294 generated entries), `MonsterActionDataTest` and the rider data tests (40 swallows); 3,422 backend unit and 529 integration tests.
