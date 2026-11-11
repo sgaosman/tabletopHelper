@@ -131,7 +131,8 @@ public class ConditionService {
      * A creature uses its action on the save against a condition that ends only that way, as Otto's Irresistible
      * Dance's Wisdom save (PHB p.264, D188): on its turn, charged as an action, by the DM or the creature's player. The
      * server rolls it, logged as REPEAT_SAVE; a success ends the condition and the spell with it, so the spell's Ongoing
-     * Modifiers end too. An unknown condition is a 400; one without such a save is a 409.
+     * Modifiers end too. An unknown condition is a 400; one without such a save is a 409. A monster's grapple is escaped
+     * the same way, its action spent on an Athletics or Acrobatics check against the escape DC (PHB p.195, D203).
      */
     @Transactional
     public EncounterResponse rollActionSave(UUID encounterId, RepeatSaveRequest request, UUID userId) {
@@ -149,7 +150,8 @@ public class ConditionService {
         economy.charge(encounter, participant, Charge.of(ActionCost.ACTION,
                         EncounterTurns.isCurrentTurn(encounter, participant.getId())), userId,
                 new ActionEconomyKeeper.Command(CombatActionType.REPEAT_SAVE,
-                        participant.getDisplayName() + "'s save against " + condition.name()));
+                        participant.getDisplayName() + (condition.repeatSave().escapes() ? "'s escape from "
+                                : "'s save against ") + condition.name()));
         effectApplier.repeatSave(encounter, participant, condition.id());
         boolean ended = participant.getActiveConditions() == null || participant.getActiveConditions().stream()
                 .noneMatch(c -> c.id().equals(condition.id()));

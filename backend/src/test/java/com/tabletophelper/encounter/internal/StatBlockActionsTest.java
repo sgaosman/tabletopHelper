@@ -6,6 +6,7 @@ import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.shared.JacksonDefaults;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -84,6 +85,13 @@ class StatBlockActionsTest {
                 }
             }
         }
+    }
+
+    // The data is large, and the test JVM runs the other classes after this one (D203)
+    @AfterAll
+    static void letTheDataGo() {
+        generated.clear();
+        statBlocks.clear();
     }
 
     @Test
@@ -185,7 +193,8 @@ class StatBlockActionsTest {
 
     @Test
     @DisplayName("The pit fiend's multiattack is its bite, claw, mace and tail; its bite poisons on a failed DC 21 "
-            + "Constitution save, repeated each turn, and its mace adds 6d6 fire")
+            + "Constitution save, repeated each turn, with no healing and 6d6 poison each turn while it lasts (D203), "
+            + "and its mace adds 6d6 fire")
     void pitFiend() {
         MonsterTemplates templates = MonsterTemplates.of(definition("Pit Fiend", "MM"));
         MonsterTemplates.Action multiattack = templates.find("ACTION", "Multiattack").orElseThrow();
@@ -194,8 +203,8 @@ class StatBlockActionsTest {
         MonsterEffects.MonsterAction bite = monsterEffects.plan(templates.find("ACTION", "Bite").orElseThrow(),
                 templates, List.of(UUID.randomUUID()), MonsterEffects.Overrides.NONE);
         Effect.Attack attack = assertInstanceOf(Effect.Attack.class, bite.steps().getFirst().effect().delivery());
-        assertEquals(new Effect.HitSave(Ability.CON, 21, List.of("poisoned")),
-                attack.hitSave());
+        assertEquals(new Effect.HitSave(Ability.CON, 21, List.of("poisoned"), List.of(), false,
+                List.of("can't regain hit points", "6d6 poison damage each turn")), attack.hitSave());
         assertNotNull(bite.steps().getFirst().effect().conditionEnds().get("poisoned").repeatSave());
 
         MonsterTemplates.Action mace = templates.find("ACTION", "Mace").orElseThrow();

@@ -6,6 +6,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.Effect;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -48,6 +49,12 @@ class MonsterActionDataTest {
         try (InputStream in = new ClassPathResource(FILE).getInputStream()) {
             definitions = JacksonDefaults.mapper().readTree(in);
         }
+    }
+
+    // The data is large, and the test JVM runs the other classes after this one (D203)
+    @AfterAll
+    static void letTheDataGo() {
+        definitions = null;
     }
 
     @Test
@@ -179,8 +186,10 @@ class MonsterActionDataTest {
                         }
                         boolean ownDc = effect.path("saveDC").isNumber();
                         boolean ownAbility = effect.path("saveAbility").isString();
+                        // An escape DC is a check's, never a save's, as a parasite's detach check (D203)
                         boolean actionDcWithoutAbility = action.path("saveDC").isNumber()
-                                && !action.path("saveAbility").isString() && !ownDc && !ownAbility;
+                                && !action.path("saveAbility").isString() && !ownDc && !ownAbility
+                                && !effect.path("escapeDC").isNumber();
                         if (ownDc && !ownAbility || actionDcWithoutAbility) {
                             found.add(name(definition) + " " + action.path("name").asString() + " "
                                     + effect.path("condition").asString());

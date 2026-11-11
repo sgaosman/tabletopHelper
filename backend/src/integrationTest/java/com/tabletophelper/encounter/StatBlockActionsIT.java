@@ -63,7 +63,7 @@ class StatBlockActionsIT extends IntegrationTest {
 
     @Test
     @DisplayName("The pit fiend's multiattack makes its bite, claw, mace and tail; the bite poisons on a failed DC 21 "
-            + "Constitution save and the mace adds fire")
+            + "Constitution save, with no healing and 6d6 poison each turn while it lasts, and the mace adds fire")
     void pitFiendMultiattack() {
         JsonNode options = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId
                 + "/combat/multiattack-options?participantId=" + pitFiendId, null, dm.accessToken()));
@@ -92,9 +92,11 @@ class StatBlockActionsIT extends IntegrationTest {
                 + "vs DC 21 fails, gains poisoned."));
         assertThat(log).anyMatch(line -> line.startsWith("Pit Fiend uses Multiattack (Mace) on Storm Giant: ")
                 && line.endsWith("hit, 26 damage (14 bludgeoning, 12 fire)."));
-        // The bite's poison damage each turn is the DM's, noted from the stat block
-        assertThat(log).anyMatch(line -> line.startsWith("Pit Fiend uses Multiattack.")
-                && line.contains("takes 21 (6d6) poison damage at the start of each of its turns"));
+        // While poisoned, the giant can't regain hit points and takes 6d6 poison at the start of each of its turns
+        // (D203)
+        assertThat(log).contains("Storm Giant takes 6d6 poison damage at the start of each of its turns (Pit Fiend's "
+                + "Bite), while it is poisoned.", "Storm Giant: can't regain hit points (Pit Fiend's Bite), while it is "
+                + "poisoned.");
     }
 
     @Test

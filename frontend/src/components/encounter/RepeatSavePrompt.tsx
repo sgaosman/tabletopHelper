@@ -12,7 +12,8 @@ import { repeatRollName } from '../../utils/conditions';
  * success ends the condition. A save the creature makes with its action, as against Otto's Irresistible Dance (D188),
  * is offered for as long as the condition lasts, spends the action, and its success ends the spell; one that is an
  * ability check instead is named so, as Wrathful Smite's WIS check or Phantasmal Force's INT (Investigation) check (D199,
- * D200). Shows nothing for a condition with no roll waiting.
+ * D200). A monster's grapple is escaped the same way, with an "Escape" button: the server rolls the creature's better of
+ * Athletics and Acrobatics against the escape DC (PHB p.195, D203). Shows nothing for a condition with no roll waiting.
  *
  * @param compact the DM's small button beside the condition, rather than the player's prompt
  */
@@ -45,12 +46,46 @@ export default function RepeatSavePrompt({ participant, condition, compact = fal
     }
   }
 
-  // A check made with the action in place of the save, as against Wrathful Smite's fear (D200)
+  // A check made with the action in place of the save, as against Wrathful Smite's fear (D200), or the escape from a
+  // monster's grapple, the creature's better of Athletics and Acrobatics (PHB p.195, D203)
   const rollName = byAction ? repeatRollName(save) : `${save.ability} save`;
   const isCheck = rollName.endsWith('check');
-  const label = byAction
-    ? `Use the action: ${rollName} (DC ${save.dc}) to end ${condition.name}`
-    : `Roll ${rollName} (DC ${save.dc}) to end ${condition.name}`;
+  const escape = byAction && save.escape === true;
+  const label = escape
+    ? `Use the action to escape ${condition.name}: ${rollName} (DC ${save.dc})`
+    : byAction
+      ? `Use the action: ${rollName} (DC ${save.dc}) to end ${condition.name}`
+      : `Roll ${rollName} (DC ${save.dc}) to end ${condition.name}`;
+  if (compact && escape) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={roll}
+          disabled={rolling}
+          title={label}
+          aria-label={label}
+          className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-cls-monk bg-cls-monk-bg border border-cls-monk hover:opacity-75 disabled:opacity-50"
+        >
+          {rolling ? '...' : `Escape (DC ${save.dc})`}
+        </button>
+        {error && <span role="alert" className="font-body text-[12.5px] font-semibold text-debuff">{error}</span>}
+      </>
+    );
+  }
+  if (escape) {
+    return (
+      <div role="status" className="flex items-center justify-between gap-3 px-4 py-2.5 bg-cls-monk/10 border border-cls-monk/30">
+        <p className="font-heading text-[15px] font-semibold tracking-[0.01em] text-cls-monk">
+          {`Use your action to escape the grapple${condition.sourceSpellName ? ` of ${condition.sourceSpellName}` : ''}: ${rollName} (DC ${save.dc})`}
+        </p>
+        <Button size="sm" onClick={roll} loading={rolling} aria-label={label}>
+          <Dices className="w-4 h-4" /> Escape
+        </Button>
+        {error && <p role="alert" className="font-body text-[13px] font-semibold text-debuff">{error}</p>}
+      </div>
+    );
+  }
   if (compact) {
     return (
       <>

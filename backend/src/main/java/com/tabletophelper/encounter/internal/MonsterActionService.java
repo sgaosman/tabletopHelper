@@ -76,6 +76,7 @@ public class MonsterActionService {
     private final CombatAccess access;
     private final AccessPolicy accessPolicy;
     private final MonsterEffects monsterEffects;
+    private final MonsterHitEffects monsterHitEffects;
     private final Resolver resolver;
     private final CreatureStats stats;
     private final EffectApplier effectApplier;
@@ -209,8 +210,19 @@ public class MonsterActionService {
                         .map(byId::get)
                         .filter(target -> target.getLifeState() != LifeState.DEAD)
                         .toList();
+                // A creature immune to the action, after its save or by its type, isn't affected (D203)
+                List<String> immuneNotes = new ArrayList<>();
+                List<EncounterParticipant> immune = monsterHitEffects.immune(monster, step, stepTargets, immuneNotes);
+                immuneNotes.forEach(note -> combatLog.write(encounter, logType, note, monster, null));
+                riderNotes.addAll(immuneNotes);
+                stepTargets = stepTargets.stream().filter(target -> !immune.contains(target)).toList();
                 if (stepTargets.isEmpty()) {
                     continue;
+                }
+                // An attack whose grapple holds its limit can't be used on another creature (D203)
+                String refused = MonsterRiders.refusal(step.riders(), monster, stepTargets);
+                if (refused != null) {
+                    throw new ConflictException(refused);
                 }
                 String label = step.label().equals(actionName) ? actionName : actionName + " (" + step.label() + ")";
                 EffectApplier.Use use = new EffectApplier.Use(monster, monster.getDisplayName(), logType,
@@ -218,20 +230,24 @@ public class MonsterActionService {
                 // Ray of Enfeeblement halves a melee weapon attack's damage, taken as using Strength (PHB p.271, D197)
                 boolean halved = Enfeeblement.strengthAttack(step.effect()) && Enfeeblement.weakened(monster);
                 if (!step.riders().none() && step.effect().delivery() instanceof Effect.Attack) {
-                    applied.addAll(attackWithRiders(encounter, use, logType, monster, step, stepTargets, halved,
-                            riderNotes));
+                    List<EffectApplier.Applied> hits = attackWithRiders(encounter, use, logType, monster, step,
+                            stepTargets, halved, riderNotes);
+                    applied.addAll(hits);
+                    riderNotes.addAll(monsterHitEffects.after(encounter, logType, monster, step, hits));
                     continue;
                 }
                 Effect effect = halved ? Enfeeblement.noted(step.effect()) : step.effect();
                 List<Resolver.TargetOutcome> outcomes = resolver.resolve(effect, CreatureStats.side(monster),
                         stats.targets(stepTargets, effect, monster));
                 List<RiderNote> sizeNotes = new ArrayList<>();
-                if (!step.riders().maxTargetSize().isEmpty()) {
-                    outcomes = withoutTooBig(step, stepTargets, outcomes, sizeNotes);
+                if (!step.riders().none()) {
+                    outcomes = withoutTooBig(step, monster, stepTargets, outcomes, sizeNotes);
                 }
-                applied.addAll(effectApplier.apply(encounter, use, effect,
-                        halved ? Enfeeblement.halved(outcomes) : outcomes));
+                List<EffectApplier.Applied> results = effectApplier.apply(encounter, use, effect,
+                        halved ? Enfeeblement.halved(outcomes) : outcomes);
+                applied.addAll(results);
                 riderNotes.addAll(logged(encounter, logType, monster, sizeNotes));
+                riderNotes.addAll(monsterHitEffects.after(encounter, logType, monster, step, results));
             }
         }
 
@@ -298,8 +314,9 @@ public class MonsterActionService {
         return applied;
     }
 
-    // The outcomes without the conditions each target is too big for, as a save action's (D202)
-    private static List<Resolver.TargetOutcome> withoutTooBig(MonsterEffects.Step step,
+    // The outcomes without the conditions each target is too big for, as a save action's (D202), or that pass over its
+    // creature type or last only while one of those would (D203)
+    private static List<Resolver.TargetOutcome> withoutTooBig(MonsterEffects.Step step, EncounterParticipant monster,
                                                               List<EncounterParticipant> stepTargets,
                                                               List<Resolver.TargetOutcome> outcomes,
                                                               List<RiderNote> notes) {
@@ -310,7 +327,7 @@ public class MonsterActionService {
             EncounterParticipant target = byId.get(outcome.targetId());
             List<String> said = new ArrayList<>();
             List<String> tooBig = target != null
-                    ? MonsterRiders.tooBig(step.effect().name(), step.riders(), target, said) : List.of();
+                    ? MonsterRiders.dropped(step.effect(), step.riders(), monster, target, said) : List.of();
             said.forEach(note -> notes.add(new RiderNote(note, target)));
             kept.add(tooBig.isEmpty() ? outcome : outcome.withConditions(outcome.conditions().stream()
                     .filter(condition -> !tooBig.contains(condition)).toList()));

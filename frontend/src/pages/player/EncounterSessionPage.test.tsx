@@ -733,6 +733,33 @@ describe('Player EncounterSessionPage', () => {
     expect(screen.getByRole('button', { name: 'Use the action: WIS check (DC 13) to end frightened' }))
       .toHaveTextContent('Roll check');
   });
+
+  it("offers the escape from a monster's grapple, rolled by the server with the character's action (D203)", async () => {
+    let sent: unknown = null;
+    server.use(http.post('/api/encounters/:id/combat/action-save', async ({ request }) => {
+      sent = await request.json();
+      return HttpResponse.json(makeMockEncounter());
+    }));
+    const grappled = makeMockCondition('grappled', {
+      sourceSpellName: 'Giant Constrictor Snake',
+      sourceAction: 'Constrict',
+      repeatSave: { ability: 'STR', dc: 16, awaitingRoll: false, byAction: true, check: true,
+        skill: 'Athletics or Acrobatics', escape: true },
+    });
+    server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+      participants: [gimli({ activeConditions: [grappled] }), goblin()],
+    }))));
+    renderPage();
+
+    expect(await screen.findByText('Use your action to escape the grapple of Giant Constrictor Snake: Athletics or '
+      + 'Acrobatics check (DC 16)')).toBeInTheDocument();
+    const escape = screen.getByRole('button', {
+      name: 'Use the action to escape grappled: Athletics or Acrobatics check (DC 16)',
+    });
+    expect(escape).toHaveTextContent('Escape');
+    await userEvent.setup().click(escape);
+    await waitFor(() => expect(sent).toEqual({ participantId: expect.any(String), conditionId: 'cond-grappled' }));
+  });
 });
 
 describe('Player EncounterSessionPage in Wild Shape (PHB p.66–67)', () => {

@@ -44,6 +44,11 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param sourceOutOfSight            on a frightened entry, true when the DM has marked the source of the fear out of
  *                                    the creature's line of sight, so the fear gives no disadvantage (PHB p.290, D201);
  *                                    null otherwise
+ * @param linkedTo                    the creature's other entry this one lasts while, ending with it, as a restraint
+ *                                    "until this grapple ends" (MM p.324) or a paralysis "until this poison ends" (MM
+ *                                    p.37) (D203); null otherwise
+ * @param sourceAction                the monster action that gave it, as a giant constrictor snake's Constrict, which
+ *                                    counts the grapples that attack holds (D203); null otherwise
  */
 public record ConditionEntry(
         @Schema(requiredMode = REQUIRED) UUID id,
@@ -63,8 +68,38 @@ public record ConditionEntry(
         @JsonInclude(JsonInclude.Include.NON_NULL) Integer bonus,
         @JsonInclude(JsonInclude.Include.NON_NULL) Boolean endsOnDamage,
         @JsonInclude(JsonInclude.Include.NON_NULL) DamageSave saveOnDamage,
-        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean sourceOutOfSight
+        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean sourceOutOfSight,
+        @JsonInclude(JsonInclude.Include.NON_NULL) UUID linkedTo,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String sourceAction
 ) {
+
+    /** An entry tied to no other and given by no monster's action (D203). */
+    public ConditionEntry(UUID id, String name, Integer duration, int appliedRound, String sourceSpellName,
+                          UUID sourceParticipantId, Boolean sourceRequiresConcentration, UUID concentrationInstanceId,
+                          EndRule endRule, RepeatSave repeatSave, HeldDie heldDie, WildShapeForm wildShape,
+                          String weapon, Boolean endsOnAttackOrCast, Integer bonus, Boolean endsOnDamage,
+                          DamageSave saveOnDamage, Boolean sourceOutOfSight) {
+        this(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId, sourceRequiresConcentration,
+                concentrationInstanceId, endRule, repeatSave, heldDie, wildShape, weapon, endsOnAttackOrCast, bonus,
+                endsOnDamage, saveOnDamage, sourceOutOfSight, null, null);
+    }
+
+    /**
+     * This entry tied to another of its creature's entries, so it ends when that one does, as a giant constrictor
+     * snake's restraint ends with its grapple (MM p.324, D203): it keeps no duration or repeat save of its own.
+     */
+    public ConditionEntry linkedTo(UUID anchor) {
+        return new ConditionEntry(id, name, null, appliedRound, sourceSpellName, sourceParticipantId,
+                sourceRequiresConcentration, concentrationInstanceId, EndRule.MANUAL, null, heldDie, wildShape, weapon,
+                endsOnAttackOrCast, bonus, endsOnDamage, saveOnDamage, sourceOutOfSight, anchor, sourceAction);
+    }
+
+    /** This entry naming the monster action that gave it, as a grapple's attack (D203). */
+    public ConditionEntry fromAction(String action) {
+        return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
+                sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, heldDie, wildShape, weapon,
+                endsOnAttackOrCast, bonus, endsOnDamage, saveOnDamage, sourceOutOfSight, linkedTo, action);
+    }
 
     /** An entry whose source the DM hasn't marked out of sight (D201). */
     public ConditionEntry(UUID id, String name, Integer duration, int appliedRound, String sourceSpellName,
@@ -186,34 +221,34 @@ public record ConditionEntry(
     public ConditionEntry withRepeatSave(RepeatSave save) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
                 sourceRequiresConcentration, concentrationInstanceId, endRule, save, heldDie, wildShape, weapon,
-                endsOnAttackOrCast, bonus, endsOnDamage, saveOnDamage, sourceOutOfSight);
+                endsOnAttackOrCast, bonus, endsOnDamage, saveOnDamage, sourceOutOfSight, linkedTo, sourceAction);
     }
 
     /** This entry carrying a creature's form, as Polymorph's {@code polymorphed} entry does (D192); null for none. */
     public ConditionEntry withForm(WildShapeForm form) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
                 sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, heldDie, form, weapon,
-                endsOnAttackOrCast, bonus, endsOnDamage, saveOnDamage, sourceOutOfSight);
+                endsOnAttackOrCast, bonus, endsOnDamage, saveOnDamage, sourceOutOfSight, linkedTo, sourceAction);
     }
 
     /** This entry with a count of its own, as Mirror Image's duplicates (PHB p.260, D196). */
     public ConditionEntry withBonus(Integer count) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
                 sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, heldDie, wildShape, weapon,
-                endsOnAttackOrCast, count, endsOnDamage, saveOnDamage, sourceOutOfSight);
+                endsOnAttackOrCast, count, endsOnDamage, saveOnDamage, sourceOutOfSight, linkedTo, sourceAction);
     }
 
     public ConditionEntry withHeldDie(HeldDie die) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
                 sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, die, wildShape, weapon,
-                endsOnAttackOrCast, bonus, endsOnDamage, saveOnDamage, sourceOutOfSight);
+                endsOnAttackOrCast, bonus, endsOnDamage, saveOnDamage, sourceOutOfSight, linkedTo, sourceAction);
     }
 
     /** This entry, ending too when its creature attacks or casts a spell. */
     public ConditionEntry endingOnAttackOrCast() {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
                 sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, heldDie, wildShape, weapon,
-                true, bonus, endsOnDamage, saveOnDamage, sourceOutOfSight);
+                true, bonus, endsOnDamage, saveOnDamage, sourceOutOfSight, linkedTo, sourceAction);
     }
 
     /**
@@ -224,7 +259,7 @@ public record ConditionEntry(
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
                 sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, heldDie, wildShape, weapon,
                 endsOnAttackOrCast, bonus, ends ? Boolean.TRUE : endsOnDamage, save != null ? save : saveOnDamage,
-                sourceOutOfSight);
+                sourceOutOfSight, linkedTo, sourceAction);
     }
 
     /**
@@ -234,7 +269,8 @@ public record ConditionEntry(
     public ConditionEntry withSourceOutOfSight(boolean outOfSight) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
                 sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, heldDie, wildShape, weapon,
-                endsOnAttackOrCast, bonus, endsOnDamage, saveOnDamage, outOfSight ? Boolean.TRUE : null);
+                endsOnAttackOrCast, bonus, endsOnDamage, saveOnDamage, outOfSight ? Boolean.TRUE : null, linkedTo,
+                sourceAction);
     }
 
     /** Whether the DM has marked its source out of sight (D201). */

@@ -8092,6 +8092,11 @@
             "type": "string",
             "format": "uuid"
           },
+          "linkedTo": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "name": {
             "type": "string"
           },
@@ -8110,6 +8115,10 @@
                 "$ref": "#/components/schemas/DamageSave"
               }
             ]
+          },
+          "sourceAction": {
+            "type": "string",
+            "nullable": true
           },
           "sourceOutOfSight": {
             "type": "boolean",
@@ -11934,6 +11943,10 @@
           "dc": {
             "type": "integer",
             "format": "int32"
+          },
+          "escape": {
+            "type": "boolean",
+            "nullable": true
           },
           "skill": {
             "type": "string",

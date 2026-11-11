@@ -8,7 +8,7 @@ import { useGlossary } from '../../hooks/useGlossary';
 import { usePending } from '../../hooks/usePending';
 import { useToast } from '../../hooks/useToast';
 import { exhaustionEffects, exhaustionLabel } from '../../utils/exhaustion';
-import { fearFor, fearReminders, fearSightNote, repeatRollName } from '../../utils/conditions';
+import { actionEndText, fearFor, fearReminders, fearSightNote, linkedName } from '../../utils/conditions';
 import IconButton from '../ui/IconButton';
 
 const CHIP_BASE = 'font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5';
@@ -65,11 +65,15 @@ export default function ConditionChips({ participant, roundNumber, onRemove, sho
           : `${c.name}${fear?.sourceName ? ` of ${fear.sourceName}` : ''}${c.sourceSpellName ? ` (${c.sourceSpellName})` : ''}`
             + `${remaining != null ? ` (${remaining})` : ''}${fear ? ` · ${fear.inSight ? 'in sight' : 'out of sight'}` : ''}`;
         const chip = marker ? FEATURE_CHIP : CHIP;
-        // A Repeat Save is rolled at the end of each of the creature's turns (D162)
+        // A Repeat Save is rolled at the end of each of the creature's turns (D162); one made with the action, or a
+        // monster's grapple escaped with it, waits for that (D188, D203); and a condition tied to another lasts while
+        // that one does, as a restraint until its grapple ends (D203)
+        const linked = linkedName(participant, c);
         const saveEnds = (c.repeatSave?.byAction
-          ? `; a ${repeatRollName(c.repeatSave)} DC ${c.repeatSave.dc} made with its action ends the spell`
+          ? actionEndText(c)
           : c.repeatSave ? `; ${c.repeatSave.ability} save DC ${c.repeatSave.dc} at the end of each turn ends it`
           : marker ? `: ${marker.description}` : '')
+          + (linked ? `; lasts while ${linked}` : '')
           + (fear ? `; ${fearSightNote(fear)}; ${fearReminders(c, fear).join('; ')}` : '');
         return (
           <Fragment key={c.id}>

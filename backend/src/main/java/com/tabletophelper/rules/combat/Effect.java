@@ -190,14 +190,24 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
      * @param damage              damage dealt only as the save allows, beside the Effect's own; empty for none. It isn't
      *                            the attack's damage, so a critical hit doesn't double its dice (PHB p.196)
      * @param halfDamageOnSuccess whether a success halves that damage; otherwise it prevents it
+     * @param riders              what else a failure brings, in the log's words, such as "hit point maximum reduced"
+     *                            after a wight's Life Drain (MM p.300), which the encounter applies once the hit is
+     *                            resolved (D203); empty for none
      */
     public record HitSave(Ability ability, int dc, List<String> conditions, List<DamagePart> damage,
-                          boolean halfDamageOnSuccess) {
+                          boolean halfDamageOnSuccess, List<String> riders) {
 
         public HitSave {
             Objects.requireNonNull(ability, "ability");
             conditions = List.copyOf(conditions);
             damage = damage != null ? List.copyOf(damage) : List.of();
+            riders = riders != null ? List.copyOf(riders) : List.of();
+        }
+
+        /** A save that guards conditions and damage only. */
+        public HitSave(Ability ability, int dc, List<String> conditions, List<DamagePart> damage,
+                       boolean halfDamageOnSuccess) {
+            this(ability, dc, conditions, damage, halfDamageOnSuccess, List.of());
         }
 
         /** A save that guards only conditions. */
@@ -208,12 +218,17 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
         /** The same save guarding none of these conditions, as for a target too big for them (D202). */
         public HitSave without(java.util.Collection<String> dropped) {
             return new HitSave(ability, dc, conditions.stream().filter(c -> !dropped.contains(c)).toList(), damage,
-                    halfDamageOnSuccess);
+                    halfDamageOnSuccess, riders);
+        }
+
+        /** The same save guarding none of the riders, as for a target they pass over (D203). */
+        public HitSave withoutRiders() {
+            return new HitSave(ability, dc, conditions, damage, halfDamageOnSuccess, List.of());
         }
 
         /** Whether it guards nothing, so no save is needed. */
         public boolean guardsNothing() {
-            return conditions.isEmpty() && damage.isEmpty();
+            return conditions.isEmpty() && damage.isEmpty() && riders.isEmpty();
         }
     }
 

@@ -5,6 +5,8 @@ import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.Rng;
 import com.tabletophelper.rules.combat.Effect;
+import com.tabletophelper.rules.combat.OngoingModifier;
+import com.tabletophelper.rules.combat.RollMode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -37,6 +39,7 @@ import java.util.UUID;
 public class MonsterEffects {
 
     private static final String GRAPPLED = "grappled";
+    private static final String ATTACHED = "attached";
 
     // Chooses which eye rays fire
     private final Rng rng;
@@ -67,17 +70,58 @@ public class MonsterEffects {
      *                         replaces the damage takes the place of, as a duergar's 2d8 + 2 while enlarged (MM p.122)
      */
     public record Riders(Map<String, String> maxTargetSize, List<ConditionalDamage> conditionalDamage,
-                         int firstDamageParts) {
+                         int firstDamageParts, Lasting lasting) {
 
-        public static final Riders NONE = new Riders(Map.of(), List.of(), 0);
+        public static final Riders NONE = new Riders(Map.of(), List.of(), 0, Lasting.NONE);
 
         public Riders {
             maxTargetSize = Map.copyOf(maxTargetSize);
             conditionalDamage = List.copyOf(conditionalDamage);
+            lasting = lasting != null ? lasting : Lasting.NONE;
+        }
+
+        /** Riders with nothing that lasts beyond the hit. */
+        public Riders(Map<String, String> maxTargetSize, List<ConditionalDamage> conditionalDamage,
+                      int firstDamageParts) {
+            this(maxTargetSize, conditionalDamage, firstDamageParts, Lasting.NONE);
         }
 
         public boolean none() {
-            return maxTargetSize.isEmpty() && conditionalDamage.isEmpty();
+            return maxTargetSize.isEmpty() && conditionalDamage.isEmpty() && lasting.none();
+        }
+    }
+
+    /**
+     * What an action leaves once it is applied (D203), which {@link MonsterHitEffects} works out for each creature it
+     * reached: the riders that last (a lowered hit point maximum, life drain, exhaustion, an Ongoing Modifier, damage at
+     * the start of each turn), the conditions that last only while another does, the creature types a condition or the
+     * whole action passes over, how many creatures its grapple can hold, and the immunity a successful save gives.
+     *
+     * @param action          the action's own name, as a multiattack's component gives it
+     * @param parts           the lasting riders, as the data gives them
+     * @param endsWith        by condition, the condition of the same hit it lasts while
+     * @param exemptTypes     by condition, the creature types it passes over
+     * @param actionExempt    the creature types the whole action passes over
+     * @param guardedByHit    whether the hit's save guards the lasting riders with a save of their own, so a success
+     *                        keeps them away
+     */
+    public record Lasting(String action, List<MonsterTemplates.Part> parts, Map<String, String> endsWith,
+                          Map<String, List<String>> exemptTypes, List<String> actionExempt, Integer grappleLimit,
+                          boolean grappleLimitBlocks, String immuneAfterSave, boolean guardedByHit) {
+
+        public static final Lasting NONE = new Lasting(null, List.of(), Map.of(), Map.of(), List.of(), null, false,
+                null, false);
+
+        public Lasting {
+            parts = List.copyOf(parts);
+            endsWith = Map.copyOf(endsWith);
+            exemptTypes = Map.copyOf(exemptTypes);
+            actionExempt = List.copyOf(actionExempt);
+        }
+
+        public boolean none() {
+            return parts.isEmpty() && endsWith.isEmpty() && exemptTypes.isEmpty() && actionExempt.isEmpty()
+                    && grappleLimit == null && immuneAfterSave == null;
         }
     }
 
@@ -286,7 +330,8 @@ public class MonsterEffects {
         if (parts == null) {
             return Read.manual(name + "'s damage dice can't be rolled automatically");
         }
-        if (parts.other() && parts.damage().isEmpty() && parts.conditions().isEmpty() && !parts.healing()) {
+        if (parts.other() && parts.damage().isEmpty() && parts.conditions().isEmpty() && !parts.healing()
+                && parts.lasting().isEmpty()) {
             String effectType = effects.getFirst().effectType() != null ? effects.getFirst().effectType()
                     : "non-automatable";
             return Read.manual("Action contains " + effectType + " effect type requiring DM adjudication");
@@ -307,14 +352,17 @@ public class MonsterEffects {
                 // A hit makes one save at most, so conditions and damage that record different ones are the DM's
                 Set<ConditionSave> saves = new LinkedHashSet<>(parts.conditionSaves().values());
                 saves.addAll(parts.damageSaves());
+                saves.addAll(parts.riderSaves());
                 if (saves.size() > 1) {
                     return Read.manual(name + "'s conditions record different saving throws");
                 }
-                // The damage it guards is dealt only as the save allows (D202)
+                // The damage it guards is dealt only as the save allows (D202), and the lasting riders with a save of
+                // their own come only on a failure (D203)
                 Effect.HitSave hitSave = saves.stream().findFirst()
                         .map(save -> new Effect.HitSave(save.ability(), save.dc(),
                                 List.copyOf(parts.conditionSaves().keySet()), parts.guardedDamage(),
-                                parts.halfOnSave()))
+                                parts.halfOnSave(), parts.lasting().stream().filter(MonsterTemplates.Part::ownSave)
+                                .map(MonsterEffects::riderText).distinct().toList()))
                         .orElse(null);
                 // A melee or ranged spell attack in a stat block is no weapon attack, which weapon-only Ongoing
                 // Modifiers need (D184)
@@ -346,9 +394,77 @@ public class MonsterEffects {
             }
             riders = new Riders(riders.maxTargetSize(), List.of(), riders.firstDamageParts());
         }
+        // What the action leaves once applied (D203)
+        Lasting lasting = new Lasting(name, parts.lasting(), parts.endsWith(), parts.exemptTypes(),
+                action.exemptTypes().stream().map(type -> type.trim().toLowerCase()).toList(), action.grappleLimit(),
+                action.grappleLimitBlocks(), action.immuneAfterSave(), delivery instanceof Effect.Attack);
+        riders = new Riders(riders.maxTargetSize(), riders.conditionalDamage(), riders.firstDamageParts(), lasting);
         return new Read(new Effect(name, delivery, damage, null, conditions, false, null,
                 parts.conditionEnds()), null, List.copyOf(notes), riders);
     }
+
+    /**
+     * The log's words for a lasting rider (D203), such as "hit point maximum reduced" or "can't regain hit points", as
+     * what a hit's save guards.
+     */
+    static String riderText(MonsterTemplates.Part part) {
+        String type = part.effectType() != null ? part.effectType().toUpperCase() : "";
+        return switch (type) {
+            case HP_MAX_REDUCTION -> "hit point maximum reduced";
+            case LIFE_DRAIN -> "life drain";
+            case EXHAUSTION -> (part.levels() != null && part.levels() > 1 ? part.levels() + " levels" : "a level")
+                    + " of exhaustion";
+            case ONGOING_DAMAGE -> (part.damageDice() != null ? part.damageDice() : "")
+                    + (part.damageType() != null ? " " + part.damageType() + " damage" : " hit points lost")
+                    + " each turn";
+            case MODIFIER -> part.modifier() != null ? modifierText(part.modifier()) : "an effect";
+            default -> type.toLowerCase();
+        };
+    }
+
+    // "can't regain hit points", "speed halved" and the like, as an Ongoing Modifier of the kind describes itself
+    private static String modifierText(MonsterTemplates.Modifier modifier) {
+        try {
+            return lastingModifier(modifier, null).describe();
+        } catch (IllegalArgumentException e) {
+            return modifier.kind() != null ? modifier.kind().toLowerCase() : "an effect";
+        }
+    }
+
+    /**
+     * The Ongoing Modifier a MODIFIER part leaves (D203), with its own end, or none for one that lasts as long as its
+     * effect.
+     *
+     * @throws IllegalArgumentException for a kind or mode the engine doesn't know
+     */
+    static OngoingModifier lastingModifier(MonsterTemplates.Modifier modifier,
+                                                                           String until) {
+        OngoingModifier.Kind kind =
+                OngoingModifier.Kind.valueOf(modifier.kind().trim().toUpperCase());
+        RollMode mode = modifier.mode() != null
+                ? RollMode.valueOf(modifier.mode().trim().toUpperCase()) : null;
+        OngoingModifier.Until end = until == null ? null : switch (until) {
+            case "TARGET_TURN_END" -> OngoingModifier.Until.TARGET_TURN_END;
+            case "TARGET_TURN_START" -> OngoingModifier.Until.TARGET_TURN_START;
+            case "USER_TURN_END" -> OngoingModifier.Until.CASTER_TURN_END;
+            case "USER_TURN_START" -> OngoingModifier.Until.CASTER_TURN_START;
+            default -> null;
+        };
+        return new OngoingModifier(UUID.randomUUID(), kind,
+                OngoingModifier.Scope.AFFECTED, null,
+                modifier.flat() != null ? modifier.flat() : 0, mode,
+                modifier.ability() != null ? modifier.ability().trim().toUpperCase() : null, modifier.damageTypes(),
+                false, false, false, end, false, null, List.of(), null, null);
+    }
+
+    /** A lasting rider's effect types (D203). */
+    static final String HP_MAX_REDUCTION = "HP_MAX_REDUCTION";
+    static final String LIFE_DRAIN = "LIFE_DRAIN";
+    static final String EXHAUSTION = "EXHAUSTION";
+    static final String MODIFIER = "MODIFIER";
+    static final String ONGOING_DAMAGE = "ONGOING_DAMAGE";
+    private static final Set<String> LASTING = Set.of(HP_MAX_REDUCTION, LIFE_DRAIN, EXHAUSTION, MODIFIER,
+            ONGOING_DAMAGE);
 
     // "(if the target is prone)", the stat block's words for a conditional damage
     static String conditionText(ConditionalDamage conditional) {
@@ -403,7 +519,9 @@ public class MonsterEffects {
     private record Parts(List<Effect.DamagePart> damage, List<String> conditions,
                          Map<String, Effect.ConditionEnd> conditionEnds, Map<String, ConditionSave> conditionSaves,
                          boolean healing, boolean other, List<Effect.DamagePart> guardedDamage,
-                         Set<ConditionSave> damageSaves, boolean halfOnSave, Riders riders) {
+                         Set<ConditionSave> damageSaves, boolean halfOnSave, Riders riders,
+                         List<MonsterTemplates.Part> lasting, Set<ConditionSave> riderSaves,
+                         Map<String, String> endsWith, Map<String, List<String>> exemptTypes) {
     }
 
     // A saving throw against a condition: its ability and DC
@@ -435,8 +553,24 @@ public class MonsterEffects {
         int firstDamageParts = 0;
         boolean healing = false;
         boolean other = false;
+        // What lasts beyond the hit, and how conditions tie to others and pass over creature types (D203)
+        List<MonsterTemplates.Part> lasting = new ArrayList<>();
+        Set<ConditionSave> riderSaves = new LinkedHashSet<>();
+        Map<String, String> endsWith = new LinkedHashMap<>();
+        Map<String, List<String>> exemptTypes = new LinkedHashMap<>();
         for (MonsterTemplates.Part effect : effects) {
-            switch (effect.effectType() != null ? effect.effectType().toUpperCase() : "OTHER") {
+            String effectType = effect.effectType() != null ? effect.effectType().toUpperCase() : "OTHER";
+            if (LASTING.contains(effectType)) {
+                if (effect.damageDice() != null && TemplateDice.read(effect.damageDice()).isEmpty()) {
+                    return null;
+                }
+                lasting.add(effect);
+                Ability.parse(effect.saveAbility()).filter(ability -> effect.saveDc() != null)
+                        .ifPresent(ability -> riderSaves.add(new ConditionSave(ability,
+                                overrideSaveDc != null ? overrideSaveDc : effect.saveDc())));
+                continue;
+            }
+            switch (effectType) {
                 case "DAMAGE" -> {
                     if (effect.damageDice() == null) {
                         continue;
@@ -480,8 +614,16 @@ public class MonsterEffects {
                         if (end != null) {
                             conditionEnds.put(name, end);
                         }
+                        if (effect.endsWith() != null && !effect.endsWith().isBlank()) {
+                            endsWith.put(name, effect.endsWith().trim().toLowerCase());
+                        }
+                        if (!effect.exemptTypes().isEmpty()) {
+                            exemptTypes.put(name, effect.exemptTypes().stream()
+                                    .map(type -> type.trim().toLowerCase()).toList());
+                        }
                         boolean ownSave = effect.saveDc() != null || effect.saveAbility() != null;
-                        if (ownSave || !GRAPPLED.equals(name)) {
+                        // Nor is a creature attached to it, as a stirge attaches (MM p.284, D203)
+                        if (ownSave || !GRAPPLED.equals(name) && !ATTACHED.equals(name)) {
                             saveAbility.filter(ability -> saveDc > 0)
                                     .ifPresent(ability -> conditionSaves.put(name, new ConditionSave(ability, saveDc)));
                         }
@@ -492,12 +634,18 @@ public class MonsterEffects {
             }
         }
         return new Parts(damage, conditions, conditionEnds, conditionSaves, healing, other, guarded, damageSaves,
-                halfOnSave, new Riders(maxTargetSize, conditional, firstDamageParts));
+                halfOnSave, new Riders(maxTargetSize, conditional, firstDamageParts), lasting, riderSaves, endsWith,
+                exemptTypes);
     }
 
-    // Null when the effect gives the condition no duration, Repeat Save or escape DC
+    // Null when the effect gives the condition no duration, Repeat Save or escape DC. One that lasts while another
+    // condition of the hit does keeps none of its own: it ends with that one (D203), as a restraint "until this grapple
+    // ends", whose escape DC is the grapple's
     private static Effect.ConditionEnd conditionEnd(MonsterTemplates.Part effect, Integer overrideSaveDc,
                                                     int saveDc, Optional<Ability> saveAbility) {
+        if (effect.endsWith() != null && !effect.endsWith().isBlank()) {
+            return effect.endsOnDamage() ? new Effect.ConditionEnd(null, null, null, false, true) : null;
+        }
         Integer duration = effect.durationRounds() != null && effect.durationRounds() > 0
                 ? effect.durationRounds() : null;
         Effect.RepeatSave repeatSave = null;
@@ -513,7 +661,9 @@ public class MonsterEffects {
         Integer escapeDc = effect.escapeDc() != null && effect.escapeDc() > 0 ? effect.escapeDc() : null;
         // "Until the end of the scarecrow's next turn" ends at the end of the user's turn (MM p.268, D202)
         return duration != null || repeatSave != null || escapeDc != null || effect.endOfUsersTurn()
-                ? new Effect.ConditionEnd(duration, repeatSave, escapeDc, effect.endOfUsersTurn()) : null;
+                || effect.endsOnDamage()
+                ? new Effect.ConditionEnd(duration, repeatSave, escapeDc, effect.endOfUsersTurn(),
+                        effect.endsOnDamage()) : null;
     }
 
     // There is no map, so a melee attack counts as within 5 feet and a ranged one as not (D161)
