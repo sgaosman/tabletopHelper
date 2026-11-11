@@ -3639,13 +3639,23 @@ public class EffectApplier {
             return ability + " vs DC " + save.dc() + " fails automatically";
         }
         if (roll.d20() == null) {
-            return ability + " vs DC " + save.dc() + " succeeds automatically against "
-                    + String.join(", ", save.conditions());
+            return ability + " vs DC " + save.dc() + " succeeds automatically against " + guardedText(save);
         }
         String rolled = ability + " " + saveDice(roll) + signed(roll.total() - roll.d20() - Resolver.sum(roll.bonuses()))
                 + bonusText(roll.bonuses()) + " = " + roll.total() + " vs DC " + save.dc();
-        return roll.success() ? rolled + " succeeds against " + String.join(", ", save.conditions())
-                : rolled + " fails";
+        return roll.success() ? rolled + " succeeds against " + guardedText(save) : rolled + " fails";
+    }
+
+    // What a hit's save guards: its conditions, and its damage, "4d8 poison (half on a success)" (D202)
+    private static String guardedText(Effect.HitSave save) {
+        List<String> guarded = new ArrayList<>(save.conditions());
+        if (!save.damage().isEmpty()) {
+            guarded.add(save.damage().stream()
+                    .map(part -> part.dice() + (part.type() != null ? " " + part.type() : ""))
+                    .collect(Collectors.joining(" + ")) + " damage"
+                    + (save.halfDamageOnSuccess() ? " (half taken)" : ""));
+        }
+        return String.join(", ", guarded);
     }
 
     // A save's modes with what a trait such as Magic Resistance adds against a spell (D191), and the log's words for it,

@@ -228,6 +228,13 @@ public final class Resolver {
                     riders, spentOneShots);
         }
 
+        /** The same outcome giving only these conditions, as for a target too big for the others (D202). */
+        public TargetOutcome withConditions(List<String> changed) {
+            return new TargetOutcome(targetId, outcome, d20s, d20, total, rollMode, autoFailed, damage, successDamage,
+                    healing, changed, hitSave, inspiration, guidedStrike, rerolledD20s, automaticSources, bonuses,
+                    riders, spentOneShots);
+        }
+
         /** An outcome no Ongoing Modifier changed. */
         public TargetOutcome(UUID targetId, Outcome outcome, List<Integer> d20s, Integer d20, Integer total,
                              RollMode rollMode, boolean autoFailed, List<Damage> damage, List<Damage> successDamage,
@@ -504,7 +511,7 @@ public final class Resolver {
                     damage, List.of(), healing, effect.conditions(), null, inspiration, guidedStrike, rerolledD20s,
                     automatic, bonuses, riders, spent);
         }
-        // The save decides only the conditions it guards, so a success would leave all of the damage
+        // The save decides the conditions it guards and the damage it guards (D202); the hit's own damage stands
         SaveRoll save = target.autoSucceed() ? new SaveRoll(null, null, true, false)
                 : savingThrow(hitSave.ability(), target.saveModifier(), hitSave.dc(), target.conditions(),
                         target.strDexDisadvantage(), target.saveSources(), modifiers.saveBonuses());
@@ -512,9 +519,29 @@ public final class Resolver {
         List<String> conditions = effect.conditions().stream()
                 .filter(condition -> !save.success() || !hitSave.conditions().contains(condition))
                 .toList();
+        // Its damage is rolled after the save, unless a success prevents all of it; a critical hit doesn't double it,
+        // as it isn't the attack's damage (PHB p.196)
+        List<Damage> successDamage = damage;
+        if (!hitSave.damage().isEmpty() && (!save.success() || hitSave.halfDamageOnSuccess())) {
+            List<Damage> guarded = rollDamage(hitSave.damage(), false, 0);
+            List<Damage> onSuccess = hitSave.halfDamageOnSuccess() ? halved(guarded) : List.of();
+            successDamage = combined(damage, onSuccess);
+            damage = combined(damage, save.success() ? onSuccess : guarded);
+        }
         return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
-                damage, save.success() ? List.of() : damage, healing, conditions, save, inspiration, guidedStrike,
-                rerolledD20s, automatic, bonuses, riders, spent);
+                damage, save.success() ? List.of() : successDamage, healing, conditions, save, inspiration,
+                guidedStrike, rerolledD20s, automatic, bonuses, riders, spent);
+    }
+
+    // Two damage lists as one, each type's amounts added together, in the order the types first come
+    private static List<Damage> combined(List<Damage> first, List<Damage> second) {
+        if (second.isEmpty()) {
+            return first;
+        }
+        Map<String, Integer> byType = new LinkedHashMap<>();
+        first.forEach(each -> byType.merge(each.type(), each.amount(), Integer::sum));
+        second.forEach(each -> byType.merge(each.type(), each.amount(), Integer::sum));
+        return byType.entrySet().stream().map(e -> new Damage(e.getKey(), e.getValue())).toList();
     }
 
     // Each rider rolled, its dice doubled on a critical hit; one with no type of its own takes the attack's own type

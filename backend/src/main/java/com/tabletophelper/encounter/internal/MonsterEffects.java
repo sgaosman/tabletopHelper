@@ -25,6 +25,12 @@ import java.util.UUID;
  * failed save stuns. A multiattack becomes one step per component (D165), each against the targets chosen for it or,
  * as before, every component against the same targets; Eye Rays become one saving throw per ray, each at the next
  * target in turn. An action the template leaves to the DM comes back with the reason and no steps.
+ * <p>
+ * A hit's riders (D202): damage with its own save is dealt only as the hit's save allows, half or none on a success,
+ * as a phase spider's poison (MM p.334); damage with an onlyIf, and a condition's size limit, depend on the target or
+ * the attacker when the action is used, so they ride on the step as {@link Riders}, which {@link MonsterRiders} works
+ * out against each target. Outside an attack, damage with its own save is the action's, and conditional damage the
+ * DM's.
  */
 @Component
 @RequiredArgsConstructor
@@ -35,8 +41,57 @@ public class MonsterEffects {
     // Chooses which eye rays fire
     private final Rng rng;
 
-    /** One Effect of an action and the targets it reaches: a multiattack component, or an eye ray. */
-    public record Step(String label, Effect effect, List<UUID> targetIds) {
+    /**
+     * One Effect of an action and the targets it reaches: a multiattack component, or an eye ray.
+     *
+     * @param riders what the Effect does only to some targets, which MonsterRiders works out against each (D202)
+     */
+    public record Step(String label, Effect effect, List<UUID> targetIds, Riders riders) {
+
+        public Step {
+            riders = riders != null ? riders : Riders.NONE;
+        }
+
+        /** A step with no riders. */
+        public Step(String label, Effect effect, List<UUID> targetIds) {
+            this(label, effect, targetIds, Riders.NONE);
+        }
+    }
+
+    /**
+     * What an action's Effect does only to some targets, which depends on the target or the attacker when it is used
+     * (D202): the largest size each condition reaches, by condition, and the damage dealt only when its condition
+     * holds, such as a gray render's claw's bludgeoning against a prone target (MTF p.209).
+     *
+     * @param firstDamageParts how many of the Effect's damage parts its first damage is, which an alternative that
+     *                         replaces the damage takes the place of, as a duergar's 2d8 + 2 while enlarged (MM p.122)
+     */
+    public record Riders(Map<String, String> maxTargetSize, List<ConditionalDamage> conditionalDamage,
+                         int firstDamageParts) {
+
+        public static final Riders NONE = new Riders(Map.of(), List.of(), 0);
+
+        public Riders {
+            maxTargetSize = Map.copyOf(maxTargetSize);
+            conditionalDamage = List.copyOf(conditionalDamage);
+        }
+
+        public boolean none() {
+            return maxTargetSize.isEmpty() && conditionalDamage.isEmpty();
+        }
+    }
+
+    /**
+     * Damage dealt only when its condition holds (D202).
+     *
+     * @param replacesDamage it replaces the Effect's first damage rather than adding to it
+     */
+    public record ConditionalDamage(List<Effect.DamagePart> damage, MonsterTemplates.DamageCondition onlyIf,
+                                    boolean replacesDamage) {
+
+        public ConditionalDamage {
+            damage = List.copyOf(damage);
+        }
     }
 
     /**
@@ -83,18 +138,28 @@ public class MonsterEffects {
      *                     null for any number
      */
     public record MultiattackComponent(String name, Effect effect, String manualReason, List<String> notes,
-                                       Integer maxTargets) {
+                                       Integer maxTargets, Riders riders) {
+
+        public MultiattackComponent {
+            riders = riders != null ? riders : Riders.NONE;
+        }
+
+        /** A component with no riders. */
+        public MultiattackComponent(String name, Effect effect, String manualReason, List<String> notes,
+                                    Integer maxTargets) {
+            this(name, effect, manualReason, notes, maxTargets, Riders.NONE);
+        }
 
         public boolean automated() {
             return manualReason == null;
         }
     }
 
-    // An action's Effect, or why the DM resolves it, with what the log should add
-    private record Read(Effect effect, String manualReason, List<String> notes) {
+    // An action's Effect, or why the DM resolves it, with what the log should add and its riders (D202)
+    private record Read(Effect effect, String manualReason, List<String> notes, Riders riders) {
 
         static Read manual(String reason) {
-            return new Read(null, reason, List.of());
+            return new Read(null, reason, List.of(), Riders.NONE);
         }
     }
 
@@ -118,8 +183,8 @@ public class MonsterEffects {
         if (read.effect() == null) {
             return manual(name, read.manualReason());
         }
-        return new MonsterAction(name, List.of(new Step(name, read.effect(), List.copyOf(targetIds))), null,
-                read.notes());
+        return new MonsterAction(name, List.of(new Step(name, read.effect(), List.copyOf(targetIds), read.riders())),
+                null, read.notes());
     }
 
     /**
@@ -141,7 +206,7 @@ public class MonsterEffects {
             List<UUID> targets = i < componentTargets.size() && componentTargets.get(i) != null
                     ? componentTargets.get(i) : List.of();
             if (!targets.isEmpty()) {
-                steps.add(new Step(component.name(), component.effect(), List.copyOf(targets)));
+                steps.add(new Step(component.name(), component.effect(), List.copyOf(targets), component.riders()));
                 notes.addAll(component.notes());
             }
         }
@@ -187,7 +252,8 @@ public class MonsterEffects {
         Read read = read(name, template, overrides);
         Integer maxTargets = read.effect() != null && read.effect().delivery() instanceof Effect.Attack
                 ? Math.max(1, template.targetCount() != null ? template.targetCount() : 1) : null;
-        return new MultiattackComponent(name, read.effect(), read.manualReason(), read.notes(), maxTargets);
+        return new MultiattackComponent(name, read.effect(), read.manualReason(), read.notes(), maxTargets,
+                read.riders());
     }
 
     // What a single action does, or why the DM resolves it
@@ -238,14 +304,17 @@ public class MonsterEffects {
         List<String> conditions = parts.conditions();
         switch (deliveryMethod.toUpperCase()) {
             case "ATTACK_ROLL" -> {
-                // A hit makes one save at most, so conditions that record different ones are the DM's
+                // A hit makes one save at most, so conditions and damage that record different ones are the DM's
                 Set<ConditionSave> saves = new LinkedHashSet<>(parts.conditionSaves().values());
+                saves.addAll(parts.damageSaves());
                 if (saves.size() > 1) {
                     return Read.manual(name + "'s conditions record different saving throws");
                 }
+                // The damage it guards is dealt only as the save allows (D202)
                 Effect.HitSave hitSave = saves.stream().findFirst()
                         .map(save -> new Effect.HitSave(save.ability(), save.dc(),
-                                List.copyOf(parts.conditionSaves().keySet())))
+                                List.copyOf(parts.conditionSaves().keySet()), parts.guardedDamage(),
+                                parts.halfOnSave()))
                         .orElse(null);
                 // A melee or ranged spell attack in a stat block is no weapon attack, which weapon-only Ongoing
                 // Modifiers need (D184)
@@ -265,8 +334,26 @@ public class MonsterEffects {
                 return Read.manual("Delivery method '" + deliveryMethod + "' requires DM adjudication");
             }
         }
-        return new Read(new Effect(name, delivery, parts.damage(), null, conditions, false, null,
-                parts.conditionEnds()), null, List.copyOf(notes));
+        List<Effect.DamagePart> damage = parts.damage();
+        Riders riders = parts.riders();
+        if (!(delivery instanceof Effect.Attack)) {
+            // Only a hit's damage waits on a save of its own or a condition (D202): elsewhere a save's damage is the
+            // action's, and conditional damage is the DM's
+            damage = new ArrayList<>(damage);
+            damage.addAll(parts.guardedDamage());
+            for (ConditionalDamage conditional : riders.conditionalDamage()) {
+                notes.add(name + "'s extra damage " + conditionText(conditional) + " is left to the DM.");
+            }
+            riders = new Riders(riders.maxTargetSize(), List.of(), riders.firstDamageParts());
+        }
+        return new Read(new Effect(name, delivery, damage, null, conditions, false, null,
+                parts.conditionEnds()), null, List.copyOf(notes), riders);
+    }
+
+    // "(if the target is prone)", the stat block's words for a conditional damage
+    static String conditionText(ConditionalDamage conditional) {
+        String text = conditional.onlyIf() != null ? conditional.onlyIf().text() : null;
+        return "(" + (text != null && !text.isBlank() ? text.trim() : "on a condition") + ")";
     }
 
     // rayCount rays chosen at random, each a saving throw against the next target in turn
@@ -311,9 +398,12 @@ public class MonsterEffects {
 
     // Damage parts, condition names, how each condition ends and the save the data gives against it, and whether
     // there is healing or another effect type, both of which are left to the DM; null when a part's dice can't be read
+    // Damage a hit's save guards, the saves it records and whether a success halves it are kept apart (D202), as are
+    // the riders
     private record Parts(List<Effect.DamagePart> damage, List<String> conditions,
                          Map<String, Effect.ConditionEnd> conditionEnds, Map<String, ConditionSave> conditionSaves,
-                         boolean healing, boolean other) {
+                         boolean healing, boolean other, List<Effect.DamagePart> guardedDamage,
+                         Set<ConditionSave> damageSaves, boolean halfOnSave, Riders riders) {
     }
 
     // A saving throw against a condition: its ability and DC
@@ -337,6 +427,12 @@ public class MonsterEffects {
         List<String> conditions = new ArrayList<>();
         Map<String, Effect.ConditionEnd> conditionEnds = new LinkedHashMap<>();
         Map<String, ConditionSave> conditionSaves = new LinkedHashMap<>();
+        List<Effect.DamagePart> guarded = new ArrayList<>();
+        Set<ConditionSave> damageSaves = new LinkedHashSet<>();
+        boolean halfOnSave = false;
+        Map<String, String> maxTargetSize = new LinkedHashMap<>();
+        List<ConditionalDamage> conditional = new ArrayList<>();
+        int firstDamageParts = 0;
         boolean healing = false;
         boolean other = false;
         for (MonsterTemplates.Part effect : effects) {
@@ -351,7 +447,23 @@ public class MonsterEffects {
                     }
                     String type = effect.damageType() != null && !effect.damageType().isBlank()
                             ? effect.damageType().trim().toLowerCase() : null;
-                    dice.get().forEach(d -> damage.add(new Effect.DamagePart(d, type)));
+                    List<Effect.DamagePart> read = dice.get().stream().map(d -> new Effect.DamagePart(d, type))
+                            .toList();
+                    Optional<Ability> ownAbility = Ability.parse(effect.saveAbility());
+                    if (effect.onlyIf() != null) {
+                        conditional.add(new ConditionalDamage(read, effect.onlyIf(), effect.replacesDamage()));
+                    } else if (effect.saveDc() != null && ownAbility.isPresent()) {
+                        // Dealt only as the hit's save allows, as a phase spider's poison (MM p.334, D202)
+                        guarded.addAll(read);
+                        damageSaves.add(new ConditionSave(ownAbility.get(),
+                                overrideSaveDc != null ? overrideSaveDc : effect.saveDc()));
+                        halfOnSave = halfOnSave || effect.halfOnSave();
+                    } else {
+                        if (damage.isEmpty()) {
+                            firstDamageParts = read.size();
+                        }
+                        damage.addAll(read);
+                    }
                 }
                 case "CONDITION" -> {
                     if (effect.condition() != null && !effect.condition().isBlank()) {
@@ -362,6 +474,9 @@ public class MonsterEffects {
                         Optional<Ability> saveAbility = Ability.parse(effect.saveAbility())
                                 .or(() -> Ability.parse(actionSaveAbility));
                         Effect.ConditionEnd end = conditionEnd(effect, overrideSaveDc, saveDc, saveAbility);
+                        if (effect.maxTargetSize() != null && !effect.maxTargetSize().isBlank()) {
+                            maxTargetSize.put(name, effect.maxTargetSize().trim());
+                        }
                         if (end != null) {
                             conditionEnds.put(name, end);
                         }
@@ -376,7 +491,8 @@ public class MonsterEffects {
                 default -> other = true;
             }
         }
-        return new Parts(damage, conditions, conditionEnds, conditionSaves, healing, other);
+        return new Parts(damage, conditions, conditionEnds, conditionSaves, healing, other, guarded, damageSaves,
+                halfOnSave, new Riders(maxTargetSize, conditional, firstDamageParts));
     }
 
     // Null when the effect gives the condition no duration, Repeat Save or escape DC
@@ -395,8 +511,9 @@ public class MonsterEffects {
                     .orElse(null);
         }
         Integer escapeDc = effect.escapeDc() != null && effect.escapeDc() > 0 ? effect.escapeDc() : null;
-        return duration != null || repeatSave != null || escapeDc != null
-                ? new Effect.ConditionEnd(duration, repeatSave, escapeDc) : null;
+        // "Until the end of the scarecrow's next turn" ends at the end of the user's turn (MM p.268, D202)
+        return duration != null || repeatSave != null || escapeDc != null || effect.endOfUsersTurn()
+                ? new Effect.ConditionEnd(duration, repeatSave, escapeDc, effect.endOfUsersTurn()) : null;
     }
 
     // There is no map, so a melee attack counts as within 5 feet and a ranged one as not (D161)

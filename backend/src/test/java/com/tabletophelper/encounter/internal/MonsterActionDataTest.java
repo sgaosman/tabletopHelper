@@ -88,8 +88,8 @@ class MonsterActionDataTest {
     }
 
     @Test
-    @DisplayName("Every bonus action and reaction is found under its source and plans: 63 of the 266 bonus actions "
-            + "and 85 of the 359 reactions resolve automatically, and the rest are logged for the DM (D137, D138)")
+    @DisplayName("Every bonus action and reaction is found under its source and plans: 65 of the 266 bonus actions "
+            + "and 86 of the 359 reactions resolve automatically, and the rest are logged for the DM (D137, D138)")
     void bonusActionsAndReactions() {
         List<String> missing = new ArrayList<>();
         Map<String, int[]> counts = new LinkedHashMap<>(Map.of("BONUS", new int[2], "REACTION", new int[2]));
@@ -108,8 +108,11 @@ class MonsterActionDataTest {
         }
 
         assertEquals(List.of(), missing);
-        assertArrayEquals(new int[]{63, 203}, counts.get("BONUS"));
-        assertArrayEquals(new int[]{85, 274}, counts.get("REACTION"));
+        // D202 reads the later "has the X condition" wording, so the Death Giant Shrouded One's Frightening Teleport,
+        // the Fomorian Noble's Beguiling Presence (bonus actions) and the Shator Warden's Poisonous Slime (a reaction)
+        // now give their conditions automatically: 63 and 85 before
+        assertArrayEquals(new int[]{65, 201}, counts.get("BONUS"));
+        assertArrayEquals(new int[]{86, 273}, counts.get("REACTION"));
     }
 
     @Test

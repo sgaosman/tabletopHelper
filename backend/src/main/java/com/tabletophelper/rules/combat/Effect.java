@@ -112,6 +112,12 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
                     weapon);
         }
 
+        /** The same attack whose hit calls for this save, or none (D202). */
+        public Attack withHitSave(HitSave changed) {
+            return new Attack(bonus, rollMode, withinFiveFeet, forcedCritical, changed, otherSources, critRange, rescue,
+                    weapon);
+        }
+
         /** The same attack as a weapon attack or not, such as a spell attack (D184). */
         public Attack withWeapon(boolean isWeapon) {
             return new Attack(bonus, rollMode, withinFiveFeet, forcedCritical, hitSave, otherSources, critRange, rescue,
@@ -177,15 +183,37 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
     /**
      * A saving throw a target makes when an attack hits it, against the conditions it names: the target gets them
      * only on a failure, as a dire wolf's bite knocks a creature prone only on a failed DC 13 Strength save (MM).
-     * The hit's damage stands either way.
+     * The hit's own damage stands either way; damage the save guards, as a phase spider's poison (MM p.334), is dealt
+     * in full on a failure and halved or prevented on a success (D202).
      *
-     * @param conditions the Effect's conditions it guards; the others come with the hit
+     * @param conditions          the Effect's conditions it guards; the others come with the hit
+     * @param damage              damage dealt only as the save allows, beside the Effect's own; empty for none. It isn't
+     *                            the attack's damage, so a critical hit doesn't double its dice (PHB p.196)
+     * @param halfDamageOnSuccess whether a success halves that damage; otherwise it prevents it
      */
-    public record HitSave(Ability ability, int dc, List<String> conditions) {
+    public record HitSave(Ability ability, int dc, List<String> conditions, List<DamagePart> damage,
+                          boolean halfDamageOnSuccess) {
 
         public HitSave {
             Objects.requireNonNull(ability, "ability");
             conditions = List.copyOf(conditions);
+            damage = damage != null ? List.copyOf(damage) : List.of();
+        }
+
+        /** A save that guards only conditions. */
+        public HitSave(Ability ability, int dc, List<String> conditions) {
+            this(ability, dc, conditions, List.of(), false);
+        }
+
+        /** The same save guarding none of these conditions, as for a target too big for them (D202). */
+        public HitSave without(java.util.Collection<String> dropped) {
+            return new HitSave(ability, dc, conditions.stream().filter(c -> !dropped.contains(c)).toList(), damage,
+                    halfDamageOnSuccess);
+        }
+
+        /** Whether it guards nothing, so no save is needed. */
+        public boolean guardsNothing() {
+            return conditions.isEmpty() && damage.isEmpty();
         }
     }
 
