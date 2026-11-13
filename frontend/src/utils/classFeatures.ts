@@ -5,13 +5,14 @@ import { chargeBlock, poolMetadata, type EconomyCost } from './turnEconomy';
 /**
  * The class features a pool's use does more than spend (M17), as the server names them in the pool's metadata.effect:
  * Rage, Second Wind, Lay on Hands, Ki, Channel Divinity, Bardic Inspiration, Arcane Recovery (used only on a short
- * rest) and Wild Shape. The server decides what each use does; this only words and offers it.
+ * rest) and Wild Shape; and a hydra's Heads (D206), which the DM changes as heads die or regrow. The server decides
+ * what each use does; this only words and offers it.
  */
 export type PoolEffect = 'rage' | 'second-wind' | 'lay-on-hands' | 'ki' | 'channel-divinity' | 'bardic-inspiration'
-  | 'arcane-recovery' | 'wild-shape';
+  | 'arcane-recovery' | 'wild-shape' | 'heads';
 
 const POOL_EFFECTS: PoolEffect[] = ['rage', 'second-wind', 'lay-on-hands', 'ki', 'channel-divinity',
-  'bardic-inspiration', 'arcane-recovery', 'wild-shape'];
+  'bardic-inspiration', 'arcane-recovery', 'wild-shape', 'heads'];
 
 /** What a pool use sends besides the participant and the pool: its uses, option and target. */
 export type PoolUseOptions = Omit<UsePoolRequest, 'participantId' | 'poolId'>;
@@ -158,6 +159,7 @@ export function poolEffectText(effect: PoolEffect | null): string | null {
     case 'bardic-inspiration': return 'give another creature an inspiration die for 10 minutes';
     case 'arcane-recovery': return 'used when finishing a short rest, on the character sheet';
     case 'wild-shape': return 'become a beast you have seen, for up to half your druid level in hours';
+    case 'heads': return 'its multiattack bites once per head; change it as heads die or regrow';
     default: return null;
   }
 }

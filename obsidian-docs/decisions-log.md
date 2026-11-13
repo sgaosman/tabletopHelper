@@ -3968,3 +3968,28 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D182, D193, D194, D202, D203, D204
 
 **Tests:** `GeneratedMonstersTest` (9), `GeneratedMonstersIT` (3: a Purple Worm swallowing a guard who crawls out of its corpse, a Balor's Longsword and Whip, a Horned Devil's bleeding tail wound); updated counts in `StatBlockActionsTest` (294 generated entries), `MonsterActionDataTest` and the rider data tests (40 swallows); 3,422 backend unit and 529 integration tests.
+
+
+## D206: Engulfing Behind a Save Each Turn, and Hydra Heads
+
+**Date:** 2026-11-13
+**Status:** Accepted — implemented (no migration; monster action data changed)
+
+**Context:** the user's review of [[#D204]] and [[#D205]] asked about two open items. The Shambling Mound's Engulf (MM p.270) was wrongly read as a save to avoid it, and its damage each turn sits behind a Constitution save each turn, which [[#D203]]'s damage-each-turn rider couldn't express; the user asked for it fixed. The Dracohydra's multiattack makes one Bite per head, and the user asked that the DM choose its number of heads when adding it.
+
+**Decision:**
+- **Shambling Mound's Engulf:** no save to be engulfed. The action is refused with a 409 unless the target is grappled by the mound, Medium or smaller, and the mound holds no other engulfed creature. The engulfed creature is blinded and restrained, both tied to `engulfed` ([[#D203]]'s links), and `engulfed` is tied to the grapple. At the start of each of the mound's turns the app rolls the creature's DC 14 Constitution save, with 2d8 + 4 bludgeoning on a failure. "Unable to breathe" stays a note.
+- **Save each turn, generic:** a damage-each-turn rider may carry `turnSave` (ability, DC, and none or half on a success), rolled before the damage. It also covers the Boneless's Crushing Embrace (VRGR) and the Parasite-infested Behir's parasites (8d8 necrotic, DC 19, halved on a success).
+- **Effects when both attacks hit:** a multiattack may carry `onAllHit`: when every listed attack hits the same target, its effects apply. The Shambling Mound's two Slams grapple (escape DC 14) and engulf at once, as the stat block says.
+- **Attached creatures:** a creature attached to a monster now drops off when that monster dies or leaves the encounter. This also affects stirges.
+- **Heads:** a monster whose multiattack makes an attack per head (Hydra, Dracohydra, Snapping Hydra, Goose Mother, Ironscale Hydra, Polukranos) gets a `monster:heads` resource pool, starting at the stat block's count (5 for each). The encounter builder shows a "Heads" box for those monsters only, prefilled with the stat block's count (1–20; `AddParticipantRequest.heads`, 400 for any other monster), and the monster's JSON carries its read-only `heads`. The multiattack makes one Bite per current head (409 at 0) and logs the Multiple Heads trait as a reminder. "Head dies" and "Head grows" buttons change the count at no cost to the turn; growing past the maximum raises it, and losing the last head kills the hydra ("If all its heads die, the hydra dies", MM p.190).
+
+**Rules calls (the lead's, to confirm):** the Shambling Mound gives the engulfed creature no total cover, unlike the gelatinous cube and purple worm, so others can still attack it. Engulfing ends with the grapple (escape DC 14) or the mound's death; the stat block names no other way out.
+
+**Trade-offs and open items:** heads dying from 25 damage in a turn, two growing back at the end of its turn unless it took fire damage, and the 10 hit points per regrown head stay with the DM. The Dracohydra's Bites are still made by hand, because the dracohydra chooses each Bite's damage type; a per-use damage-type option on monster actions would automate it (8 monsters use one). The Regisaur's 2024-style Swallow stays manual. Needs a map: an engulfed or held creature moving with the Shambling Mound or the Boneless.
+
+**Key files:** `backend/scripts/generate_monster_actions.py`, `data/monster-actions/monster-action-definitions.json`, `monster/MonsterTemplates.java`, `monster/Monster.java`, `encounter/internal/MonsterHitEffects.java`, `MonsterActionService.java`, `MonsterEffects.java`, `MonsterRiders.java`, `MonsterPools.java`, `PoolUseService.java`, `EffectApplier.java`, `CombatAccess.java`, `encounter/state/SpellEffectEntry.java`, `encounter/dto/AddParticipantRequest.java`, `pages/dm/EncounterBuilderPage.tsx`, `components/common/ResourcePoolDisplay.tsx`
+
+**Related:** D125, D182, D203, D204, D205
+
+**Tests:** `EngulfAndHeadsTest` (16), `EngulfAndHeadsDataTest` (4), `EngulfAndHeadsIT` (5), updated counts in `MonsterRidersStepsDataTest`, `MonsterRidersTailDataTest`, `StatBlockActionsTest` and `GeneratedMonstersTest`, and Vitest cases for the builder's Heads box and the pool buttons; 3,442 backend unit, 534 integration and 1,204 frontend tests. Checked in the browser on the rehearsal copy: a Dracohydra added with 3 heads got a 3/3 Heads pool.

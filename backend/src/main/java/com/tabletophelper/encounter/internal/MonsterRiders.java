@@ -197,6 +197,29 @@ final class MonsterRiders {
                 : "one of those grapples ends");
     }
 
+    /**
+     * Why an action used only on a creature the monster grapples, needing no roll and dealing no damage, can't be used
+     * on these targets: it would leave one of them nothing, as a shambling mound's Engulf on a Large creature or while
+     * it already has one engulfed (MM p.270, D206); null when it can.
+     */
+    static String outrightRefusal(Effect effect, MonsterEffects.Riders riders, EncounterParticipant attacker,
+                                  List<EncounterParticipant> targets) {
+        if (attacker == null || !riders.lasting().targetGrappled() || !(effect.delivery() instanceof Effect.Automatic)
+                || !effect.damage().isEmpty() || effect.conditions().isEmpty()) {
+            return null;
+        }
+        for (EncounterParticipant target : targets) {
+            List<String> notes = new ArrayList<>();
+            List<String> dropped = dropped(effect, riders, attacker, target, notes);
+            if (dropped.containsAll(effect.conditions())) {
+                return attacker.getDisplayName() + "'s " + effect.name() + " can't be used on "
+                        + target.getDisplayName() + (notes.isEmpty() ? "" : ": " + String.join(" ", notes)
+                        .replaceAll("\\.$", ""));
+            }
+        }
+        return null;
+    }
+
     // The creatures the attacker's action holds grappled, the living ones
     static List<EncounterParticipant> held(EncounterParticipant attacker, String action) {
         return everyone(attacker).stream()

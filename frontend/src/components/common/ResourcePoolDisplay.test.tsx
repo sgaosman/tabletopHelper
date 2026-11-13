@@ -245,6 +245,33 @@ describe('ResourcePoolDisplay', () => {
 
       await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Bonus action already used this turn'));
     });
+
+    // A hydra's heads, which the DM changes as they die or regrow (D206)
+    const headsPool = (currentUses: number) => makeMockResourcePool('monster:heads', 'Heads', {
+      sourceType: 'MONSTER', sourceName: 'Hydra', maxUses: 5, currentUses, spendActionType: 'FREE',
+      metadata: metadata({ effect: 'heads' }),
+    });
+    const hydra = (entries: ResourcePoolEntry[]) =>
+      makeMockParticipant('part-hydra', 'Hydra', 'MONSTER', { isCurrentTurn: false, resourcePoolsCurrent: entries });
+
+    it("offers the DM a hydra's heads to die or grow, with no plain Use", async () => {
+      const { onUse, user } = renderAtTable(hydra([headsPool(4)]), { asDm: true });
+
+      expect(screen.getByText('4/5')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Use Heads' })).not.toBeInTheDocument();
+      expect(screen.getByText(/bites once per head/)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'A head dies (Heads)' }));
+      expect(onUse).toHaveBeenCalledWith('monster:heads', { option: 'lose' });
+      await user.click(screen.getByRole('button', { name: 'A head grows (Heads)' }));
+      expect(onUse).toHaveBeenCalledWith('monster:heads', { option: 'grow' });
+    });
+
+    it('lets no more heads die once none is left, though they can still grow', () => {
+      renderAtTable(hydra([headsPool(0)]), { asDm: true });
+
+      expect(screen.getByRole('button', { name: 'A head dies (Heads)' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'A head grows (Heads)' })).toBeEnabled();
+    });
   });
 
   // ── Class features at the table (M17) ────────────────────────────

@@ -282,11 +282,15 @@ class GeneratedMonstersTest {
         assertEquals(List.of("Longsword", "Longsword", "Longsword", "Longbow", "Longbow", "Longbow"),
                 components("Naergoth Bladelord", "RoT"));
         assertEquals(List.of("Tentacle", "Tentacle"), components("Young Kraken", "LR"));
-        // "as many Bite attacks as it has heads" is the DM's, as the hand-built hydra's is
+        // "as many Bite attacks as it has heads" makes a Bite for each head the hydra has, its count and rules from
+        // its Multiple Heads trait (D206)
         MonsterTemplates.Action hydra = templates("Ironscale Hydra", "MOT").find("ACTION", "Multiattack")
                 .orElseThrow();
         assertTrue(hydra.multiattackComponents().isEmpty());
-        assertNotNull(hydra.multiattackNote());
+        assertNull(hydra.multiattackNote());
+        assertEquals(5, hydra.heads().count());
+        assertEquals("Bite", hydra.heads().attack());
+        assertTrue(hydra.heads().rules().startsWith("While it has more than one head"), hydra.heads().rules());
     }
 
     private List<String> components(String monster, String source) {

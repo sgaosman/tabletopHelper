@@ -185,9 +185,20 @@ public class MonsterEffects {
      *
      * @param components the actions it makes, in order; none when it can't be read
      * @param unreadable why the DM resolves it by hand, or null
+     * @param notes      what the combat log should add when it is used, as a hydra's head rules (D206)
      */
     public record Multiattack(String name, String description, List<MultiattackComponent> components,
-                              String unreadable) {
+                              String unreadable, List<String> notes) {
+
+        public Multiattack {
+            notes = notes != null ? List.copyOf(notes) : List.of();
+        }
+
+        /** A multiattack with nothing for the log beyond its components' notes. */
+        public Multiattack(String name, String description, List<MultiattackComponent> components,
+                           String unreadable) {
+            this(name, description, components, unreadable, List.of());
+        }
 
         public boolean readable() {
             return unreadable == null;
@@ -237,12 +248,23 @@ public class MonsterEffects {
      */
     public MonsterAction plan(MonsterTemplates.Action action, MonsterTemplates templates, List<UUID> targetIds,
                               Overrides overrides) {
+        return plan(action, templates, targetIds, overrides, null);
+    }
+
+    /**
+     * The action against the named targets, a multiattack that attacks once per head making as many attacks as the
+     * monster has heads (D206).
+     *
+     * @param heads how many heads the monster has now, or null for the stat block's count
+     */
+    public MonsterAction plan(MonsterTemplates.Action action, MonsterTemplates templates, List<UUID> targetIds,
+                              Overrides overrides, Integer heads) {
         String name = nameOf(action);
         if (action.eyeRays()) {
             return eyeRays(name, action, targetIds, overrides.saveDc());
         }
         if (action.multiattack()) {
-            Multiattack multiattack = multiattack(action, templates, overrides);
+            Multiattack multiattack = multiattack(action, templates, overrides, heads);
             return multiattack(multiattack, multiattack.components().stream().map(component -> targetIds).toList());
         }
         Read read = read(name, action, overrides);
@@ -276,6 +298,7 @@ public class MonsterEffects {
                 notes.addAll(component.notes());
             }
         }
+        notes.addAll(multiattack.notes());
         return new MonsterAction(multiattack.name(), steps, null, notes.stream().distinct().toList());
     }
 
@@ -287,18 +310,43 @@ public class MonsterEffects {
      * component that is itself a multiattack or Eye Rays is the DM's too.
      */
     public Multiattack multiattack(MonsterTemplates.Action action, MonsterTemplates templates, Overrides overrides) {
+        return multiattack(action, templates, overrides, null);
+    }
+
+    /**
+     * A multiattack's components, a hydra's making its attack once per head it has (MM p.190, D206): the heads given,
+     * or the stat block's count without them, in place of any component of that attack's name, before the others, as
+     * the Goose Mother's Beaks before its Wing (MCV4EC). Its head rules go in its notes for the log; a monster with no
+     * heads left makes none of those attacks.
+     *
+     * @param heads how many heads the monster has now, or null for the stat block's count
+     */
+    public Multiattack multiattack(MonsterTemplates.Action action, MonsterTemplates templates, Overrides overrides,
+                                   Integer heads) {
         String name = nameOf(action);
         String description = action.multiattackDescription() != null ? action.multiattackDescription()
                 : action.description();
-        if (action.multiattackComponents().isEmpty()) {
-            return new Multiattack(name, description, List.of(), name + " has no components defined");
+        MonsterTemplates.Heads perHead = action.heads() != null && action.heads().attack() != null
+                && action.heads().count() != null ? action.heads() : null;
+        List<String> names = new ArrayList<>(action.multiattackComponents());
+        List<String> notes = new ArrayList<>();
+        if (perHead != null) {
+            int count = Math.max(0, heads != null ? heads : perHead.count());
+            names.removeIf(component -> component.trim().equalsIgnoreCase(perHead.attack().trim()));
+            names.addAll(0, java.util.Collections.nCopies(count, perHead.attack()));
+            notes.add(headsNote(count, perHead));
         }
-        if (action.multiattackNote() != null) {
+        if (names.isEmpty()) {
+            return new Multiattack(name, description, List.of(), perHead != null
+                    ? name + " makes no " + perHead.attack() + " attacks with no heads left" : name
+                    + " has no components defined");
+        }
+        if (action.multiattackNote() != null && perHead == null) {
             return new Multiattack(name, description, List.of(),
                     name + "'s attacks can't be read from its stat block");
         }
         List<MultiattackComponent> components = new ArrayList<>();
-        for (String componentName : action.multiattackComponents()) {
+        for (String componentName : names) {
             Optional<MonsterTemplates.Action> template = templates.component(componentName);
             if (template.isEmpty()) {
                 return new Multiattack(name, description, List.of(),
@@ -306,7 +354,15 @@ public class MonsterEffects {
             }
             components.add(component(template.get(), templates, overrides));
         }
-        return new Multiattack(name, description, components, null);
+        return new Multiattack(name, description, components, null, notes);
+    }
+
+    // "With 5 heads it makes 5 Bite attacks. Multiple Heads (...): ...", the log's reminder (D206)
+    private static String headsNote(int count, MonsterTemplates.Heads heads) {
+        String rules = heads.rules() != null && !heads.rules().isBlank() ? " " + sentence(heads.rules().trim()) : "";
+        return "With " + count + " head" + (count == 1 ? "" : "s") + " it makes " + count + " " + heads.attack()
+                + " attack" + (count == 1 ? "" : "s") + ". Multiple Heads (the DM changes its Heads pool as heads die "
+                + "or regrow):" + rules;
     }
 
     private MultiattackComponent component(MonsterTemplates.Action template, MonsterTemplates templates,

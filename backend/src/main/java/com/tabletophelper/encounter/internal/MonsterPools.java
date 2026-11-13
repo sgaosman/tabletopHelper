@@ -16,6 +16,7 @@ import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Expression;
 import com.tabletophelper.rules.ProficiencyBonus;
+import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -45,6 +46,11 @@ import java.util.regex.Pattern;
 @Component
 @RequiredArgsConstructor
 public class MonsterPools {
+
+    /** The pool that counts a hydra's heads (MM p.190, D206). */
+    public static final String HEADS = "monster:heads";
+    /** The Heads pool's effect, which its use at the table carries out (D206). */
+    public static final String HEADS_EFFECT = "heads";
 
     // The pool that counts a monster's legendary actions each round
     private static final String LEGENDARY_ACTIONS = "monster:legendary-actions";
@@ -187,7 +193,39 @@ public class MonsterPools {
                 pools.putIfAbsent(poolId, SpellSources.innatePool(spell.name(), uses, "MONSTER", monster.getName()));
             }
         }
+        // A hydra's heads, as many as its stat block gives (MM p.190, D206)
+        templates.heads().ifPresent(heads -> pools.putIfAbsent(HEADS, headsPool(monster.getName(), heads.count())));
         return new ArrayList<>(pools.values());
+    }
+
+    /**
+     * A hydra's heads (MM p.190, D206): how many it has now, which its multiattack makes as many bites as. The DM
+     * chooses the number when adding it, the stat block's by default, and changes it as heads die or regrow through
+     * the pool's use (PoolUseService): a use is a head that dies, and growing heads raises the pool's maximum when
+     * there are more than ever. It never resets on its own.
+     *
+     * @param count how many heads it has, at least 1
+     */
+    public static ResourcePoolEntry headsPool(String monsterName, int count) {
+        return new ResourcePoolEntry(HEADS, "Heads", "MONSTER", monsterName, count, null, count, "never", null, null,
+                "FREE", "git-branch", Map.of("effect", HEADS_EFFECT));
+    }
+
+    /**
+     * Sets the participant's head count as the DM chose it when adding the monster (D206).
+     *
+     * @throws ValidationException for a monster without heads
+     */
+    public void chooseHeads(EncounterParticipant participant, Monster monster, int count) {
+        if (templates(monster).heads().isEmpty()) {
+            throw new ValidationException(monster.getName() + " has no heads to count: only a monster whose "
+                    + "multiattack makes an attack for each of its heads, as a hydra's, takes heads");
+        }
+        List<ResourcePoolEntry> pools = new ArrayList<>(participant.getResourcePoolsCurrent() != null
+                ? participant.getResourcePoolsCurrent() : List.of());
+        pools.removeIf(pool -> pool != null && HEADS.equals(pool.poolId()));
+        pools.add(headsPool(monster.getName(), count));
+        participant.setResourcePoolsCurrent(pools);
     }
 
     // The entries that can recharge on a d6, the actions, bonus actions and reactions (D174), each with what it costs

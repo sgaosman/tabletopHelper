@@ -923,6 +923,15 @@ def read_swallow(units):
                                'damageType': match.group(3), 'endsWith': 'swallowed', 'turnOf': 'USER'})
                 used.append(index)
                 continue
+            # More damage each turn behind a save, as a parasite-infested behir's parasites (CM, D206)
+            part = turn_save(text, 'swallowed') if 'swallowed' in text else None
+            if part is not None:
+                damage.append(part)
+                used.append(index)
+                continue
+            if IN_ADDITION.fullmatch(text) and any(p.get('turnSave') for p in damage):
+                used.append(index)
+                continue
             match = SWALLOW_DAMAGE.fullmatch(text)
             if match and used:
                 damage.extend(turn_parts(match))
@@ -1204,6 +1213,96 @@ def engulf(raw):
 ENGULF_NOTE = ("Applied by hand: the engulfed creature can't breathe and moves with the cube; a creature that succeeds "
                "can choose to be pushed 5 feet aside or take the failure; the cube holds one Large creature or up to four "
                "Medium or smaller ones. ")
+
+# Damage at the start of each of a monster's turns behind a save made each time (D206): a shambling mound's engulfed
+# creature "must succeed on a DC 14 Constitution saving throw at the start of each of the mound's turns or take 13
+# (2d8 + 4) bludgeoning damage" (MM p.270), a parasite-infested behir's swallowed one "... or be feasted upon by blood
+# parasites, taking 36 (8d8) necrotic damage on a failed save, or half as much damage on a successful save" (CM)
+TURN_SAVE = re.compile(r"(?:[a-z' -]+ )?must succeed on a dc (\d+) " + ABILITY + r" saving throw at the start of each of ("
+                       + NAME + r"'s?) turns or (?:take " + DICE + r" ([a-z]+) damage|[a-z ]+, taking " + DICE
+                       + r" ([a-z]+) damage on a failed save(, or half as much damage on a successful (?:save|one))?)")
+# "This damage is in addition to the damage caused by the behir's digestive acids", which says nothing more
+IN_ADDITION = re.compile(r"this damage is in addition to the damage (?:caused by|from) [a-z' ]+")
+
+
+def turn_save(text, condition):
+    """The ONGOING_DAMAGE part a TURN_SAVE sentence gives, tied to the condition, at the start of the monster's turns,
+    with the save made before each tick (D206); None for any other sentence."""
+    match = TURN_SAVE.fullmatch(text)
+    if not match:
+        return None
+    dice, kind = (match.group(4), match.group(5)) if match.group(4) else (match.group(6), match.group(7))
+    return {'effectType': 'ONGOING_DAMAGE', 'damageDice': dice.strip(), 'damageType': kind, 'endsWith': condition,
+            'turnOf': 'USER', 'turnSave': {'saveDC': int(match.group(1)), 'saveAbility': ABILITIES[match.group(2)],
+                                           'halfOnSave': bool(match.group(8))}}
+
+
+# A monster that engulfs or wraps itself around a creature it grapples, with no roll (D206): a shambling mound's
+# Engulf (MM p.270) and a boneless's Crushing Embrace (VRGR)
+GRAPPLED_ENGULF = re.compile(NAME + r" (engulfs|wraps its body around) an? " + SIZE_WORD
+                             + r" or smaller creature grappled by it")
+ENGULFED_STATE = re.compile(r"the engulfed (?:target|creature) is (blinded), (restrained), and unable to breathe, and "
+                            r"(it must succeed .*)")
+ATTACHED_STATE = re.compile(r"while " + NAME + r" is attached, the target is (blinded) and is unable to breathe")
+ENGULF_LIMIT = re.compile(NAME + r" can have only one creature engulfed at a time")
+BONELESS_DETACH = re.compile(r"a creature, including the target, can use its action to try to detach " + NAME + r" and force it "
+                    r"to move into the nearest unoccupied space, doing so with a successful dc (\d+) strength check")
+DIES_DETACHES = re.compile(r"when " + NAME + r" dies, it detaches from any creature it is attached to")
+
+
+def grappled_engulf(raw):
+    """The keys of an action that engulfs a creature the monster grapples, or wraps itself around one, with no roll
+    (D206): AUTO_HIT on the grappled creature, the engulfed or attached CONDITION with its size limit, the conditions
+    tied to it and its damage each turn behind a save. A shambling mound's engulfed creature stays engulfed while the
+    mound grapples it, which the text gives no other end for, with no cover, which the text doesn't give either (MM
+    p.270); a boneless's attached creature is freed with a Strength check as an action, and the boneless detaches when
+    it dies (VRGR). None for any other action."""
+    sentences = [s for s in SENTENCE.split(raw.strip()) if s.strip()]
+    match = GRAPPLED_ENGULF.fullmatch(norm(sentences[0])) if sentences else None
+    if not match:
+        return None
+    condition = 'engulfed' if match.group(1) == 'engulfs' else 'attached'
+    head = {'effectType': 'CONDITION', 'condition': condition, 'maxTargetSize': match.group(2).capitalize()}
+    tied, damage, leftover, swallow = [], [], [], {}
+    for sentence in sentences[1:]:
+        text = norm(sentence)
+        state = ENGULFED_STATE.fullmatch(text)
+        if state:
+            part = turn_save(state.group(3), condition)
+            if part is None:
+                return None
+            tied.extend([state.group(1), state.group(2)])
+            damage.append(part)
+            continue
+        state = ATTACHED_STATE.fullmatch(text)
+        if state:
+            tied.append(state.group(1))
+            continue
+        part = turn_save(text, condition)
+        if part is not None:
+            damage.append(part)
+            continue
+        if ENGULF_LIMIT.fullmatch(text):
+            swallow['limit'] = 1
+            continue
+        detach = BONELESS_DETACH.fullmatch(text)
+        if detach:
+            head['escapeDC'] = int(detach.group(1))
+            continue
+        if DIES_DETACHES.fullmatch(text):
+            continue
+        leftover.append(sentence)
+    if not damage:
+        return None
+    if condition == 'engulfed':
+        swallow.update({'keepsGrapple': True, 'cover': False})
+        head['swallow'] = swallow
+        head['endsWith'] = 'grappled'
+    parts = [head] + [{'effectType': 'CONDITION', 'condition': c, 'endsWith': condition} for c in tied] + damage
+    note = 'Applied by hand: the target is unable to breathe.'
+    if leftover:
+        note += ' ' + ' '.join(sentence_of(s) for s in leftover)
+    return {'deliveryMethod': 'AUTO_HIT', 'targetCount': 1, 'targetGrappled': True, 'effects': parts, 'dmNote': note}
 
 
 def flatten(entries):
@@ -1662,7 +1761,7 @@ def base_name(name):
     return re.sub(r'\s*\([^()]*\)\s*$', '', name).strip()
 
 
-def multiattack(entry, actions, wider=False):
+def multiattack(entry, actions, wider=False, monster=None):
     """A multiattack's components. With wider (D205, for the monsters given a whole entry then; the 126 of D194 are read
     as before, so their entries stay as they are), the reading also takes a name in the singular or plural ("four Claw
     attacks" for Claws), by its last word ("one with its stinger" for Tail Stinger), a count said before the names
@@ -1675,6 +1774,11 @@ def multiattack(entry, actions, wider=False):
     names = sorted({base_name(a['name']) for a in actions}, key=lambda n: (-len(n), n))
     components = []
     if wider and AS_MANY.search(text):
+        # A hydra's bites, one for each head it has now (D206)
+        heads = heads_of(monster, text, actions) if monster is not None else None
+        if heads is not None:
+            return {'name': 'Multiattack', 'actionType': 'ACTION', 'isMultiattack': True,
+                    'multiattackDescription': text, 'multiattackComponents': [], 'heads': heads}
         return {'name': 'Multiattack', 'actionType': 'ACTION', 'isMultiattack': True,
                 'multiattackDescription': text, 'multiattackComponents': [], '_multiattackNote': AS_MANY_NOTE}
     for sentence in SENTENCE.split(text):
@@ -1776,7 +1880,7 @@ def actions_of(monster, wider=False):
     built = [b for b in built if b]
     if wider:
         swallows(entries, built)
-    multi = [multiattack(e, built, wider) for e in entries if e['name'].startswith('Multiattack')]
+    multi = [multiattack(e, built, wider, monster) for e in entries if e['name'].startswith('Multiattack')]
     result['actions'] = multi + built
     for key_5e, key_def, action_type in (('bonus', 'bonusActions', 'BONUS_ACTION'),
                                          ('reaction', 'reactions', 'REACTION')):
@@ -1845,7 +1949,8 @@ RIDER_STATS = ('attacks matched', 'attacks changed', 'damage given a save', 'dam
                'conditions given a size limit', 'conditions given a duration or end', 'conditions removed',
                'dmNotes added', 'dmNotes extended', 'lasting riders added', 'conditions linked',
                'conditions given an exemption', 'turn damage moved off the hit', 'grapple limits added',
-               'save actions matched', 'save actions given an immunity or exemption', 'actions rebuilt')
+               'save actions matched', 'save actions given an immunity or exemption', 'actions rebuilt',
+               'multiattacks given heads or a follow-up')
 # The keys of a condition that tie it to another or keep it from some creatures (D203)
 LINK_KEYS = ('endsWith', 'exemptTypes', 'endsOnDamage')
 LASTING_TYPES = ('HP_MAX_REDUCTION', 'LIFE_DRAIN', 'EXHAUSTION', 'MODIFIER', 'ONGOING_DAMAGE', 'COUNTED_SAVES',
@@ -2206,6 +2311,12 @@ def special_pass(entry, monster, actions, stat, raw, stats):
         return True
     if ATK.search(raw):
         return False
+    # An engulfing of a grappled creature with no roll, as a shambling mound's (MM p.270, D206)
+    engulfing = grappled_engulf(raw)
+    if engulfing is not None:
+        rebuilt(action, engulfing)
+        stats['actions rebuilt'] += 1
+        return True
     special = special_save(raw, describe(raw))
     if special is None:
         return False
@@ -2221,6 +2332,90 @@ def special_pass(entry, monster, actions, stat, raw, stats):
     return True
 
 
+# "as many Bite attacks as it has heads", a hydra's (MM p.190), with its count and rules from its Multiple Heads trait
+# (D206)
+HEADS_ATTACK = re.compile(r"\bas many (\w+) attacks as (?:it|he|she) has heads\b", re.I)
+HEADS_COUNT = re.compile(r"^[^.]*? has (" + '|'.join(COUNT_WORDS) + r") heads\.\s*", re.I)
+
+
+def heads_of(monster, text, actions):
+    """The heads keys of a multiattack that makes "as many Bite attacks as it has heads" (D206): the count its
+    Multiple Heads trait gives, the attack, as the monster's actions name it, and the trait's rules after the count;
+    None for any other multiattack, or one whose trait or attack can't be found."""
+    match = HEADS_ATTACK.search(text)
+    if not match:
+        return None
+    trait = next((t for t in monster.get('trait') or [] if isinstance(t, dict)
+                  and strip_tags(t.get('name', '')).strip() == 'Multiple Heads'), None)
+    if trait is None:
+        return None
+    rules = re.sub(r'\s+', ' ', strip_tags(flatten(trait.get('entries')))).strip()
+    count = HEADS_COUNT.match(rules)
+    attack = next((a['name'] for a in actions if isinstance(a, dict) and a.get('name')
+                   and base_name(a['name']).lower() == match.group(1).lower()), None)
+    if not count or attack is None:
+        return None
+    return {'count': COUNT_WORDS[count.group(1).lower()], 'attack': attack, 'rules': rules[count.end():].strip()}
+
+
+# "If both attacks hit a Medium or smaller target, the target is grappled (escape DC 14), and the shambling mound uses
+# its Engulf on it" (MM p.270), "If both claws hit the same creature, the target is grappled (escape DC 14)" (MOT)
+# (D206)
+ALL_HIT = re.compile(r"if both (?:attacks|(\w+?)s|(\w+) attacks) hit (?:an? " + SIZE_WORD + r" or smaller (?:target|"
+                     r"creature)|the same (?:target|creature)), (?:the target|the creature|it) is grappled \(escape dc "
+                     r"(\d+)\)(?:, and (?:" + NAME + r") (uses its ([a-z][a-z ]*?) on it|can use [a-z][a-z ]*))?")
+
+
+def all_hit(raw, action, actions):
+    """The onAllHit keys of a multiattack whose attacks, all hitting one creature, grapple it and may use another
+    action on it (D206): the attack, the grapple with its escape DC and size limit, the action used, and the stat
+    block's words; None for any other multiattack."""
+    for sentence in SENTENCE.split(raw.strip()):
+        match = ALL_HIT.fullmatch(norm(sentence))
+        if not match:
+            continue
+        named = match.group(1) or match.group(2)
+        components = action.get('multiattackComponents') or []
+        if named:
+            attack = next((a['name'] for a in actions if isinstance(a, dict) and a.get('name')
+                           and base_name(a['name']).lower() == named.lower()), None)
+        else:
+            repeated = sorted({c for c in components if components.count(c) > 1})
+            attack = repeated[0] if len(repeated) == 1 else None
+        if attack is None or components.count(attack) < 2:
+            return None
+        grapple = {'effectType': 'CONDITION', 'condition': 'grappled', 'escapeDC': int(match.group(4))}
+        if match.group(3):
+            grapple['maxTargetSize'] = match.group(3).capitalize()
+        keys = {'attack': attack, 'effects': [grapple]}
+        if match.group(6):
+            used = next((a['name'] for a in actions if isinstance(a, dict) and a.get('name')
+                         and base_name(a['name']).lower() == match.group(6).strip().lower()), None)
+            if used is None:
+                return None
+            keys['uses'] = used
+        keys['text'] = sentence_of(sentence)
+        return keys
+    return None
+
+
+def multiattack_pass(monster, actions, raw, stats):
+    """A hand-built multiattack gets its heads (a hydra's, MM p.190) and what follows when all of one attack's hits
+    land on the same creature (a shambling mound's grapple and Engulf, MM p.270), marked as action keys (D206)."""
+    action = next((a for a in actions if a.get('isMultiattack')), None)
+    if action is None:
+        return
+    keys = {}
+    heads = heads_of(monster, strip_tags(raw), actions)
+    if heads is not None:
+        keys['heads'] = heads
+    follow = all_hit(raw, action, actions)
+    if follow is not None:
+        keys['onAllHit'] = follow
+    if keys and add_action_keys(action, keys):
+        stats['multiattacks given heads or a follow-up'] += 1
+
+
 def rider_pass(entry, monster, stats):
     """The rider pass over one hand-built entry and its stat block."""
     for key_5e, key_def, action_type in RIDER_LISTS:
@@ -2228,9 +2423,13 @@ def rider_pass(entry, monster, stats):
         for action in actions:
             strip_riders(action)
         for stat in monster.get(key_5e) or []:
-            if not isinstance(stat, dict) or not stat.get('name') or stat['name'].startswith('Multiattack'):
+            if not isinstance(stat, dict) or not stat.get('name'):
                 continue
             raw = flatten(stat.get('entries'))
+            # A multiattack's heads and what follows when all of one attack's hits land (D206)
+            if stat['name'].startswith('Multiattack'):
+                multiattack_pass(monster, actions, raw, stats)
+                continue
             # A Swallow action, a possession, a petrification or an engulfing, rebuilt as a whole (D204)
             if special_pass(entry, monster, actions, stat, raw, stats):
                 continue

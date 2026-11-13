@@ -191,6 +191,18 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                 .findFirst();
     }
 
+    /**
+     * The heads of a monster whose multiattack makes an attack for each of its heads, as a hydra's (MM p.190, D206);
+     * empty for any other.
+     */
+    public Optional<Heads> heads() {
+        return actions.stream()
+                .filter(action -> action.multiattack() && action.heads() != null && action.heads().count() != null
+                        && action.heads().attack() != null)
+                .map(Action::heads)
+                .findFirst();
+    }
+
     /** Whether the monster has lair actions, so it can fight in its lair (D163). */
     public boolean hasLairActions() {
         return !lairActions.isEmpty();
@@ -239,6 +251,12 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      *                                for any (D204)
      * @param targetGrappled          the action can be used only on a creature the monster is grappling, as a giant
      *                                toad's Swallow (MM p.329); another target is refused (D204)
+     * @param heads                   for a multiattack that makes "as many Bite attacks as it has heads", as a hydra's
+     *                                (MM p.190): the attack, the stat block's head count and its head rules; the
+     *                                participant's Heads pool holds how many it has now (D206)
+     * @param onAllHit                for a multiattack, what follows when all of one attack's hits land on the same
+     *                                creature, as a shambling mound's grapple and Engulf after both Slams hit (MM
+     *                                p.270); null for nothing (D206)
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Action(String name, String description, Boolean automatable, String deliveryMethod,
@@ -251,7 +269,8 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                          String multiattackDescription, @JsonProperty("_multiattackNote") String multiattackNote,
                          @JsonProperty("isEyeRays") boolean eyeRays, Integer rayCount, List<Ray> rays,
                          String dmNote, Integer grappleLimit, boolean grappleLimitBlocks, String immuneAfterSave,
-                         List<String> exemptTypes, List<String> targetTypes, boolean targetGrappled) {
+                         List<String> exemptTypes, List<String> targetTypes, boolean targetGrappled, Heads heads,
+                         OnAllHit onAllHit) {
 
         public Action {
             effects = listOf(effects);
@@ -259,6 +278,16 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
             rays = listOf(rays);
             exemptTypes = listOf(exemptTypes);
             targetTypes = listOf(targetTypes);
+        }
+
+        /**
+         * An action of these parts that needs no roll, on one creature, as a shambling mound's grapple once both its
+         * Slams hit (MM p.270, D206).
+         */
+        public static Action automatic(String name, List<Part> effects) {
+            return new Action(name, null, null, "AUTO_HIT", null, null, null, null, false, 1, null, null, effects,
+                    null, null, null, null, null, null, false, null, null, null, false, null, null, null, null, false,
+                    null, null, null, false, null, null);
         }
 
         /** A legendary action's cost: its number, or 1 when it has none or gives a range. */
@@ -327,6 +356,9 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      *                          Drain (MM p.269), by damageDice (D204)
      * @param atZero            for AT_ZERO, what happens to a creature the hit drops to 0 hit points (D204)
      * @param onKill            for ON_KILL, what rises from a creature the hit kills (D204)
+     * @param turnSave          for ONGOING_DAMAGE, the save the creature makes each time before the damage, as a
+     *                          shambling mound's engulfed creature's DC 14 Constitution save at the start of each of
+     *                          the mound's turns (MM p.270); null when the damage comes every turn (D206)
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Part(String effectType, String damageDice, String damageType, String condition,
@@ -337,10 +369,25 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                        boolean replacesDamage, String maxTargetSize, boolean endOfUsersTurn, String endsWith,
                        boolean endsOnDamage, List<String> exemptTypes, String until, boolean diesAtZero, boolean half,
                        boolean tempHp, Integer levels, Modifier modifier, String turnOf, Integer total,
-                       Swallow swallow, Counted counted, String ability, AtZero atZero, OnKill onKill) {
+                       Swallow swallow, Counted counted, String ability, AtZero atZero, OnKill onKill,
+                       TurnSave turnSave) {
 
         public Part {
             exemptTypes = listOf(exemptTypes);
+        }
+
+        /** A part with none of the riders D206 reads. */
+        public Part(String effectType, String damageDice, String damageType, String condition, Integer saveDc,
+                    String saveAbility, Integer durationRounds, boolean saveToEndEachTurn, Integer saveToEndDc,
+                    String saveToEndAbility, Integer escapeDc, boolean halfOnSave, DamageCondition onlyIf,
+                    boolean replacesDamage, String maxTargetSize, boolean endOfUsersTurn, String endsWith,
+                    boolean endsOnDamage, List<String> exemptTypes, String until, boolean diesAtZero, boolean half,
+                    boolean tempHp, Integer levels, Modifier modifier, String turnOf, Integer total,
+                    Swallow swallow, Counted counted, String ability, AtZero atZero, OnKill onKill) {
+            this(effectType, damageDice, damageType, condition, saveDc, saveAbility, durationRounds, saveToEndEachTurn,
+                    saveToEndDc, saveToEndAbility, escapeDc, halfOnSave, onlyIf, replacesDamage, maxTargetSize,
+                    endOfUsersTurn, endsWith, endsOnDamage, exemptTypes, until, diesAtZero, half, tempHp, levels,
+                    modifier, turnOf, total, swallow, counted, ability, atZero, onKill, null);
         }
 
         /** A part with none of the riders D204 reads. */
@@ -411,10 +458,76 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      *                           as an eye monger does (BAM)
      * @param escapeFeet         the movement a swallowed creature spends to leave the corpse once the swallower dies,
      *                           exiting prone, as a purple worm's 20 feet; null when the stat block gives none
+     * @param keepsGrapple       true when the monster's grapple on the creature goes on, as a shambling mound's
+     *                           engulfing of a creature it grapples, which ends when the grapple does (MM p.270); null
+     *                           when the grapple ends, as "and the grapple ends" (D206)
+     * @param cover              false when the creature inside has no cover against what is outside, as the shambling
+     *                           mound's text gives none (MM p.270); null for the total cover a swallowed creature has
+     *                           (D206)
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Swallow(Integer limit, Integer regurgitateDamage, @JsonProperty("regurgitateDC") Integer regurgitateDc,
-                          Integer escapeFeet) {
+                          Integer escapeFeet, Boolean keepsGrapple, Boolean cover) {
+
+        /** A gullet that ends the grapple and gives total cover (D204). */
+        public Swallow(Integer limit, Integer regurgitateDamage, Integer regurgitateDc, Integer escapeFeet) {
+            this(limit, regurgitateDamage, regurgitateDc, escapeFeet, null, null);
+        }
+
+        /** Whether the monster's grapple on the creature goes on once it is inside (D206). */
+        public boolean grappleKept() {
+            return Boolean.TRUE.equals(keepsGrapple);
+        }
+
+        /** Whether the creature inside has total cover against what is outside (D204, D206). */
+        public boolean givesCover() {
+            return !Boolean.FALSE.equals(cover);
+        }
+    }
+
+    /**
+     * The save a creature makes before each tick of a monster's damage at the start of a turn (D206), as a shambling
+     * mound's engulfed creature "must succeed on a DC 14 Constitution saving throw at the start of each of the mound's
+     * turns or take 13 (2d8 + 4) bludgeoning damage" (MM p.270).
+     *
+     * @param saveDc      its DC
+     * @param saveAbility its ability, such as "CON"
+     * @param halfOnSave  whether a success halves the damage, as a parasite-infested behir's parasites (CM); otherwise
+     *                    a success prevents it
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record TurnSave(@JsonProperty("saveDC") Integer saveDc, String saveAbility, boolean halfOnSave) {
+    }
+
+    /**
+     * A multiattack that makes "as many Bite attacks as it has heads" (D206), as a hydra's (MM p.190).
+     *
+     * @param count  the heads the stat block gives it, such as 5, which a participant starts with unless the DM chose
+     *               another number when adding it
+     * @param attack the attack made once per head, such as "Bite"; any of the multiattack's components of that name
+     *               give way to these
+     * @param rules  the stat block's rules for its heads, which the log reminds the DM of, as heads dying and regrowing
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Heads(Integer count, String attack, String rules) {
+    }
+
+    /**
+     * What follows a multiattack when all of one attack's hits land on the same creature (D206), as a shambling mound's
+     * "If both attacks hit a Medium or smaller target, the target is grappled (escape DC 14), and the shambling mound
+     * uses its Engulf on it" (MM p.270).
+     *
+     * @param attack  the attack whose every hit must land on the creature, such as "Slam"
+     * @param effects what the creature then gets without a roll, as a grapple with its escape DC and its size limit
+     * @param uses    the action the monster then uses on the creature at once, such as "Engulf"; null for none
+     * @param text    the stat block's words, which the log quotes
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record OnAllHit(String attack, List<Part> effects, String uses, String text) {
+
+        public OnAllHit {
+            effects = listOf(effects);
+        }
     }
 
     /**

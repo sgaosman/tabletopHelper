@@ -58,4 +58,10 @@ public class AddParticipantRequest {
     private String creatureType;
 
     private Boolean concentrationLinked;
+
+    // How many heads a monster whose multiattack makes an attack for each head has, as a hydra (MM p.190, D206): its
+    // Heads pool starts at this, the stat block's count when left out. Refused for any other creature
+    @Min(1)
+    @Max(20)
+    private Integer heads;
 }

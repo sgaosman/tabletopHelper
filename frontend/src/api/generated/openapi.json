@@ -5472,6 +5472,13 @@
             "type": "string",
             "nullable": true
           },
+          "heads": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "hpMax": {
             "type": "integer",
             "format": "int32",
@@ -10492,6 +10499,12 @@
           "experiencePoints": {
             "type": "integer",
             "format": "int32"
+          },
+          "heads": {
+            "type": "integer",
+            "description": "The stat block's head count for a monster whose multiattack makes an attack for each of its heads, such as a hydra; null for any other",
+            "format": "int32",
+            "nullable": true
           },
           "hitDice": {
             "type": "string",

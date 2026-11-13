@@ -51,6 +51,8 @@ export default function EncounterBuilderPage() {
   const [monsterSearch, setMonsterSearch] = useState('');
   const [monsterSearchTerm, setMonsterSearchTerm] = useState('');
   const [monsterQuantities, setMonsterQuantities] = useState<Record<string, number>>({});
+  // A hydra's heads as the DM sets them before adding it, the stat block's count until changed (D206)
+  const [monsterHeads, setMonsterHeads] = useState<Record<string, string>>({});
 
   const [copiedCode, setCopiedCode] = useState(false);
   const [editingInitiative, setEditingInitiative] = useState<Record<string, string>>({});
@@ -141,6 +143,12 @@ export default function EncounterBuilderPage() {
     });
   }
 
+  // The heads typed for a hydra, from 1 to 20, or the stat block's count when the field holds no number (D206)
+  function chosenHeads(typed: string | undefined, stated: number): number {
+    const heads = parseInt(typed ?? '', 10);
+    return Number.isNaN(heads) ? stated : Math.min(20, Math.max(1, heads));
+  }
+
   async function handleAddMonster(monster: Monster) {
     if (!selectedEncounter) return;
     const qty = monsterQuantities[monster.id] || 1;
@@ -151,6 +159,7 @@ export default function EncounterBuilderPage() {
         monsterId: monster.id,
         displayName: monster.name,
         quantity: qty,
+        ...(monster.heads != null ? { heads: chosenHeads(monsterHeads[monster.id], monster.heads) } : {}),
       },
     }));
   }
@@ -483,6 +492,20 @@ export default function EncounterBuilderPage() {
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-2">
+                                    {m.heads != null && (
+                                      <label className="flex items-center gap-1 font-body text-[13px] font-semibold text-muted">
+                                        Heads
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          max={20}
+                                          aria-label={`Heads for ${m.name}`}
+                                          value={monsterHeads[m.id] ?? String(m.heads)}
+                                          onChange={e => setMonsterHeads(h => ({ ...h, [m.id]: e.target.value }))}
+                                          className="w-12 px-2 py-1 bg-card border border-rule font-body text-[15px] font-semibold text-ink text-center focus:outline-none focus:border-muted"
+                                        />
+                                      </label>
+                                    )}
                                     <input
                                       type="number"
                                       min={1}

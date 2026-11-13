@@ -6,6 +6,8 @@ import com.tabletophelper.encounter.EncounterCommands;
 import com.tabletophelper.encounter.EncounterLifecycle;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.EncounterStatus;
+import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.shared.ConflictException;
@@ -14,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -231,14 +234,16 @@ public class CombatAccess {
     /*
      * A swallowed or engulfed creature has total cover against attacks and other effects outside its swallower, as in a
      * purple worm (MM p.255) or a gelatinous cube (MM p.242) (D204): only the swallower and the creatures inside the same
-     * one reach it, and it reaches only them. The DM's own hand (no actor) still reaches it.
+     * one reach it, and it reaches only them. The DM's own hand (no actor) still reaches it. A creature engulfed by a
+     * shambling mound has no cover, the mound's text giving none (MM p.270, D206), so it reaches and is reached as
+     * any other.
      */
     private static void requireNotInside(EncounterParticipant actor, EncounterParticipant target) {
         if (actor == null) {
             return;
         }
-        UUID targetIn = swallowedBy(target);
-        UUID actorIn = swallowedBy(actor);
+        UUID targetIn = coveredBy(target);
+        UUID actorIn = coveredBy(actor);
         if (targetIn != null && !targetIn.equals(actor.getId()) && !targetIn.equals(actorIn)) {
             throw new ConflictException(target.getDisplayName() + " is " + insideWord(target) + ", with total cover "
                     + "against attacks and other effects from outside");
@@ -247,6 +252,34 @@ public class CombatAccess {
             throw new ConflictException(actor.getDisplayName() + " is " + insideWord(actor) + " and can reach only "
                     + "the creature that holds it, or others inside it");
         }
+    }
+
+    /*
+     * The creature that has swallowed or engulfed this one with total cover (D204), or null: none has, or the gullet
+     * that holds it gives no cover, as a shambling mound's (MM p.270, D206).
+     */
+    private static UUID coveredBy(EncounterParticipant participant) {
+        if (participant.getActiveConditions() == null) {
+            return null;
+        }
+        for (ConditionEntry condition : participant.getActiveConditions()) {
+            if (condition == null || condition.sourceParticipantId() == null || condition.name() == null
+                    || !EffectApplier.INSIDE.contains(condition.name().toLowerCase(java.util.Locale.ROOT))) {
+                continue;
+            }
+            Optional<EncounterParticipant> holder = participant.getEncounter() == null
+                    || participant.getEncounter().getParticipants() == null ? Optional.empty()
+                    : participant.getEncounter().getParticipants().stream()
+                    .filter(p -> p != null && condition.sourceParticipantId().equals(p.getId()))
+                    .findFirst();
+            boolean covers = holder.flatMap(h -> EffectApplier.gullet(h, condition))
+                    .map(SpellEffectEntry.Gullet::covers)
+                    .orElse(true);
+            if (covers) {
+                return condition.sourceParticipantId();
+            }
+        }
+        return null;
     }
 
     /** The creature that has swallowed or engulfed this one (D204), or null. */

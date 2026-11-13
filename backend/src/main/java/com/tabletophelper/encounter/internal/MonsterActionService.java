@@ -117,9 +117,16 @@ public class MonsterActionService {
         MonsterEffects.Overrides overrides = new MonsterEffects.Overrides(request.overrideAttackBonus(),
                 request.overrideSaveDC(), request.advantage());
 
+        // A hydra's multiattack makes an attack for each head it has now, and none once it has none (MM p.190, D206)
+        Integer heads = action.heads() != null ? heads(monster) : null;
+        if (action.multiattack() && action.heads() != null && heads != null && heads <= 0) {
+            throw new ConflictException(monster.getDisplayName() + " has no heads left, so it makes no "
+                    + action.heads().attack() + " attacks; when all its heads die, it dies (its Multiple Heads "
+                    + "trait)");
+        }
         // A multiattack's attacks each take their own targets, or all go to the one target named
         MonsterEffects.Multiattack multiattack = action.multiattack()
-                ? monsterEffects.multiattack(action, templates, overrides) : null;
+                ? monsterEffects.multiattack(action, templates, overrides, heads) : null;
         List<List<UUID>> componentTargetIds = request.componentTargetIds() != null
                 ? componentTargets(actionName, multiattack, request) : null;
         List<UUID> targetIds = request.targetParticipantIds() != null ? request.targetParticipantIds() : List.of();
@@ -187,7 +194,7 @@ public class MonsterActionService {
 
         MonsterEffects.MonsterAction plan = componentTargetIds != null
                 ? monsterEffects.multiattack(multiattack, componentTargetIds)
-                : monsterEffects.plan(action, templates, targetIds, overrides);
+                : monsterEffects.plan(action, templates, targetIds, overrides, heads);
 
         // The entry for the action as a whole names no target, so it can't name a hidden one (D157)
         String lead = monster.getDisplayName() + " uses " + actionName + costNote;
@@ -204,50 +211,17 @@ public class MonsterActionService {
         if (plan.automated()) {
             Map<UUID, EncounterParticipant> byId = targets.stream()
                     .collect(Collectors.toMap(EncounterParticipant::getId, Function.identity(), (a, b) -> a));
+            List<StepResult> done = new ArrayList<>();
             for (MonsterEffects.Step step : plan.steps()) {
-                // A target an earlier step killed is past attacking, and a step with none left rolls nothing
-                List<EncounterParticipant> stepTargets = step.targetIds().stream()
-                        .map(byId::get)
-                        .filter(target -> target.getLifeState() != LifeState.DEAD)
-                        .toList();
-                // A creature immune to the action, after its save or by its type, isn't affected (D203)
-                List<String> immuneNotes = new ArrayList<>();
-                List<EncounterParticipant> immune = monsterHitEffects.immune(monster, step, stepTargets, immuneNotes);
-                immuneNotes.forEach(note -> combatLog.write(encounter, logType, note, monster, null));
-                riderNotes.addAll(immuneNotes);
-                stepTargets = stepTargets.stream().filter(target -> !immune.contains(target)).toList();
-                if (stepTargets.isEmpty()) {
-                    continue;
-                }
-                // An attack whose grapple holds its limit can't be used on another creature (D203)
-                String refused = MonsterRiders.refusal(step.riders(), monster, stepTargets);
-                if (refused != null) {
-                    throw new ConflictException(refused);
-                }
-                String label = step.label().equals(actionName) ? actionName : actionName + " (" + step.label() + ")";
-                EffectApplier.Use use = new EffectApplier.Use(monster, monster.getDisplayName(), logType,
-                        "uses " + label + costNote, "on", monster.getDisplayName(), null);
-                // Ray of Enfeeblement halves a melee weapon attack's damage, taken as using Strength (PHB p.271, D197)
-                boolean halved = Enfeeblement.strengthAttack(step.effect()) && Enfeeblement.weakened(monster);
-                if (!step.riders().none() && step.effect().delivery() instanceof Effect.Attack) {
-                    List<EffectApplier.Applied> hits = attackWithRiders(encounter, use, logType, monster, step,
-                            stepTargets, halved, riderNotes);
-                    applied.addAll(hits);
-                    riderNotes.addAll(monsterHitEffects.after(encounter, logType, monster, step, hits));
-                    continue;
-                }
-                Effect effect = halved ? Enfeeblement.noted(step.effect()) : step.effect();
-                List<Resolver.TargetOutcome> outcomes = resolver.resolve(effect, CreatureStats.side(monster),
-                        stats.targets(stepTargets, effect, monster));
-                List<RiderNote> sizeNotes = new ArrayList<>();
-                if (!step.riders().none()) {
-                    outcomes = withoutTooBig(step, monster, stepTargets, outcomes, sizeNotes);
-                }
-                List<EffectApplier.Applied> results = effectApplier.apply(encounter, use, effect,
-                        halved ? Enfeeblement.halved(outcomes) : outcomes);
+                List<EffectApplier.Applied> results = runStep(encounter, monster, step, byId, logType, actionName,
+                        costNote, riderNotes, false);
                 applied.addAll(results);
-                riderNotes.addAll(logged(encounter, logType, monster, sizeNotes));
-                riderNotes.addAll(monsterHitEffects.after(encounter, logType, monster, step, results));
+                done.add(new StepResult(step, results));
+            }
+            // What follows when all of one attack's hits land on the same creature (D206)
+            if (multiattack != null && action.onAllHit() != null) {
+                applied.addAll(onAllHit(encounter, monster, action, templates, overrides, multiattack, done, logType,
+                        actionName, costNote, riderNotes));
             }
         }
 
@@ -281,6 +255,168 @@ public class MonsterActionService {
 
     // A note the log writes about one target, after the hit's own entry (D202)
     private record RiderNote(String text, EncounterParticipant target) {
+    }
+
+    // A step of the action as it went, for what follows its attacks (D206)
+    private record StepResult(MonsterEffects.Step step, List<EffectApplier.Applied> results) {
+    }
+
+    /*
+     * One step of the action against its living targets, those immune to it left out (D203). An attack whose grapple
+     * holds its limit, an action only for a creature the monster grapples (D203, D204), and one that needs no roll and
+     * would leave the target nothing, as an engulfing of a creature too big or with the gullet full (D206), are refused
+     * with a 409; with quiet, as for an action a multiattack uses on its own (D206), the refusal is logged instead and
+     * the step does nothing.
+     */
+    private List<EffectApplier.Applied> runStep(Encounter encounter, EncounterParticipant monster,
+                                                MonsterEffects.Step step, Map<UUID, EncounterParticipant> byId,
+                                                CombatActionType logType, String actionName, String costNote,
+                                                List<String> riderNotes, boolean quiet) {
+        // A target an earlier step killed is past attacking, and a step with none left rolls nothing
+        List<EncounterParticipant> stepTargets = step.targetIds().stream()
+                .map(byId::get)
+                .filter(target -> target != null && target.getLifeState() != LifeState.DEAD)
+                .toList();
+        // A creature immune to the action, after its save or by its type, isn't affected (D203)
+        List<String> immuneNotes = new ArrayList<>();
+        List<EncounterParticipant> immune = monsterHitEffects.immune(monster, step, stepTargets, immuneNotes);
+        immuneNotes.forEach(note -> combatLog.write(encounter, logType, note, monster, null));
+        riderNotes.addAll(immuneNotes);
+        stepTargets = stepTargets.stream().filter(target -> !immune.contains(target)).toList();
+        if (stepTargets.isEmpty()) {
+            return List.of();
+        }
+        // An attack whose grapple holds its limit can't be used on another creature (D203)
+        String refused = MonsterRiders.refusal(step.riders(), monster, stepTargets);
+        if (refused == null) {
+            refused = MonsterRiders.outrightRefusal(step.effect(), step.riders(), monster, stepTargets);
+        }
+        if (refused != null) {
+            if (!quiet) {
+                throw new ConflictException(refused);
+            }
+            combatLog.write(encounter, logType, refused + ".", monster, null);
+            riderNotes.add(refused + ".");
+            return List.of();
+        }
+        String label = step.label().equals(actionName) ? actionName : actionName + " (" + step.label() + ")";
+        EffectApplier.Use use = new EffectApplier.Use(monster, monster.getDisplayName(), logType,
+                "uses " + label + costNote, "on", monster.getDisplayName(), null);
+        // Ray of Enfeeblement halves a melee weapon attack's damage, taken as using Strength (PHB p.271, D197)
+        boolean halved = Enfeeblement.strengthAttack(step.effect()) && Enfeeblement.weakened(monster);
+        if (!step.riders().none() && step.effect().delivery() instanceof Effect.Attack) {
+            List<EffectApplier.Applied> hits = attackWithRiders(encounter, use, logType, monster, step,
+                    stepTargets, halved, riderNotes);
+            riderNotes.addAll(monsterHitEffects.after(encounter, logType, monster, step, hits));
+            return hits;
+        }
+        Effect effect = halved ? Enfeeblement.noted(step.effect()) : step.effect();
+        List<Resolver.TargetOutcome> outcomes = resolver.resolve(effect, CreatureStats.side(monster),
+                stats.targets(stepTargets, effect, monster));
+        List<RiderNote> sizeNotes = new ArrayList<>();
+        if (!step.riders().none()) {
+            outcomes = withoutTooBig(step, monster, stepTargets, outcomes, sizeNotes);
+        }
+        List<EffectApplier.Applied> results = effectApplier.apply(encounter, use, effect,
+                halved ? Enfeeblement.halved(outcomes) : outcomes);
+        riderNotes.addAll(logged(encounter, logType, monster, sizeNotes));
+        riderNotes.addAll(monsterHitEffects.after(encounter, logType, monster, step, results));
+        return results;
+    }
+
+    /*
+     * What follows a multiattack when every one of an attack's hits lands on the same creature (D206), as a shambling
+     * mound's "If both attacks hit a Medium or smaller target, the target is grappled (escape DC 14), and the shambling
+     * mound uses its Engulf on it" (MM p.270): the parts, given without a roll, their size limits kept, and then the
+     * action named used on the creature at once while the monster grapples it. Nothing follows when one of those
+     * attacks missed, was skipped or went to another creature.
+     */
+    private List<EffectApplier.Applied> onAllHit(Encounter encounter, EncounterParticipant monster,
+                                                 MonsterTemplates.Action action, MonsterTemplates templates,
+                                                 MonsterEffects.Overrides overrides,
+                                                 MonsterEffects.Multiattack multiattack, List<StepResult> done,
+                                                 CombatActionType logType, String actionName, String costNote,
+                                                 List<String> riderNotes) {
+        MonsterTemplates.OnAllHit follow = action.onAllHit();
+        if (follow.attack() == null) {
+            return List.of();
+        }
+        long made = multiattack.components().stream()
+                .filter(component -> component.name().equalsIgnoreCase(follow.attack().trim()))
+                .count();
+        List<StepResult> attacks = done.stream()
+                .filter(result -> result.step().label().equalsIgnoreCase(follow.attack().trim()))
+                .toList();
+        if (made == 0 || attacks.size() != made) {
+            return List.of();
+        }
+        Set<UUID> hit = new LinkedHashSet<>();
+        for (StepResult attack : attacks) {
+            if (attack.results().size() != 1 || !switch (attack.results().getFirst().outcome().outcome()) {
+                case HIT, CRITICAL -> true;
+                default -> false;
+            }) {
+                return List.of();
+            }
+            hit.add(attack.results().getFirst().target().getId());
+        }
+        if (hit.size() != 1) {
+            return List.of();
+        }
+        EncounterParticipant target = CombatAccess.participant(encounter, hit.iterator().next());
+        if (target.getLifeState() == LifeState.DEAD) {
+            return List.of();
+        }
+        Map<UUID, EncounterParticipant> byId = Map.of(target.getId(), target);
+        String note = (made == 2 ? "Both " : "All " + made + " ") + follow.attack() + " attacks hit "
+                + target.getDisplayName() + (follow.text() != null && !follow.text().isBlank()
+                ? ": " + follow.text().trim() : ".");
+        combatLog.write(encounter, logType, note, monster, target);
+        riderNotes.add(note);
+        List<EffectApplier.Applied> applied = new ArrayList<>();
+        if (!follow.effects().isEmpty()) {
+            MonsterEffects.MonsterAction given = monsterEffects.plan(
+                    MonsterTemplates.Action.automatic(actionName, follow.effects()), templates,
+                    List.of(target.getId()), overrides);
+            for (MonsterEffects.Step step : given.steps()) {
+                applied.addAll(runStep(encounter, monster, step, byId, logType, actionName, costNote, riderNotes,
+                        true));
+            }
+        }
+        if (follow.uses() == null || follow.uses().isBlank()) {
+            return applied;
+        }
+        boolean grappled = target.getActiveConditions() != null && target.getActiveConditions().stream()
+                .anyMatch(c -> "grappled".equalsIgnoreCase(c.name())
+                        && monster.getId().equals(c.sourceParticipantId()));
+        Optional<MonsterTemplates.Action> used = templates.find("ACTION", follow.uses().trim());
+        if (!grappled || used.isEmpty()) {
+            String why = !grappled ? target.getDisplayName() + " isn't grappled by " + monster.getDisplayName()
+                    : monster.getDisplayName() + " has no action " + follow.uses().trim();
+            combatLog.write(encounter, logType, monster.getDisplayName() + " doesn't use " + follow.uses().trim()
+                    + ": " + why + ".", monster, target);
+            riderNotes.add(monster.getDisplayName() + " doesn't use " + follow.uses().trim() + ": " + why + ".");
+            return applied;
+        }
+        String usedName = MonsterEffects.nameOf(used.get());
+        MonsterEffects.MonsterAction plan = monsterEffects.plan(used.get(), templates, List.of(target.getId()),
+                overrides);
+        if (!plan.automated()) {
+            String manual = monster.getDisplayName() + " uses " + usedName + " on " + target.getDisplayName() + " — "
+                    + plan.manualReason();
+            combatLog.write(encounter, logType, manual, monster, target);
+            riderNotes.add(manual);
+            return applied;
+        }
+        String usedCost = " (" + actionName + ")";
+        for (MonsterEffects.Step step : plan.steps()) {
+            applied.addAll(runStep(encounter, monster, step, byId, logType, usedName, usedCost, riderNotes, true));
+        }
+        for (String each : plan.notes()) {
+            combatLog.write(encounter, logType, usedName + ": " + each, monster, target);
+            riderNotes.add(usedName + ": " + each);
+        }
+        return applied;
     }
 
     /**
@@ -362,6 +498,7 @@ public class MonsterActionService {
                 .findFirst();
         Monster monsterEntity;
         MonsterTemplates templates;
+        Integer heads = null;
         if (druid.isPresent()) {
             accessPolicy.requireControls(campaignId, druid.get().getControlledByUserId(), userId);
             monsterEntity = beastOf(druid.get());
@@ -377,13 +514,17 @@ public class MonsterActionService {
             monsterEntity = WildShapeForm.of(participant).isPresent() ? beastOf(participant)
                     : participant.getMonster();
             templates = templatesOf(participant, monsterEntity);
+            // A hydra makes an attack for each head it has now (D206)
+            heads = heads(participant);
         }
         if (templates == null) {
             return List.of();
         }
+        Integer headCount = heads;
         return templates.actions().stream()
                 .filter(MonsterTemplates.Action::multiattack)
-                .map(action -> option(monsterEffects.multiattack(action, templates, MonsterEffects.Overrides.NONE)))
+                .map(action -> option(monsterEffects.multiattack(action, templates, MonsterEffects.Overrides.NONE,
+                        headCount)))
                 .toList();
     }
 
@@ -647,6 +788,16 @@ public class MonsterActionService {
             started.add(pool);
             monster.setResourcePoolsCurrent(started);
         }
+    }
+
+    // The heads a hydra has now, its Heads pool's uses; null for one that joined before the pool, which has the stat
+    // block's count (D206)
+    private static Integer heads(EncounterParticipant participant) {
+        return participant.getResourcePoolsCurrent() == null ? null : participant.getResourcePoolsCurrent().stream()
+                .filter(pool -> pool != null && MonsterPools.HEADS.equals(pool.poolId()))
+                .map(ResourcePoolEntry::currentUses)
+                .findFirst()
+                .orElse(null);
     }
 
     private static int poolUses(EncounterParticipant participant, String poolId) {

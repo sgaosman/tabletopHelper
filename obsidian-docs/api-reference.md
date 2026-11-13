@@ -1895,3 +1895,8 @@ Spell options gain `targetRoles` `{primaryTargets, pickedWithinFeet, darts}` (nu
 ### Monster riders (D202, D203)
 
 No endpoint changed. A monster attack may answer 409 when its grappling attack already holds another creature ("can't use this attack on another target"). Conditions gain `linkedTo` and `sourceAction`; a repeat save gains `escape`, and `POST /combat/action-save` on such a condition rolls the creature's better of Athletics and Acrobatics against the escape DC, using its action.
+
+
+### Engulfing and heads (D206)
+
+`POST /encounters/{id}/participants` takes an optional `heads` (1–20) for a monster whose multiattack attacks once per head, such as a hydra; its Heads pool starts at it (400 for any other monster). Monsters gain a read-only `heads`, the stat block's count, null for others. Using the `monster:heads` pool takes `option` "lose" (default) or "grow" and no targets, costs nothing from the turn, and kills the hydra at 0 (409 for losing more heads than it has, or for a dead hydra). A hydra's multiattack answers 409 at 0 heads. The Shambling Mound's Engulf answers 409 when the target isn't grappled by it, is larger than Medium, or the mound already holds a creature.

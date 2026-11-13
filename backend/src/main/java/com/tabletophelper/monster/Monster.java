@@ -178,4 +178,17 @@ public class Monster {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    /**
+     * How many heads the stat block gives a monster whose multiattack makes an attack for each of its heads, as a
+     * hydra's five (MM p.190), which the encounter builder offers to change; null for any other monster (D206).
+     */
+    @Schema(description = "The stat block's head count for a monster whose multiattack makes an attack for each of "
+            + "its heads, such as a hydra; null for any other")
+    public Integer getHeads() {
+        if (actionTemplates == null || actionTemplates.unreadable() != null) {
+            return null;
+        }
+        return actionTemplates.heads().map(MonsterTemplates.Heads::count).orElse(null);
+    }
 }

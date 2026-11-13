@@ -175,7 +175,15 @@ public class MonsterHitEffects {
             if (anchorName == null) {
                 continue;
             }
-            Optional<ConditionEntry> anchor = anchorOf(target, monster, action, anchorName);
+            Optional<ConditionEntry> anchor = anchorOf(target, monster, action, anchorName)
+                    // An action used only on a creature the monster grapples ties to that grapple, whichever of its
+                    // actions gave it, as a shambling mound's Engulf after its Slams (MM p.270, D206)
+                    .or(() -> !lasting.targetGrappled() || !"grappled".equals(anchorName) ? Optional.empty()
+                            : (target.getActiveConditions() != null ? target.getActiveConditions()
+                            : List.<ConditionEntry>of()).stream()
+                            .filter(c -> "grappled".equalsIgnoreCase(c.name())
+                                    && Objects.equals(c.sourceParticipantId(), monster.getId()))
+                            .findFirst());
             if (anchor.isPresent()) {
                 current(target, entry.id()).ifPresent(now ->
                         effectApplier.replaceCondition(target, now.linkedTo(anchor.get().id())));
@@ -253,7 +261,8 @@ public class MonsterHitEffects {
             }
             List<ConditionEntry> held = target.getActiveConditions() != null ? target.getActiveConditions()
                     : List.of();
-            List<UUID> grapples = held.stream()
+            // A shambling mound's grapple goes on while it engulfs the creature, which lasts as long (MM p.270, D206)
+            List<UUID> grapples = spec.grappleKept() ? List.of() : held.stream()
                     .filter(c -> "grappled".equalsIgnoreCase(c.name())
                             && Objects.equals(c.sourceParticipantId(), monster.getId()))
                     .map(ConditionEntry::id)
@@ -296,10 +305,12 @@ public class MonsterHitEffects {
                 effectApplier.holdMonsterRider(monster, effect.id(), new SpellEffectEntry.MonsterRider(
                         SpellEffectEntry.MonsterRider.SWALLOW, action, null, name, null, null,
                         new SpellEffectEntry.Gullet(name, spec.regurgitateDamage(), spec.regurgitateDc(),
-                                spec.escapeFeet(), 0)), null);
+                                spec.escapeFeet(), 0, spec.givesCover() ? null : Boolean.TRUE)), null);
             }
             notes.add(target.getDisplayName() + " is " + name + " by " + monster.getDisplayName() + " (" + action
-                    + "): it has total cover against attacks and other effects outside it"
+                    + "): " + (spec.givesCover() ? "it has total cover against attacks and other effects outside it"
+                    : "it has no cover, so others can still reach it")
+                    + (spec.grappleKept() ? ", and it lasts while " + monster.getDisplayName() + " grapples it" : "")
                     + (spec.regurgitateDamage() != null ? "; " + spec.regurgitateDamage() + " damage or more from "
                     + "inside on a single turn makes " + monster.getDisplayName() + (spec.regurgitateDc() != null
                     ? " save (DC " + spec.regurgitateDc() + " Constitution) or" : "") + " regurgitate it" : "")
@@ -729,13 +740,24 @@ public class MonsterHitEffects {
                 false);
         effectApplier.startModifiers(encounter, monster, effect.id(), List.of(target), List.of(), null, null, null,
                 false);
+        // A save before each tick, as a shambling mound's engulfed creature makes (MM p.270, D206)
+        MonsterTemplates.TurnSave turnSave = part.turnSave();
+        Optional<com.tabletophelper.rules.Ability> saveAbility = turnSave != null && turnSave.saveDc() != null
+                ? com.tabletophelper.rules.Ability.parse(turnSave.saveAbility()) : Optional.empty();
+        SpellEffectEntry.EffectSave save = saveAbility
+                .map(ability -> new SpellEffectEntry.EffectSave(ability.name(), turnSave.saveDc()))
+                .orElse(null);
         effectApplier.holdMonsterRider(monster, effect.id(), new SpellEffectEntry.MonsterRider(
                 SpellEffectEntry.MonsterRider.TURN_DAMAGE, action, anchor != null ? anchor.id() : null,
                 anchor != null ? anchor.name() : null, rest(part.until()),
-                new SpellEffectEntry.TurnDamage(part.damageDice(), type, turnOf)), part.total());
+                new SpellEffectEntry.TurnDamage(part.damageDice(), type, turnOf, save,
+                        save != null && turnSave.halfOnSave() ? Boolean.TRUE : null)), part.total());
         notes.add(target.getDisplayName() + (type != null ? " takes " + part.damageDice() + " " + type + " damage"
                 : " loses " + part.damageDice() + " hit points") + " at the start of each of "
                 + ("USER".equals(turnOf) ? monster.getDisplayName() + "'s" : "its") + " turns (" + label + ")"
+                + (save != null ? (turnSave.halfOnSave() ? ", half on a successful" : " unless it succeeds on a")
+                + " DC " + save.dc() + " " + capitalised(saveAbility.get().fullName()) + " saving throw made each time"
+                : "")
                 + (part.total() != null ? ", " + part.total() + " in all" : "")
                 + lastingWords(rest(part.until()), anchor, rounds, false) + ".");
     }
@@ -799,6 +821,11 @@ public class MonsterHitEffects {
                         && Objects.equals(c.sourceParticipantId(), monster.getId())
                         && (c.sourceAction() == null || c.sourceAction().equalsIgnoreCase(action)))
                 .findFirst();
+    }
+
+    // "Constitution" for "constitution"
+    private static String capitalised(String word) {
+        return word.isEmpty() ? word : word.substring(0, 1).toUpperCase(Locale.ROOT) + word.substring(1);
     }
 
     private static Optional<ConditionEntry> current(EncounterParticipant target, UUID id) {

@@ -132,6 +132,12 @@ public class EncounterService {
 
         ParticipantType type = parseParticipantType(request.getParticipantType());
         int quantity = request.getQuantity() != null ? request.getQuantity() : 1;
+        // Heads are a hydra's, chosen as it joins from the bestiary (D206)
+        if (request.getHeads() != null && (type == ParticipantType.PLAYER
+                || type == ParticipantType.COMPANION && request.getSummonerParticipantId() != null)) {
+            throw new ValidationException("heads is only for a monster whose multiattack makes an attack for each of "
+                    + "its heads, as a hydra's");
+        }
 
         if (type == ParticipantType.PLAYER) {
             addPlayerParticipant(encounter, request);
@@ -267,6 +273,10 @@ public class EncounterService {
 
             // Its pools, innate uses included, and its spell slots and spells (D165)
             monsterPools.setUp(participant, monster);
+            // A hydra's heads as the DM chose them, the stat block's count otherwise (MM p.190, D206)
+            if (request.getHeads() != null) {
+                monsterPools.chooseHeads(participant, monster, request.getHeads());
+            }
 
             encounter.getParticipants().add(participant);
         }

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { render, setupAuthToken } from '../../test/test-utils';
 import type { EncounterParticipant } from '../../types/encounter';
@@ -332,5 +332,56 @@ describe('EncounterBuilderPage', () => {
     });
     expect(await screen.findByText('Summoned by Gimli (Find Familiar)')).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Add companion' })).not.toBeInTheDocument();
+  });
+
+  // A hydra's heads, chosen as it is added: the stat block's count unless the DM changes it (D206)
+  async function searchMonsters(heads: number | null) {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    const { makeMockEncounter, makeMockMonster } = await import('../../test/mocks/handlers');
+    const requests: unknown[] = [];
+    server.use(
+      http.get('/api/encounters/campaign/:campaignId', () =>
+        HttpResponse.json([makeMockEncounter({ status: 'PREPARING', sessionCode: undefined, participants: [] })])),
+      http.get('/api/monsters/search', () => HttpResponse.json([
+        { ...makeMockMonster('mon-hydra', 'Hydra', 'Monstrosity', '8', 172, 15), heads },
+        makeMockMonster('mon-001', 'Goblin', 'Humanoid', '1/4', 7, 15),
+      ])),
+      http.post('/api/encounters/:id/participants', async ({ request }) => {
+        requests.push(await request.json());
+        return HttpResponse.json(makeMockEncounter({ status: 'PREPARING', sessionCode: undefined, participants: [] }));
+      }),
+    );
+    render(<EncounterBuilderPage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('Goblin Ambush'));
+    await user.type(screen.getByPlaceholderText('Search monsters (fuzzy)...'), 'hyd');
+    await screen.findByText('Hydra');
+    return { user, requests };
+  }
+
+  it("offers a Heads input, prefilled with the stat block's count, only for a monster with heads, and sends it", async () => {
+    const { user, requests } = await searchMonsters(5);
+    const heads = screen.getByRole('spinbutton', { name: 'Heads for Hydra' });
+    expect(heads).toHaveValue(5);
+    expect(screen.queryByRole('spinbutton', { name: 'Heads for Goblin' })).not.toBeInTheDocument();
+
+    await user.clear(heads);
+    await user.type(heads, '3');
+    const hydraRow = heads.closest('div.flex.items-center.justify-between') as HTMLElement;
+    await user.click(within(hydraRow).getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]).toEqual({
+      participantType: 'MONSTER', monsterId: 'mon-hydra', displayName: 'Hydra', quantity: 1, heads: 3,
+    });
+  });
+
+  it('sends no heads for a monster without them', async () => {
+    const { user, requests } = await searchMonsters(null);
+    expect(screen.queryByRole('spinbutton', { name: /^Heads for/ })).not.toBeInTheDocument();
+    const goblinRow = screen.getByText('Goblin').closest('div.flex.items-center.justify-between') as HTMLElement;
+    await user.click(within(goblinRow).getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]).toEqual({ participantType: 'MONSTER', monsterId: 'mon-001', displayName: 'Goblin', quantity: 1 });
   });
 });

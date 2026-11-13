@@ -83,7 +83,7 @@ class MonsterRidersStepsDataTest {
 
     @Test
     @DisplayName("The counts the rider pass and the generator give: 48 hit point maximums, 25 life drains, 5 "
-            + "exhaustions, 59 Ongoing Modifiers, 78 damages each turn, 210 tied conditions, 5 condition exemptions, "
+            + "exhaustions, 59 Ongoing Modifiers, 81 damages each turn, 214 tied conditions, 5 condition exemptions, "
             + "165 grapple limits (70 refusing another target), 113 immunities after a save (7 possessions, D204) "
             + "and 8 action exemptions")
     void counts() {
@@ -117,10 +117,11 @@ class MonsterRidersStepsDataTest {
         }
         // D205's 168 whole entries add 5 hit point maximums, 2 Ongoing Modifiers, 18 damages each turn (13 of them inside
         // a swallower), 38 tied conditions, 16 grapple limits (6 refusing another target) and 10 immunities; 43,
-        // 57, 60, 172, 149, 64 and 103 before
+        // 57, 60, 172, 149, 64 and 103 before. D206 adds 3 damages each turn behind a save (the shambling mound's
+        // Engulf, the boneless's Crushing Embrace and the parasite-infested behir's parasites) and 4 tied conditions
         assertEquals(Map.ofEntries(Map.entry("EXHAUSTION", 5), Map.entry("HP_MAX_REDUCTION", 48),
-                Map.entry("LIFE_DRAIN", 25), Map.entry("MODIFIER", 59), Map.entry("ONGOING_DAMAGE", 78),
-                Map.entry("actionExempt", 8), Map.entry("conditionExempt", 5), Map.entry("endsWith", 210),
+                Map.entry("LIFE_DRAIN", 25), Map.entry("MODIFIER", 59), Map.entry("ONGOING_DAMAGE", 81),
+                Map.entry("actionExempt", 8), Map.entry("conditionExempt", 5), Map.entry("endsWith", 214),
                 Map.entry("grappleLimit", 165), Map.entry("grappleLimitBlocks", 70),
                 Map.entry("immuneAfterSave", 113)), counts);
     }
@@ -149,12 +150,16 @@ class MonsterRidersStepsDataTest {
     }
 
     @Test
-    @DisplayName("Every condition or rider tied to another names one its own action gives")
+    @DisplayName("Every condition or rider tied to another names one its own action gives, or the grapple an action "
+            + "used only on a grappled creature finds there, as a shambling mound's Engulf (D206)")
     void linksNameTheirAction() {
         List<String> dangling = new ArrayList<>();
         for (Found found : actions()) {
             List<String> given = new ArrayList<>();
             found.action().path("effects").forEach(part -> given.add(part.path("condition").asString("")));
+            if (found.action().path("targetGrappled").asBoolean(false)) {
+                given.add("grappled");
+            }
             for (JsonNode part : found.action().path("effects")) {
                 String anchor = part.path("endsWith").asString(null);
                 if (anchor != null && !given.contains(anchor)) {

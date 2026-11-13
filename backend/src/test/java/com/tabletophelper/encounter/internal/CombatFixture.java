@@ -157,7 +157,7 @@ class CombatFixture {
     final BardicInspirationService bardicInspiration = new BardicInspirationService(access, combatLog, dice,
             encounterRepository, encounterService);
     final PoolUseService poolUse = new PoolUseService(access, economy, combatLog, featureEffects, encounterRepository,
-            encounterService);
+            encounterService, effectApplier);
     final StandardActionService standardActions = new StandardActionService(access, economy, resolver, stats,
             combatLog, effectApplier, objectMapper, encounterRepository, encounterService);
     final TurnEconomyEditService turnEconomyEdit = new TurnEconomyEditService(access, combatLog, encounterRepository,

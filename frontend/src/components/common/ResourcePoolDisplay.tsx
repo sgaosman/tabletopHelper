@@ -145,7 +145,7 @@ export default function ResourcePoolDisplay({
 
 // The pools whose use their own controls send, with the points, option or target it needs; Arcane Recovery is used on a
 // short rest, not at the table (M17)
-const OWN_CONTROLS: string[] = ['lay-on-hands', 'bardic-inspiration', 'arcane-recovery', 'wild-shape'];
+const OWN_CONTROLS: string[] = ['lay-on-hands', 'bardic-inspiration', 'arcane-recovery', 'wild-shape', 'heads'];
 
 const USE_BUTTON = 'ml-1 px-1.5 py-0.5 font-heading text-[11px] font-semibold tracking-[0.02em] bg-ink/10 hover:bg-ink/20 '
   + 'text-ink disabled:opacity-40 disabled:hover:bg-ink/10';
@@ -197,7 +197,8 @@ function EncounterPools({ pools, participant, onUse, asDm, targets, onFlexibleCa
           const form = effect === 'wild-shape' ? wildShapeOf(participant) : null;
           // A rage or a Wild Shape in force can be ended, which spends no use
           const endable = raging || form !== null;
-          const refusal = endable ? null : poolRefusal(entry, all);
+          // A hydra's heads can always grow; one with none left is dead (D206)
+          const refusal = endable || effect === 'heads' ? null : poolRefusal(entry, all);
           // Ending a rage or a Wild Shape costs a bonus action whatever the pool says (PHB p.48, p.67)
           const budget = endable ? chargeBlock(participant, { cost: 'BONUS_ACTION' }) : poolBudgetBlock(participant, entry);
           const disabled = refusal !== null || (budget !== null && !asDm) || using !== null;
@@ -296,6 +297,9 @@ function FeatureControls({ effect, entry, participant, targets, blocked, busy, a
   if (effect === 'bardic-inspiration') {
     return <BardicInspirationControls entry={entry} participant={participant} targets={targets} blocked={blocked}
       asDm={asDm} onUse={onUse} />;
+  }
+  if (effect === 'heads') {
+    return <HeadsControls entry={entry} blocked={blocked} onUse={onUse} />;
   }
   if (effect !== 'ki') return null;
   const budget = chargeBlock(participant, { cost: 'BONUS_ACTION' });
@@ -516,6 +520,29 @@ function WildShapeControls({ entry, participant, blocked, asDm, onUse, onHeal }:
 
 /** The uses of Wild Shape that Elemental Wild Shape expends at once (Circle of the Moon 10, PHB p.69). */
 const ELEMENTAL_USES = 2;
+
+/**
+ * A hydra's heads (MM p.190, D206): the DM marks a head that dies or one that grows, and its multiattack bites once per
+ * head. A hydra whose last head dies dies with it, on the server.
+ */
+function HeadsControls({ entry, blocked, onUse }: {
+  entry: ResourcePoolEntry;
+  blocked: boolean;
+  onUse: (options: PoolUseOptions) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <button type="button" disabled={blocked || entry.currentUses < 1} onClick={() => onUse({ option: 'lose' })}
+        aria-label={`A head dies (${entry.displayName})`} className={USE_BUTTON}>
+        Head dies
+      </button>
+      <button type="button" disabled={blocked} onClick={() => onUse({ option: 'grow' })}
+        aria-label={`A head grows (${entry.displayName})`} className={USE_BUTTON}>
+        Head grows
+      </button>
+    </div>
+  );
+}
 
 function LayOnHandsControls({ entry, participant, targets, blocked, asDm, onUse }: {
   entry: ResourcePoolEntry;
@@ -751,6 +778,7 @@ function iconChar(icon?: string | null): string {
     case 'wind': return '💨';
     case 'sparkles': return '✨';
     case 'paw-print': return '🐾';
+    case 'git-branch': return '🐉';
     default: return '●';
   }
 }

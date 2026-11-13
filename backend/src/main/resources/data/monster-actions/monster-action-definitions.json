@@ -34524,6 +34524,21 @@
         "multiattackComponents": [
           "Slam",
           "Slam"
+        ],
+        "onAllHit": {
+          "attack": "Slam",
+          "effects": [
+            {
+              "effectType": "CONDITION",
+              "condition": "grappled",
+              "escapeDC": 13,
+              "maxTargetSize": "Large"
+            }
+          ],
+          "text": "If both attacks hit a Large or smaller creature, the creature is grappled (escape DC 13), and the boneless can use Crushing Embrace."
+        },
+        "_riderActionKeys": [
+          "onAllHit"
         ]
       },
       {
@@ -34545,25 +34560,58 @@
       {
         "name": "Crushing Embrace",
         "actionType": "ACTION",
-        "deliveryMethod": "SAVING_THROW",
-        "saveAbility": "STR",
-        "saveDC": 13,
-        "halfOnSave": false,
+        "deliveryMethod": "AUTO_HIT",
+        "targetCount": 1,
+        "targetGrappled": true,
         "effects": [
           {
-            "effectType": "DAMAGE",
+            "effectType": "CONDITION",
+            "condition": "attached",
+            "maxTargetSize": "Large",
+            "escapeDC": 13
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "attached"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
             "damageDice": "1d4 + 3",
-            "damageType": "bludgeoning"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "grappled"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "blinded"
+            "damageType": "bludgeoning",
+            "endsWith": "attached",
+            "turnOf": "USER",
+            "turnSave": {
+              "saveDC": 13,
+              "saveAbility": "STR",
+              "halfOnSave": false
+            }
           }
-        ]
+        ],
+        "dmNote": "Applied by hand: the target is unable to breathe. If something moves the target, the boneless moves with it. The boneless can detach itself by spending 5 feet of its movement.",
+        "_riderReplaced": {
+          "name": "Crushing Embrace",
+          "actionType": "ACTION",
+          "deliveryMethod": "SAVING_THROW",
+          "saveAbility": "STR",
+          "saveDC": 13,
+          "halfOnSave": false,
+          "effects": [
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "1d4 + 3",
+              "damageType": "bludgeoning"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "grappled"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "blinded"
+            }
+          ]
+        }
       }
     ],
     "traits": [
@@ -90427,6 +90475,14 @@
         "multiattackDescription": "The Goose Mother makes as many Beak attacks as it has heads and one Wing attack.",
         "multiattackComponents": [
           "Wing"
+        ],
+        "heads": {
+          "count": 5,
+          "attack": "Beak",
+          "rules": "Whenever the Goose Mother takes 25 or more damage in a single turn, one of its heads dies. If all its heads die, the Goose Mother dies. At the end of its turn, the Goose Mother grows two heads for each of its heads that died since its last turn, unless it has taken poison damage since its last turn. The Goose Mother regains 10 hit points for each head when it regrows."
+        },
+        "_riderActionKeys": [
+          "heads"
         ]
       },
       {
@@ -102173,7 +102229,15 @@
         "actionType": "ACTION",
         "isMultiattack": true,
         "multiattackDescription": "The hydra makes as many bite attacks as it has heads.",
-        "multiattackComponents": []
+        "multiattackComponents": [],
+        "heads": {
+          "count": 5,
+          "attack": "Bite",
+          "rules": "While it has more than one head, the hydra has advantage on saving throws against being blinded, charmed, deafened, frightened, stunned, and knocked unconscious. Whenever the hydra takes 25 or more damage in a single turn, one of its heads dies. If all its heads die, the hydra dies. At the end of its turn, it grows two heads for each of its heads that died since its last turn, unless it has taken fire damage since its last turn. The hydra regains 10 hit points for each head regrown in this way."
+        },
+        "_riderActionKeys": [
+          "heads"
+        ]
       },
       {
         "name": "Bite",
@@ -146886,7 +146950,15 @@
           "Bite",
           "Bite"
         ],
-        "_note": "REVIEW: Number of attacks equals number of heads (starts with 5, can be reduced)"
+        "_note": "REVIEW: Number of attacks equals number of heads (starts with 5, can be reduced)",
+        "heads": {
+          "count": 5,
+          "attack": "Bite",
+          "rules": "While it has more than one head, Polukranos has advantage on saving throws against being blinded, charmed, deafened, frightened, stunned, or knocked unconscious. Whenever Polukranos takes 40 or more damage in a single turn, one of its heads dies. If all its heads die, Polukranos dies. At the end of its turn, it grows two heads for each of its heads that died since its last turn, unless it has taken 40 or more fire damage since its last turn. Polukranos regains 20 hit points for each head regrown in this way."
+        },
+        "_riderActionKeys": [
+          "heads"
+        ]
       },
       {
         "name": "Bite",
@@ -161317,7 +161389,23 @@
           "Slam",
           "Slam"
         ],
-        "notes": "If both slam attacks hit a Medium or smaller target, it is grappled (DC 14) and engulfed"
+        "notes": "If both slam attacks hit a Medium or smaller target, it is grappled (DC 14) and engulfed",
+        "onAllHit": {
+          "attack": "Slam",
+          "effects": [
+            {
+              "effectType": "CONDITION",
+              "condition": "grappled",
+              "escapeDC": 14,
+              "maxTargetSize": "Medium"
+            }
+          ],
+          "uses": "Engulf",
+          "text": "If both attacks hit a Medium or smaller target, the target is grappled (escape DC 14), and the shambling mound uses its Engulf on it."
+        },
+        "_riderActionKeys": [
+          "onAllHit"
+        ]
       },
       {
         "name": "Slam",
@@ -161338,31 +161426,74 @@
       {
         "name": "Engulf",
         "actionType": "ACTION",
-        "deliveryMethod": "SAVING_THROW",
-        "saveAbility": "CON",
-        "saveDC": 14,
-        "halfOnSave": false,
+        "deliveryMethod": "AUTO_HIT",
         "targetCount": 1,
+        "targetGrappled": true,
         "effects": [
           {
             "effectType": "CONDITION",
+            "condition": "engulfed",
+            "maxTargetSize": "Medium",
+            "swallow": {
+              "limit": 1,
+              "keepsGrapple": true,
+              "cover": false
+            },
+            "endsWith": "grappled"
+          },
+          {
+            "effectType": "CONDITION",
             "condition": "blinded",
-            "durationText": "while engulfed"
+            "endsWith": "engulfed"
           },
           {
             "effectType": "CONDITION",
             "condition": "restrained",
-            "durationText": "while engulfed"
+            "endsWith": "engulfed"
           },
           {
-            "effectType": "DAMAGE",
+            "effectType": "ONGOING_DAMAGE",
             "damageDice": "2d8 + 4",
             "damageType": "bludgeoning",
-            "notes": "DC 14 CON save at start of each of mound's turns or take this damage"
+            "endsWith": "engulfed",
+            "turnOf": "USER",
+            "turnSave": {
+              "saveDC": 14,
+              "saveAbility": "CON",
+              "halfOnSave": false
+            }
           }
         ],
-        "notes": "REVIEW: Engulfed target cannot breathe. Mound can have only one creature engulfed at a time.",
-        "targetRestriction": "One Medium or smaller creature grappled by the mound"
+        "dmNote": "Applied by hand: the target is unable to breathe. If the mound moves, the engulfed target moves with it.",
+        "_riderReplaced": {
+          "name": "Engulf",
+          "actionType": "ACTION",
+          "deliveryMethod": "SAVING_THROW",
+          "saveAbility": "CON",
+          "saveDC": 14,
+          "halfOnSave": false,
+          "targetCount": 1,
+          "effects": [
+            {
+              "effectType": "CONDITION",
+              "condition": "blinded",
+              "durationText": "while engulfed"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "restrained",
+              "durationText": "while engulfed"
+            },
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "2d8 + 4",
+              "damageType": "bludgeoning",
+              "notes": "DC 14 CON save at start of each of mound's turns or take this damage"
+            }
+          ],
+          "notes": "REVIEW: Engulfed target cannot breathe. Mound can have only one creature engulfed at a time.",
+          "targetRestriction": "One Medium or smaller creature grappled by the mound"
+        }
       }
     ],
     "traits": [
@@ -199359,6 +199490,20 @@
         "multiattackComponents": [
           "Claw",
           "Claw"
+        ],
+        "onAllHit": {
+          "attack": "Claw",
+          "effects": [
+            {
+              "effectType": "CONDITION",
+              "condition": "grappled",
+              "escapeDC": 14
+            }
+          ],
+          "text": "If both claws hit the same creature, the target is grappled (escape DC 14)."
+        },
+        "_riderActionKeys": [
+          "onAllHit"
         ]
       },
       {
@@ -223543,9 +223688,20 @@
             "damageType": "acid",
             "endsWith": "swallowed",
             "turnOf": "USER"
+          },
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "8d8",
+            "damageType": "necrotic",
+            "endsWith": "swallowed",
+            "turnOf": "USER",
+            "turnSave": {
+              "saveDC": 19,
+              "saveAbility": "CON",
+              "halfOnSave": true
+            }
           }
         ],
-        "dmNote": "Also on a hit, applied by hand: Any creature swallowed by a parasite-infested behir must succeed on a DC 19 Constitution saving throw at the start of each of the behir's turns or be feasted upon by blood parasites, taking 36 (8d8) necrotic damage on a failed save, or half as much damage on a successful save. This damage is in addition to the damage caused by the behir's digestive acids.",
         "description": "The behir makes one bite attack against a Medium or smaller target it is grappling. If the attack hits, the target is also swallowed, and the grapple ends. While swallowed, the target is blinded and restrained, it has Cover against attacks and other effects outside the behir, and it takes 21 (6d6) acid damage at the start of each of the behir's turns. A behir can have only one creature swallowed at a time. Any creature swallowed by a parasite-infested behir must succeed on a DC 19 Constitution saving throw at the start of each of the behir's turns or be feasted upon by blood parasites, taking 36 (8d8) necrotic damage on a failed save, or half as much damage on a successful save. This damage is in addition to the damage caused by the behir's digestive acids. If the behir takes 30 damage or more on a single turn from the swallowed creature, the behir must succeed on a DC 14 Constitution saving throw at the end of that turn or regurgitate the creature, which falls prone in a space within 10 feet of the behir. If the behir dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 15 feet of movement, exiting prone."
       }
     ],
@@ -225572,7 +225728,11 @@
         "isMultiattack": true,
         "multiattackDescription": "The dracohydra makes as many Bite attacks as it has heads.",
         "multiattackComponents": [],
-        "_multiattackNote": "The number of attacks depends on what the stat block names; the DM makes them by hand."
+        "heads": {
+          "count": 5,
+          "attack": "Bite",
+          "rules": "While it has more than one head, the dracohydra has advantage on saving throws against being blinded, charmed, deafened, frightened, stunned, and knocked unconscious. Whenever the dracohydra takes 30 or more damage in a single turn, one of its heads dies. If all its heads die, the dracohydra dies. At the end of its turn, the dracohydra grows two heads for each of its heads that died since its last turn, unless it has taken radiant damage since its last turn. The dracohydra regains 10 hit points for each head regrown this way."
+        }
       },
       {
         "name": "Bite",
@@ -226592,7 +226752,11 @@
         "isMultiattack": true,
         "multiattackDescription": "The hydra makes as many Bite attacks as it has heads.",
         "multiattackComponents": [],
-        "_multiattackNote": "The number of attacks depends on what the stat block names; the DM makes them by hand."
+        "heads": {
+          "count": 5,
+          "attack": "Bite",
+          "rules": "Whenever the hydra takes 30 or more damage in a single turn, one of its heads dies. If all its heads die, the hydra dies. At the end of its turn, the hydra grows two heads for each of its heads that died since its last turn, unless it has taken cold damage since its last turn. The hydra regains 10 hit points for each head regrown this way."
+        }
       },
       {
         "name": "Bite",
@@ -228067,7 +228231,11 @@
         "isMultiattack": true,
         "multiattackDescription": "The hydra makes as many bite attacks as it has heads.",
         "multiattackComponents": [],
-        "_multiattackNote": "The number of attacks depends on what the stat block names; the DM makes them by hand."
+        "heads": {
+          "count": 5,
+          "attack": "Bite",
+          "rules": "While it has more than one head, the hydra has advantage on saving throws against being blinded, charmed, deafened, frightened, stunned, or knocked unconscious. Whenever the hydra takes 35 or more damage in a single turn, one of its heads dies. If all its heads die, the hydra dies. At the end of its turn, it grows two heads for each of its heads that died since its last turn, unless it has taken fire damage since its last turn. The hydra regains 10 hit points for each head regrown in this way."
+        }
       },
       {
         "name": "Bite",

@@ -48,6 +48,12 @@ public class PoolUseService {
     private final FeatureEffects featureEffects;
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
+    // A hydra whose last head dies dies with it (MM p.190, D206)
+    private final EffectApplier effectApplier;
+
+    // The Heads pool's options: a head dies (the default), or heads grow (D206)
+    static final String LOSE = "lose";
+    static final String GROW = "grow";
 
     /**
      * Uses the pool: everything is checked, and the use charged to the participant's turn economy, before the pool
@@ -66,6 +72,10 @@ public class PoolUseService {
         Encounter encounter = access.beginFor(encounterId, request.participantId(), userId);
         EncounterParticipant participant = CombatAccess.participant(encounter, request.participantId());
         ResourcePoolEntry pool = pool(participant, request.poolId());
+        if (MonsterPools.HEADS_EFFECT.equals(FeatureEffects.effectOf(pool))) {
+            heads(encounter, participant, pool, request, uses);
+            return encounterService.toResponse(encounterRepository.save(encounter));
+        }
         FeatureEffects.Plan plan = featureEffects.plan(encounter, participant, pool, request, userId, costOf(pool));
         ActionCost cost = plan.cost();
         boolean grantsAction = grantsAction(pool);
@@ -102,6 +112,56 @@ public class PoolUseService {
                 plan.target() != participant ? plan.target() : null);
         featureEffects.apply(encounter, participant, plan);
         return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    /*
+     * A hydra's heads changed by the DM as they die or regrow (MM p.190, D206), costing nothing from the turn: "lose"
+     * (the default) for heads that die, "grow" for heads that grow, which raise the pool's maximum when it has more
+     * heads than ever. The trait's own counting (25 damage in a turn, two heads for each that died unless it took fire
+     * damage, 10 hit points for each regrown) is the DM's. A hydra whose last head dies dies with it ("If all its heads
+     * die, the hydra dies").
+     */
+    private void heads(Encounter encounter, EncounterParticipant hydra, ResourcePoolEntry pool,
+                       UsePoolRequest request, int count) {
+        String option = request.option() != null && !request.option().isBlank()
+                ? request.option().trim().toLowerCase(java.util.Locale.ROOT) : LOSE;
+        if (!LOSE.equals(option) && !GROW.equals(option)) {
+            throw new ValidationException(pool.displayName() + " takes the option \"lose\" or \"grow\"");
+        }
+        if ((request.targetIds() != null && !request.targetIds().isEmpty()) || request.amounts() != null
+                || request.beastId() != null || request.weapon() != null) {
+            throw new ValidationException(pool.displayName() + " takes no target, amounts, beast or weapon");
+        }
+        if (hydra.getLifeState() == com.tabletophelper.rules.combat.LifeState.DEAD) {
+            throw new com.tabletophelper.shared.ConflictException(hydra.getDisplayName() + " is dead");
+        }
+        int before = pool.currentUses();
+        int after;
+        if (GROW.equals(option)) {
+            after = before + count;
+        } else {
+            if (count > before) {
+                throw new com.tabletophelper.shared.ConflictException(hydra.getDisplayName() + " has only " + before
+                        + " head" + (before == 1 ? "" : "s"));
+            }
+            after = before - count;
+        }
+        ResourcePoolEntry changed = new ResourcePoolEntry(pool.poolId(), pool.displayName(), pool.sourceType(),
+                pool.sourceName(), Math.max(pool.maxUses(), after), pool.maxUsesFormula(), after, pool.resetOn(),
+                pool.resetAmount(), pool.resetCheck(), pool.spendActionType(), pool.icon(), pool.metadata());
+        hydra.setResourcePoolsCurrent(new java.util.ArrayList<>(hydra.getResourcePoolsCurrent().stream()
+                .map(each -> each != null && pool.poolId().equals(each.poolId()) ? changed : each)
+                .toList()));
+        String heads = count == 1 ? "a head" : count + " heads";
+        combatLog.write(encounter, CombatActionType.POOL_USE, hydra.getDisplayName()
+                + (GROW.equals(option) ? " grows " + heads : " loses " + heads) + ": " + after + " head"
+                + (after == 1 ? "" : "s") + " now" + (GROW.equals(option)
+                ? " (the DM adds the hit points its trait gives for each head regrown)" : ""), hydra, null);
+        if (after == 0) {
+            effectApplier.destroy(encounter, hydra, "all its heads have died, and by its Multiple Heads trait it "
+                    + "dies with them");
+            effectApplier.endLinked(encounter);
+        }
     }
 
     private static ResourcePoolEntry pool(EncounterParticipant participant, String poolId) {

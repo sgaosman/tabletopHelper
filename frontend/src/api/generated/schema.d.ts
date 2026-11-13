@@ -2261,6 +2261,8 @@ export interface components {
             creatureType?: string | null;
             displayName?: string | null;
             /** Format: int32 */
+            heads?: number | null;
+            /** Format: int32 */
             hpMax?: number | null;
             /** @enum {string|null} */
             initiativeMode?: "FOLLOWS_CASTER" | "GROUP" | "INDIVIDUAL" | null;
@@ -3607,6 +3609,11 @@ export interface components {
             dexterity: number;
             /** Format: int32 */
             experiencePoints: number;
+            /**
+             * Format: int32
+             * @description The stat block's head count for a monster whose multiattack makes an attack for each of its heads, such as a hydra; null for any other
+             */
+            heads?: number | null;
             hitDice?: string | null;
             /** Format: int32 */
             hitPoints: number;

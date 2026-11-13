@@ -162,16 +162,31 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
      * @param escapeFeet         the movement a creature inside spends to leave the corpse, exiting prone, once the
      *                           swallower dies; null when none is given, as for an engulfing cube
      * @param takenThisTurn      the damage creatures inside have dealt it this turn
+     * @param noCover            true when the creatures inside have no cover against what is outside, so others reach
+     *                           them and they reach others, as in a shambling mound, whose text gives none (MM p.270,
+     *                           D206); null for the total cover of a swallowed creature
      */
     public record Gullet(@Schema(requiredMode = REQUIRED) String condition,
                          @JsonInclude(JsonInclude.Include.NON_NULL) Integer regurgitateDamage,
                          @JsonInclude(JsonInclude.Include.NON_NULL) Integer regurgitateDc,
                          @JsonInclude(JsonInclude.Include.NON_NULL) Integer escapeFeet,
-                         @Schema(requiredMode = REQUIRED) int takenThisTurn) {
+                         @Schema(requiredMode = REQUIRED) int takenThisTurn,
+                         @JsonInclude(JsonInclude.Include.NON_NULL) Boolean noCover) {
+
+        /** A gullet whose creatures have total cover (D204). */
+        public Gullet(String condition, Integer regurgitateDamage, Integer regurgitateDc, Integer escapeFeet,
+                      int takenThisTurn) {
+            this(condition, regurgitateDamage, regurgitateDc, escapeFeet, takenThisTurn, null);
+        }
 
         /** The same gullet having taken this much this turn. */
         public Gullet withTaken(int taken) {
-            return new Gullet(condition, regurgitateDamage, regurgitateDc, escapeFeet, taken);
+            return new Gullet(condition, regurgitateDamage, regurgitateDc, escapeFeet, taken, noCover);
+        }
+
+        /** Whether the creatures inside have total cover against what is outside (D204, D206). */
+        public boolean covers() {
+            return !Boolean.TRUE.equals(noCover);
         }
     }
 
@@ -179,14 +194,25 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
      * Damage a monster's hit deals at the start of a turn (D203), as a chain devil's 2d6 piercing while its chain
      * restrains (MM p.72).
      *
-     * @param dice   the dice, such as "2d6"
-     * @param type   the damage type; null for hit points lost, as a stirge's blood drain (MM p.284), which no defence
-     *               changes
-     * @param turnOf TARGET for the start of each of the creature's turns, USER for each of the monster's
+     * @param dice       the dice, such as "2d6"
+     * @param type       the damage type; null for hit points lost, as a stirge's blood drain (MM p.284), which no
+     *                   defence changes
+     * @param turnOf     TARGET for the start of each of the creature's turns, USER for each of the monster's
+     * @param save       the save the creature makes before each tick, the damage coming only on a failure, as a
+     *                   shambling mound's engulfed creature's DC 14 Constitution save (MM p.270, D206); null for none
+     * @param halfOnSave with a save, true when a success halves the damage rather than preventing it, as a
+     *                   parasite-infested behir's parasites (CM, D206); null otherwise
      */
     public record TurnDamage(@Schema(requiredMode = REQUIRED) String dice,
                              @JsonInclude(JsonInclude.Include.NON_NULL) String type,
-                             @Schema(requiredMode = REQUIRED) String turnOf) {
+                             @Schema(requiredMode = REQUIRED) String turnOf,
+                             @JsonInclude(JsonInclude.Include.NON_NULL) EffectSave save,
+                             @JsonInclude(JsonInclude.Include.NON_NULL) Boolean halfOnSave) {
+
+        /** Damage that comes every turn, with no save (D203). */
+        public TurnDamage(String dice, String type, String turnOf) {
+            this(dice, type, turnOf, null, null);
+        }
     }
 
     /** The same effect holding what a monster's hit left (D203). */

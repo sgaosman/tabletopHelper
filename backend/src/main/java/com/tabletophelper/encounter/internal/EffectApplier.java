@@ -1207,6 +1207,9 @@ public class EffectApplier {
                     } else {
                         String gone = grapplerGone(encounter, condition);
                         if (gone == null) {
+                            gone = attacherGone(encounter, condition);
+                        }
+                        if (gone == null) {
                             gone = swallowerGone(encounter, creature, condition, escapes);
                         }
                         if (gone == null) {
@@ -1329,7 +1332,12 @@ public class EffectApplier {
             return;
         }
         String type = turn.type() != null && !turn.type().isBlank() ? turn.type() : null;
-        Effect damage = new Effect(effect.spell(), new Effect.Automatic(), dice.get().stream()
+        // A save before each tick, the damage coming only on a failure or halved on a success, as a shambling mound's
+        // engulfed creature saves at the start of each of the mound's turns (MM p.270, D206)
+        Optional<Ability> saveAbility = turn.save() != null ? Ability.parse(turn.save().ability()) : Optional.empty();
+        Effect.Delivery delivery = saveAbility.<Effect.Delivery>map(ability -> new Effect.Save(ability,
+                turn.save().dc(), Boolean.TRUE.equals(turn.halfOnSave()))).orElseGet(Effect.Automatic::new);
+        Effect damage = new Effect(effect.spell(), delivery, dice.get().stream()
                 .map(each -> new Effect.DamagePart(each, type)).toList(), null, List.of(), false, null);
         Use use = new Use(holder, effect.spell(), CombatActionType.SPELL_EFFECT_REPEAT,
                 type != null ? "deals its damage to" : "drains hit points from", "", effect.spell(), null);
@@ -1409,8 +1417,21 @@ public class EffectApplier {
         return swallower.get().getDisplayName() + " is dead";
     }
 
+    // Why a creature attached to this one has dropped off: it is dead or gone, as a boneless "detaches from any creature
+    // it is attached to" when it dies (VRGR, D206); null while it holds
+    private static String attacherGone(Encounter encounter, ConditionEntry condition) {
+        if (!"attached".equalsIgnoreCase(condition.name()) || condition.sourceParticipantId() == null) {
+            return null;
+        }
+        Optional<EncounterParticipant> attacher = participant(encounter, condition.sourceParticipantId());
+        if (attacher.isEmpty() || EncounterTurns.dismissed(attacher.get())) {
+            return "what was attached to it is gone";
+        }
+        return attacher.get().getLifeState() == LifeState.DEAD ? attacher.get().getDisplayName() + " is dead" : null;
+    }
+
     // The gullet of the swallower's action that gave the condition, or of any of its actions
-    private static Optional<SpellEffectEntry.Gullet> gullet(EncounterParticipant swallower, ConditionEntry condition) {
+    static Optional<SpellEffectEntry.Gullet> gullet(EncounterParticipant swallower, ConditionEntry condition) {
         return effects(swallower).stream()
                 .map(SpellEffectEntry::monsterRider)
                 .filter(rider -> rider != null && SpellEffectEntry.MonsterRider.SWALLOW.equals(rider.kind())

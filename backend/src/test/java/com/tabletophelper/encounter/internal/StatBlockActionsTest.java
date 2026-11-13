@@ -48,7 +48,9 @@ class StatBlockActionsTest {
     private static final int SPELLCASTER_MONSTERS = 126;
     private static final int ADDED_MONSTERS = 168;
     // The multiattacks whose count the stat block ties to a hydra's heads, which the DM makes by hand (D205)
-    private static final List<String> MULTIATTACKS_FOR_THE_DM = List.of("Dracohydra (FTD)", "Snapping Hydra (MCV4EC)",
+    // The three hydras make a Bite for each head they have (D206), so no generated multiattack is the DM's
+    private static final List<String> MULTIATTACKS_FOR_THE_DM = List.of();
+    private static final List<String> MULTIATTACKS_BY_HEADS = List.of("Dracohydra (FTD)", "Snapping Hydra (MCV4EC)",
             "Ironscale Hydra (MOT)");
 
     // A tag such as {@condition poisoned} or {@spell fly|phb}, read as its first part
@@ -177,16 +179,20 @@ class StatBlockActionsTest {
     }
 
     @Test
-    @DisplayName("Every generated multiattack names only its own actions, so it resolves, but the three hydras' \"as "
-            + "many Bite attacks as it has heads\", which the DM makes by hand with a note (D205)")
+    @DisplayName("Every generated multiattack names only its own actions, so it resolves, the three hydras' \"as many "
+            + "Bite attacks as it has heads\" making a Bite for each head (D205, D206)")
     void everyMultiattackResolves() {
         List<String> unreadable = new ArrayList<>();
         List<String> forTheDm = new ArrayList<>();
+        List<String> byHeads = new ArrayList<>();
         for (JsonNode definition : generated) {
             MonsterTemplates templates = MonsterTemplates.of(definition);
             for (MonsterTemplates.Action action : templates.actions()) {
                 if (!action.multiattack()) {
                     continue;
+                }
+                if (action.heads() != null) {
+                    byHeads.add(name(definition));
                 }
                 if (action.multiattackNote() != null) {
                     forTheDm.add(name(definition));
@@ -202,6 +208,7 @@ class StatBlockActionsTest {
         }
         assertEquals(List.of(), unreadable);
         assertEquals(MULTIATTACKS_FOR_THE_DM, forTheDm);
+        assertEquals(MULTIATTACKS_BY_HEADS, byHeads);
     }
 
     @ParameterizedTest(name = "{0} ({1}) {2}")
