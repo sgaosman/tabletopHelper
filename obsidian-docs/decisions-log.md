@@ -3993,3 +3993,5 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D125, D182, D203, D204, D205
 
 **Tests:** `EngulfAndHeadsTest` (16), `EngulfAndHeadsDataTest` (4), `EngulfAndHeadsIT` (5), updated counts in `MonsterRidersStepsDataTest`, `MonsterRidersTailDataTest`, `StatBlockActionsTest` and `GeneratedMonstersTest`, and Vitest cases for the builder's Heads box and the pool buttons; 3,442 backend unit, 534 integration and 1,204 frontend tests. Checked in the browser on the rehearsal copy: a Dracohydra added with 3 heads got a 3/3 Heads pool.
+
+**Update (2026-11-13):** the user confirmed both rules calls. By the rules as written, the Shambling Mound gives the engulfed creature no total cover, so the app lets anyone attack it and leaves it to the DM not to. Engulfing ends with the grapple or the mound's death.
