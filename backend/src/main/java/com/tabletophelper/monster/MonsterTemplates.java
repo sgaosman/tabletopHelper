@@ -257,6 +257,9 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      * @param onAllHit                for a multiattack, what follows when all of one attack's hits land on the same
      *                                creature, as a shambling mound's grapple and Engulf after both Slams hit (MM
      *                                p.270); null for nothing (D206)
+     * @param damageOptions           the damage types the monster chooses from when it uses the action, as a
+     *                                dracohydra's Bite's "acid, cold, fire, lightning, or poison" (FTD); its parts of
+     *                                damageType "option" deal the type chosen; empty for none (D207)
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Action(String name, String description, Boolean automatable, String deliveryMethod,
@@ -270,7 +273,10 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                          @JsonProperty("isEyeRays") boolean eyeRays, Integer rayCount, List<Ray> rays,
                          String dmNote, Integer grappleLimit, boolean grappleLimitBlocks, String immuneAfterSave,
                          List<String> exemptTypes, List<String> targetTypes, boolean targetGrappled, Heads heads,
-                         OnAllHit onAllHit) {
+                         OnAllHit onAllHit, List<String> damageOptions) {
+
+        /** The damage type of a part the monster chooses when it uses the action (D207). */
+        public static final String OPTION = "option";
 
         public Action {
             effects = listOf(effects);
@@ -278,6 +284,49 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
             rays = listOf(rays);
             exemptTypes = listOf(exemptTypes);
             targetTypes = listOf(targetTypes);
+            damageOptions = listOf(damageOptions);
+        }
+
+        /** An action without damage options (D207). */
+        public Action(String name, String description, Boolean automatable, String deliveryMethod,
+                      String attackType, Integer attackBonus, Integer saveDc, String saveAbility, boolean halfOnSave,
+                      Integer targetCount, Integer secondarySaveDc, String secondarySaveAbility, List<Part> effects,
+                      String recharge, Integer uses, Integer usesPerDay, String usesRecharge, String rechargeType,
+                      String cost, boolean multiattack, List<String> multiattackComponents,
+                      String multiattackDescription, String multiattackNote, boolean eyeRays, Integer rayCount,
+                      List<Ray> rays, String dmNote, Integer grappleLimit, boolean grappleLimitBlocks,
+                      String immuneAfterSave, List<String> exemptTypes, List<String> targetTypes,
+                      boolean targetGrappled, Heads heads, OnAllHit onAllHit) {
+            this(name, description, automatable, deliveryMethod, attackType, attackBonus, saveDc, saveAbility,
+                    halfOnSave, targetCount, secondarySaveDc, secondarySaveAbility, effects, recharge, uses, usesPerDay,
+                    usesRecharge, rechargeType, cost, multiattack, multiattackComponents, multiattackDescription,
+                    multiattackNote, eyeRays, rayCount, rays, dmNote, grappleLimit, grappleLimitBlocks,
+                    immuneAfterSave, exemptTypes, targetTypes, targetGrappled, heads, onAllHit, null);
+        }
+
+        /** Whether the monster chooses the damage type when it uses the action (D207). */
+        public boolean hasDamageOptions() {
+            return !damageOptions.isEmpty();
+        }
+
+        /**
+         * The action with the type chosen in place of each part's "option" (D207), so its damage, critical hits, riders
+         * and the target's resistances all see that type; the action itself when type is null.
+         */
+        public Action withDamageType(String type) {
+            if (type == null) {
+                return this;
+            }
+            List<Part> chosen = effects.stream()
+                    .map(part -> part != null && OPTION.equalsIgnoreCase(part.damageType())
+                            ? part.withDamageType(type) : part)
+                    .toList();
+            return new Action(name, description, automatable, deliveryMethod, attackType, attackBonus, saveDc,
+                    saveAbility, halfOnSave, targetCount, secondarySaveDc, secondarySaveAbility, chosen, recharge, uses,
+                    usesPerDay, usesRecharge, rechargeType, cost, multiattack, multiattackComponents,
+                    multiattackDescription, multiattackNote, eyeRays, rayCount, rays, dmNote, grappleLimit,
+                    grappleLimitBlocks, immuneAfterSave, exemptTypes, targetTypes, targetGrappled, heads, onAllHit,
+                    damageOptions);
         }
 
         /**
@@ -419,6 +468,14 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                     String saveToEndAbility, Integer escapeDc) {
             this(effectType, damageDice, damageType, condition, saveDc, saveAbility, durationRounds, saveToEndEachTurn,
                     saveToEndDc, saveToEndAbility, escapeDc, false, null, false, null, false);
+        }
+
+        /** The part with another damage type, as the type a monster chooses for its "option" (D207). */
+        public Part withDamageType(String type) {
+            return new Part(effectType, damageDice, type, condition, saveDc, saveAbility, durationRounds,
+                    saveToEndEachTurn, saveToEndDc, saveToEndAbility, escapeDc, halfOnSave, onlyIf, replacesDamage,
+                    maxTargetSize, endOfUsersTurn, endsWith, endsOnDamage, exemptTypes, until, diesAtZero, half,
+                    tempHp, levels, modifier, turnOf, total, swallow, counted, ability, atZero, onKill, turnSave);
         }
 
         /** Whether the part records a save of its own: both its DC and its ability. */

@@ -2914,6 +2914,7 @@ export interface components {
         };
         ComponentOption: {
             automated: boolean;
+            damageOptions: string[];
             manualReason?: string | null;
             /** Format: int32 */
             maxTargets?: number | null;
@@ -3648,7 +3649,9 @@ export interface components {
             /** @enum {string} */
             actionSource: "ACTION" | "BONUS" | "REACTION" | "LEGENDARY" | "LAIR";
             advantage?: boolean | null;
+            componentDamageTypes?: string[] | null;
             componentTargetIds?: string[][] | null;
+            damageType?: string | null;
             /** Format: uuid */
             monsterParticipantId: string;
             /** Format: int32 */

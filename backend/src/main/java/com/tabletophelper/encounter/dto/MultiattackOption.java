@@ -29,12 +29,24 @@ public record MultiattackOption(
      * @param automated    whether the server resolves it; otherwise it takes no targets and the DM resolves it
      * @param manualReason why the DM resolves it, or null
      * @param maxTargets   how many creatures it can take, one for most attacks; null for any number
+     * @param damageOptions the damage types the monster chooses from for this attack, one of which
+     *                      componentDamageTypes gives when it is made; empty for none (D207)
      */
     public record ComponentOption(
             @Schema(requiredMode = REQUIRED) String name,
             @Schema(requiredMode = REQUIRED) boolean automated,
             String manualReason,
-            Integer maxTargets
+            Integer maxTargets,
+            @Schema(requiredMode = REQUIRED) List<String> damageOptions
     ) {
+
+        public ComponentOption {
+            damageOptions = damageOptions != null ? List.copyOf(damageOptions) : List.of();
+        }
+
+        /** An attack without damage options. */
+        public ComponentOption(String name, boolean automated, String manualReason, Integer maxTargets) {
+            this(name, automated, manualReason, maxTargets, List.of());
+        }
     }
 }

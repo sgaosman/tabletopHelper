@@ -123,8 +123,8 @@ class EngulfAndHeadsIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("A dracohydra added with three heads makes three Bites, each the DM's for its chosen damage type, and "
-            + "its Heads pool shows 3/3 (FTD)")
+    @DisplayName("A dracohydra added with three heads makes three Bites, each of the damage type chosen for it (D207), "
+            + "and its Heads pool shows 3/3 (FTD)")
     void dracohydraWithThreeHeads() {
         String dracohydra = addMonster("Dracohydra", "FTD", "Huge", "Dragon", 172, 15, 3);
         String guard = addTarget("Guard", "Medium", 120, 12);
@@ -135,8 +135,12 @@ class EngulfAndHeadsIT extends IntegrationTest {
         assertThat(heads.get("maxUses").asInt()).isEqualTo(3);
         assertThat(components(dracohydra)).containsExactly("Bite", "Bite", "Bite");
 
-        expect(HttpStatus.OK, monsterAction(dracohydra, "Multiattack", guard));
-        assertThat(descriptions(dmLog())).anyMatch(line -> line.startsWith("Dracohydra uses Multiattack.")
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/monster-action",
+                Map.of("monsterParticipantId", dracohydra, "actionName", "Multiattack", "actionSource", "ACTION",
+                        "targetParticipantIds", List.of(guard),
+                        "componentDamageTypes", List.of("acid", "acid", "acid")), dm.accessToken()));
+        assertThat(descriptions(dmLog())).anyMatch(line -> line.startsWith("Dracohydra uses Multiattack (Bite: acid; "
+                + "Bite: acid; Bite: acid).")
                 && line.contains("With 3 heads it makes 3 Bite attacks. Multiple Heads (the DM changes its Heads pool "
                 + "as heads die or regrow): While it has more than one head"));
     }

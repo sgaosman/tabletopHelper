@@ -16,6 +16,11 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * pactOfTheChain: a Pact of the Chain warlock's familiar makes one attack with its reaction, in place of one of the
  * warlock's own attacks of the Attack action on the warlock's turn (PHB p.107): an attack from the familiar's actions,
  * which a familiar otherwise can't make (PHB p.240).
+ * <p>
+ * damageType: the damage type the monster chooses for an action whose stat block lets it, one of the action's
+ * damageOptions, as a dracohydra's Bite (FTD); required for such an action and refused for any other (D207). A
+ * multiattack takes componentDamageTypes instead, one per component in the order its multiattack option lists them,
+ * null for an attack without options or one not made; each attack with options that is made needs one.
  */
 public record MonsterActionRequest(
         @Schema(requiredMode = REQUIRED) UUID monsterParticipantId,
@@ -27,7 +32,9 @@ public record MonsterActionRequest(
         Integer overrideSaveDC,
         Boolean advantage,
         List<List<UUID>> componentTargetIds,
-        Boolean pactOfTheChain
+        Boolean pactOfTheChain,
+        String damageType,
+        List<String> componentDamageTypes
 ) {
 
     /** An action that isn't a Pact of the Chain familiar's attack. */
@@ -36,5 +43,13 @@ public record MonsterActionRequest(
                                 Boolean advantage, List<List<UUID>> componentTargetIds) {
         this(monsterParticipantId, actionName, actionSource, targetParticipantIds, overrideAttackBonus, overrideSaveDC,
                 advantage, componentTargetIds, null);
+    }
+
+    /** An action with no damage type chosen (D207). */
+    public MonsterActionRequest(UUID monsterParticipantId, String actionName, String actionSource,
+                                List<UUID> targetParticipantIds, Integer overrideAttackBonus, Integer overrideSaveDC,
+                                Boolean advantage, List<List<UUID>> componentTargetIds, Boolean pactOfTheChain) {
+        this(monsterParticipantId, actionName, actionSource, targetParticipantIds, overrideAttackBonus, overrideSaveDC,
+                advantage, componentTargetIds, pactOfTheChain, null, null);
     }
 }

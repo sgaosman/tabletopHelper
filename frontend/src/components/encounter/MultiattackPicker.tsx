@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { apiErrorMessage } from '../../api/errors';
 import { useMultiattackOptions } from '../../queries/encounters';
+import { Select } from '../ui/Input';
 import type { EncounterParticipant } from '../../types/encounter';
 
 const CHIP = 'px-2 py-0.5 font-heading text-[11px] font-semibold tracking-[0.02em] border transition-colors';
@@ -12,10 +13,12 @@ const CHIP_OFF = 'bg-card border-rule-light hover:bg-monster-bg';
  * another, as the stat block allows. The attacks are the ones the server reads from the monster's action data, in
  * order; one with no target is skipped, and one the DM resolves by hand takes none. When the server can't read the
  * attacks, the multiattack is the DM's: its stat block wording shows, and the monster's actions are used one at a
- * time.
+ * time. An attack whose damage type the monster chooses, as each of a dracohydra's Bites (FTD), takes a damage type
+ * too, and the multiattack waits until every such attack with a target has one (D207).
  *
  * @param describe the numbers of one of the monster's actions, such as "+14 · 2d10+8", for each attack's label
- * @param onExecute sends the targets of each attack in order, or null to log a multiattack the DM resolves
+ * @param onExecute sends the targets of each attack in order, or null to log a multiattack the DM resolves, and the
+ *                  damage type of each attack in order ("" for none) when any attack has damage options
  */
 export default function MultiattackPicker({ monster, participants, actionName, describe, executing, onExecute }: {
   monster: EncounterParticipant;
@@ -23,10 +26,11 @@ export default function MultiattackPicker({ monster, participants, actionName, d
   actionName: string;
   describe: (actionName: string) => string | undefined;
   executing: boolean;
-  onExecute: (componentTargetIds: string[][] | null) => void;
+  onExecute: (componentTargetIds: string[][] | null, componentDamageTypes?: string[]) => void;
 }) {
   const optionsQuery = useMultiattackOptions(monster.id);
   const [chosen, setChosen] = useState<string[][] | null>(null);
+  const [types, setTypes] = useState<Record<number, string>>({});
 
   if (optionsQuery.isPending) {
     return <p className="mt-2 font-body text-[15px] font-semibold text-muted">Loading attacks...</p>;
@@ -82,6 +86,12 @@ export default function MultiattackPicker({ monster, participants, actionName, d
   }
 
   const attacks = current.filter((ids, i) => components[i].automated && ids.length > 0).length;
+  const hasOptions = (i: number) => components[i].automated && (components[i].damageOptions?.length ?? 0) > 0;
+  // An attack made with damage options needs its type first (D207)
+  const untyped = current.filter((ids, i) => hasOptions(i) && ids.length > 0 && !types[i]).length;
+  const damageTypes = components.some((_, i) => hasOptions(i))
+    ? current.map((ids, i) => (hasOptions(i) && ids.length > 0 ? types[i] ?? '' : ''))
+    : undefined;
 
   return (
     <section aria-label={`${actionName} attacks`} className="mt-2 p-3 border border-cls-monk/40 bg-card space-y-2">
@@ -108,6 +118,13 @@ export default function MultiattackPicker({ monster, participants, actionName, d
               {label}{numbers ? <span className="text-faint"> {numbers}</span> : null}
               {component.automated && component.maxTargets == null && <span className="text-faint"> (any number)</span>}
             </span>
+            {hasOptions(i) && (
+              <Select label={`Damage type for ${label}`} hideLabel className="w-40" value={types[i] ?? ''}
+                onChange={e => setTypes(prev => ({ ...prev, [i]: e.target.value }))}>
+                <option value="">Damage type</option>
+                {component.damageOptions.map(type => <option key={type} value={type}>{type}</option>)}
+              </Select>
+            )}
             {component.automated ? (
               <div role="group" aria-label={`Targets for ${label}`} className="flex flex-wrap gap-1">
                 {candidates.map(target => {
@@ -127,8 +144,13 @@ export default function MultiattackPicker({ monster, participants, actionName, d
         );
       })}
 
-      <button type="button" disabled={attacks === 0 || executing}
-        onClick={() => onExecute(current.map((ids, i) => (components[i].automated ? ids : [])))}
+      {untyped > 0 && (
+        <p role="note" className="font-body text-[12.5px] font-semibold text-faint">
+          Choose a damage type for each attack that has a target.
+        </p>
+      )}
+      <button type="button" disabled={attacks === 0 || untyped > 0 || executing}
+        onClick={() => onExecute(current.map((ids, i) => (components[i].automated ? ids : [])), damageTypes)}
         className="px-3 py-1 bg-ink hover:bg-ink/90 disabled:bg-page-alt disabled:text-faint text-card font-heading text-[12px] font-semibold tracking-[0.02em]">
         {executing ? 'Executing...' : `Execute ${actionName} (${attacks} attack${attacks !== 1 ? 's' : ''})`}
       </button>

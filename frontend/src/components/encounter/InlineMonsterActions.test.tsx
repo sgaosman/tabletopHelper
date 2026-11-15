@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import { makeMockEncounter, makeMockParticipant } from '../../test/mocks/handlers';
-import type { MonsterActionResponse, MonsterActionTemplate } from '../../types/combat';
+import type { MonsterActionResponse, MonsterActionTemplate, MultiattackOption } from '../../types/combat';
 import { EncounterProvider } from '../../context/EncounterContext';
 import { queryKeys } from '../../queries/keys';
 import InlineMonsterActions from './InlineMonsterActions';
@@ -214,5 +214,124 @@ describe('InlineMonsterActions: conditions on attack rolls (PHB appendix A)', ()
       '?attackerId=part-goblin&targetId=part-gimli&withinFiveFeet=true',
       '?attackerId=part-goblin&targetId=part-gimli&withinFiveFeet=false',
     ]);
+  });
+});
+
+describe('InlineMonsterActions: damage options (D207)', () => {
+  const dragonTypes = ['acid', 'cold', 'fire', 'lightning', 'poison'];
+
+  beforeEach(() => {
+    setupAuthToken();
+    server.use(
+      http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json({
+        actions: [
+          { name: 'Multiattack', isMultiattack: true, multiattackComponents: [], automatable: true },
+          { name: 'Bite', attackBonus: 9, deliveryMethod: 'ATTACK_ROLL', attackType: 'MELEE_WEAPON', automatable: true,
+            effects: [{ effectType: 'DAMAGE', damageDice: '1d10 + 5', damageType: 'option' }], damageOptions: dragonTypes },
+          { name: 'Claw', attackBonus: 9, deliveryMethod: 'ATTACK_ROLL', attackType: 'MELEE_WEAPON', automatable: true,
+            effects: [{ effectType: 'DAMAGE', damageDice: '1d6 + 5', damageType: 'slashing' }] },
+        ],
+      } satisfies MonsterActionTemplate)),
+      http.get('/api/encounters/:id/combat/multiattack-options', () => HttpResponse.json([{
+        name: 'Multiattack', description: 'The dracohydra makes as many Bite attacks as it has heads.', manualReason: null,
+        components: [
+          { name: 'Bite', automated: true, manualReason: null, maxTargets: 1, damageOptions: dragonTypes },
+          { name: 'Bite', automated: true, manualReason: null, maxTargets: 1, damageOptions: dragonTypes },
+          { name: 'Claw', automated: true, manualReason: null, maxTargets: 1, damageOptions: [] },
+        ],
+      }] satisfies MultiattackOption[])),
+    );
+  });
+
+  /** Records each monster action request. */
+  function monsterActions() {
+    const requests: unknown[] = [];
+    server.use(http.post('/api/encounters/:id/combat/monster-action', async ({ request }) => {
+      requests.push(await request.json());
+      return HttpResponse.json({
+        resolved: true, description: 'Done.', totalDamage: 0, totalHealing: 0, targetResults: [],
+        requiresManualResolution: false, conditionsInflicted: [], legendaryResistanceAvailable: false,
+        legendaryResistanceRemaining: 0, encounterState: makeMockEncounter({ participants }),
+      } satisfies MonsterActionResponse);
+    }));
+    return requests;
+  }
+
+  it('asks for the damage type of an action with options, and sends it once chosen', async () => {
+    const requests = monsterActions();
+    const user = await renderActions();
+
+    await user.click(await screen.findByRole('button', { name: /^Bite/ }));
+    await user.click(screen.getByRole('button', { name: 'Gimli' }));
+    const execute = screen.getByRole('button', { name: 'Execute Bite (1 target)' });
+    expect(execute).toBeDisabled();
+    const select = screen.getByLabelText<HTMLSelectElement>('Damage type');
+    expect([...select.options].map(o => o.value)).toEqual(['', ...dragonTypes]);
+    await user.selectOptions(select, 'fire');
+    await user.click(execute);
+
+    await waitFor(() => expect(requests).toEqual([{
+      monsterParticipantId: 'part-goblin', actionName: 'Bite', actionSource: 'ACTION', targetParticipantIds: ['part-gimli'],
+      damageType: 'fire',
+    }]));
+  });
+
+  it('asks nothing for an action without options, and forgets the type when another action is chosen', async () => {
+    const requests = monsterActions();
+    const user = await renderActions();
+
+    await user.click(await screen.findByRole('button', { name: /^Bite/ }));
+    await user.selectOptions(screen.getByLabelText('Damage type'), 'acid');
+    await user.click(screen.getByRole('button', { name: /^Claw/ }));
+    expect(screen.queryByLabelText('Damage type')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Gimli' }));
+    await user.click(screen.getByRole('button', { name: 'Execute Claw (1 target)' }));
+    await user.click(screen.getByRole('button', { name: /^Bite/ }));
+    expect(screen.getByLabelText('Damage type')).toHaveValue('');
+
+    await waitFor(() => expect(requests).toEqual([{
+      monsterParticipantId: 'part-goblin', actionName: 'Claw', actionSource: 'ACTION', targetParticipantIds: ['part-gimli'],
+    }]));
+  });
+
+  it('asks a multiattack for a type for each Bite with a target, and sends them in order', async () => {
+    const requests = monsterActions();
+    const user = await renderActions();
+
+    await user.click(await screen.findByRole('button', { name: '⚔ Multiattack' }));
+    await user.click(within(await screen.findByRole('group', { name: 'Same target for every attack' }))
+      .getByRole('button', { name: 'Gimli' }));
+    const execute = screen.getByRole('button', { name: 'Execute Multiattack (3 attacks)' });
+    expect(execute).toBeDisabled();
+    expect(screen.getByText('Choose a damage type for each attack that has a target.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Damage type for 3. Claw')).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Damage type for 1. Bite'), 'fire');
+    expect(execute).toBeDisabled();
+    await user.selectOptions(screen.getByLabelText('Damage type for 2. Bite'), 'cold');
+    await user.click(execute);
+
+    await waitFor(() => expect(requests).toEqual([{
+      monsterParticipantId: 'part-goblin', actionName: 'Multiattack', actionSource: 'ACTION', targetParticipantIds: [],
+      componentTargetIds: [['part-gimli'], ['part-gimli'], ['part-gimli']],
+      componentDamageTypes: ['fire', 'cold', ''],
+    }]));
+  });
+
+  it('needs no type for a Bite left without a target', async () => {
+    const requests = monsterActions();
+    const user = await renderActions();
+
+    await user.click(await screen.findByRole('button', { name: '⚔ Multiattack' }));
+    await user.click(within(await screen.findByRole('group', { name: 'Same target for every attack' }))
+      .getByRole('button', { name: 'Gimli' }));
+    await user.click(within(screen.getByRole('group', { name: 'Targets for 2. Bite' })).getByRole('button', { name: 'Gimli' }));
+    await user.selectOptions(screen.getByLabelText('Damage type for 1. Bite'), 'poison');
+    await user.click(screen.getByRole('button', { name: 'Execute Multiattack (2 attacks)' }));
+
+    await waitFor(() => expect(requests).toEqual([{
+      monsterParticipantId: 'part-goblin', actionName: 'Multiattack', actionSource: 'ACTION', targetParticipantIds: [],
+      componentTargetIds: [['part-gimli'], [], ['part-gimli']],
+      componentDamageTypes: ['poison', '', ''],
+    }]));
   });
 });

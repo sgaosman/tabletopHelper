@@ -175,6 +175,11 @@ export interface MonsterAction {
    * pool each use spends and its full count, which a monster that hasn't used the action yet doesn't hold.
    */
   limitedUses?: { poolId: string; maxUses: number };
+  /**
+   * The damage types the monster chooses from when it uses the action, as a dracohydra's Bite (FTD); its effects of
+   * damageType "option" deal the type chosen, which the request's damageType names (D207).
+   */
+  damageOptions?: string[];
 }
 
 export interface MonsterEffect {

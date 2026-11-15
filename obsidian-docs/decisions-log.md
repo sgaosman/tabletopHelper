@@ -3995,3 +3995,35 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Tests:** `EngulfAndHeadsTest` (16), `EngulfAndHeadsDataTest` (4), `EngulfAndHeadsIT` (5), updated counts in `MonsterRidersStepsDataTest`, `MonsterRidersTailDataTest`, `StatBlockActionsTest` and `GeneratedMonstersTest`, and Vitest cases for the builder's Heads box and the pool buttons; 3,442 backend unit, 534 integration and 1,204 frontend tests. Checked in the browser on the rehearsal copy: a Dracohydra added with 3 heads got a 3/3 Heads pool.
 
 **Update (2026-11-13):** the user confirmed both rules calls. By the rules as written, the Shambling Mound gives the engulfed creature no total cover, so the app lets anyone attack it and leaves it to the DM not to. Engulfing ends with the grapple or the mound's death.
+
+**Update (2026-11-13):** the Dracohydra's Bite open item is closed by [[#D207]]: each Bite now deals the damage type the DM picks for it.
+
+
+## D207: Damage Options on Monster Actions
+
+**Date:** 2026-11-13
+**Status:** Accepted — implemented (no migration; monster action data changed)
+
+**Context:** [[#D206]] left the Dracohydra's Bite (FTD) made by hand because the dracohydra chooses each Bite's damage type (acid, cold, fire, lightning or poison). A survey of `monster-action-definitions.json` found seven actions on seven monsters whose stat block lets the monster choose the damage type, and four of them were wrong rather than manual: the Kobold Scale Sorcerer's Chromatic Bolt (MPMM) always dealt acid, Reigar's Chromatic Bolt (BAM) had the type `variable`, the Tortle Druid's Nature's Wrath (MPMM) always dealt cold, and the Flesh Colossus's Elemental Breath (BGG) dealt force, which is not one of its choices. Mordakhesh's and the Tarkanan Assassin's Chromatic Orb (ERLW) dealt no damage. The user asked for the Dracohydra automated and approved the wider fix (2026-11-13).
+
+**Decision:**
+- **Data:** an action may carry `damageOptions`, the list of types the monster may choose, and its damage parts carry `damageType: "option"`, mirroring a spell's `castOptions` and `"option"` parts (Spirit Guardians, Dragon's Breath).
+- **Generator:** `generate_monster_actions.py` reads "damage of a type chosen by …: a, b, or c" and "(its choice)" wording. Entries it builds from stat blocks get the options directly; the four wrong hand-built entries are corrected by the rider pass with its usual marks, so re-runs are idempotent.
+- **Request:** `MonsterActionRequest` gains `damageType`. An action with options answers 400 when no type is chosen or the type is not in its list, as an unknown spell option does; a type sent for an action without options is also 400. Resistances, immunities and vulnerabilities apply to the chosen type.
+- **Multiattack:** the type is chosen per attack, so a multiattack takes one choice for each component attack that has options. The Dracohydra picks a type for every Bite it makes (one per head, [[#D206]]).
+- **Frontend:** a "Damage type" select in `InlineMonsterActions` for a single action and one per attack in `MultiattackPicker`, like the cast screen's option select. The combat log names the chosen type.
+- **Wider than the survey (user's call, 2026-11-13):** the generator's "(its choice)" reading also caught 15 more actions that dealt one fixed type behind a "the DM settles the choice by hand" note, so 22 actions now carry options. Besides the seven above: the Djinni's Scimitar and the Crawling Claw (MM), Heralds of Dust Exorcist, Mephistopheles (MaBJoV, and the CoA version, which also gains its missing 4d8), Nafas, both Prismari, Tomb Tapper, Windfall's Chromatic Rapier, Xan, Firemane Angel, Eo Ashmajiir and High Fae Mage. The user kept all 22. A Djinni's multiattack now asks for a type for each Scimitar.
+- **Dracohydra's Prismatic Breath** is automated too: a DC 17 Dexterity save for half in a 60-foot cone, of the chosen type.
+- **Flesh Colossus's Elemental Breath** loses its force part; the force damage to creatures inside its chest stays a note for the DM.
+- **Request fields:** `MonsterActionRequest.damageType` for a single action and `componentDamageTypes` for a multiattack, aligned with its components (`null` or empty for an attack without options or not made). A multiattack sent a single `damageType` is a 400. Errors name the attack, as "Choose a damage type for Bite (attack 2): acid, cold, fire, lightning, poison". `MultiattackOption.ComponentOption.damageOptions` and the actions endpoint's `damageOptions` tell the client what to offer.
+- **Resolution:** the chosen type replaces `"option"` before anything is rolled, so critical hits, riders and defences all see it. The opening log line names the choices, as "Dracohydra uses Multiattack (Bite: fire; Bite: acid; Bite: cold)". Legendary, lair, reaction, Wild Shape and familiar actions go through the same endpoint. Undo restores its stored before-state, so it needed no change.
+
+**Rules calls:** one type per use of an action, so an action that hits two targets at once (Eo Ashmajiir's Twinned Orbs) deals the same type to both. A multiattack's attack left without a target needs no type.
+
+**Trade-offs and open items:** the Aspect of Tiamat, Lazav, Windfall and the Storm Giant Tempest Caller do have entries (the context above was wrong to call them out of scope), but their breath and other save actions deal a fixed acid type or none; the rider pass doesn't correct hand-built save actions, so they stay as they are. Bestiary monsters whose type list has no "chosen" wording (some MaBJoV, MCV4EC, SCC and VEOR entries) aren't read. The quick result under the action panel shows only the first damage type of a hit with two (the Djinni's "16 slashing"); the log has both. The monster-actions content loader stays at version 1: it reloads when the data file changes, so the real database picks the data up on its next start.
+
+**Key files:** `backend/scripts/generate_monster_actions.py`, `data/monster-actions/monster-action-definitions.json`, `monster/MonsterTemplates.java`, `encounter/internal/MonsterEffects.java`, `encounter/internal/MonsterActionService.java`, `encounter/dto/MonsterActionRequest.java`, `encounter/dto/MultiattackOption.java`, `components/encounter/InlineMonsterActions.tsx`, `components/encounter/MultiattackPicker.tsx`, `types/combat.ts`, `api/generated/openapi.json`, `api/generated/schema.d.ts`
+
+**Related:** D125, D194, D202, D204, D205, D206; glossary: Damage Option
+
+**Tests:** `DamageOptionsTest` (11), `DamageOptionsDataTest` (3, listing all 22 actions and their types), `DamageOptionsIT` (2), updates to `StatBlockActionsTest`, `EngulfAndHeadsIT`, `MultiattackIT` and `EncounterSessionPage.test.tsx`, and 4 Vitest cases in `InlineMonsterActions.test.tsx`; 3,456 backend unit, 536 integration and 1,208 frontend tests. Checked in the browser on the rehearsal copy: a Djinni's multiattack waited until all three Scimitars had a type, then hit for 12 slashing and 4 lightning; a three-headed Dracohydra bit a red dragon wyrmling with fire (0, immune), acid (14) and cold (8); Prismatic Breath offered its five types.

@@ -7,6 +7,7 @@ import com.tabletophelper.rules.Rng;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.OngoingModifier;
 import com.tabletophelper.rules.combat.RollMode;
+import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -14,7 +15,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -213,9 +216,11 @@ public class MonsterEffects {
      * @param notes        what the combat log should add when it resolves, such as healing left to the DM
      * @param maxTargets   how many creatures it can take: an attack's target count, one unless the data says more;
      *                     null for any number
+     * @param template     the action it makes, read again with the damage type chosen for it (D207); null for one
+     *                     the DM resolves
      */
     public record MultiattackComponent(String name, Effect effect, String manualReason, List<String> notes,
-                                       Integer maxTargets, Riders riders) {
+                                       Integer maxTargets, Riders riders, MonsterTemplates.Action template) {
 
         public MultiattackComponent {
             riders = riders != null ? riders : Riders.NONE;
@@ -224,7 +229,12 @@ public class MonsterEffects {
         /** A component with no riders. */
         public MultiattackComponent(String name, Effect effect, String manualReason, List<String> notes,
                                     Integer maxTargets) {
-            this(name, effect, manualReason, notes, maxTargets, Riders.NONE);
+            this(name, effect, manualReason, notes, maxTargets, Riders.NONE, null);
+        }
+
+        /** The damage types the monster chooses from for this attack; empty for none (D207). */
+        public List<String> damageOptions() {
+            return template != null ? template.damageOptions() : List.of();
         }
 
         public boolean automated() {
@@ -271,6 +281,10 @@ public class MonsterEffects {
         if (read.effect() == null) {
             return manual(name, read.manualReason());
         }
+        if (unchosen(read.effect())) {
+            return manual(name, "Its damage type is chosen when it is used: " + String.join(", ",
+                    action.damageOptions()));
+        }
         return new MonsterAction(name, List.of(new Step(name, read.effect(), List.copyOf(targetIds), read.riders())),
                 null, read.notes());
     }
@@ -293,6 +307,10 @@ public class MonsterEffects {
             }
             List<UUID> targets = i < componentTargets.size() && componentTargets.get(i) != null
                     ? componentTargets.get(i) : List.of();
+            if (!targets.isEmpty() && unchosen(component.effect())) {
+                notes.add(component.name() + ": its damage type is chosen when it is used, so the DM resolves it.");
+                continue;
+            }
             if (!targets.isEmpty()) {
                 steps.add(new Step(component.name(), component.effect(), List.copyOf(targets), component.riders()));
                 notes.addAll(component.notes());
@@ -357,6 +375,12 @@ public class MonsterEffects {
         return new Multiattack(name, description, components, null, notes);
     }
 
+    // Whether the Effect still deals damage of a type the monster chooses, none chosen (D207)
+    private static boolean unchosen(Effect effect) {
+        return effect != null && effect.damage().stream()
+                .anyMatch(part -> MonsterTemplates.Action.OPTION.equalsIgnoreCase(part.type()));
+    }
+
     // "With 5 heads it makes 5 Bite attacks. Multiple Heads (...): ...", the log's reminder (D206)
     private static String headsNote(int count, MonsterTemplates.Heads heads) {
         String rules = heads.rules() != null && !heads.rules().isBlank() ? " " + sentence(heads.rules().trim()) : "";
@@ -375,7 +399,60 @@ public class MonsterEffects {
         Integer maxTargets = read.effect() != null && read.effect().delivery() instanceof Effect.Attack
                 ? Math.max(1, template.targetCount() != null ? template.targetCount() : 1) : null;
         return new MultiattackComponent(name, read.effect(), read.manualReason(), read.notes(), maxTargets,
-                read.riders());
+                read.riders(), read.effect() != null ? template : null);
+    }
+
+    /**
+     * The multiattack with each attack the monster chooses a damage type for read again with the type chosen (D207):
+     * one type per component, in order, null for an attack without options or one not made. MonsterActionService has
+     * checked the types against each attack's options.
+     */
+    public Multiattack withDamageTypes(Multiattack multiattack, List<String> types, Overrides overrides) {
+        if (types == null || types.stream().allMatch(Objects::isNull)) {
+            return multiattack;
+        }
+        List<MultiattackComponent> components = new ArrayList<>();
+        for (int i = 0; i < multiattack.components().size(); i++) {
+            MultiattackComponent component = multiattack.components().get(i);
+            String type = i < types.size() ? types.get(i) : null;
+            if (type == null || component.template() == null || !component.template().hasDamageOptions()) {
+                components.add(component);
+                continue;
+            }
+            MonsterTemplates.Action chosen = component.template().withDamageType(type);
+            Read read = read(component.name(), chosen, overrides);
+            components.add(new MultiattackComponent(component.name(), read.effect(), read.manualReason(),
+                    read.notes(), component.maxTargets(), read.riders(), chosen));
+        }
+        return new Multiattack(multiattack.name(), multiattack.description(), components, multiattack.unreadable(),
+                multiattack.notes());
+    }
+
+    /**
+     * The damage type chosen for an action the monster chooses one for (D207), as one of its options' spelling; null
+     * for an action without options. Refused with a 400 when the action has options and none was chosen or the one
+     * chosen isn't among them, or when one was chosen for an action without options, as a spell's options are.
+     *
+     * @param label how the refusal names the action, such as "Bite" or "Bite (attack 2)"
+     */
+    public static String damageType(String label, MonsterTemplates.Action action, String requested) {
+        boolean given = requested != null && !requested.isBlank();
+        if (!action.hasDamageOptions()) {
+            if (given) {
+                throw new ValidationException(label + " has no damage type to choose");
+            }
+            return null;
+        }
+        String options = String.join(", ", action.damageOptions());
+        if (!given) {
+            throw new ValidationException("Choose a damage type for " + label + ": " + options);
+        }
+        return action.damageOptions().stream()
+                .filter(option -> option.trim().equalsIgnoreCase(requested.trim()))
+                .map(option -> option.trim().toLowerCase(Locale.ROOT))
+                .findFirst()
+                .orElseThrow(() -> new ValidationException(requested.trim() + " isn't a damage type " + label
+                        + " can deal: " + options));
     }
 
     // What a single action does, or why the DM resolves it

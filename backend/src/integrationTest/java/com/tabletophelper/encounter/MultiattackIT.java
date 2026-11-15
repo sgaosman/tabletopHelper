@@ -95,8 +95,8 @@ class MultiattackIT extends IntegrationTest {
         JsonNode options = expect(HttpStatus.OK, multiattackOptions(dm.accessToken()));
         assertThat(options.toString()).isEqualTo("[{\"name\":\"Multiattack\",\"description\":\"The owlbear makes two "
                 + "attacks: one with its beak and one with its claws.\",\"components\":["
-                + "{\"name\":\"Beak\",\"automated\":true,\"manualReason\":null,\"maxTargets\":1},"
-                + "{\"name\":\"Claw\",\"automated\":true,\"manualReason\":null,\"maxTargets\":1}],\"manualReason\":null}]");
+                + "{\"name\":\"Beak\",\"automated\":true,\"manualReason\":null,\"maxTargets\":1,\"damageOptions\":[]},"
+                + "{\"name\":\"Claw\",\"automated\":true,\"manualReason\":null,\"maxTargets\":1,\"damageOptions\":[]}],\"manualReason\":null}]");
 
         // The beak: 10 + 7 hits AC 12 for 4 + 5; the claw: 12 + 7 hits AC 10 for 3 + 3 + 5
         dice.script(10, 4, 12, 3, 3);

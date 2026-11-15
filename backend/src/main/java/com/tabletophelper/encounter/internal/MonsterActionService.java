@@ -102,10 +102,14 @@ public class MonsterActionService {
         if (templates == null) {
             throw new ValidationException("Monster has no action templates");
         }
-        MonsterTemplates.Action action = templates.find(request.actionSource(), request.actionName())
+        MonsterTemplates.Action found = templates.find(request.actionSource(), request.actionName())
                 .orElseThrow(() -> new ValidationException("Action '" + request.actionName()
                         + "' not found in monster's action templates (source: " + request.actionSource() + ")"));
-        String actionName = MonsterEffects.nameOf(action);
+        String actionName = MonsterEffects.nameOf(found);
+        // The damage type the monster chooses for the action, as a dracohydra's Bite's (FTD); a multiattack's attacks
+        // each take their own (D207)
+        String damageType = singleDamageType(actionName, found, request);
+        MonsterTemplates.Action action = found.withDamageType(damageType);
         EncounterParticipant warlock = pact
                 ? pactWarlock(encounter, monster, request, action, actionName) : null;
         requireSummonMayAct(encounter, monster, action, actionName, userId, pact);
@@ -125,15 +129,19 @@ public class MonsterActionService {
                     + "trait)");
         }
         // A multiattack's attacks each take their own targets, or all go to the one target named
-        MonsterEffects.Multiattack multiattack = action.multiattack()
+        MonsterEffects.Multiattack read = action.multiattack()
                 ? monsterEffects.multiattack(action, templates, overrides, heads) : null;
         List<List<UUID>> componentTargetIds = request.componentTargetIds() != null
-                ? componentTargets(actionName, multiattack, request) : null;
+                ? componentTargets(actionName, read, request) : null;
         List<UUID> targetIds = request.targetParticipantIds() != null ? request.targetParticipantIds() : List.of();
-        if (componentTargetIds == null && multiattack != null && multiattack.readable() && targetIds.size() > 1) {
+        if (componentTargetIds == null && read != null && read.readable() && targetIds.size() > 1) {
             throw new ValidationException(actionName + " makes its attacks one target at a time: choose a target "
                     + "for each attack");
         }
+        // Each attack the monster chooses a damage type for, read with the type chosen (D207)
+        List<String> componentTypes = componentDamageTypes(actionName, read, request, componentTargetIds, targetIds);
+        MonsterEffects.Multiattack multiattack = read != null
+                ? monsterEffects.withDamageTypes(read, componentTypes, overrides) : null;
         List<EncounterParticipant> targets = CombatAccess.targets(encounter,
                 componentTargetIds != null ? distinct(componentTargetIds) : targetIds, userId);
         CombatAccess.requireNotDead(targets);
@@ -194,10 +202,15 @@ public class MonsterActionService {
 
         MonsterEffects.MonsterAction plan = componentTargetIds != null
                 ? monsterEffects.multiattack(multiattack, componentTargetIds)
+                : multiattack != null && !action.eyeRays()
+                ? monsterEffects.multiattack(multiattack, multiattack.components().stream()
+                        .map(component -> targetIds).toList())
                 : monsterEffects.plan(action, templates, targetIds, overrides, heads);
 
-        // The entry for the action as a whole names no target, so it can't name a hidden one (D157)
-        String lead = monster.getDisplayName() + " uses " + actionName + costNote;
+        // The entry for the action as a whole names no target, so it can't name a hidden one (D157); it names the
+        // damage types chosen (D207)
+        String lead = monster.getDisplayName() + " uses " + actionName + costNote
+                + typesNote(damageType, multiattack, componentTypes);
         String notes = String.join(" ", plan.notes());
         String description = plan.automated()
                 ? lead + "." + (notes.isEmpty() ? "" : " " + notes)
@@ -532,7 +545,7 @@ public class MonsterActionService {
         return new MultiattackOption(multiattack.name(), multiattack.description(),
                 multiattack.components().stream()
                         .map(component -> new MultiattackOption.ComponentOption(component.name(), component.automated(),
-                                component.manualReason(), component.maxTargets()))
+                                component.manualReason(), component.maxTargets(), component.damageOptions()))
                         .toList(),
                 multiattack.unreadable());
     }
@@ -578,6 +591,89 @@ public class MonsterActionService {
             throw new ValidationException("Choose a target for at least one of " + actionName + "'s attacks");
         }
         return targets;
+    }
+
+    /*
+     * The damage type chosen for an action that isn't a multiattack (D207), or null; a multiattack's attacks take theirs
+     * in componentDamageTypes, so a single type for one, or a list for another action, is a 400.
+     */
+    private static String singleDamageType(String actionName, MonsterTemplates.Action action,
+                                           MonsterActionRequest request) {
+        boolean single = request.damageType() != null && !request.damageType().isBlank();
+        if (action.multiattack()) {
+            if (single) {
+                throw new ValidationException(actionName + " chooses a damage type for each attack: give them in "
+                        + "componentDamageTypes");
+            }
+            return null;
+        }
+        if (request.componentDamageTypes() != null) {
+            throw new ValidationException("Only a multiattack takes a damage type for each attack, and " + actionName
+                    + " isn't one");
+        }
+        return MonsterEffects.damageType(actionName, action, request.damageType());
+    }
+
+    /*
+     * The damage type chosen for each of a multiattack's attacks (D207), in order, null for an attack without options
+     * or one not made; null for an action that isn't a multiattack the server can read. Refused with a 400 when the
+     * list doesn't have one entry per attack, when an attack made with options has none or one not among them, or
+     * when an attack without options is given one.
+     */
+    private static List<String> componentDamageTypes(String actionName, MonsterEffects.Multiattack multiattack,
+                                                     MonsterActionRequest request,
+                                                     List<List<UUID>> componentTargetIds, List<UUID> targetIds) {
+        List<String> given = request.componentDamageTypes();
+        if (multiattack == null) {
+            return null;
+        }
+        if (!multiattack.readable()) {
+            if (given != null) {
+                throw new ValidationException(multiattack.unreadable()
+                        + ", so its attacks can't take damage types one by one");
+            }
+            return null;
+        }
+        List<MonsterEffects.MultiattackComponent> components = multiattack.components();
+        if (given != null && given.size() != components.size()) {
+            throw new ValidationException(actionName + " makes " + components.size() + " attack"
+                    + (components.size() != 1 ? "s" : "") + ", but damage types were given for " + given.size());
+        }
+        List<String> types = new ArrayList<>();
+        for (int i = 0; i < components.size(); i++) {
+            MonsterEffects.MultiattackComponent component = components.get(i);
+            String requested = given != null ? given.get(i) : null;
+            boolean chosen = requested != null && !requested.isBlank();
+            String label = component.name() + " (attack " + (i + 1) + ")";
+            if (component.damageOptions().isEmpty()) {
+                if (chosen) {
+                    throw new ValidationException(label + " has no damage type to choose");
+                }
+                types.add(null);
+                continue;
+            }
+            boolean made = componentTargetIds != null ? !componentTargetIds.get(i).isEmpty() : !targetIds.isEmpty();
+            types.add(made || chosen ? MonsterEffects.damageType(label, component.template(), requested) : null);
+        }
+        return types;
+    }
+
+    // " (fire)" for a single action, " (Bite: fire; Bite: cold)" for a multiattack's choices (D207), or nothing
+    private static String typesNote(String damageType, MonsterEffects.Multiattack multiattack,
+                                    List<String> componentTypes) {
+        if (damageType != null) {
+            return " (" + damageType + ")";
+        }
+        if (multiattack == null || componentTypes == null) {
+            return "";
+        }
+        List<String> chosen = new ArrayList<>();
+        for (int i = 0; i < componentTypes.size(); i++) {
+            if (componentTypes.get(i) != null) {
+                chosen.add(multiattack.components().get(i).name() + ": " + componentTypes.get(i));
+            }
+        }
+        return chosen.isEmpty() ? "" : " (" + String.join("; ", chosen) + ")";
     }
 
     // Every creature the attacks name, in the order first named

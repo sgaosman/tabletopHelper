@@ -160,9 +160,21 @@ class StatBlockActionsTest {
                     }
                     Matcher damage = HIT_DAMAGE.matcher(text);
                     JsonNode first = action.path("effects").path(0);
-                    // An attack left to the DM rolls no damage, as the dracohydra's bite of "a type determined by the
-                    // head" (FTD) (D205)
+                    // An attack left to the DM rolls no damage (D205)
                     boolean rolled = action.path("automatable").asBoolean(true);
+                    // Damage of a type the monster chooses is "option", each of its damageOptions in the stat block's
+                    // words, as the dracohydra's bite's "acid, cold, fire, lightning, or poison" (D207)
+                    if ("option".equals(first.path("damageType").asString())) {
+                        List<String> options = new ArrayList<>();
+                        action.path("damageOptions").forEach(option -> options.add(option.asString()));
+                        String plain = text.toLowerCase();
+                        if (options.size() < 2 || !options.stream().allMatch(plain::contains)
+                                || !damage.find() || !damage.group(1).equals(first.path("damageDice").asString())) {
+                            mismatches.add(what + ": damage " + first.path("damageDice").asString() + " of "
+                                    + options);
+                        }
+                        continue;
+                    }
                     if (rolled && damage.find() && (!damage.group(1).equals(first.path("damageDice").asString())
                             || !damage.group(2).equals(first.path("damageType").asString()))) {
                         mismatches.add(what + ": damage " + first.path("damageDice").asString() + " "
@@ -225,7 +237,10 @@ class StatBlockActionsTest {
         assertEquals(bonus, action.attackBonus());
         assertEquals(dice, action.effects().getFirst().damageDice());
         assertEquals(type, action.effects().getFirst().damageType());
-        MonsterEffects.MonsterAction plan = monsterEffects.plan(action, templates, List.of(UUID.randomUUID()),
+        // The djinni's scimitar's lightning or thunder is its choice, made when it attacks (D207)
+        MonsterTemplates.Action chosen = action.hasDamageOptions()
+                ? action.withDamageType(action.damageOptions().getFirst()) : action;
+        MonsterEffects.MonsterAction plan = monsterEffects.plan(chosen, templates, List.of(UUID.randomUUID()),
                 MonsterEffects.Overrides.NONE);
         assertTrue(plan.automated(), plan::manualReason);
     }

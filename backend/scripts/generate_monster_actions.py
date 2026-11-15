@@ -56,6 +56,13 @@ another meanwhile (grappleLimitBlocks, "the snake can't constrict another target
 immunity a success gives (immuneAfterSave) and the creature types it has no effect on (exemptTypes). A rider tied to a
 condition the parts don't give goes back to the DM's note.
 
+Damage of a type the monster chooses (D207), "damage of a type chosen by the dracohydra: acid, cold, ...", "of a type of
+the kobold's choice: ...", "of the colossus's choosing: ..." or a type list with "(its choice)", is a part of damageType
+"option" with the types in the action's damageOptions, in an attack's hit and a saving throw action alike; a save
+action's damage in a sentence of its own that isn't the save's, as the flesh colossus's force damage to the creatures
+in its chest (BGG), goes to the DM. The rider pass puts the option part in place of a hand-built attack's damage of the
+same dice, which had one of the types or "variable", and adds damageOptions as an action key.
+
 Then a rider pass gives every hand-built entry's attacks what their stat block's hit gives beyond their own parts,
 leaving their attack bonus and damage alone, and marks each change so the next run takes it away first (rider_pass);
 its saving throw actions get the immunity and exemptions their stat block gives (D203).
@@ -1364,6 +1371,35 @@ def conditions(text, save=None):
     return found
 
 
+# A damage type the monster chooses when it uses the action (D207): "10 ({@damage 1d10 + 5}) damage of a type chosen by
+# the dracohydra: acid, cold, fire, lightning, or poison", "9 ({@damage 2d6 + 2}) of a type of the kobold's choice: ...",
+# "40 ({@damage 9d8}) damage of a type of the colossus's choosing: ...", "... chosen by the reigar from the following
+# list: ...", and the type list first, "21 ({@damage 6d6}) acid, cold, fire, lightning, or poison damage (Windfall's
+# choice)"
+TYPE_CHOICES = r'([a-z]+(?:(?:, or |, | or )[a-z]+)+)'
+CHOSEN_TYPE = re.compile(r"(\d+)\s*\(\{@(?:damage|dice) (\d+d\d+(?:\s*[+-]\s*\d+)?)\}\)\s*(?:damage\s+)?of a type "
+                         r"(?:chosen by [^:.{}]+?|of [^:.{}]*?(?:choice|choosing))(?: from the following list)?:\s*"
+                         + TYPE_CHOICES)
+CHOSEN_LIST = re.compile(r"(\d+)\s*\(\{@(?:damage|dice) (\d+d\d+(?:\s*[+-]\s*\d+)?)\}\)\s*" + TYPE_CHOICES
+                         + r"\s+damage\s*\((?:its|his|her|their|[A-Za-z' -]+?'s?) choice\)")
+
+
+def chosen_types(text):
+    """The text with each damage of a type the monster chooses written "N (dice) option damage", which the readers take
+    as a part of damageType "option", and the types it may choose; the text as it is and None when it has none, or
+    choices of different types (D207)."""
+    found = []
+
+    def option(match):
+        found.append(tuple(t.strip() for t in re.split(r', or |, | or ', match.group(3))))
+        return '%s ({@damage %s}) option damage' % (match.group(1), match.group(2))
+
+    rewritten = CHOSEN_LIST.sub(option, CHOSEN_TYPE.sub(option, text))
+    if not found or len(set(found)) != 1:
+        return text, None
+    return rewritten, list(found[0])
+
+
 def damage_parts(text):
     """The damage parts of a text, and whether any is a choice of type or an alternative the DM settles."""
     parts, choice, previous_end = [], False, 0
@@ -1479,7 +1515,9 @@ def read_attack(raw):
 
 def read_hit(hit):
     """What a hit's text gives (D202): its effects, whether a choice is left to the DM, its first sentence, the clauses
-    the effects don't say, and its versatile damage."""
+    the effects don't say, and its versatile damage. Damage of a type the monster chooses is a part of damageType
+    "option", with the types in the action's damageOptions (D207)."""
+    hit, damage_options = chosen_types(hit)
     sentences = SENTENCE.split(hit.strip())
     first, rest = sentences[0], sentences[1:]
     versatile = VERSATILE.search(first)
@@ -1495,7 +1533,7 @@ def read_hit(hit):
         remainder = ''
     # A swallow or a petrification over two saves, read from the sentences as a whole (D204)
     conditions_read, leftover = [], []
-    action_keys = {}
+    action_keys = {'damageOptions': damage_options} if damage_options else {}
     whole = []
     units = ([remainder] if remainder.strip(' .,;') else []) + rest
     offset = len(units) - len(rest)
@@ -1676,10 +1714,20 @@ def saving_throw(action, raw, description):
     if TRIGGERED.search(strip_tags(raw)) or OPTIONS.search(raw) or len(sentences) > 5:
         return manual(action, description)
     dc, ability = next(iter(pairs))
+    # Damage of a type the monster chooses is a part of damageType "option" (D207); damage the save's sentences don't
+    # deal, as the flesh colossus's force damage to the creatures in its chest (BGG), is the DM's
+    chosen, damage_options = chosen_types(raw)
+    by_hand = []
+    if damage_options:
+        sentences = SENTENCE.split(chosen)
     # A sentence about a successful save only, such as "On a successful save, it takes 22 (5d8) psychic damage",
     # gives the success damage, not more damage
     success_only = [s for s in sentences if re.search(r'success', s) and not re.search(r'fail', s)]
-    effects, choice = damage_parts(' '.join(s for s in sentences if s not in success_only))
+    dealt = [s for s in sentences if s not in success_only]
+    if damage_options:
+        by_hand = [s for s in dealt if DAMAGE.search(s) and 'option damage' not in s]
+        dealt = [s for s in dealt if s not in by_hand]
+    effects, choice = damage_parts(' '.join(dealt))
     success_damage, _ = damage_parts(' '.join(success_only))
     effects.extend(conditions(' '.join(s for s in SENTENCE.split(raw)
                                        if 'saving throw' in s or 'failed save' in s or 'condition' in s),
@@ -1706,9 +1754,13 @@ def saving_throw(action, raw, description):
         if targets:
             action['targetCount'] = COUNTS[targets.group(1)]
     action['effects'] = effects
+    if damage_options:
+        action['damageOptions'] = damage_options
     # The immunity a success gives, and the creature types the action passes over (D203)
     action.update(save_riders(raw))
-    if choice:
+    if by_hand:
+        action['dmNote'] = 'Applied by hand: ' + ' '.join(sentence_of(s) for s in by_hand)
+    elif choice:
         action['dmNote'] = 'The damage type or amount is a choice the DM settles by hand: ' + description
     elif RIDER.search(description):
         action['dmNote'] = 'Applied by hand beyond the damage and conditions: ' + description
@@ -1950,7 +2002,7 @@ RIDER_STATS = ('attacks matched', 'attacks changed', 'damage given a save', 'dam
                'dmNotes added', 'dmNotes extended', 'lasting riders added', 'conditions linked',
                'conditions given an exemption', 'turn damage moved off the hit', 'grapple limits added',
                'save actions matched', 'save actions given an immunity or exemption', 'actions rebuilt',
-               'multiattacks given heads or a follow-up')
+               'multiattacks given heads or a follow-up', 'damage given options')
 # The keys of a condition that tie it to another or keep it from some creatures (D203)
 LINK_KEYS = ('endsWith', 'exemptTypes', 'endsOnDamage')
 LASTING_TYPES = ('HP_MAX_REDUCTION', 'LIFE_DRAIN', 'EXHAUSTION', 'MODIFIER', 'ONGOING_DAMAGE', 'COUNTED_SAVES',
@@ -2048,6 +2100,22 @@ def add_riders(action, reading, stats):
     dropped, clauses = unanchored(reading, names)
     reading = dict(reading, leftover=reading['leftover'] + clauses)
     built = [p for p in reading['effects'] if not any(p is d for d in dropped)]
+    # Damage of a type the monster chooses (D207) takes the place of the entry's damage of the same dice, which had one
+    # of the types, or none the app knows, as the kobold scale sorcerer's acid Chromatic Bolt (MPMM) or the reigar's
+    # "variable" one (BAM); the entry's options come with it
+    options = reading['action'].get('damageOptions')
+    if options:
+        for part in (p for p in built if p['effectType'] == 'DAMAGE' and p.get('damageType') == 'option'):
+            same = next((p for p in effects if any(p is o for o in original) and p.get('effectType') == 'DAMAGE'
+                         and dice_key(p)[0] == dice_key(part)[0] and dice_key(p)[1] != 'option'
+                         and not any(p.get(k) is not None for k in DAMAGE_RIDER_KEYS)), None)
+            if same is not None:
+                index = next(i for i, p in enumerate(effects) if p is same)
+                action.setdefault('_riderRemoved', []).append({'at': index, 'part': same})
+                del effects[index]
+            effects.append(dict(part, _rider='added'))
+        if add_action_keys(action, {'damageOptions': options}):
+            stats['damage given options'] += 1
     for part in (p for p in built if p['effectType'] == 'DAMAGE' and ('saveDC' in p or 'onlyIf' in p)):
         keys = {k: part[k] for k in DAMAGE_RIDER_KEYS if k in part}
         same = next((p for p in original if p.get('effectType') == 'DAMAGE' and dice_key(p) == dice_key(part)
@@ -2133,7 +2201,8 @@ def add_riders(action, reading, stats):
                     del effects[index]
                     stats['turn damage moved off the hit'] += 1
                     break
-    if reading['action'] and add_action_keys(action, reading['action']):
+    others = {k: v for k, v in reading['action'].items() if k != 'damageOptions'}
+    if others and add_action_keys(action, others):
         stats['grapple limits added'] += 1
     # A condition the stat block gives only once its damage drops the target to 0 hit points, as the phase spider's
     # poisoning, doesn't come with a hit

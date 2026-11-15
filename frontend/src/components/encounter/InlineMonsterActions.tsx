@@ -7,11 +7,12 @@ import type { MonsterAction, MonsterActionRequest, MonsterActionResponse, Monste
 import type { EncounterParticipant } from '../../types/encounter';
 import AttackRollSources from './AttackRollSources';
 import MultiattackPicker from './MultiattackPicker';
+import { Select } from '../ui/Input';
 import { chargeBlock, type EconomyCost } from '../../utils/turnEconomy';
 import { isAttackAction } from '../../utils/summons';
 
 type ActionSource = MonsterActionRequest['actionSource'];
-type ActionTargets = Pick<MonsterActionRequest, 'targetParticipantIds' | 'componentTargetIds'>;
+type ActionTargets = Pick<MonsterActionRequest, 'targetParticipantIds' | 'componentTargetIds' | 'componentDamageTypes'>;
 
 /** What the last monster action came to: the server's result, or why it refused. */
 type InlineResult = { response: MonsterActionResponse } | { error: string };
@@ -93,6 +94,8 @@ export default function InlineMonsterActions({
   const templatesQuery = useMonsterActionTemplates(participant.id);
   const [tab, setTab] = useState<Tab>(initialTab);
   const [selectedAction, setSelectedAction] = useState<MonsterAction | null>(null);
+  // The damage type the DM chooses for the selected action, when its stat block lets the monster choose (D207)
+  const [damageType, setDamageType] = useState('');
   // The multiattack whose target per attack the DM is choosing (D165)
   const [multiattackName, setMultiattackName] = useState<string | null>(null);
   const [chosenTargets, setChosenTargets] = useState<string[]>([]);
@@ -101,12 +104,18 @@ export default function InlineMonsterActions({
   // A participant removed from the encounter is no longer a target
   const targets = chosenTargets.filter(id => participants.some(p => p.id === id));
 
+  function selectAction(action: MonsterAction | null) {
+    setSelectedAction(action);
+    setDamageType('');
+  }
+
   function toggleTarget(targetId: string) {
     setChosenTargets(prev => prev.includes(targetId) ? prev.filter(t => t !== targetId) : [...prev, targetId]);
   }
 
-  // The targets chosen in the selector, unless the action brings its own, as a multiattack does (D165)
-  async function execute(actionName: string, source: ActionSource, own?: ActionTargets) {
+  // The targets chosen in the selector, unless the action brings its own, as a multiattack does (D165), and the
+  // damage type chosen for an action with damage options (D207)
+  async function execute(actionName: string, source: ActionSource, own?: ActionTargets, chosenType?: string) {
     if (!own && targets.length === 0) return;
     setExecuting(true);
     try {
@@ -116,6 +125,8 @@ export default function InlineMonsterActions({
         actionSource: source,
         targetParticipantIds: own?.targetParticipantIds ?? targets,
         ...(own?.componentTargetIds ? { componentTargetIds: own.componentTargetIds } : {}),
+        ...(own?.componentDamageTypes ? { componentDamageTypes: own.componentDamageTypes } : {}),
+        ...(chosenType ? { damageType: chosenType } : {}),
       });
       setResult({ response });
     } catch (err: unknown) {
@@ -169,9 +180,11 @@ export default function InlineMonsterActions({
     return formatActionLabel(action).split(' · ').slice(1).join(' · ') || undefined;
   };
 
+  const needsType = (selectedAction?.damageOptions?.length ?? 0) > 0;
+
   function switchTab(next: Tab) {
     setTab(next);
-    setSelectedAction(null);
+    selectAction(null);
     setMultiattackName(null);
   }
 
@@ -222,7 +235,7 @@ export default function InlineMonsterActions({
                     // One lair action at a time, as the other execute buttons
                     if (!executing) void execute(a.name, 'LAIR');
                   } else {
-                    setSelectedAction(selectedAction?.name === a.name ? null : a);
+                    selectAction(selectedAction?.name === a.name ? null : a);
                   }
                 }}
               >
@@ -232,7 +245,7 @@ export default function InlineMonsterActions({
                   {a.saveDC && <span className="font-heading text-[11px] font-semibold tracking-[0.02em] text-muted">DC {a.saveDC} {a.saveAbility?.toUpperCase()}</span>}
                   {dmg && (
                     <span className="font-heading text-[11px] font-semibold tracking-[0.02em] text-muted">
-                      {dmg.damageDice} {dmg.damageType}
+                      {dmg.damageDice} {dmg.damageType === 'option' ? a.damageOptions?.join('/') : dmg.damageType}
                     </span>
                   )}
                   {manual && (
@@ -268,7 +281,7 @@ export default function InlineMonsterActions({
                   if (manual) {
                     void execute(a.name, TAB_SOURCE[tab]);
                   } else {
-                    setSelectedAction(selectedAction?.name === a.name ? null : a);
+                    selectAction(selectedAction?.name === a.name ? null : a);
                   }
                 }}
                 className={`px-2 py-1 font-heading text-[12px] font-semibold tracking-[0.02em] border transition-colors
@@ -301,7 +314,7 @@ export default function InlineMonsterActions({
           key={a.name}
           disabled={executing}
           aria-pressed={multiattackName === a.name}
-          onClick={() => { setSelectedAction(null); setMultiattackName(multiattackName === a.name ? null : a.name); }}
+          onClick={() => { selectAction(null); setMultiattackName(multiattackName === a.name ? null : a.name); }}
           className={`px-2 py-1 font-heading text-[12px] font-semibold tracking-[0.02em] border mr-1 mb-1 ${
             multiattackName === a.name ? 'border-ink bg-ink text-card' : 'border-cls-monk bg-cls-monk-bg text-cls-monk hover:bg-cls-monk/20'}`}
         >
@@ -316,9 +329,9 @@ export default function InlineMonsterActions({
           actionName={multiattackName}
           describe={describeAction}
           executing={executing}
-          onExecute={componentTargetIds => {
+          onExecute={(componentTargetIds, componentDamageTypes) => {
             void execute(multiattackName, 'ACTION', componentTargetIds
-              ? { targetParticipantIds: [], componentTargetIds }
+              ? { targetParticipantIds: [], componentTargetIds, ...(componentDamageTypes ? { componentDamageTypes } : {}) }
               : { targetParticipantIds: [] });
             setMultiattackName(null);
           }}
@@ -347,6 +360,13 @@ export default function InlineMonsterActions({
           {selectedAction.dmNote && (
             <p className="mb-1 font-body text-[13px] font-semibold text-muted">DM: {selectedAction.dmNote}</p>
           )}
+          {/* The damage type the monster chooses, as a dracohydra's Bite (FTD, D207) */}
+          {needsType && (
+            <Select label="Damage type" className="mb-2 max-w-xs" value={damageType} onChange={e => setDamageType(e.target.value)}>
+              <option value="">Choose a damage type</option>
+              {selectedAction.damageOptions?.map(type => <option key={type} value={type}>{type}</option>)}
+            </Select>
+          )}
           {/* What each target's and the monster's conditions add to an attack roll; a ranged attack is made from
               beyond 5 feet, as the server takes it (D161) */}
           {isAttackAction(selectedAction) && participants.filter(p => targets.includes(p.id)).map(t => (
@@ -354,14 +374,15 @@ export default function InlineMonsterActions({
               withinFiveFeet={!(selectedAction.attackType ?? '').toUpperCase().startsWith('RANGED')} />
           ))}
           <button
-            disabled={targets.length === 0 || executing
+            disabled={targets.length === 0 || executing || (needsType && !damageType)
               || (tab === 'legendary' && (ownTurn || legendaryRemaining < (selectedAction.cost || 1)))
               || (tab === 'lair' && !lairReady)}
             onClick={() => {
               if (tab === 'legendary' && (ownTurn || legendaryRemaining < (selectedAction.cost || 1))) return;
               if (tab === 'lair' && !lairReady) return;
-              void execute(selectedAction.name, TAB_SOURCE[tab]);
-              setSelectedAction(null);
+              if (needsType && !damageType) return;
+              void execute(selectedAction.name, TAB_SOURCE[tab], undefined, needsType ? damageType : undefined);
+              selectAction(null);
             }}
             className="px-3 py-1 bg-ink hover:bg-ink/90 disabled:bg-page-alt disabled:text-faint text-card font-heading text-[12px] font-semibold tracking-[0.02em]"
           >

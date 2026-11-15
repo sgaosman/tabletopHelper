@@ -46763,12 +46763,27 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "1d4 + 1",
-            "damageType": "bludgeoning"
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "On a hit: 3 (1d4 + 1) bludgeoning or slashing damage (claw's choice). The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 3 (1d4 + 1) bludgeoning or slashing damage (claw's choice). The DM settles the choice by hand."
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "1d4 + 1",
+              "damageType": "bludgeoning"
+            }
+          }
+        ],
+        "damageOptions": [
+          "bludgeoning",
+          "slashing"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       }
     ]
   },
@@ -97482,13 +97497,28 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "3d10 + 3",
-            "damageType": "necrotic",
-            "notes": "REVIEW: Can also be radiant damage (exorcist's choice)"
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "On a hit: 19 (3d10 + 3) necrotic or radiant damage (exorcist's choice). The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 19 (3d10 + 3) necrotic or radiant damage (exorcist's choice). The DM settles the choice by hand."
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "3d10 + 3",
+              "damageType": "necrotic",
+              "notes": "REVIEW: Can also be radiant damage (exorcist's choice)"
+            }
+          }
+        ],
+        "damageOptions": [
+          "necrotic",
+          "radiant"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       },
       {
         "name": "Admit Entity 5",
@@ -112762,12 +112792,31 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "2d6 + 2",
-            "damageType": "acid"
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: 9 (2d6 + 2) of a type of the kobold's choice: acid, cold, fire, lightning, poison, or thunder.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: 9 (2d6 + 2) of a type of the kobold's choice: acid, cold, fire, lightning, poison, or thunder."
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "2d6 + 2",
+              "damageType": "acid"
+            }
+          }
+        ],
+        "damageOptions": [
+          "acid",
+          "cold",
+          "fire",
+          "lightning",
+          "poison",
+          "thunder"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       }
     ],
     "spellcasting": {
@@ -126084,12 +126133,22 @@
             "effectType": "DAMAGE",
             "damageDice": "2d10 + 9",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "4d8",
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
         "automatable": true,
-        "_riderNote": "On a hit: 20 (2d10 + 9) piercing damage plus 18 (4d8) fire or cold damage (Mephistopheles' choice). The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 20 (2d10 + 9) piercing damage plus 18 (4d8) fire or cold damage (Mephistopheles' choice). The DM settles the choice by hand."
+        "damageOptions": [
+          "fire",
+          "cold"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       },
       {
         "name": "Hellfire Implosion 4",
@@ -126336,12 +126395,27 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "4d8",
-            "damageType": "fire"
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "On a hit: 20 (2d10 + 9) piercing plus 18 (4d8) fire or cold damage (Mephistopheles' choice). The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 20 (2d10 + 9) piercing plus 18 (4d8) fire or cold damage (Mephistopheles' choice). The DM settles the choice by hand."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "4d8",
+              "damageType": "fire"
+            }
+          }
+        ],
+        "damageOptions": [
+          "fire",
+          "cold"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       },
       {
         "name": "Hellfire Implosion",
@@ -131877,10 +131951,25 @@
         "attackBonus": 10,
         "range": "120",
         "targetCount": 1,
-        "effects": [],
-        "_riderNote": "Also on a hit, applied by hand: 13 (3d8) damage of a type chosen by Mordakhesh: acid, cold, fire, lightning, poison, or thunder.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: 13 (3d8) damage of a type chosen by Mordakhesh: acid, cold, fire, lightning, poison, or thunder."
+        "effects": [
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "3d8",
+            "damageType": "option",
+            "_rider": "added"
+          }
+        ],
+        "damageOptions": [
+          "acid",
+          "cold",
+          "fire",
+          "lightning",
+          "poison",
+          "thunder"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       }
     ],
     "legendaryActions": [
@@ -134128,12 +134217,27 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "4d6",
-            "damageType": "thunder"
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "On a hit: 13 (2d6 + 6) slashing damage plus 14 (4d6) lightning or thunder damage (Nafas's choice). The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 13 (2d6 + 6) slashing damage plus 14 (4d6) lightning or thunder damage (Nafas's choice). The DM settles the choice by hand."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "4d6",
+              "damageType": "thunder"
+            }
+          }
+        ],
+        "damageOptions": [
+          "lightning",
+          "thunder"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       },
       {
         "name": "Create Vortex",
@@ -147349,12 +147453,27 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "3d6",
-            "damageType": "cold"
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "On a hit: 10 (3d6) fire or cold damage (the apprentice's choice). The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 10 (3d6) fire or cold damage (the apprentice's choice). The DM settles the choice by hand."
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "3d6",
+              "damageType": "cold"
+            }
+          }
+        ],
+        "damageOptions": [
+          "fire",
+          "cold"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       }
     ],
     "spellcasting": {
@@ -147404,12 +147523,27 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "3d6 + 2",
-            "damageType": "cold"
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "On a hit: 12 (3d6 + 2) fire or cold damage (the pledgemage's choice). The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 12 (3d6 + 2) fire or cold damage (the pledgemage's choice). The DM settles the choice by hand."
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "3d6 + 2",
+              "damageType": "cold"
+            }
+          }
+        ],
+        "damageOptions": [
+          "fire",
+          "cold"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       },
       {
         "name": "Showstopper (1/Day)",
@@ -152021,13 +152155,30 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "5d8",
-            "damageType": "variable"
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
         "automatable": true,
-        "_riderNote": "Also on a hit, applied by hand: 22 (5d8) damage of a type chosen by the reigar from the following list: cold, fire, lightning, or radiant.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: 22 (5d8) damage of a type chosen by the reigar from the following list: cold, fire, lightning, or radiant."
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "5d8",
+              "damageType": "variable"
+            }
+          }
+        ],
+        "damageOptions": [
+          "cold",
+          "fire",
+          "lightning",
+          "radiant"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       },
       {
         "name": "Summon Duplicate",
@@ -177657,10 +177808,25 @@
         "attackBonus": 4,
         "range": "90",
         "targetCount": 1,
-        "effects": [],
-        "_riderNote": "Also on a hit, applied by hand: 18 (4d8) damage of a type chosen by the assassin: acid, cold, fire, lightning, poison, or thunder.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: 18 (4d8) damage of a type chosen by the assassin: acid, cold, fire, lightning, poison, or thunder."
+        "effects": [
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "4d8",
+            "damageType": "option",
+            "_rider": "added"
+          }
+        ],
+        "damageOptions": [
+          "acid",
+          "cold",
+          "fire",
+          "lightning",
+          "poison",
+          "thunder"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       }
     ],
     "spellcasting": {
@@ -183366,12 +183532,30 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "6d6 + 6",
-            "damageType": "force"
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "On a hit: 27 (6d6 + 6) bludgeoning or force damage (tomb tapper's choice). The DM settles the choice by hand. Also on a hit, applied by hand: If thrown, the hammer returns to the tomb tapper at the end of its turn, landing at the tomb tapper's feet if it doesn't have a hand free to catch the weapon.",
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "6d6 + 6",
+              "damageType": "force"
+            }
+          }
+        ],
+        "damageOptions": [
+          "bludgeoning",
+          "force"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ],
+        "_riderNote": "Also on a hit, applied by hand: If thrown, the hammer returns to the tomb tapper at the end of its turn, landing at the tomb tapper's feet if it doesn't have a hand free to catch the weapon.",
         "_riderNoteNew": true,
-        "dmNote": "On a hit: 27 (6d6 + 6) bludgeoning or force damage (tomb tapper's choice). The DM settles the choice by hand. Also on a hit, applied by hand: If thrown, the hammer returns to the tomb tapper at the end of its turn, landing at the tomb tapper's feet if it doesn't have a hand free to catch the weapon."
+        "dmNote": "Also on a hit, applied by hand: If thrown, the hammer returns to the tomb tapper at the end of its turn, landing at the tomb tapper's feet if it doesn't have a hand free to catch the weapon."
       }
     ],
     "traits": [
@@ -183831,12 +184015,29 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "2d6 + 2",
-            "damageType": "cold"
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: 9 (2d6 + 2) damage of a type chosen by the tortle: cold, fire, lightning, or thunder.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: 9 (2d6 + 2) damage of a type chosen by the tortle: cold, fire, lightning, or thunder."
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "2d6 + 2",
+              "damageType": "cold"
+            }
+          }
+        ],
+        "damageOptions": [
+          "cold",
+          "fire",
+          "lightning",
+          "thunder"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       },
       {
         "name": "Shell Defense",
@@ -198124,12 +198325,30 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "6d6",
-            "damageType": "poison"
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "On a hit: 11 (1d8 + 7) piercing damage plus 21 (6d6) acid, cold, fire, lightning, or poison damage (Windfall's choice). The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 11 (1d8 + 7) piercing damage plus 21 (6d6) acid, cold, fire, lightning, or poison damage (Windfall's choice). The DM settles the choice by hand."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "6d6",
+              "damageType": "poison"
+            }
+          }
+        ],
+        "damageOptions": [
+          "acid",
+          "cold",
+          "fire",
+          "lightning",
+          "poison"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       },
       {
         "name": "Dragon's Fury",
@@ -200420,12 +200639,27 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "2d6",
-            "damageType": "cold"
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "On a hit: 10 (1d8 + 6) slashing damage, plus 7 (2d6) cold or fire damage (Xan's choice). The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 10 (1d8 + 6) slashing damage, plus 7 (2d6) cold or fire damage (Xan's choice). The DM settles the choice by hand."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "2d6",
+              "damageType": "cold"
+            }
+          }
+        ],
+        "damageOptions": [
+          "cold",
+          "fire"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       }
     ],
     "spellcasting": {
@@ -212709,10 +212943,13 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "5d8",
-            "damageType": "fire"
+            "damageType": "option"
           }
         ],
-        "dmNote": "On a hit: 10 (1d8 + 6) slashing damage, plus 22 (5d8) fire or radiant damage (angel's choice). The DM settles the choice by hand.",
+        "damageOptions": [
+          "fire",
+          "radiant"
+        ],
         "description": "Melee Weapon Attack: +10 to hit, reach 5 ft., one target. Hit: 10 (1d8 + 6) slashing damage, or 11 (1d10 + 6) slashing damage if used with two hands, plus 22 (5d8) fire or radiant damage (angel's choice)."
       }
     ],
@@ -213508,10 +213745,17 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "5d8 + 5",
-            "damageType": "acid"
+            "damageType": "option"
           }
         ],
-        "dmNote": "On a hit: 27 (5d8 + 5) acid, cold, fire, lightning, poison or thunder damage (Eo's choice). The DM settles the choice by hand.",
+        "damageOptions": [
+          "acid",
+          "cold",
+          "fire",
+          "lightning",
+          "poison",
+          "thunder"
+        ],
         "description": "Melee or Ranged Spell Attack: +9 to hit, reach 5 ft. or range 90 ft., two targets. Hit: 27 (5d8 + 5) acid, cold, fire, lightning, poison or thunder damage (Eo's choice)."
       },
       {
@@ -214497,10 +214741,17 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "2d10 + 7",
-            "damageType": "acid"
+            "damageType": "option"
           }
         ],
-        "dmNote": "On a hit: 18 (2d10 + 7) acid, cold, fire, force, lightning, or thunder damage (the high fae's choice). The DM settles the choice by hand.",
+        "damageOptions": [
+          "acid",
+          "cold",
+          "fire",
+          "force",
+          "lightning",
+          "thunder"
+        ],
         "description": "Melee or Ranged Spell Attack: +11 to hit, reach 5 ft. or range 60 ft., one target. Hit: 18 (2d10 + 7) acid, cold, fire, force, lightning, or thunder damage (the high fae's choice)."
       },
       {
@@ -215179,10 +215430,13 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "1d6",
-            "damageType": "lightning"
+            "damageType": "option"
           }
         ],
-        "dmNote": "On a hit: 12 (2d6 + 5) slashing damage plus 3 (1d6) lightning or thunder damage (djinni's choice). The DM settles the choice by hand.",
+        "damageOptions": [
+          "lightning",
+          "thunder"
+        ],
         "description": "Melee Weapon Attack: +9 to hit, reach 5 ft., one target. Hit: 12 (2d6 + 5) slashing damage plus 3 (1d6) lightning or thunder damage (djinni's choice)."
       },
       {
@@ -222646,9 +222900,16 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "9d8",
-            "damageType": "force"
+            "damageType": "option"
           }
         ],
+        "damageOptions": [
+          "acid",
+          "cold",
+          "fire",
+          "lightning"
+        ],
+        "dmNote": "Applied by hand: At the same time as the colossus releases this exhalation, creatures inside the colossus's chest cavity take 40 (9d8) force damage from churning elemental energy.",
         "description": "The colossus exhales a cloud swirling with elemental energy in a 90-foot cone. Each creature in that area must make a DC 21 Dexterity saving throw. On a failed save, a creature takes 40 (9d8) damage of a type of the colossus's choosing: acid, cold, fire, or lightning. On a successful save, a creature takes half as much damage. At the same time as the colossus releases this exhalation, creatures inside the colossus's chest cavity take 40 (9d8) force damage from churning elemental energy."
       }
     ],
@@ -225742,15 +226003,46 @@
         "attackBonus": 9,
         "reach": 10,
         "targetCount": 1,
-        "automatable": false,
-        "description": "Melee Weapon Attack: +9 to hit, reach 10 ft., one target. Hit: 10 (1d10 + 5) damage of a type chosen by the dracohydra: acid, cold, fire, lightning, or poison.",
-        "dmNote": "The hit's effect is not damage the app can roll: 10 (1d10 + 5) damage of a type chosen by the dracohydra: acid, cold, fire, lightning, or poison."
+        "effects": [
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1d10 + 5",
+            "damageType": "option"
+          }
+        ],
+        "damageOptions": [
+          "acid",
+          "cold",
+          "fire",
+          "lightning",
+          "poison"
+        ],
+        "description": "Melee Weapon Attack: +9 to hit, reach 10 ft., one target. Hit: 10 (1d10 + 5) damage of a type chosen by the dracohydra: acid, cold, fire, lightning, or poison."
       },
       {
         "name": "Prismatic Breath",
         "actionType": "ACTION",
         "recharge": "4-6",
-        "automatable": false,
+        "deliveryMethod": "SAVING_THROW",
+        "saveDC": 17,
+        "saveAbility": "DEX",
+        "halfOnSave": true,
+        "targetType": "AOE_CONE",
+        "aoeSize": 60,
+        "effects": [
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "6d10",
+            "damageType": "option"
+          }
+        ],
+        "damageOptions": [
+          "acid",
+          "cold",
+          "fire",
+          "lightning",
+          "poison"
+        ],
         "description": "The dracohydra's heads exhale a single breath of multicolored energy in a 60-foot cone. Each creature in that area must make a DC 17 Dexterity saving throw. On a failed save, the creature takes 33 (6d10) damage of a type chosen by the dracohydra: acid, cold, fire, lightning, or poison. On a successful save, the creature takes half as much damage."
       }
     ],

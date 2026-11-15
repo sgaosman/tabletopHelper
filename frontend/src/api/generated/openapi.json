@@ -7947,12 +7947,19 @@
       "ComponentOption": {
         "required": [
           "automated",
+          "damageOptions",
           "name"
         ],
         "type": "object",
         "properties": {
           "automated": {
             "type": "boolean"
+          },
+          "damageOptions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "manualReason": {
             "type": "string",
@@ -10621,6 +10628,13 @@
             "type": "boolean",
             "nullable": true
           },
+          "componentDamageTypes": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
           "componentTargetIds": {
             "type": "array",
             "nullable": true,
@@ -10631,6 +10645,10 @@
                 "format": "uuid"
               }
             }
+          },
+          "damageType": {
+            "type": "string",
+            "nullable": true
           },
           "monsterParticipantId": {
             "type": "string",
