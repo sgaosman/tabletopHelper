@@ -4380,3 +4380,28 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D207, D212
 
 **Tests:** new resolver, Empowered (Ice Knife hit and miss, both blades with the weapon die untouched), damage-parts and range-text cases, a damage-parts helper test file, and two-type cases in `InlineMonsterActions.test.tsx` and `ResultView.test.tsx`; 4,705 backend unit, 571 integration and 1,265 frontend tests on its branch; 4,721, 574 and 1,265 merged with the D216 review fixes.
+
+---
+
+## D220: Review Fixes for the Monster Action Generator and Tonight's Frontend
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration; the monster-actions loader reloads because its data file changed)
+
+**Context:** a fresh-eyes review of the generator changes from [[#D207]] and [[#D209]] and of the frontend added during the overnight run ([[#D208]], [[#D210]], [[#D213]], [[#D216]]–[[#D219]]), plus the browser retest of [[#D216]]'s Shield prompt with a player-character wizard on the rehearsal copy. The review found no blocking defects; the calls below are the lead's, recorded for review.
+
+**Decision:**
+- **Generator: no doubled option damage.** `add_riders` added the stat block's "option" damage part to an action even when no hand-built part was replaced. An entry already carrying an option part with the same dice, or carrying its own damage with different dice, would have dealt the damage twice the first time someone corrected one by hand (nothing in the shipped data triggered it). Now an existing option part with the same dice is left alone; a hand part with the same dice is replaced as before; an entry with damage that matches none of the hit's dice gets a DM note ("Also on a hit, applied by hand: …") instead of a second part. **(choice)** An entry with no damage at all still gains the option part, which keeps [[#D207]]'s corrections to Mordakhesh's and the Tarkanan Assassin's Chromatic Orb and the CoA Mephistopheles's Ranseur.
+- **Generator: "one of the following types (X's choice)".** The wording `CHOSEN_TYPE` and `CHOSEN_LIST` read now includes "damage of one of the following types (empyrean's choice): …", and the save-action path checks "one of the following" on the rewritten text, as attacks already did. The only data change is the Empyrean (MM) Bolt: its untyped 7d6 becomes an option part with acid, cold, fire, force, lightning, radiant and thunder, and its "applied by hand" note goes. Galazeth's art elementals' "cold, fire, or lightning (Galazeth's choice)" is in a trait, not an action, and stays out of scope.
+- **Monster result taken back.** The quick result under a monster's actions kept showing "HIT — 7 slashing" after Shield ([[#D216]]) or the DM's undo took the attack back. It now reads "Taken back: undone since" over the struck-through result, once the command behind the monster's first new log entry since it acted is undone. No API change: the panel notes the log entries there were before it ran.
+- **Last potion's confirmation.** "Used Potion of Healing" lived in the potion's row, which disappears with the last potion; the Use an Item modal now keeps it at the top ([[#D210]]).
+- **Inventory locking mid-edit.** When the sheet locks because the character's encounter starts ([[#D218]]), the coin editor and the item-link picker close, and the coin form returns to the sheet's values, instead of leaving a disabled Save with no way out.
+- **Fewer template reloads.** A DM command that moves monster pools reloads the shown action templates only when no WebSocket message arrived during the request; the message reloads them itself.
+
+**Browser retest (rehearsal copy, player wizard "Wren", AC 12, two Bandit Captains):** a 23 that Shield can't stop offers Shield saying it still hits; casting it spends a level 1 slot, AC shows 17 and the damage stands. A 14 offers Shield saying the hit is taken back; casting it restores the 7 HP, spends the slot, keeps the captain's action used, and logs the attack as UNDONE with the take-back line. The DM's undo of a later hit marks the captain's result "Taken back".
+
+**Key files:** `backend/scripts/generate_monster_actions.py`, `monster-action-definitions.json`, `DamageOptionsDataTest.java`, `InlineMonsterActions.tsx`, `UseItemModal.tsx`, `InventoryTab.tsx`, `queries/encounters.ts`
+
+**Related:** D207, D209, D210, D216, D218, D219
+
+**Tests:** `DamageOptionsDataTest` expects 29 actions on 25 monsters; new taken-back, last-potion and lock-mid-edit frontend tests; 4,721 backend unit and 1,268 frontend tests pass.

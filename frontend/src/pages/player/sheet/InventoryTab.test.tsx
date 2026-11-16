@@ -275,6 +275,21 @@ describe('InventoryTab', () => {
     expect(screen.queryByLabelText('New item')).not.toBeInTheDocument();
   });
 
+  it('closes the coin editor and the item picker when the inventory locks mid-edit (D218)', async () => {
+    const { rerender } = renderTab();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Link Longsword to an item' }));
+    expect(screen.getByLabelText('Item for Longsword')).toBeInTheDocument();
+
+    rerender(<InventoryTab characterId="char-001" equipment={equipment} currency={currency} runCommand={runCommand} locked />);
+
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Item for Longsword')).not.toBeInTheDocument();
+  });
+
   it('records the spell a linked spell scroll holds (D210)', async () => {
     const sent = recordInventories();
     linkedItems({ scroll: { name: 'Spell Scroll (1st Level)', type: 'Scroll', spellScrollLevel: 1 } });

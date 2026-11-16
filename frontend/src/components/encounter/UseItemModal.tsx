@@ -33,6 +33,8 @@ export default function UseItemModal({ participant, participants, asDm = false, 
 }) {
   const usable = useUsableItems(participant.id);
   const [casting, setCasting] = useState<ItemCast | null>(null);
+  // What the last potion used was, kept here because the last of a potion takes its row with it
+  const [used, setUsed] = useState('');
 
   if (casting) {
     return (
@@ -50,6 +52,7 @@ export default function UseItemModal({ participant, participants, asDm = false, 
     <Modal title={<><Backpack className="w-5 h-5 text-ink" />Use an Item</>} subtitle={participant.displayName}
       size="lg" onClose={onClose}>
       <div className="space-y-4">
+        {used && <p role="status" className="font-body text-[15px] font-semibold text-buff">{used}</p>}
         {usable.isPending && <p className="font-body text-[15px] font-semibold text-faint">Loading items...</p>}
         {usable.isError && <p role="alert" className="font-body text-[15px] font-semibold text-debuff">{apiErrorMessage(usable.error)}</p>}
         {empty && (
@@ -63,7 +66,8 @@ export default function UseItemModal({ participant, participants, asDm = false, 
             <h3 className={FIELD_LABEL}>Potions</h3>
             {data.potions.map(potion => (
               <PotionRow key={potion.name} potion={potion} participant={participant} participants={participants}
-                asDm={asDm} actionBlock={actionBlock} onUsed={() => void usable.refetch()} />
+                asDm={asDm} actionBlock={actionBlock} onUsing={() => setUsed('')}
+                onUsed={() => { setUsed(`Used ${potion.name}`); void usable.refetch(); }} />
             ))}
           </section>
         )}
@@ -111,19 +115,19 @@ function scrollNumbers(scroll: UsableScroll): string {
     : numbers;
 }
 
-function PotionRow({ potion, participant, participants, asDm, actionBlock, onUsed }: {
+function PotionRow({ potion, participant, participants, asDm, actionBlock, onUsing, onUsed }: {
   potion: UsablePotion;
   participant: EncounterParticipant;
   participants: EncounterParticipant[];
   asDm: boolean;
   actionBlock: string | null;
+  onUsing: () => void;
   onUsed: () => void;
 }) {
   const actions = useEncounterAction();
   const [targetId, setTargetId] = useState(participant.id);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const [done, setDone] = useState('');
   const fieldId = `potion-target-${potion.name.replace(/[^A-Za-z0-9]+/g, '-')}`;
   const drinkers = participants.filter(p => p.lifeState !== 'DEAD');
   const refused = actionBlock !== null && !asDm;
@@ -132,14 +136,13 @@ function PotionRow({ potion, participant, participants, asDm, actionBlock, onUse
     if (sending || refused) return;
     setSending(true);
     setError('');
-    setDone('');
+    onUsing();
     try {
       await actions.useItem({
         participantId: participant.id,
         itemName: potion.name,
         targetId: targetId !== participant.id ? targetId : undefined,
       });
-      setDone(`Used ${potion.name}`);
       onUsed();
     } catch (err: unknown) {
       setError(apiErrorMessage(err));
@@ -177,7 +180,6 @@ function PotionRow({ potion, participant, participants, asDm, actionBlock, onUse
           {asDm ? `Over the action economy: ${actionBlock}` : actionBlock}
         </p>
       )}
-      {done && <p role="status" className="font-body text-[13px] font-semibold text-muted">{done}</p>}
       {error && <p role="alert" className="font-body text-[13px] font-semibold text-debuff">{error}</p>}
     </div>
   );

@@ -37,6 +37,17 @@ export default function InventoryTab({ characterId, equipment, currency, armourE
   const [linking, setLinking] = useState<number | null>(null);
 
   useEffect(() => { setCurrencyForm(currency); }, [currency]);
+  // The sheet locking mid-edit, as the character joins a live encounter (D218), closes the coin editor and the item
+  // picker, whose saves the server would refuse
+  const [wasLocked, setWasLocked] = useState(locked);
+  if (locked !== wasLocked) {
+    setWasLocked(locked);
+    if (locked) {
+      setEditCurrency(false);
+      setLinking(null);
+      setCurrencyForm(currency);
+    }
+  }
 
   function save(nextEquipment: InventoryItem[], nextCurrency: Currency = currency, done?: string) {
     return runCommand(updateInventory.mutateAsync({

@@ -1403,11 +1403,13 @@ def conditions(text, save=None):
 # list: ...", and the type list first, "21 ({@damage 6d6}) acid, cold, fire, lightning, or poison damage (Windfall's
 # choice)"
 TYPE_CHOICES = r'([a-z]+(?:(?:, or |, | or )[a-z]+)+)'
-CHOSEN_TYPE = re.compile(r"(\d+)\s*\(\{@(?:damage|dice) (\d+d\d+(?:\s*[+-]\s*\d+)?)\}\)\s*(?:damage\s+)?of a type "
-                         r"(?:chosen by [^:.{}]+?|of [^:.{}]*?(?:choice|choosing))(?: from the following list)?:\s*"
-                         + TYPE_CHOICES)
+CHOOSER = r"\((?:the )?(?:its|his|her|their|[A-Za-z' -]+?'s?) choice\)"
+CHOSEN_TYPE = re.compile(r"(\d+)\s*\(\{@(?:damage|dice) (\d+d\d+(?:\s*[+-]\s*\d+)?)\}\)\s*(?:damage\s+)?of "
+                         r"(?:a type (?:chosen by [^:.{}]+?|of [^:.{}]*?(?:choice|choosing))(?: from the following list)?"
+                         # "24 ({@damage 7d6}) damage of one of the following types (empyrean's choice): acid, ..." (MM)
+                         r"|one of the following types\s*" + CHOOSER + r"):\s*" + TYPE_CHOICES)
 CHOSEN_LIST = re.compile(r"(\d+)\s*\(\{@(?:damage|dice) (\d+d\d+(?:\s*[+-]\s*\d+)?)\}\)\s*" + TYPE_CHOICES
-                         + r"\s+damage\s*\((?:its|his|her|their|[A-Za-z' -]+?'s?) choice\)")
+                         + r"\s+damage\s*" + CHOOSER)
 
 
 def chosen_types(text):
@@ -1747,7 +1749,9 @@ def saving_throw(action, raw, description):
     if len(pairs) != 1 or any(other for _, _, other in found):
         return manual(action, description)
     sentences = SENTENCE.split(raw)
-    if TRIGGERED.search(strip_tags(raw)) or OPTIONS.search(raw) or len(sentences) > 5:
+    # A list of damage types to choose from ("one of the following types (X's choice)") is an option, not a choice of
+    # effects (D207)
+    if TRIGGERED.search(strip_tags(raw)) or OPTIONS.search(chosen_types(raw)[0]) or len(sentences) > 5:
         return manual(action, description)
     dc, ability = next(iter(pairs))
     # Damage of a type the monster chooses is a part of damageType "option" (D207); damage the save's sentences don't
@@ -2151,7 +2155,11 @@ def add_riders(action, reading, stats):
     # "variable" one (BAM); the entry's options come with it
     options = reading['action'].get('damageOptions')
     if options:
+        unplaced = []
         for part in (p for p in built if p['effectType'] == 'DAMAGE' and p.get('damageType') == 'option'):
+            # An entry already dealing the option damage, as the dracohydra's hand-built Bite (FTD), keeps its own
+            if any(p.get('effectType') == 'DAMAGE' and dice_key(p) == dice_key(part) for p in original):
+                continue
             same = next((p for p in effects if any(p is o for o in original) and p.get('effectType') == 'DAMAGE'
                          and dice_key(p)[0] == dice_key(part)[0] and dice_key(p)[1] != 'option'
                          and not any(p.get(k) is not None for k in DAMAGE_RIDER_KEYS)), None)
@@ -2159,9 +2167,23 @@ def add_riders(action, reading, stats):
                 index = next(i for i, p in enumerate(effects) if p is same)
                 action.setdefault('_riderRemoved', []).append({'at': index, 'part': same})
                 del effects[index]
+            # Damage of the entry's own the stat block's hit doesn't deal, as a hand-built 1d10 + 4 acid beside the
+            # stat block's 1d10 + 5, may be this damage misread, so it isn't doubled: the stat block's goes to the DM.
+            # An entry without it, as Mordakhesh's damageless Chromatic Orb (ERLW) or the CoA Mephistopheles's Ranseur
+            # lacking its 4d8, gets it (D207)
+            elif any(p.get('effectType') == 'DAMAGE' and dice_key(p)[1] != 'option'
+                     and not any(p.get(k) is not None for k in DAMAGE_RIDER_KEYS)
+                     and dice_key(p)[0] not in {dice_key(b)[0] for b in built if b['effectType'] == 'DAMAGE'}
+                     for p in original):
+                unplaced.append(part)
+                continue
             effects.append(dict(part, _rider='added'))
-        if add_action_keys(action, {'damageOptions': options}):
-            stats['damage given options'] += 1
+        if any(p.get('effectType') == 'DAMAGE' and p.get('damageType') == 'option' for p in effects):
+            if add_action_keys(action, {'damageOptions': options}):
+                stats['damage given options'] += 1
+        if unplaced:
+            reading = dict(reading, leftover=reading['leftover'] + [
+                '%s damage of a type it chooses (%s)' % (p['damageDice'], ', '.join(options)) for p in unplaced])
     for part in (p for p in built if p['effectType'] == 'DAMAGE' and ('saveDC' in p or 'onlyIf' in p)):
         keys = {k: part[k] for k in DAMAGE_RIDER_KEYS if k in part}
         same = next((p for p in original if p.get('effectType') == 'DAMAGE' and dice_key(p) == dice_key(part)

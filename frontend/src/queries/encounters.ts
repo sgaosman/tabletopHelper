@@ -417,12 +417,13 @@ export function useEncounterAction() {
     // Answers with a result that carries the encounter state
     const resolve = <A extends unknown[], T extends { encounterState: Encounter }>(request: EncounterRequest<A, T>) =>
       (...args: A) => run(() => request(encounterId, ...args), result => result.encounterState);
-    // Moves monsters' pools, so the action templates showing their counts load again (the WebSocket message does
-    // this too, but may not arrive while the connection is down)
+    // Moves monsters' pools, so the action templates showing their counts load again. The WebSocket message does
+    // this too, so only when none arrived while the request was in flight: with the connection down, none does
     const withPools = <A extends unknown[], T>(request: (...args: A) => Promise<T>) =>
       async (...args: A) => {
+        const messagesBefore = socketMessages.current;
         const result = await request(...args);
-        void invalidateMonsterActions(queryClient, encounterId);
+        if (socketMessages.current === messagesBefore) void invalidateMonsterActions(queryClient, encounterId);
         return result;
       };
     // Writes the encounter's results back to character sheets (D166), so the cached characters are fetched again

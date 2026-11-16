@@ -90,6 +90,21 @@ describe('UseItemModal (D210)', () => {
     expect(await screen.findByText('Used Potion of Healing')).toBeInTheDocument();
   });
 
+  it('still says the potion was used when it was the last one, and its row is gone', async () => {
+    const last: UsableItems = { potions: [USABLE.potions[0]], chargedItems: [], scrolls: [] };
+    let served = last;
+    server.use(http.get('/api/encounters/:id/combat/usable-items', () => HttpResponse.json(served)));
+    useItemRequests();
+    const { user } = await renderModal();
+
+    const potions = await screen.findByRole('region', { name: 'Potions' });
+    served = { potions: [], chargedItems: [], scrolls: [] };
+    await user.click(within(potions).getByRole('button', { name: 'Drink (action)' }));
+
+    expect(await screen.findByText(/Nothing to use/)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Used Potion of Healing');
+  });
+
   it('gives a potion to another creature, naming it', async () => {
     usable();
     const bodies = useItemRequests();

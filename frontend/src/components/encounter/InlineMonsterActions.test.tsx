@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import { makeMockEncounter, makeMockParticipant } from '../../test/mocks/handlers';
-import type { MonsterActionResponse, MonsterActionTemplate, MultiattackOption } from '../../types/combat';
+import type { CombatLogEntry, MonsterActionResponse, MonsterActionTemplate, MultiattackOption } from '../../types/combat';
 import { EncounterProvider } from '../../context/EncounterContext';
 import { queryKeys } from '../../queries/keys';
 import InlineMonsterActions from './InlineMonsterActions';
@@ -28,6 +28,34 @@ async function renderActions() {
 describe('InlineMonsterActions', () => {
   beforeEach(() => {
     setupAuthToken();
+  });
+
+  it('marks the result taken back once its command is undone, as Shield does to a hit (D216)', async () => {
+    const { queryClient } = render(
+      <EncounterProvider encounterId="enc-001" view="dm">
+        <InlineMonsterActions participant={goblin} participants={participants} isLairTurn={false} inLair={false} />
+      </EncounterProvider>,
+    );
+    await waitFor(() => expect(queryClient.getQueryData(queryKeys.encounters.detail('enc-001', 'dm'))).toBeDefined());
+    const user = userEvent.setup();
+    const logKey = queryKeys.encounters.log('enc-001', 'dm');
+    const entry = (id: string, actorId: string, commandId: string, undone: boolean) =>
+      ({ id, actorId, commandId, undone, actionType: 'ATTACK', description: id, roundNumber: 1 }) as unknown as CombatLogEntry;
+    queryClient.setQueryData(logKey, [entry('old', 'part-goblin', 'cmd-0', false)]);
+
+    await user.click(await screen.findByRole('button', { name: /Scimitar/ }));
+    await user.click(screen.getByRole('button', { name: 'Gimli' }));
+    await user.click(screen.getByRole('button', { name: 'Execute Scimitar (1 target)' }));
+    expect(await screen.findByText('Test Goblin uses Scimitar.')).toBeInTheDocument();
+
+    // A later command by another creature undone, or the monster's earlier one, isn't this result
+    act(() => queryClient.setQueryData(logKey, [entry('old', 'part-goblin', 'cmd-0', true),
+      entry('new', 'part-goblin', 'cmd-1', false), entry('shield', 'part-gimli', 'cmd-2', false)]));
+    expect(screen.queryByText(/Taken back/)).not.toBeInTheDocument();
+
+    act(() => queryClient.setQueryData(logKey, [entry('old', 'part-goblin', 'cmd-0', true),
+      entry('new', 'part-goblin', 'cmd-1', true), entry('shield', 'part-gimli', 'cmd-2', false)]));
+    expect(await screen.findByText('Taken back: undone since')).toBeInTheDocument();
   });
 
   it('offers the living as targets, and shows the result of an action for each target', async () => {

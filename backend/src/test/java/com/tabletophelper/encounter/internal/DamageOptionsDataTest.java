@@ -60,7 +60,7 @@ class DamageOptionsDataTest {
     }
 
     @Test
-    @DisplayName("Twenty-eight actions on twenty-four monsters let the monster choose the damage type, each with a part "
+    @DisplayName("Twenty-nine actions on twenty-five monsters let the monster choose the damage type, each with a part "
             + "of type \"option\", and no other action has one")
     void optionActions() {
         Map<String, List<String>> found = new TreeMap<>();
@@ -102,6 +102,9 @@ class DamageOptionsDataTest {
         expected.put("Crawling Claw (MM): Claw", List.of("bludgeoning", "slashing"));
         expected.put("Djinni (MM): Scimitar", List.of("lightning", "thunder"));
         expected.put("Eo Ashmajiir (MaBJoV): Twinned Orbs", chromatic);
+        // "one of the following types (empyrean's choice)" (D220)
+        expected.put("Empyrean (MM): Bolt",
+                List.of("acid", "cold", "fire", "force", "lightning", "radiant", "thunder"));
         expected.put("Firemane Angel (GGR): Longsword", List.of("fire", "radiant"));
         expected.put("Heralds of Dust Exorcist (AATM): Grave Burst", List.of("necrotic", "radiant"));
         expected.put("High Fae Mage (MCV4EC): Elemental Strike",

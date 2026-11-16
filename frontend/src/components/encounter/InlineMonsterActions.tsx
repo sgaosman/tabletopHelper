@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { isAxiosError } from 'axios';
 import { Castle } from 'lucide-react';
 import { apiErrorMessage } from '../../api/errors';
-import { useEncounterAction, useMonsterActionTemplates } from '../../queries/encounters';
+import { useCombatLog, useEncounterAction, useMonsterActionTemplates } from '../../queries/encounters';
 import type { MonsterAction, MonsterActionRequest, MonsterActionResponse, MonsterActionTemplate } from '../../types/combat';
 import type { EncounterParticipant } from '../../types/encounter';
 import AttackRollSources from './AttackRollSources';
@@ -15,8 +15,11 @@ import { damageBreakdown } from '../../utils/damageParts';
 type ActionSource = MonsterActionRequest['actionSource'];
 type ActionTargets = Pick<MonsterActionRequest, 'targetParticipantIds' | 'componentTargetIds' | 'componentDamageTypes'>;
 
-/** What the last monster action came to: the server's result, or why it refused. */
-type InlineResult = { response: MonsterActionResponse } | { error: string };
+/**
+ * What the last monster action came to: the server's result, with the combat log entries there were before it ran,
+ * or why it refused.
+ */
+type InlineResult = { response: MonsterActionResponse; logBefore: ReadonlySet<string> } | { error: string };
 
 /**
  * What the templates endpoint answers: the template, with the monster's resource pools (legendary action uses,
@@ -92,6 +95,7 @@ export default function InlineMonsterActions({
   noAttacks?: boolean;
 }) {
   const encounterActions = useEncounterAction();
+  const log = useCombatLog();
   const templatesQuery = useMonsterActionTemplates(participant.id);
   const [tab, setTab] = useState<Tab>(initialTab);
   const [selectedAction, setSelectedAction] = useState<MonsterAction | null>(null);
@@ -119,6 +123,7 @@ export default function InlineMonsterActions({
   async function execute(actionName: string, source: ActionSource, own?: ActionTargets, chosenType?: string) {
     if (!own && targets.length === 0) return;
     setExecuting(true);
+    const logBefore = new Set(log.map(entry => entry.id));
     try {
       const response = await encounterActions.monsterAction({
         monsterParticipantId: participant.id,
@@ -129,13 +134,20 @@ export default function InlineMonsterActions({
         ...(own?.componentDamageTypes ? { componentDamageTypes: own.componentDamageTypes } : {}),
         ...(chosenType ? { damageType: chosenType } : {}),
       });
-      setResult({ response });
+      setResult({ response, logBefore });
     } catch (err: unknown) {
       setResult({ error: monsterActionError(err) });
     } finally {
       setExecuting(false);
     }
   }
+
+  // The result's action taken back since, by an undo or a reaction such as Shield (D216): its command is the one
+  // behind the monster's first new log entry
+  const resultCommand = result && 'response' in result
+    ? log.find(entry => !result.logBefore.has(entry.id) && entry.actorId === participant.id)?.commandId : undefined;
+  const takenBack = resultCommand != null
+    && log.some(entry => entry.commandId === resultCommand && entry.undone);
 
   if (templatesQuery.isPending) return <div className="px-4 py-2 font-body text-[15px] font-semibold text-muted">Loading actions...</div>;
   if (templatesQuery.isError) return <div className="px-4 py-2 font-body text-[15px] font-semibold text-debuff">{apiErrorMessage(templatesQuery.error)}</div>;
@@ -403,10 +415,13 @@ export default function InlineMonsterActions({
         <div className={`mt-2 p-3 border font-body text-[15px] font-semibold ${'error' in result ? 'bg-debuff-bg border-debuff text-debuff' : 'bg-buff-bg border-buff text-buff'}`}>
           {'error' in result ? result.error : (
             <>
+              {takenBack && <div className="text-muted">Taken back: undone since</div>}
+              <div className={takenBack ? 'line-through text-muted' : undefined}>
               {result.response.description}
               {result.response.targetResults?.map((tr, i) => (
                 <div key={`${tr.targetId}-${i}`}>{tr.targetName}: {tr.attackOutcome}{tr.damage > 0 ? ` — ${damageBreakdown(tr.damage, tr.damageParts) ?? `${tr.damage} ${tr.damageType}`}` : ''}{(tr.conditionsApplied?.length ?? 0) > 0 ? ` — ${tr.conditionsApplied.join(', ')}` : ''}</div>
               ))}
+              </div>
             </>
           )}
           <button className="mt-1 font-body text-[15px] font-semibold text-muted underline hover:text-ink" onClick={() => setResult(null)}>Clear</button>

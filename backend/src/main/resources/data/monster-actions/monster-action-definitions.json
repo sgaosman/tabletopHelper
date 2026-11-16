@@ -66575,12 +66575,32 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "7d6",
-            "damageType": null
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: 24 (7d6) damage of one of the following types (empyrean's choice): acid, cold, fire, force, lightning, radiant, or thunder.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: 24 (7d6) damage of one of the following types (empyrean's choice): acid, cold, fire, force, lightning, radiant, or thunder."
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "7d6",
+              "damageType": null
+            }
+          }
+        ],
+        "damageOptions": [
+          "acid",
+          "cold",
+          "fire",
+          "force",
+          "lightning",
+          "radiant",
+          "thunder"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       }
     ],
     "legendaryActions": [
