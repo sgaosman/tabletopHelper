@@ -9,6 +9,7 @@ import {
 import type { AbilityScores, ProfEntry, RaceChoiceReq, ChoiceReq } from './types';
 import type { WizardDraft, WizardState } from './wizardReducer';
 import { equipmentComplete, startingInventory, type WizardKits } from './startingEquipment';
+import { ancestryOf, DRACONIC_ANCESTRIES, hasDraconicAncestry } from '../../../utils/draconicAncestry';
 
 // The values the creation wizard works out from its state, and the request it sends
 
@@ -21,6 +22,16 @@ export interface ResolvedRaceChoices {
   weapons: string[];
   resistances: string[];
   spellAbility: string | null;
+  /** A Dragonborn's draconic ancestry, by its dragon (D208), whose damage type is among the resistances */
+  draconicAncestry: string | null;
+}
+
+/** The race choice that picks a Dragonborn's draconic ancestry (PHB p.34, D208), in place of its resistance. */
+export const ANCESTRY_KEY = 'ancestry';
+
+/** How an ancestry reads among the race's choices: "Red (fire)". */
+export function ancestryOption(dragon: string, damageType: string): string {
+  return `${dragon} (${damageType})`;
 }
 
 export interface ResolvedBgProfs {
@@ -136,7 +147,10 @@ export function raceChoiceReqs(race: Race | null): RaceChoiceReq[] {
     }
   }
   if (choices.weapons) { for (const wc of choices.weapons as Array<{ from?: string[]; count?: number }>) reqs.push({ key: `weapon_${reqs.length}`, label: 'Martial Weapon Proficiency', options: wc.from ?? [], count: wc.count ?? 2 }); }
-  if (choices.resistances) { for (const rc of choices.resistances as Array<{ from: string[] }>) reqs.push({ key: `resist_${reqs.length}`, label: 'Damage Resistance', options: rc.from, count: 1 }); }
+  // A race with Draconic Ancestry chooses its dragon, which gives the resistance (PHB p.34, D208)
+  const draconic = hasDraconicAncestry(race.traits);
+  if (draconic) reqs.push({ key: ANCESTRY_KEY, label: 'Draconic Ancestry', options: DRACONIC_ANCESTRIES.map(a => ancestryOption(a.dragon, a.damageType)), count: 1 });
+  if (choices.resistances && !draconic) { for (const rc of choices.resistances as Array<{ from: string[] }>) reqs.push({ key: `resist_${reqs.length}`, label: 'Damage Resistance', options: rc.from, count: 1 }); }
   if (choices.spellAbility) reqs.push({ key: 'spellAbility', label: 'Spellcasting Ability', options: choices.spellAbility as string[], count: 1 });
   return reqs;
 }
@@ -146,7 +160,7 @@ export function raceChoicesComplete(state: WizardState): boolean {
 }
 
 export function resolvedRaceChoices(state: WizardState): ResolvedRaceChoices {
-  const result: ResolvedRaceChoices = { languages: [], skills: [], tools: [], weapons: [], resistances: [], spellAbility: null };
+  const result: ResolvedRaceChoices = { languages: [], skills: [], tools: [], weapons: [], resistances: [], spellAbility: null, draconicAncestry: null };
   for (const req of raceChoiceReqs(state.selectedRace)) {
     const selected = state.raceChoiceSelections[req.key] ?? [];
     if (req.key.startsWith('lang_')) result.languages.push(...selected);
@@ -155,6 +169,13 @@ export function resolvedRaceChoices(state: WizardState): ResolvedRaceChoices {
     else if (req.key.startsWith('weapon_')) result.weapons.push(...selected);
     else if (req.key.startsWith('resist_')) result.resistances.push(...selected);
     else if (req.key === 'spellAbility') result.spellAbility = selected[0] ?? null;
+    else if (req.key === ANCESTRY_KEY) {
+      const ancestry = ancestryOf((selected[0] ?? '').split(' ')[0]);
+      if (ancestry) {
+        result.draconicAncestry = ancestry.dragon;
+        result.resistances.push(ancestry.damageType);
+      }
+    }
   }
   return result;
 }
@@ -378,7 +399,9 @@ export function buildCreateRequest(state: WizardState, kits?: WizardKits): Chara
   const bgProfs = resolvedBgProfs(state);
   const scores = finalScores(state);
   const savingThrows = safeJsonParse<string[]>(selectedClass.savingThrowProficiencies, []);
-  const resistances = [...safeJsonParse<string[]>(selectedRace.resistances, []), ...raceChoices.resistances];
+  // A "choose: ..." entry is the race's choice, which the race choices answer, not a resistance of its own
+  const resistances = [...safeJsonParse<string[]>(selectedRace.resistances, []).filter(r => !r.startsWith('choose:')),
+    ...raceChoices.resistances];
   const raceProfs = safeJsonParse<{ skills?: string[]; languages?: string[]; tools?: string[]; weapons?: string[] }>(selectedRace.proficiencies, {});
   const isMulticlass = classEntries.length > 1;
   const classArmor = [...safeJsonParse<string[]>(selectedClass.armorProficiencies, [])];
@@ -421,6 +444,7 @@ export function buildCreateRequest(state: WizardState, kits?: WizardKits): Chara
     languageProficiencies: allLanguages.length > 0 ? [...new Set(allLanguages)] : undefined,
     damageResistances: resistances.length > 0 ? resistances : undefined,
     spellcastingAbility,
+    ...(raceChoices.draconicAncestry ? { draconicAncestry: raceChoices.draconicAncestry } : {}),
     spellsKnown: spellsKnown(state),
     multiclassClassEntries,
     ...(kits ? kitFields(state, kits) : {}),

@@ -107,6 +107,10 @@ public class PoolUseService {
         // Ending a rage spends nothing; so does Kensei's Shot, which is described as any other use
         String description = plan.spend() == 0 && FeatureEffects.END.equals(plan.option())
                 ? participant.getDisplayName() + " ends their " + pool.displayName() + costNote
+                // A racial pool regained by hand, as Feline Agility after a turn without moving (D208)
+                : plan.spend() == 0 && RaceFeatureEffects.REGAIN.equals(plan.option())
+                ? participant.getDisplayName() + " regains " + pool.displayName() + plan.note() + " ("
+                        + Math.min(pool.maxUses(), pool.currentUses() + 1) + "/" + pool.maxUses() + ")"
                 : describe(participant, pool, plan.spend(), costNote, spent, grantsAction, plan.note());
         combatLog.write(encounter, CombatActionType.POOL_USE, description, participant,
                 plan.target() != participant ? plan.target() : null);

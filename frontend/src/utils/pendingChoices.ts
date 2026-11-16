@@ -10,6 +10,7 @@ const TITLES: Record<PendingChoiceType, string> = {
   SUBCLASS_CANTRIP: 'Subclass Cantrip',
   ASI: 'Ability Score Improvement',
   FEAT: 'Feat',
+  DRACONIC_ANCESTRY: 'Draconic Ancestry',
   EXPERTISE: 'Expertise',
   CANTRIPS: 'Cantrips',
   SPELLS: 'Spells',

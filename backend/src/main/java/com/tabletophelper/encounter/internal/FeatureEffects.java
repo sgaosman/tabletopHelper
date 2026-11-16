@@ -59,6 +59,7 @@ import java.util.UUID;
  *       becomes, as {@link WildShapeEffects} carries it out; "end" reverts early as a bonus action.</li>
  *   <li>{@value #ARCANE_RECOVERY} (Wizard 1, PHB p.115): used only when finishing a short rest, on the character
  *       sheet, so the table refuses it.</li>
+ *   <li>A racial feature's effect, such as Breath Weapon (M24.5b, D208): {@link RaceFeatureEffects} carries it out.</li>
  * </ul>
  */
 @Component
@@ -97,6 +98,7 @@ public class FeatureEffects {
     private final ChannelDivinityEffects channelDivinity;
     private final WildShapeEffects wildShape;
     private final CharacterWeapons characterWeapons;
+    private final RaceFeatureEffects raceFeatures;
 
     /**
      * A use, checked and ready.
@@ -172,6 +174,9 @@ public class FeatureEffects {
         if (request.weapon() != null && !ChannelDivinityEffects.EFFECT.equals(effect) && !sharpening) {
             throw new ValidationException(pool.displayName() + " takes no weapon");
         }
+        if (RaceFeatureEffects.handles(effect)) {
+            return raceFeatures.plan(encounter, user, pool, request, option, uses, userId, poolCost);
+        }
         if (ChannelDivinityEffects.EFFECT.equals(effect)) {
             return channelDivinity.plan(encounter, user, pool, request, option, uses, userId, poolCost);
         }
@@ -213,6 +218,10 @@ public class FeatureEffects {
      */
     public void apply(Encounter encounter, EncounterParticipant user, Plan plan) {
         if (plan.effect() == null) {
+            return;
+        }
+        if (RaceFeatureEffects.handles(plan.effect())) {
+            raceFeatures.apply(encounter, user, plan);
             return;
         }
         switch (plan.effect()) {

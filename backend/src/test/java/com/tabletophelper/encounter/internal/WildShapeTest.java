@@ -314,6 +314,31 @@ class WildShapeTest {
         }
 
         @Test
+        @DisplayName("A half-orc druid's Relentless Endurance waits for the beast form to revert: dropping the wolf "
+                + "spends nothing, and only damage carrying over past Rowan's own hit points leaves him at 1 (D208)")
+        void relentlessEnduranceAfterReverting() {
+            List<ResourcePoolEntry> pools = new ArrayList<>(rowan.getResourcePoolsCurrent());
+            pools.add(new ResourcePoolEntry("race:relentless-endurance", "Relentless Endurance", "RACE", "Half-Orc", 1,
+                    "1", 1, "longRest", null, null, "FREE", "heart", Map.of("effect", "relentless-endurance")));
+            rowan.setResourcePoolsCurrent(pools);
+            shape(wolf);
+
+            damage(11);
+            assertEquals(1, rowan.getResourcePoolsCurrent().stream()
+                    .filter(p -> p.poolId().equals("race:relentless-endurance")).findFirst().orElseThrow().currentUses());
+
+            rowan.setHpCurrent(3);
+            shape(wolf);
+            damage(16);
+
+            assertTrue(WildShapeForm.of(rowan).isEmpty());
+            assertEquals(1, rowan.getHpCurrent());
+            assertEquals(LifeState.ALIVE, rowan.getLifeState());
+            assertEquals(0, rowan.getResourcePoolsCurrent().stream()
+                    .filter(p -> p.poolId().equals("race:relentless-endurance")).findFirst().orElseThrow().currentUses());
+        }
+
+        @Test
         @DisplayName("An attack on Rowan in beast form is against the wolf's AC and takes the wolf's hit points")
         void attackedInBeastForm() {
             shape(wolf);

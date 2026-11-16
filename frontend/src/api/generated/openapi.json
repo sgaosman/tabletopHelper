@@ -5682,6 +5682,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "draconicAncestry": {
+            "type": "string",
+            "nullable": true
+          },
           "expertiseSkills": {
             "type": "array",
             "nullable": true,
@@ -6807,6 +6811,10 @@
             "minimum": 1,
             "type": "integer",
             "format": "int32",
+            "nullable": true
+          },
+          "draconicAncestry": {
+            "type": "string",
             "nullable": true
           },
           "equipment": {
@@ -10118,6 +10126,10 @@
               "type": "string"
             }
           },
+          "draconicAncestry": {
+            "type": "string",
+            "nullable": true
+          },
           "expertise": {
             "type": "array",
             "nullable": true,
@@ -11531,6 +11543,7 @@
               "SUBCLASS_CANTRIP",
               "ASI",
               "FEAT",
+              "DRACONIC_ANCESTRY",
               "EXPERTISE",
               "CANTRIPS",
               "SPELLS",

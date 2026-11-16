@@ -24,6 +24,7 @@ import com.tabletophelper.reference.FeatRepository;
 import com.tabletophelper.reference.ItemRepository;
 import com.tabletophelper.reference.OptionalFeatureRepository;
 import com.tabletophelper.reference.Race;
+import com.tabletophelper.reference.RaceFeaturePoolRepository;
 import com.tabletophelper.reference.RaceRepository;
 import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.reference.SpellRepository;
@@ -75,6 +76,7 @@ class CharacterFixture {
     final SpellRepository spellRepository = mock(SpellRepository.class);
     final ItemRepository itemRepository = mock(ItemRepository.class);
     final ClassFeaturePoolRepository featurePoolRepository = mock(ClassFeaturePoolRepository.class);
+    final RaceFeaturePoolRepository raceFeaturePoolRepository = mock(RaceFeaturePoolRepository.class);
     final OptionalFeatureRepository optionalFeatureRepository = mock(OptionalFeatureRepository.class);
     final LiveEncounters liveEncounters = mock(LiveEncounters.class);
 
@@ -92,7 +94,7 @@ class CharacterFixture {
     final ClassTables classTables = TestClassTables.load();
     final AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
     final ResourcePoolService resourcePoolService =
-            new ResourcePoolService(featurePoolRepository, JacksonDefaults.mapper());
+            new ResourcePoolService(featurePoolRepository, raceFeaturePoolRepository, JacksonDefaults.mapper());
     final EquippedArmour equippedArmour = new EquippedArmour(itemRepository);
     final CharacterStats characterStats = new CharacterStats(classRepository, subclassRepository,
             resourcePoolService, objectMapper, classTables, equippedArmour);

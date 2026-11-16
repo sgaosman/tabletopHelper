@@ -16,6 +16,9 @@ import com.tabletophelper.reference.ClassFeaturePool;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.PoolLevelTable;
 import com.tabletophelper.reference.PoolLevelTable.Row;
+import com.tabletophelper.reference.Race;
+import com.tabletophelper.reference.RaceFeaturePool;
+import com.tabletophelper.reference.RaceFeaturePoolRepository;
 import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.rules.ExpressionException;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,11 +42,15 @@ class ResourcePoolServiceTest {
     @Mock
     private ClassFeaturePoolRepository classFeaturePoolRepository;
 
+    @Mock
+    private RaceFeaturePoolRepository raceFeaturePoolRepository;
+
     private ResourcePoolService service;
 
     @BeforeEach
     void setUp() {
-        service = new ResourcePoolService(classFeaturePoolRepository, JacksonDefaults.mapper());
+        service = new ResourcePoolService(classFeaturePoolRepository, raceFeaturePoolRepository,
+                JacksonDefaults.mapper());
     }
 
     // ── Pool reset: full reset ────────────────────────────────────
@@ -194,6 +201,77 @@ class ResourcePoolServiceTest {
 
         assertEquals(List.of(spent, ResourcePoolEntry.innate("Misty Step", 1, "FEAT", "Fey Touched")),
                 reconcile(tiefling));
+    }
+
+    // ── Race pools (M24.5b, D208) ────────────────────────────────
+
+    private static final Race DRAGONBORN = Race.builder().id(UUID.randomUUID()).name("Dragonborn").source("PHB").build();
+    private static final Race HALF_ORC = Race.builder().id(UUID.randomUUID()).name("Half-Orc").source("PHB").build();
+
+    private static RaceFeaturePool racePool(Race race, String poolId, String name, String resetOn, String effect) {
+        return RaceFeaturePool.builder().race(race).minLevel(1).poolDefinition(ResourcePoolDefinition.builder()
+                .poolId(poolId).displayName(name).sourceType("RACE").maxUsesFormula("1").resetOn(resetOn)
+                .spendActionType("ACTION").metadata("{\"effect\": \"" + effect + "\"}").build()).build();
+    }
+
+    private void racePools(Race race, int level, RaceFeaturePool... pools) {
+        when(raceFeaturePoolRepository.findByRaceIdAndMinLevelLessThanEqual(race.getId(), level))
+                .thenReturn(List.of(pools));
+    }
+
+    @Test
+    @DisplayName("reconciledPools adds the pools the character's race row grants at its total level, as RACE pools named after the race, with their metadata (D208)")
+    void syncAddsRacePools() {
+        racePools(DRAGONBORN, 6, racePool(DRAGONBORN, "race:breath-weapon", "Breath Weapon", "shortRest",
+                "breath-weapon"));
+        PlayerCharacter character = PlayerCharacter.builder().level(6).raceRef(DRAGONBORN).build();
+
+        ResourcePoolEntry breath = findPool(reconcile(character), "race:breath-weapon");
+
+        assertEquals("RACE", breath.sourceType());
+        assertEquals("Dragonborn", breath.sourceName());
+        assertEquals(1, breath.maxUses());
+        assertEquals(1, breath.currentUses());
+        assertEquals("shortRest", breath.resetOn());
+        assertEquals("ACTION", breath.spendActionType());
+        assertEquals(Map.of("effect", "breath-weapon"), breath.metadata());
+    }
+
+    @Test
+    @DisplayName("A race pool the character has keeps its spent use; a new race's pools come in full and the old race's go, while class pools stay (D208)")
+    void raceChangeSwapsRacePools() {
+        racePools(DRAGONBORN, 3, racePool(DRAGONBORN, "race:breath-weapon", "Breath Weapon", "shortRest",
+                "breath-weapon"));
+        PlayerCharacter character = PlayerCharacter.builder().level(3).raceRef(DRAGONBORN)
+                .multiclassEntries(List.of(new ClassEntry(UUID.randomUUID(), "Fighter", null, null, 3)))
+                .build();
+        when(classFeaturePoolRepository.findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of(featurePool("class:fighter-second-wind", "1")));
+        List<ResourcePoolEntry> first = reconcile(character);
+        character.setResourcePools(first.stream()
+                .map(pool -> pool.poolId().equals("race:breath-weapon") ? pool.withCurrentUses(0) : pool).toList());
+
+        assertEquals(0, findPool(reconcile(character), "race:breath-weapon").currentUses(),
+                "the spent breath stays spent");
+
+        racePools(HALF_ORC, 3, racePool(HALF_ORC, "race:relentless-endurance", "Relentless Endurance", "longRest",
+                "relentless-endurance"));
+        character.setRaceRef(HALF_ORC);
+        List<ResourcePoolEntry> swapped = reconcile(character);
+
+        assertEquals(List.of("class:fighter-second-wind", "race:relentless-endurance"),
+                swapped.stream().map(ResourcePoolEntry::poolId).toList());
+        assertEquals(1, findPool(swapped, "race:relentless-endurance").currentUses());
+        assertEquals("Half-Orc", findPool(swapped, "race:relentless-endurance").sourceName());
+    }
+
+    @Test
+    @DisplayName("A race pool from a later level, as an Aasimar's transformation at 3rd, is asked for by the character's total level (D208)")
+    void racePoolsAskedByTotalLevel() {
+        PlayerCharacter character = PlayerCharacter.builder().level(2).raceRef(DRAGONBORN).build();
+
+        assertTrue(reconcile(character).isEmpty());
+        org.mockito.Mockito.verify(raceFeaturePoolRepository).findByRaceIdAndMinLevelLessThanEqual(DRAGONBORN.getId(), 2);
     }
 
     @Test

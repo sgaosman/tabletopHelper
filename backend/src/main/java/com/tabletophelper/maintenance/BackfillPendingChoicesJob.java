@@ -71,8 +71,14 @@ public class BackfillPendingChoicesJob implements MaintenanceJob {
                 + (Boolean.FALSE.equals(pc.getIsActive()) ? ", deleted" : "") + ")";
     }
 
-    // Such as "ASI at Fighter 6 (level 6)", "EXPERTISE ×2 at Bard 3 (level 3)" or "PROFICIENCY ×3 at Bard 3 (level 3)"
+    // Such as "ASI at Fighter 6 (level 6)", "EXPERTISE ×2 at Bard 3 (level 3)" or "PROFICIENCY ×3 at Bard 3 (level 3)";
+    // a race's choice, as a Dragonborn's draconic ancestry (D208), "DRACONIC_ANCESTRY of the race (level 1): Red, ..."
     private static String describe(PendingChoice choice) {
+        if (choice.className() == null) {
+            return choice.type() + " of the " + choice.source().name().toLowerCase(java.util.Locale.ROOT)
+                    + " (level " + choice.characterLevel() + ")"
+                    + (choice.options() != null ? ": " + String.join(", ", choice.options()) : "");
+        }
         return choice.type() + (choice.count() > 1 ? " ×" + choice.count() : "") + " at " + choice.className() + " "
                 + choice.classLevel() + " (level " + choice.characterLevel() + ")";
     }

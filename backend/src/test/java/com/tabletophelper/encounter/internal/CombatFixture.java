@@ -101,7 +101,8 @@ class CombatFixture {
     final CreatureStats stats = new CreatureStats(objectMapper, new EquippedArmour(itemRepository));
     final CombatLogWriter combatLog = new CombatLogWriter(combatLogRepository);
     final ResourcePoolService resourcePoolService =
-            new ResourcePoolService(mock(ClassFeaturePoolRepository.class), JacksonDefaults.mapper());
+            new ResourcePoolService(mock(ClassFeaturePoolRepository.class),
+                    mock(com.tabletophelper.reference.RaceFeaturePoolRepository.class), JacksonDefaults.mapper());
     final EffectApplier effectApplier = new EffectApplier(resolver, stats, combatLog, resourcePoolService);
     final AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
     final EncounterCommands encounterCommands = new EncounterCommands(encounterRepository, accessPolicy, eventPublisher);
@@ -150,8 +151,9 @@ class CombatFixture {
             encounterService);
     final ChannelDivinityEffects channelDivinity = new ChannelDivinityEffects(effectApplier, stats, resolver,
             characterWeapons);
+    final RaceFeatureEffects raceFeatures = new RaceFeatureEffects(effectApplier, stats, resolver, dice);
     final FeatureEffects featureEffects = new FeatureEffects(effectApplier, stats, dice, channelDivinity,
-            wildShapeEffects, characterWeapons);
+            wildShapeEffects, characterWeapons, raceFeatures);
     final WildShapeService wildShape = new WildShapeService(access, accessPolicy, economy, effectApplier,
             wildShapeEffects, dice, encounterRepository, encounterService);
     final BardicInspirationService bardicInspiration = new BardicInspirationService(access, combatLog, dice,

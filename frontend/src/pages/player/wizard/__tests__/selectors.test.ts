@@ -124,9 +124,29 @@ describe('race selectors', () => {
 
     const done = reduce(state, { type: 'toggleRaceChoice', key: 'skill_1', value: 'Stealth', count: 1 });
     expect(raceChoicesComplete(done)).toBe(true);
-    expect(resolvedRaceChoices(done)).toEqual({ languages: ['Giant'], skills: ['Stealth'], tools: [], weapons: [], resistances: [], spellAbility: null });
+    expect(resolvedRaceChoices(done)).toEqual({ languages: ['Giant'], skills: ['Stealth'], tools: [], weapons: [], resistances: [], spellAbility: null, draconicAncestry: null });
     expect(raceSkills(done)).toEqual(new Set(['stealth']));
     expect(raceSkills(reduce(initialWizardState, { type: 'selectRace', race: highElf }))).toEqual(new Set(['perception']));
+  });
+
+  // A PHB Dragonborn as the races endpoint gives it: its traits name Draconic Ancestry (D208)
+  const dragonborn = race('race-dragonborn', 'Dragonborn', {
+    traits: JSON.stringify([{ name: 'Draconic Ancestry', description: 'Choose a dragon' }, { name: 'Breath Weapon', description: 'Exhale' }]),
+    raceChoices: JSON.stringify({ resistances: [{ from: ['acid', 'cold', 'fire', 'lightning', 'poison'] }] }),
+    resistances: JSON.stringify(['choose: acid, cold, fire, lightning, poison']),
+  });
+
+  it("asks a Dragonborn for its draconic ancestry in place of the resistance, which the dragon gives (D208)", () => {
+    const reqs = raceChoiceReqs(dragonborn);
+
+    expect(reqs.map(r => [r.key, r.label, r.count])).toEqual([['ancestry', 'Draconic Ancestry', 1]]);
+    expect(reqs[0].options).toHaveLength(10);
+    expect(reqs[0].options).toContain('Red (fire)');
+
+    const state = reduce(initialWizardState, { type: 'selectRace', race: dragonborn },
+      { type: 'toggleRaceChoice', key: 'ancestry', value: 'Silver (cold)', count: 1 });
+    expect(raceChoicesComplete(state)).toBe(true);
+    expect(resolvedRaceChoices(state)).toMatchObject({ resistances: ['cold'], draconicAncestry: 'Silver' });
   });
 
   it("knows a human's +1 to every ability needs no assigning", () => {
@@ -346,5 +366,18 @@ describe('buildCreateRequest', () => {
       { type: 'toggleExpertise', skill: 'Stealth', max: 2 }, { type: 'selectBackground', background: soldier });
 
     expect(buildCreateRequest(state)).toMatchObject({ skillExpertises: ['Stealth'], spellcastingAbility: 'WIS' });
+  });
+
+  it("sends a Dragonborn's ancestry and its resistance, without the race's choose placeholder (D208)", () => {
+    const dragonborn = race('race-dragonborn', 'Dragonborn', {
+      traits: JSON.stringify([{ name: 'Draconic Ancestry', description: 'Choose a dragon' }]),
+      raceChoices: JSON.stringify({ resistances: [{ from: ['acid', 'cold', 'fire', 'lightning', 'poison'] }] }),
+      resistances: JSON.stringify(['choose: acid, cold, fire, lightning, poison']),
+    });
+    const state = reduce(withClass(fighter), { type: 'selectRace', race: dragonborn },
+      { type: 'toggleRaceChoice', key: 'ancestry', value: 'Red (fire)', count: 1 },
+      { type: 'selectBackground', background: soldier });
+
+    expect(buildCreateRequest(state)).toMatchObject({ draconicAncestry: 'Red', damageResistances: ['fire'] });
   });
 });

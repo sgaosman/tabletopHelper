@@ -104,6 +104,12 @@ public record PendingChoice(
         ASI,
         /** A feat a race or background gives at creation, such as a Variant Human's */
         FEAT,
+        /**
+         * A Dragonborn's draconic ancestry (PHB p.34, D208), owed at creation by a race with the Draconic Ancestry
+         * trait: one of the ten dragons in its {@code options}, recorded on the 1st level. It gives the Breath Weapon's
+         * damage type, shape and save, and the damage resistance of that type
+         */
+        DRACONIC_ANCESTRY,
         /** Skills that gain Expertise */
         EXPERTISE,
         /** Cantrips the class learns */

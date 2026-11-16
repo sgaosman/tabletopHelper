@@ -9,6 +9,10 @@ import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.MonsterPoolTrigger;
 import com.tabletophelper.reference.MonsterPoolTriggerRepository;
 import com.tabletophelper.reference.PoolLevelTable;
+import com.tabletophelper.reference.Race;
+import com.tabletophelper.reference.RaceFeaturePool;
+import com.tabletophelper.reference.RaceFeaturePoolRepository;
+import com.tabletophelper.reference.RaceRepository;
 import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.reference.ResourcePoolDefinitionRepository;
 import com.tabletophelper.reference.Subclass;
@@ -29,12 +33,15 @@ import java.util.TreeSet;
 
 /**
  * Loads the M24.5 resource pool reference tables from resource-pools.json (D169): the pool definitions, by pool ID;
- * the pools each class and subclass grants, by class, subclass and pool; and the monster pool triggers, by pool and
- * condition. A class or subclass the classes loader didn't write is logged and its pools skipped.
+ * the pools each class and subclass grants, by class, subclass and pool; the pools each race row grants (M24.5b, D208),
+ * by race and pool, a subrace being a row of its own; and the monster pool triggers, by pool and condition. A class,
+ * subclass or race the classes and races loaders didn't write is logged and its pools skipped.
  * <p>
  * Every formula, a level table's included, is checked against a context of zeros with the names a character's pool
  * formulas can read, and every recharge check too: one that doesn't read, or names anything else, fails the load
- * (D169). So does a definition without a maximum, a rest no reset knows, or a level table whose class isn't loaded.
+ * (D169). So does a definition without a maximum, a rest no reset knows, or a level table whose class isn't loaded,
+ * and a formula in a definition's metadata a racial feature works out when used, its {@code tempHp} or {@code healing}
+ * (D208).
  */
 @Component
 @RequiredArgsConstructor
@@ -48,7 +55,12 @@ public class ResourcePoolLoader implements ContentLoader {
     private final MonsterPoolTriggerRepository monsterTriggerRepo;
     private final CharacterClassRepository classRepo;
     private final SubclassRepository subclassRepo;
+    private final RaceFeaturePoolRepository raceFeaturePoolRepo;
+    private final RaceRepository raceRepo;
     private final ObjectMapper objectMapper;
+
+    // The formulas a definition's metadata may hold, which a racial feature works out when it is used (D208)
+    static final List<String> METADATA_FORMULAS = List.of("tempHp", "healing");
 
     @Override
     public String name() {
@@ -62,13 +74,13 @@ public class ResourcePoolLoader implements ContentLoader {
 
     @Override
     public int version() {
-        // 2: level tables (V27), and every formula checked (D169)
-        return 2;
+        // 2: level tables (V27), and every formula checked (D169); 3: race pools (V37, D208)
+        return 3;
     }
 
     @Override
     public List<String> dependsOn() {
-        return List.of("classes");
+        return List.of("classes", "races");
     }
 
     @Override
@@ -81,6 +93,8 @@ public class ResourcePoolLoader implements ContentLoader {
                 classPools(root.path("classPools"), definitions, classes), ResourcePoolLoader::classPoolKey);
         context.upsert("monster_pool_triggers", monsterTriggerRepo,
                 monsterTriggers(root.path("monsterTriggers"), definitions), trigger -> triggerKey(context, trigger));
+        context.upsert("race_feature_pools", raceFeaturePoolRepo,
+                racePools(root.path("racePools"), definitions), ResourcePoolLoader::racePoolKey);
     }
 
     // ── Pool definitions ─────────────────────────────────────────
@@ -110,6 +124,12 @@ public class ResourcePoolLoader implements ContentLoader {
                             : null)
                     .build();
             check(def, names, classNames);
+            for (String key : METADATA_FORMULAS) {
+                JsonNode formula = metadata.path(key);
+                if (!formula.isMissingNode() && !formula.isNull()) {
+                    formula(def.getPoolId(), "metadata." + key, formula.asString(""), names);
+                }
+            }
             defs.add(def);
         }
         return defs;
@@ -225,6 +245,47 @@ public class ResourcePoolLoader implements ContentLoader {
         Subclass sc = pool.getSubclass();
         return LoadContext.nameAndSource(cc.getName(), cc.getSource()) + "|"
                 + (sc != null ? LoadContext.nameAndSource(sc.getName(), sc.getSource()) : "") + "|"
+                + pool.getPoolDefinition().getPoolId();
+    }
+
+    // ── Race feature pools (junction table, D208) ─────────────────
+
+    /*
+     * The pools each race row grants, by its name and source as the races table has them: a subrace by its own row's,
+     * such as "Fallen Aasimar|VGM". A race the races loader didn't write is logged and skipped, as a class is.
+     */
+    private List<RaceFeaturePool> racePools(JsonNode entries, Map<String, ResourcePoolDefinition> definitions) {
+        Map<String, Race> races = new HashMap<>();
+        for (Race race : raceRepo.findAll()) {
+            races.put(LoadContext.nameAndSource(race.getName(), race.getSource()), race);
+        }
+        List<RaceFeaturePool> mappings = new ArrayList<>();
+        for (JsonNode entry : entries) {
+            String poolId = required(entry, "poolId");
+            String raceKey = LoadContext.nameAndSource(required(entry, "race"), text(entry, "raceSource"));
+            ResourcePoolDefinition def = definitions.get(poolId);
+            if (def == null) {
+                throw new IllegalStateException(FILE + " maps " + raceKey + " to the pool " + poolId
+                        + ", which it doesn't define");
+            }
+            Race race = races.get(raceKey);
+            if (race == null) {
+                log.warn("Race '{}' not found in database, skipping pool mapping for '{}'", raceKey, poolId);
+                continue;
+            }
+            mappings.add(RaceFeaturePool.builder()
+                    .race(race)
+                    .minLevel(entry.path("minLevel").asInt(1))
+                    .poolDefinition(def)
+                    .build());
+        }
+        return mappings;
+    }
+
+    /** A race pool's natural key: its race and its pool. */
+    static String racePoolKey(RaceFeaturePool pool) {
+        Race race = pool.getRace();
+        return LoadContext.nameAndSource(race.getName(), race.getSource()) + "|"
                 + pool.getPoolDefinition().getPoolId();
     }
 

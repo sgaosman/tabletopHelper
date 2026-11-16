@@ -444,6 +444,92 @@ describe('ResourcePoolDisplay', () => {
   });
 });
 
+describe('ResourcePoolDisplay and racial features (M24.5b, D208)', () => {
+  const racial = (poolId: string, name: string, meta: Record<string, unknown>, overrides: Partial<ResourcePoolEntry> = {}) =>
+    makeMockResourcePool(poolId, name, { sourceType: 'RACE', metadata: metadata(meta), maxUses: 1, currentUses: 1,
+      spendActionType: 'ACTION', ...overrides });
+  const goblin = makeMockParticipant('part-goblin', 'Goblin', 'MONSTER');
+  const orc = makeMockParticipant('part-orc', 'Orc', 'MONSTER');
+  const user = (entries: ResourcePoolEntry[]) =>
+    makeMockParticipant('part-kriv', 'Kriv', 'PLAYER', { isCurrentTurn: true, resourcePoolsCurrent: entries });
+
+  function renderPools(participant: EncounterParticipant, targets?: EncounterParticipant[]) {
+    const onUse = vi.fn().mockResolvedValue(undefined);
+    render(<ResourcePoolDisplay pools={participant.resourcePoolsCurrent} participant={participant} onUse={onUse}
+      targets={targets} />);
+    return { onUse, events: userEvent.setup() };
+  }
+
+  it('breathes at the creatures picked, as the recorded ancestry or the dragon chosen', async () => {
+    const kriv = user([racial('race:breath-weapon', 'Breath Weapon', { effect: 'breath-weapon' })]);
+    const { onUse, events } = renderPools(kriv, [kriv, goblin, orc]);
+
+    expect(screen.getByRole('button', { name: 'Use Breath Weapon' })).toBeDisabled();
+    expect(screen.queryByRole('checkbox', { name: 'Kriv' })).not.toBeInTheDocument();
+    await events.click(screen.getByRole('checkbox', { name: 'Goblin' }));
+    await events.click(screen.getByRole('checkbox', { name: 'Orc' }));
+    await events.click(screen.getByRole('button', { name: 'Use Breath Weapon' }));
+    expect(onUse).toHaveBeenLastCalledWith('race:breath-weapon', { targetIds: ['part-goblin', 'part-orc'] });
+
+    await events.selectOptions(screen.getByLabelText('Ancestry'), 'Red');
+    await events.click(screen.getByRole('button', { name: 'Use Breath Weapon' }));
+    expect(onUse).toHaveBeenLastCalledWith('race:breath-weapon', { targetIds: ['part-goblin', 'part-orc'], option: 'Red' });
+  });
+
+  it("sends Stone's Endurance the damage just taken, as a reaction off its turn", async () => {
+    const goliath = makeMockParticipant('part-kavaki', 'Kavaki', 'PLAYER', { isCurrentTurn: false,
+      resourcePoolsCurrent: [racial('race:stones-endurance', "Stone's Endurance", { effect: 'stones-endurance' },
+        { spendActionType: 'REACTION' })] });
+    const { onUse, events } = renderPools(goliath);
+
+    expect(screen.getByRole('button', { name: "Use Stone's Endurance" })).toBeDisabled();
+    await events.type(screen.getByLabelText('Damage taken'), '9');
+    await events.click(screen.getByRole('button', { name: "Use Stone's Endurance" }));
+
+    expect(onUse).toHaveBeenCalledWith('race:stones-endurance', { amounts: [9] });
+  });
+
+  it('heals with Healing Hands the creature chosen, the aasimar itself by default', async () => {
+    const lumen = user([racial('race:healing-hands', 'Healing Hands', { effect: 'healing-hands' })]);
+    const { onUse, events } = renderPools(lumen, [lumen, orc]);
+
+    await events.click(screen.getByRole('button', { name: 'Use Healing Hands' }));
+    expect(onUse).toHaveBeenLastCalledWith('race:healing-hands', {});
+    await events.selectOptions(screen.getByLabelText('Healing Hands creature'), 'part-orc');
+    await events.click(screen.getByRole('button', { name: 'Use Healing Hands' }));
+    expect(onUse).toHaveBeenLastCalledWith('race:healing-hands', { targetIds: ['part-orc'] });
+  });
+
+  it("says whether Hungry Jaws' bite hit, and offers no button for Relentless Endurance", async () => {
+    const scales = user([
+      racial('race:hungry-jaws', 'Hungry Jaws', { effect: 'hungry-jaws' }, { spendActionType: 'BONUS_ACTION' }),
+      racial('race:relentless-endurance', 'Relentless Endurance', { effect: 'relentless-endurance' },
+        { spendActionType: 'FREE' }),
+    ]);
+    const { onUse, events } = renderPools(scales);
+
+    await events.click(screen.getByRole('button', { name: 'Bite missed' }));
+    expect(onUse).toHaveBeenLastCalledWith('race:hungry-jaws', { option: 'miss' });
+    expect(screen.queryByRole('button', { name: 'Use Relentless Endurance' })).not.toBeInTheDocument();
+    expect(screen.getByText(/used by itself: the first drop to 0 HP leaves you at 1 instead/)).toBeInTheDocument();
+  });
+
+  it('regains a spent Feline Agility by hand, and uses a note pool with a plain Use', async () => {
+    const whisker = user([
+      racial('race:feline-agility', 'Feline Agility', { effect: 'racial-note', regain: true },
+        { currentUses: 0, spendActionType: 'FREE' }),
+      racial('race:fey-step', 'Fey Step', { effect: 'racial-note' }, { spendActionType: 'BONUS_ACTION' }),
+    ]);
+    const { onUse, events } = renderPools(whisker);
+
+    await events.click(screen.getByRole('button', { name: 'Regain Feline Agility' }));
+    expect(onUse).toHaveBeenLastCalledWith('race:feline-agility', { option: 'regain' });
+    expect(screen.queryByRole('button', { name: 'Regain Fey Step' })).not.toBeInTheDocument();
+    await events.click(screen.getByRole('button', { name: 'Use Fey Step' }));
+    expect(onUse).toHaveBeenLastCalledWith('race:fey-step');
+  });
+});
+
 describe('ResourcePoolDisplay and Flexible Casting (PHB p.101, M18)', () => {
   const points = makeMockResourcePool('class:sorcerer-sorcery-points', 'Sorcery Points', {
     sourceName: 'Sorcerer', maxUses: 5, currentUses: 3, spendActionType: 'FREE',
