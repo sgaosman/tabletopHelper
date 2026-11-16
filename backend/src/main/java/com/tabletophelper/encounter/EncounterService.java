@@ -432,6 +432,11 @@ public class EncounterService {
                     participant.getDisplayName() + " leaves the encounter");
         }
         encounter.getParticipants().remove(participant);
+        if (LIVE.contains(encounter.getStatus())) {
+            // What lasted only while it was there ends now, not at the next turn's sweep: its grapples and the
+            // restraints tied to them (PHB p.290), and what it had attached or swallowed (D203, D204, D206)
+            effectApplier.endLinked(encounter);
+        }
         return toResponse(encounterRepository.save(encounter));
     }
 

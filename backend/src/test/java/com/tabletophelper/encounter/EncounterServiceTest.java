@@ -1501,6 +1501,24 @@ class EncounterServiceTest {
     }
 
     @Test
+    @DisplayName("Removing a grappling monster mid-fight frees its target at once, the linked restraint with it")
+    void removeParticipant_endsItsGrapples() {
+        EncounterParticipant fighter = fighting("Fighter", ParticipantType.PLAYER, 18, 10, 0);
+        EncounterParticipant ogre = fighting("Ogre", ParticipantType.MONSTER, 8, 8, 1);
+        Encounter encounter = encounterIn(EncounterStatus.ACTIVE, fighter, ogre);
+        encounter.setCurrentTurnParticipantId(fighter.getId());
+        com.tabletophelper.encounter.state.ConditionEntry grappled = com.tabletophelper.encounter.state.ConditionEntry
+                .manual("grappled", null, 1, ogre.getId()).fromAction("Greatclub");
+        com.tabletophelper.encounter.state.ConditionEntry restrained = com.tabletophelper.encounter.state
+                .ConditionEntry.manual("restrained", null, 1, ogre.getId()).linkedTo(grappled.id());
+        fighter.setActiveConditions(new ArrayList<>(List.of(grappled, restrained)));
+
+        encounterService.removeParticipant(encounter.getId(), ogre.getId(), dmUserId);
+
+        assertNull(fighter.getActiveConditions());
+    }
+
+    @Test
     @DisplayName("Participants can't be removed from a Paused or Completed encounter")
     void removeParticipant_refusedWhilePaused() {
         EncounterParticipant goblin = fighting("Goblin", ParticipantType.MONSTER, 12, 14, 0);

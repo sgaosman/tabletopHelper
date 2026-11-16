@@ -16,6 +16,8 @@ import com.tabletophelper.encounter.dto.SummonChoice;
 import com.tabletophelper.encounter.dto.StandardActionRequest;
 import com.tabletophelper.encounter.dto.SummonCreature;
 import com.tabletophelper.encounter.dto.UndoRequest;
+import com.tabletophelper.encounter.state.ConcentrationInstance;
+import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.SummonSpec;
 import com.tabletophelper.monster.Monster;
@@ -384,6 +386,110 @@ class SummonServiceTest {
                     new UndoRequest(f.commands.getLast().getId(), 1), f.dmUserId));
             assertFalse(wolf.getDismissed());
             assertEquals(8, summoned().size());
+        }
+
+        // ── What a creature that disappears leaves on others (M15 "cascade companion effects") ──
+
+        // The wolf grapples the goblin and restrains it while the grapple lasts, as a monster's grapple does (D203)
+        private void wolfGrapplesGoblin(EncounterParticipant wolf) {
+            ConditionEntry grappled = ConditionEntry.manual("grappled", null, 1, wolf.getId()).fromAction("Bite");
+            ConditionEntry restrained = ConditionEntry.manual("restrained", null, 1, wolf.getId())
+                    .linkedTo(grappled.id());
+            goblin.setActiveConditions(new ArrayList<>(List.of(grappled, restrained)));
+        }
+
+        private List<String> goblinConditions() {
+            return goblin.getActiveConditions() == null ? List.of()
+                    : goblin.getActiveConditions().stream().map(ConditionEntry::name).toList();
+        }
+
+        @Test
+        @DisplayName("The DM dismissing a grappling wolf frees its target at once, the linked restraint with it")
+        void dmDismissal_endsItsGrapple() {
+            EncounterParticipant wolf = summoned().getFirst();
+            wolfGrapplesGoblin(wolf);
+            f.inTransaction(() -> f.summons.dismiss(f.encounterId(), new DismissSummonsRequest(List.of(wolf.getId())),
+                    f.dmUserId));
+            assertTrue(goblinConditions().isEmpty());
+            assertTrue(f.descriptions().contains("grappled ends on Goblin (its grappler is gone)"));
+        }
+
+        @Test
+        @DisplayName("The spell's effect ending (duration, or by hand) frees what its creatures grappled")
+        void effectEnds_endsTheirGrapples() {
+            EncounterParticipant wolf = summoned().getFirst();
+            wolfGrapplesGoblin(wolf);
+            UUID effectId = effect("Conjure Animals").id();
+            f.inTransaction(() -> {
+                f.effectApplier.endEffect(f.encounter, druid, effectId, "its duration ends");
+                return null;
+            });
+            assertTrue(wolf.getDismissed());
+            assertTrue(goblinConditions().isEmpty());
+        }
+
+        @Test
+        @DisplayName("The caster losing concentration frees what its creatures grappled")
+        void concentrationLost_endsTheirGrapples() {
+            wolfGrapplesGoblin(summoned().getFirst());
+            f.inTransaction(() -> {
+                f.effectApplier.endConcentration(f.encounter, druid, "a failed save");
+                return null;
+            });
+            assertTrue(goblinConditions().isEmpty());
+        }
+
+        @Test
+        @DisplayName("The caster at 0 HP frees what its concentration summons grappled")
+        void casterAtZero_endsTheirGrapples() {
+            wolfGrapplesGoblin(summoned().getFirst());
+            DamageRequest damage = new DamageRequest();
+            damage.setTargetId(druid.getId());
+            damage.setAmount(30);
+            f.inTransaction(() -> f.hitPoints.applyDamage(f.encounterId(), damage, null, f.dmUserId));
+            assertTrue(goblinConditions().isEmpty());
+        }
+
+        @Test
+        @DisplayName("A grappling wolf at 0 HP disappears and frees its target")
+        void creatureAtZero_endsItsGrapple() {
+            EncounterParticipant wolf = summoned().getFirst();
+            wolfGrapplesGoblin(wolf);
+            DamageRequest damage = new DamageRequest();
+            damage.setTargetId(wolf.getId());
+            damage.setAmount(20);
+            f.inTransaction(() -> f.hitPoints.applyDamage(f.encounterId(), damage, null, f.dmUserId));
+            assertTrue(wolf.getDismissed());
+            assertTrue(goblinConditions().isEmpty());
+        }
+
+        @Test
+        @DisplayName("A summoned creature's own concentration spell ends with it, and the condition it gave")
+        void itsOwnConcentration_endsWithIt() {
+            EncounterParticipant wolf = summoned().getFirst();
+            ConcentrationInstance holdPerson = ConcentrationInstance.start("Hold Person", 2, 1, 10);
+            wolf.setConcentration(holdPerson);
+            goblin.setActiveConditions(new ArrayList<>(List.of(ConditionEntry.fromEffect("paralyzed", 10, 1,
+                    "Hold Person", wolf.getId(), holdPerson))));
+            f.inTransaction(() -> {
+                f.effectApplier.endConcentration(f.encounter, druid, "a failed save");
+                return null;
+            });
+            assertTrue(wolf.getDismissed());
+            assertNull(wolf.getConcentration());
+            assertTrue(goblinConditions().isEmpty());
+        }
+
+        @Test
+        @DisplayName("A condition the creature gave that lasts on its own stays when it disappears (rules call)")
+        void ownDuration_outlastsTheCreature() {
+            EncounterParticipant wolf = summoned().getFirst();
+            // A wolf's Bite knocks prone (MM p.341); prone ends only when the creature stands
+            goblin.setActiveConditions(new ArrayList<>(List.of(ConditionEntry.manual("prone", null, 1, wolf.getId()),
+                    ConditionEntry.fromEffect("poisoned", 10, 1, "Wolf 1's bite", wolf.getId(), null))));
+            f.inTransaction(() -> f.summons.dismiss(f.encounterId(), new DismissSummonsRequest(List.of(wolf.getId())),
+                    f.dmUserId));
+            assertEquals(List.of("prone", "poisoned"), goblinConditions());
         }
 
         @Test

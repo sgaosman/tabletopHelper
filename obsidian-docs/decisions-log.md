@@ -4054,3 +4054,44 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Tests:** `RegisaurSwallowTest` (6), `GeneratorFollowUpsDataTest` (4), `MonsterRidersTailIT.regisaur` (a death knight bitten, swallowed, digested on its own turn and regurgitated within 5 feet after 45 damage from inside); counts updated in `MonsterRidersTailDataTest` (42 swallows), `MonsterRidersStepsDataTest`, `MonsterActionDataTest` and `StatBlockActionsTest`; 3,471 backend unit, 539 integration and 1,208 frontend tests. Not browser-checked: no UI change.
 
 **Related:** D204, D205, D206, D207
+
+
+## D210: Item Use in Combat
+
+**Date:** 2026-11-16
+**Status:** Accepted — in progress (migration V38; item content reload)
+
+**Context:** [[#D174]] moved item use out of M13: "Use an Object" is only logged, and the roadmap's item-use modal was never built. A survey found the item table drops 5etools' `charges`, `recharge`, `rechargeAmount`, `attachedSpells` and `spellScrollLevel` (188 items have charges, 111 cast spells from them, 59 potions, 21 scrolls), nothing reads an inventory item's `attuned` flag, and `data/item-effects/item-effect-definitions.json` (104 hand-written effects from M7) is never loaded. Planned during the user's overnight run of 2026-11-16; the calls are the lead's, recorded for review.
+
+**Decision (planned):**
+- **Data:** V38 adds `charges`, `recharge`, `recharge_amount`, `attached_spells` and `spell_scroll_level` to `items`; the item loader moves to version 3.
+- **Potions of healing:** `POST /combat/use-item` drinks or administers a potion as an action (PHB p.153), rolling 2d4 + 2, 4d4 + 4, 8d4 + 8 or 10d4 + 20 (DMG p.187). The potion is spent through the participant's own record of used items, applied to the sheet by Write-back at the end of the encounter, so undo restores it ([[#D176]]).
+- **Charged items:** a linked, attuned (where required) item with charges gets an `item:<name>` resource pool (sourceType `MAGIC_ITEM`, uses = charges, recharging on a long rest by its dice as the nearest the app has to dawn). Items that cast spells cast them through the spell flow with a new item source, paying charges and using the item's own DC or attack bonus where it states one, the wielder's otherwise.
+- **Spell scrolls:** cast through the spell flow at the scroll's level with the DMG p.200 DC and attack bonus, consumed on use; the ability check for a spell above the reader's highest slot is rolled.
+- **Attunement:** an Attune toggle on the inventory, a limit of three attuned items (DMG p.138), and attunement required before an item's charges or spells can be used.
+- **Left to the DM:** a wand's destruction roll on its last charge, and items whose effects the app cannot resolve.
+
+**Related:** D174, D176, D164, D165, D208; roadmap M13
+
+
+## D211: What a Removed Creature Leaves Behind
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration)
+
+**Context:** roadmap M15's last open item asked that conditions a summoned creature applied end when it is removed. An audit during the overnight run of 2026-11-16 found almost all of it already in place: every way a summon leaves (concentration lost, duration over, caster at 0 hit points, the DM's dismiss or remove, the summon at 0 hit points) runs `EffectApplier.dismiss`; its own concentration ends there; [[#D203]]'s sweep of linked conditions counts a dismissed or removed creature as gone, ending grapples, the restraints tied to them, attachments and swallows ([[#D204]], [[#D206]]); and [[#D201]] treats a gone fear source as out of sight. The gap was timing: `dismiss` didn't run the sweep itself, so after the DM's dismiss, or a summoning ending by its duration or by hand, a creature the summon grappled stayed held until the next turn began. Removing an ordinary monster from a live encounter had the same delay.
+
+**Decision:**
+- `EffectApplier.dismiss` runs the sweep of linked conditions after its "disappears" log line, and `EncounterService.removeParticipant` runs it after removing a non-summon participant from a live encounter.
+
+**Rules calls (the lead's, to confirm):**
+- A grapple ends when the grappler disappears or is removed, since nothing holds it (PHB p.290), and restraints tied to it end with it; so do attachments and swallows.
+- A summon's own concentration spell, and what it gave, end when the summon vanishes.
+- Conditions a summon gave that carry their own duration or a save each turn (a wolf's prone, a minute's poison) stay: nothing in the rules ties them to the creature being present.
+- A dismissed creature's own lasting effects without concentration keep [[#D184]] and [[#D203]]'s behaviour of simply no longer counting; ending them outright would also give back exhaustion and lowered hit point maximums, which the rules don't support.
+
+**Key files:** `encounter/internal/EffectApplier.java`, `encounter/EncounterService.java`
+
+**Related:** D177, D182, D201, D203, D204, D206; roadmap M15
+
+**Tests:** 7 more in `SummonServiceTest` (grapples ending on each way out, a summon's own Hold Person ending with it, prone and a timed poison staying), 1 more in `EncounterServiceTest`, new `SummonCascadeIT` (2: Conjure Animals' giant constrictor snake grappling and restraining an ogre, freed when the druid loses concentration and when the DM dismisses the snake mid-spell); 3,479 backend unit, 541 integration and 1,208 frontend tests.

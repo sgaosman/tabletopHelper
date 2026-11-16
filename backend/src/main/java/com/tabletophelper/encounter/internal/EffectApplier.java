@@ -3270,7 +3270,8 @@ public class EffectApplier {
 
     /**
      * A summoned creature disappears (D182): it leaves the turn order and both views but keeps its row, so undo can
-     * bring it back. Its own concentration ends. A summoning kept up without concentration, such as Find Familiar's,
+     * bring it back. Its own concentration ends, and what lasted only while it was there, such as its grapples. A
+     * summoning kept up without concentration, such as Find Familiar's,
      * ends once its last creature has gone; one kept up by concentration goes on until it ends, as its spell does.
      *
      * @param why what made it disappear, for the log
@@ -3291,6 +3292,9 @@ public class EffectApplier {
         creature.setDismissed(true);
         combatLog.write(encounter, CombatActionType.SUMMON_END, creature.getDisplayName() + " disappears (" + why + ")",
                 null, creature);
+        // What lasted only while it was there ends now, not at the next turn's sweep: its grapples and the restraints
+        // tied to them (PHB p.290), and what it had attached or swallowed (D203, D204, D206)
+        endLinked(encounter);
         SummonLink link = creature.getSummon();
         if (!endEmpty || link == null || creature.getSummonedByParticipantId() == null) {
             return;

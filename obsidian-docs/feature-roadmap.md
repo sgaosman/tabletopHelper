@@ -585,7 +585,7 @@ Phase 3 — Multiclass at creation:
 - [x] `summonedByParticipantId` FK on `EncounterParticipant` linking companion to caster — done: `summoned_by_participant_id`, V34, D182 (audit 2026-11-16)
 - [x] Auto-create companion participant when a persistent zone/concentration effect spell is cast — done differently: zone spells are Spell Effects on the caster (D177); only summons become companions (D182) (audit 2026-11-16)
 - [x] **Extend `dropConcentrationCascade()` to also remove COMPANION participants** (not just conditions). When a caster drops concentration, all COMPANIONs `summonedByParticipantId` matching that caster are removed. — done: through the owning Spell Effect, D182 (audit 2026-11-16)
-- [ ] **Cascade companion effects:** If a COMPANION applied conditions to other participants (e.g., a summoned fey's charm), those conditions are also removed when the COMPANION is removed.
+- [x] **Cascade companion effects:** If a COMPANION applied conditions to other participants (e.g., a summoned fey's charm), those conditions are also removed when the COMPANION is removed. — done: grapples, attachments, swallows and the summon's own concentration end at once; timed conditions stay (D211)
 - [x] Auto-remove companion when concentration drops or duration ends — done: D182 (audit 2026-11-16)
 - [x] Companion actions resolve through the same effect engine
 - [x] Companion initiative: acts on caster's turn (or specific initiative as defined by spell)
