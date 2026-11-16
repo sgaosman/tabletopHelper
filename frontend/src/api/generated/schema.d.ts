@@ -1364,6 +1364,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/usable-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getUsableItems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/combat/use-item": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["useItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/use-pool": {
         parameters: {
             query?: never;
@@ -2524,6 +2556,7 @@ export interface components {
             forms?: {
                 [key: string]: string;
             } | null;
+            itemName?: string | null;
             metamagic?: components["schemas"]["MetamagicChoice"][] | null;
             option?: string | null;
             /** Format: int32 */
@@ -2537,7 +2570,7 @@ export interface components {
             } | null;
             spellName: string;
             /** @enum {string|null} */
-            spellSource?: "SLOT" | "PACT_SLOT" | "INNATE" | "MYSTIC_ARCANUM" | "NONE" | null;
+            spellSource?: "SLOT" | "PACT_SLOT" | "INNATE" | "MYSTIC_ARCANUM" | "NONE" | "ITEM" | "SCROLL" | null;
             summon?: components["schemas"]["SummonChoice"] | null;
             targetIds: string[];
         };
@@ -2550,7 +2583,7 @@ export interface components {
             slotLevelUsed: number;
             spellName: string;
             /** @enum {string} */
-            spellSource: "SLOT" | "PACT_SLOT" | "INNATE" | "MYSTIC_ARCANUM" | "NONE";
+            spellSource: "SLOT" | "PACT_SLOT" | "INNATE" | "MYSTIC_ARCANUM" | "NONE" | "ITEM" | "SCROLL";
             targets: components["schemas"]["TargetOutcome"][];
         };
         ChangeFormRequest: {
@@ -2774,6 +2807,19 @@ export interface components {
             /** Format: int32 */
             wisdom: number;
         };
+        ChargedItem: {
+            /** Format: int32 */
+            attackBonus?: number | null;
+            /** Format: int32 */
+            chargesLeft: number;
+            /** Format: int32 */
+            chargesMax: number;
+            name: string;
+            /** Format: int32 */
+            saveDc?: number | null;
+            spells: components["schemas"]["SpellOption"][];
+            unavailableReason?: string | null;
+        };
         ClassEntry: {
             /** Format: uuid */
             classId: string;
@@ -2889,6 +2935,7 @@ export interface components {
             hpTempAfter: number;
             /** Format: int32 */
             hpTempBefore: number;
+            items: components["schemas"]["ItemChange"][];
             /** @enum {string} */
             lifeState: "ALIVE" | "DYING" | "STABLE" | "DEAD";
             name: string;
@@ -3448,6 +3495,7 @@ export interface components {
             name: string;
             /** Format: int32 */
             quantity?: number | null;
+            spell?: string | null;
         };
         InventoryRequest: {
             currency: components["schemas"]["Currency"];
@@ -3458,9 +3506,12 @@ export interface components {
             armourCategory?: "LIGHT" | "MEDIUM" | "HEAVY" | "SHIELD" | null;
             /** Format: int32 */
             armourClassBase?: number | null;
+            attachedSpells?: string | null;
             attunementCondition?: string | null;
             /** Format: int32 */
             bonusAc?: number | null;
+            /** Format: int32 */
+            charges?: number | null;
             cost?: string | null;
             /** Format: date-time */
             createdAt?: string | null;
@@ -3475,8 +3526,16 @@ export interface components {
             name: string;
             properties?: string | null;
             rarity?: string | null;
+            recharge?: string | null;
+            rechargeAmount?: string | null;
             requiresAttunement: boolean;
             source?: string | null;
+            /** Format: int32 */
+            spellAttackBonus?: number | null;
+            /** Format: int32 */
+            spellSaveDc?: number | null;
+            /** Format: int32 */
+            spellScrollLevel?: number | null;
             stealthDisadvantage: boolean;
             /** Format: int32 */
             strengthRequirement?: number | null;
@@ -3486,6 +3545,13 @@ export interface components {
             updatedAt?: string | null;
             /** Format: double */
             weight?: number | null;
+        };
+        ItemChange: {
+            name: string;
+            /** Format: int32 */
+            quantityAfter: number;
+            /** Format: int32 */
+            quantityBefore: number;
         };
         JsonNode: Record<string, never>;
         KnownSpell: {
@@ -3923,6 +3989,13 @@ export interface components {
             amount?: number | null;
             poolId: string;
         };
+        Potion: {
+            description?: string | null;
+            healing?: string | null;
+            /** Format: int32 */
+            left: number;
+            name: string;
+        };
         PowerAttackOption: {
             /** Format: int32 */
             attackBonus: number;
@@ -4051,6 +4124,19 @@ export interface components {
             mode: "NORMAL" | "ADVANTAGE" | "DISADVANTAGE";
             reason: string;
         };
+        Scroll: {
+            /** Format: int32 */
+            attackBonus: number;
+            checkAbility?: string | null;
+            /** Format: int32 */
+            checkDc?: number | null;
+            /** Format: int32 */
+            level: number;
+            name: string;
+            /** Format: int32 */
+            saveDc: number;
+            spell: components["schemas"]["SpellOption"];
+        };
         SetHpRequest: {
             /** Format: int32 */
             hpCurrent: number;
@@ -4088,9 +4174,13 @@ export interface components {
             unsorted?: boolean | null;
         };
         SourceOption: {
+            chargeCosts?: {
+                [key: string]: number;
+            } | null;
+            itemName?: string | null;
             levels: number[];
             /** @enum {string} */
-            source: "SLOT" | "PACT_SLOT" | "INNATE" | "MYSTIC_ARCANUM" | "NONE";
+            source: "SLOT" | "PACT_SLOT" | "INNATE" | "MYSTIC_ARCANUM" | "NONE" | "ITEM" | "SCROLL";
             /** Format: int32 */
             usesLeft?: number | null;
             /** Format: int32 */
@@ -4518,6 +4608,18 @@ export interface components {
             entryCount: number;
             kind: string;
             summary: string;
+        };
+        UsableItems: {
+            chargedItems: components["schemas"]["ChargedItem"][];
+            potions: components["schemas"]["Potion"][];
+            scrolls: components["schemas"]["Scroll"][];
+        };
+        UseItemRequest: {
+            itemName: string;
+            /** Format: uuid */
+            participantId: string;
+            /** Format: uuid */
+            targetId?: string | null;
         };
         UsePoolRequest: {
             amounts?: number[] | null;
@@ -6852,6 +6954,56 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UndoRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    getUsableItems: {
+        parameters: {
+            query: {
+                participantId: string;
+            };
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsableItems"];
+                };
+            };
+        };
+    };
+    useItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UseItemRequest"];
             };
         };
         responses: {

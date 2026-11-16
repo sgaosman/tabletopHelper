@@ -38,6 +38,11 @@ public class CastSpellRequest {
 
     private Boolean advantage;
 
+    // The inventory entry that pays for an ITEM or SCROLL cast, by its name on the sheet (D210); refused for any other
+    // source
+    @Size(max = 200)
+    private String itemName;
+
     private Integer overrideSpellAttackBonus;
 
     private Integer overrideSpellSaveDC;

@@ -7,6 +7,7 @@ import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.ItemUse;
 import com.tabletophelper.encounter.state.SpellConsent;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.SummonLink;
@@ -125,6 +126,12 @@ public class EncounterParticipant {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "joined_with", columnDefinition = "jsonb")
     private CombatTotals joinedWith;
+
+    // The items it has used up, such as potions drunk and scrolls read, which Write-back takes off its sheet (D210, V38)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "items_used", columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private List<ItemUse> itemsUsed = new ArrayList<>();
 
     // What it has spent of its turn, fresh at the start of its own turn (D174, V30)
     @JdbcTypeCode(SqlTypes.JSON)

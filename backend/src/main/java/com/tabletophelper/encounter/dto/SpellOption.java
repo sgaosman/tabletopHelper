@@ -117,12 +117,22 @@ public record SpellOption(
      *                 is spent.
      * @param usesLeft the pact slots, innate uses or Mystic Arcanum use left; null for SLOT and NONE
      * @param usesMax  the pact slots, innate uses or Mystic Arcanum use there are; null for SLOT and NONE
+     * @param itemName for ITEM and SCROLL, the inventory entry that pays (D210): the item's charges are usesLeft and
+     *                 usesMax, a scroll's copies left usesLeft; null for any other source
+     * @param chargeCosts for ITEM, the charges a cast at each level costs, by level ("1" to "9"); null otherwise
      */
     public record SourceOption(
             @Schema(requiredMode = REQUIRED) SpellSource source,
             @Schema(requiredMode = REQUIRED) List<Integer> levels,
             Integer usesLeft,
-            Integer usesMax
+            Integer usesMax,
+            @JsonInclude(JsonInclude.Include.NON_NULL) String itemName,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, Integer> chargeCosts
     ) {
+
+        /** A source that isn't an item. */
+        public SourceOption(SpellSource source, List<Integer> levels, Integer usesLeft, Integer usesMax) {
+            this(source, levels, usesLeft, usesMax, null, null);
+        }
     }
 }

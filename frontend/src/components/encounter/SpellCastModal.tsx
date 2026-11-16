@@ -40,6 +40,15 @@ interface Props {
   asDm?: boolean;
   /** Only spells with these casting times, such as the reaction spells the Reaction menu offers (D174). */
   castingTimes?: CastingTime[];
+  /**
+   * The spells to offer in place of the caster's own, as a magic item's or a spell scroll's from the Use an Item
+   * dialog, each with ITEM or SCROLL as its source (D210).
+   */
+  spells?: SpellOption[];
+  /** The inventory entry an ITEM or SCROLL cast is paid from (D210). */
+  itemName?: string;
+  /** The numbers the item casts with, as the confirm step shows them, such as "Save DC 15 (the wand's own)". */
+  itemNumbers?: string;
 }
 
 /** How the chosen spell is paid for: a Spell Source, and the level that casts it at (D165). */
@@ -74,10 +83,14 @@ interface ChoiceRow extends CastChoice {
  * server lists with the spell (D200).
  */
 export default function SpellCastModal({
-  caster, participants, onClose, allowManualModifiers = false, asDm = false, castingTimes,
+  caster, participants, onClose, allowManualModifiers = false, asDm = false, castingTimes, spells, itemName,
+  itemNumbers,
 }: Props) {
   const actions = useEncounterAction();
-  const spellOptions = useSpellOptions(caster.id);
+  // An item's or scroll's spells are given, so the caster's own aren't loaded (D210)
+  const ownSpells = useSpellOptions(caster.id, spells === undefined);
+  const spellOptions = spells !== undefined
+    ? { data: spells, isPending: false, isError: false, error: null } : ownSpells;
   const flow = useSpellFlow<'spell' | 'slot' | 'metamagic' | 'summon' | 'form'>('spell', { allowManualModifiers });
   const { encounterId } = useLiveEncounter();
   const [search, setSearch] = useState('');
@@ -218,6 +231,7 @@ export default function SpellCastModal({
       forms: formSpell
         ? Object.fromEntries(subjects.map(s => [s.id, forms[s.id].monsterId])) : undefined,
       spellConsents: consentRequest(),
+      itemName: choice.source === 'ITEM' || choice.source === 'SCROLL' ? itemName : undefined,
       ...flow.overrides(),
     }, caster.id));
   }
@@ -358,6 +372,9 @@ export default function SpellCastModal({
           />
           <ConsentChoices targets={choosing} spellName={selectedSpell!.name} chosen={consents}
             onChange={setConsents} />
+          {itemNumbers && (
+            <p className="font-body text-[15px] font-semibold text-ink">{itemNumbers}</p>
+          )}
           {summoning && summonOptions.data && summonDraft && (
             <p className="font-body text-[15px] font-semibold text-ink">
               Summons: {summonSummary(summonOptions.data, summonDraft)}
@@ -408,9 +425,10 @@ export default function SpellCastModal({
   );
 }
 
-// Only one way to pay, and it is nothing, an innate use or a Mystic Arcanum: a source step would have nothing to choose
+// Only one way to pay, and it is nothing, an innate use, a Mystic Arcanum, one level of an item's spell or a scroll: a
+// source step would have nothing to choose
 function nothingToChoose(available: ChoiceRow[]): boolean {
-  return available.length === 1 && ['NONE', 'INNATE', 'MYSTIC_ARCANUM'].includes(available[0].source);
+  return available.length === 1 && ['NONE', 'INNATE', 'MYSTIC_ARCANUM', 'ITEM', 'SCROLL'].includes(available[0].source);
 }
 
 // The DM goes over the action economy rather than being refused, so the reason reads as a warning (D174)
@@ -447,6 +465,22 @@ function rowsFor(spell: SpellOption, slots: Record<string, SpellSlot>): ChoiceRo
       rows.push({
         key: 'innate', source: 'INNATE', level: spell.level, label: 'Innate use',
         available: option.levels.length > 0, left: option.usesLeft ?? 0, max: option.usesMax ?? 0,
+      });
+    } else if (option.source === 'ITEM') {
+      // A magic item's charges: each level it can be cast at, with what it costs (D210)
+      for (const [key, charges] of Object.entries(option.chargeCosts ?? {})) {
+        const level = parseInt(key);
+        rows.push({
+          key: `item_${level}`, source: 'ITEM', level,
+          label: `Level ${level} — ${charges} charge${charges === 1 ? '' : 's'}`,
+          available: option.levels.includes(level), left: option.usesLeft ?? 0, max: option.usesMax ?? 0,
+        });
+      }
+    } else if (option.source === 'SCROLL') {
+      // A spell scroll, read at its own level and used up (DMG p.200, D210)
+      rows.push({
+        key: 'scroll', source: 'SCROLL', level: option.levels[0] ?? spell.level,
+        label: `Read ${option.itemName ?? 'the scroll'}`, available: option.levels.length > 0,
       });
     } else if (option.source === 'MYSTIC_ARCANUM') {
       // A warlock's arcanum casts the spell at its own level without a slot, once between long rests (PHB p.108)
@@ -651,6 +685,10 @@ function sourceText(choice: CastChoice, spell: SpellOption, row: ChoiceRow | und
       return `Using an innate use (${row?.left ?? 0}/${row?.max ?? 0} left)`;
     case 'MYSTIC_ARCANUM':
       return `Using your ${mysticArcanumTitle(spell.level)} (${row?.left ?? 0}/${row?.max ?? 0} left)`;
+    case 'ITEM':
+      return `Using ${row?.label.split(' — ')[1] ?? 'charges'} (${row?.left ?? 0}/${row?.max ?? 0} left)`;
+    case 'SCROLL':
+      return 'Reading the scroll, which is used up';
     default:
       return spell.level > 0 ? 'Cast at will' : null;
   }

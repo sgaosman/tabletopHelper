@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link2, Link2Off, X } from 'lucide-react';
 import { useUpdateInventory } from '../../../queries/characters';
-import { useItemSearch } from '../../../queries/reference';
+import { useItemDetail, useItemSearch } from '../../../queries/reference';
 import Button from '../../../components/ui/Button';
 import IconButton from '../../../components/ui/IconButton';
 import Input from '../../../components/ui/Input';
@@ -14,7 +14,8 @@ import type { RunCommand } from './types';
  * entries are added and removed, their quantities changed, and an entry can be linked to an item from the items list,
  * which weapon attacks match before the entry's name (D164). An entry the server reads as armour or a shield can be
  * equipped or taken off, which changes the AC (M13.5); the server refuses a second armour or shield, and the sheet shows
- * why.
+ * why. A linked item that requires attunement can be attuned to, three at most (DMG p.138), which its charges need, and
+ * a linked spell scroll records the spell it holds, which the Use an Item dialog reads it with (D210).
  */
 export default function InventoryTab({ characterId, equipment, currency, armourEntries = [], runCommand }: {
   characterId: string;
@@ -63,6 +64,21 @@ export default function InventoryTab({ characterId, equipment, currency, armourE
     const equipped = !entry.equipped;
     return save(equipment.map((item, i) => (i === index ? { ...entry, equipped } : item)), currency,
       `${entry.name} ${equipped ? 'equipped' : 'taken off'}`);
+  }
+
+  const attunedCount = equipment.filter(entry => entry.attuned).length;
+
+  function toggleAttuned(index: number) {
+    const entry = equipment[index];
+    const attuned = !entry.attuned;
+    return save(equipment.map((item, i) => (i === index ? { ...entry, attuned } : item)), currency,
+      `${attuned ? 'Attuned to' : 'No longer attuned to'} ${entry.name}`);
+  }
+
+  function setScrollSpell(index: number, spell: string) {
+    const entry = equipment[index];
+    return save(equipment.map((item, i) => (i === index ? { ...entry, spell: spell.trim() || null } : item)), currency,
+      spell.trim() ? `${entry.name} holds ${spell.trim()}` : undefined);
   }
 
   async function link(index: number, item: Item | null) {
@@ -162,6 +178,10 @@ export default function InventoryTab({ characterId, equipment, currency, armourE
                     </IconButton>
                   </div>
                   {item.description && <p className="font-body text-[13px] text-faint mt-0.5">{item.description}</p>}
+                  {item.itemId && (
+                    <MagicItemControls entry={item} busy={busy} attunedCount={attunedCount}
+                      onToggleAttuned={() => void toggleAttuned(i)} onSpell={spell => setScrollSpell(i, spell)} />
+                  )}
                   {linking === i && (
                     <ItemLinkPicker entryName={item.name} onPick={picked => link(i, picked)} onCancel={() => setLinking(null)} />
                   )}
@@ -181,6 +201,55 @@ export default function InventoryTab({ characterId, equipment, currency, armourE
           <Button type="submit" disabled={!canAdd} loading={busy}>Add</Button>
         </form>
       </div>
+    </div>
+  );
+}
+
+/**
+ * What a linked entry's item offers beyond its link (D210): an Attune toggle for an item that requires attunement, with
+ * no more than three attuned at once (DMG p.138), and for a spell scroll the spell it holds.
+ */
+function MagicItemControls({ entry, busy, attunedCount, onToggleAttuned, onSpell }: {
+  entry: InventoryItem;
+  busy: boolean;
+  attunedCount: number;
+  onToggleAttuned: () => void;
+  onSpell: (spell: string) => Promise<boolean> | void;
+}) {
+  const detail = useItemDetail(entry.itemId);
+  const [spell, setSpell] = useState(entry.spell ?? '');
+  useEffect(() => { setSpell(entry.spell ?? ''); }, [entry.spell]);
+  const item = detail.data;
+  if (!item) return null;
+  const attunable = item.requiresAttunement;
+  const scroll = item.spellScrollLevel != null;
+  if (!attunable && !scroll) return null;
+  const full = !entry.attuned && attunedCount >= 3;
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 mt-1.5">
+      {attunable && (
+        <>
+          <Button size="sm" variant={entry.attuned ? 'primary' : 'secondary'} disabled={busy || full}
+            onClick={onToggleAttuned} aria-pressed={!!entry.attuned}
+            aria-label={`${entry.attuned ? 'End attunement to' : 'Attune to'} ${entry.name}`}>
+            {entry.attuned ? 'Attuned' : 'Attune'}
+          </Button>
+          <span className="font-body text-[12.5px] font-semibold text-faint">
+            {full ? 'Already attuned to 3 items (DMG p.138)'
+              : `Requires attunement${item.attunementCondition ? ` ${item.attunementCondition}` : ''}`}
+          </span>
+        </>
+      )}
+      {scroll && (
+        <form className="flex items-end gap-2" onSubmit={e => { e.preventDefault(); void onSpell(spell); }}>
+          <Input label={`Spell on ${entry.name}`} value={spell} onChange={e => setSpell(e.target.value)}
+            placeholder={item.spellScrollLevel === 0 ? 'A cantrip' : `A level ${item.spellScrollLevel} spell`} />
+          <Button type="submit" size="sm" variant="secondary" disabled={busy || spell.trim() === (entry.spell ?? '')}>
+            Save spell
+          </Button>
+        </form>
+      )}
     </div>
   );
 }

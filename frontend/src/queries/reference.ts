@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
-import { keepPreviousData, queryOptions, useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { keepPreviousData, queryOptions, skipToken, useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import {
   getAllConditions, getBackgroundStartingEquipment, getBackgrounds, getClassStartingEquipment, getClasses, getClassTables, getFeats, getGlossary, getItemRarities, getItemSources, getItemTypes,
   getOptionalFeatures, getQuickReference, getRaces, getSpellClasses, getSpellSchools, getSpellSources, getSpellSubclasses,
-  getSpellTargeting, getSubclasses, searchItems, searchSpells,
+  getSpellTargeting, getSubclasses, getItem, searchItems, searchSpells,
 } from '../api/referenceApi';
 import type { ItemSearchParams, OptionalFeature, Spell, SpellSearchParams } from '../types/reference';
 import { queryKeys } from './keys';
@@ -119,6 +119,15 @@ export function useItemSearch(params: ItemSearchParams) {
     queryFn: () => searchItems(params),
     staleTime: REFERENCE_STALE_TIME,
     placeholderData: keepPreviousData,
+  });
+}
+
+/** One item of the items list, by its ID, as an inventory entry linked to it reads it (D210); none for no ID. */
+export function useItemDetail(itemId: string | null | undefined) {
+  return useQuery({
+    queryKey: queryKeys.reference.item(itemId ?? ''),
+    queryFn: itemId ? () => getItem(itemId) : skipToken,
+    staleTime: REFERENCE_STALE_TIME,
   });
 }
 

@@ -24,7 +24,7 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param maxUses          evaluated integer max (evaluated from maxUsesFormula at creation)
  * @param maxUsesFormula   raw expression string for reference
  * @param currentUses      mutable remaining uses
- * @param resetOn          shortRest, longRest, turn, dawn, never
+ * @param resetOn          shortRest, longRest, turn, dawn, never, or none for a pool no rest restores (D210)
  * @param resetAmount      expression for partial recovery; null = full reset
  * @param resetCheck       probabilistic recharge expression, e.g. "1d6>=5"
  * @param spendActionType  ACTION, BONUS_ACTION, REACTION, FREE, REPLACE_ATTACK
@@ -140,6 +140,39 @@ public record ResourcePoolEntry(
     public static ResourcePoolEntry feat(String featName, String displayName, int uses, String resetOn) {
         return new ResourcePoolEntry(featPoolId(featName), displayName, "FEAT", featName, uses, null, uses,
                 resetOn, null, null, "FREE", "sparkles", Map.of());
+    }
+
+    /**
+     * The pool that holds a magic item's charges, on a character sheet or a participant: "item:" and the item's name in
+     * kebab case, such as "item:wand-of-magic-missiles" (D210).
+     */
+    public static String itemPoolId(String itemName) {
+        return "item:" + kebabCase(itemName);
+    }
+
+    /** The resetOn of a pool that no rest restores, as a magic item's that never regains its charges (D210). */
+    public static final String NO_RESET = "none";
+
+    // When an item regains its charges in the data: at dawn, dusk or midnight, or on a long rest
+    private static final java.util.Set<String> DAILY = java.util.Set.of("dawn", "dusk", "midnight", "restLong");
+
+    /**
+     * A full pool of a magic item's charges (D210), spent with an action. One that regains them daily, at dawn, dusk or
+     * midnight, gets them back on a long rest, the app's nearest to a day passing: all of them, or currentUses plus the
+     * data's dice, as a Wand of Magic Missiles' 1d6 + 1. One that never does, or does by its own rule ("special"), keeps
+     * them through every rest, the DM restoring them.
+     *
+     * @param recharge       when the item regains its charges, as the items table has it; null for never
+     * @param rechargeAmount how many it regains, such as "1d6 + 1"; null for all of them
+     */
+    public static ResourcePoolEntry magicItem(String itemName, int charges, String recharge, String rechargeAmount) {
+        boolean daily = recharge != null && DAILY.contains(recharge);
+        String resetAmount = daily && rechargeAmount != null && !rechargeAmount.isBlank()
+                ? "currentUses + (" + rechargeAmount.trim() + ")" : null;
+        Map<String, Object> metadata = new java.util.LinkedHashMap<>();
+        if (recharge != null) metadata.put("recharge", recharge);
+        return new ResourcePoolEntry(itemPoolId(itemName), itemName, "MAGIC_ITEM", itemName, charges, null, charges,
+                daily ? "longRest" : NO_RESET, resetAmount, null, "ACTION", "wand", metadata);
     }
 
     private static String kebabCase(String name) {

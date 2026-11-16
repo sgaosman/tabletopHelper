@@ -26,6 +26,7 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param deadAfter    whether it is dead once the results are applied
  * @param slots        the spell slots whose used count would change
  * @param pools        the resource pools whose current uses would change
+ * @param items        the inventory entries the encounter used some of up (D210)
  */
 public record CombatResultPreview(
         @Schema(requiredMode = REQUIRED) UUID characterId,
@@ -41,8 +42,31 @@ public record CombatResultPreview(
         @Schema(requiredMode = REQUIRED) List<SlotChange> slots,
         @Schema(requiredMode = REQUIRED) List<PoolChange> pools,
         @Schema(requiredMode = REQUIRED) int exhaustionBefore,
-        @Schema(requiredMode = REQUIRED) int exhaustionAfter
+        @Schema(requiredMode = REQUIRED) int exhaustionAfter,
+        @Schema(requiredMode = REQUIRED) List<ItemChange> items
 ) {
+
+    /** A preview without items used up. */
+    public CombatResultPreview(UUID characterId, String name, LifeState lifeState, int hpMax, int hpBefore, int hpAfter,
+                               int hpTempBefore, int hpTempAfter, boolean deadBefore, boolean deadAfter,
+                               List<SlotChange> slots, List<PoolChange> pools, int exhaustionBefore,
+                               int exhaustionAfter) {
+        this(characterId, name, lifeState, hpMax, hpBefore, hpAfter, hpTempBefore, hpTempAfter, deadBefore, deadAfter,
+            slots, pools, exhaustionBefore, exhaustionAfter, List.of());
+    }
+
+    /**
+     * How many of an inventory entry the sheet carries before and after the items the encounter used up, such as
+     * potions drunk (D210); 0 after means the entry goes.
+     *
+     * @param name  the entry's name, with a scroll's spell after it, as "Spell Scroll (1st Level) (Shield)"
+     */
+    public record ItemChange(
+            @Schema(requiredMode = REQUIRED) String name,
+            @Schema(requiredMode = REQUIRED) int quantityBefore,
+            @Schema(requiredMode = REQUIRED) int quantityAfter
+    ) {
+    }
 
     /**
      * A spell slot's used count before and after.

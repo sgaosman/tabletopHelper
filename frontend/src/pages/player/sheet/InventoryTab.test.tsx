@@ -187,4 +187,60 @@ describe('InventoryTab', () => {
     // The form keeps what was typed, so it can be corrected
     expect(screen.getByLabelText('New item')).toHaveValue('Rope');
   });
+
+  /** Answers each item the entries are linked to with these details. */
+  function linkedItems(items: Record<string, Partial<Item>>) {
+    server.use(http.get('/api/reference/items/:id', ({ params }) => HttpResponse.json({
+      id: params.id as string, name: 'Item', type: null, subtype: null, rarity: 'rare', description: null,
+      properties: null, requiresAttunement: false, attunementCondition: null, weight: null, cost: null,
+      damageDice: null, damageType: null, source: 'DMG', isHomebrew: false, stealthDisadvantage: false,
+      ...items[params.id as string],
+    } as Item)));
+  }
+
+  it('attunes to an item that requires attunement, and offers no more once three are attuned (DMG p.138, D210)', async () => {
+    const sent = recordInventories();
+    linkedItems({
+      cloak: { name: 'Cloak of Protection', requiresAttunement: true },
+      ring: { name: 'Ring of Protection', requiresAttunement: true },
+      rope: { name: 'Rope' },
+    });
+    const items: InventoryItem[] = [
+      { name: 'Cloak of Protection', quantity: 1, itemId: 'cloak' },
+      { name: 'Ring of Protection', quantity: 1, itemId: 'ring', attuned: true },
+      { name: 'Rope', quantity: 1, itemId: 'rope' },
+    ];
+    renderTab(items);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Attune to Cloak of Protection' }));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].equipment[0]).toEqual({ name: 'Cloak of Protection', quantity: 1, itemId: 'cloak', attuned: true });
+    expect(screen.getByRole('button', { name: 'End attunement to Ring of Protection' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: /Attune to Rope/ })).not.toBeInTheDocument();
+  });
+
+  it('greys out attuning to a fourth item', async () => {
+    linkedItems({
+      a: { name: 'A', requiresAttunement: true }, b: { name: 'B', requiresAttunement: true },
+      c: { name: 'C', requiresAttunement: true }, d: { name: 'D', requiresAttunement: true },
+    });
+    renderTab(['a', 'b', 'c', 'd'].map(id => ({ name: id.toUpperCase(), quantity: 1, itemId: id, attuned: id !== 'd' })));
+
+    expect(await screen.findByRole('button', { name: 'Attune to D' })).toBeDisabled();
+    expect(screen.getByText('Already attuned to 3 items (DMG p.138)')).toBeInTheDocument();
+  });
+
+  it('records the spell a linked spell scroll holds (D210)', async () => {
+    const sent = recordInventories();
+    linkedItems({ scroll: { name: 'Spell Scroll (1st Level)', type: 'Scroll', spellScrollLevel: 1 } });
+    renderTab([{ name: 'Spell Scroll (1st Level)', quantity: 2, itemId: 'scroll' }]);
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText('Spell on Spell Scroll (1st Level)'), 'Shield');
+    await user.click(screen.getByRole('button', { name: 'Save spell' }));
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].equipment[0]).toEqual({ name: 'Spell Scroll (1st Level)', quantity: 2, itemId: 'scroll', spell: 'Shield' });
+  });
 });

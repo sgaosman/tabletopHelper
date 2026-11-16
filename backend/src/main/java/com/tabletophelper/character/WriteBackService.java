@@ -4,6 +4,7 @@ import com.tabletophelper.character.CombatResults.CharacterResult;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.CombatResultPreview;
 import com.tabletophelper.character.state.CombatTotals;
+import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.rules.Exhaustion;
@@ -150,7 +151,63 @@ public class WriteBackService {
         return new CombatResultPreview(character.getId(), character.getName(), lifeState,
                 before.hitPoints().maximum(), before.hitPoints().current(), after.hitPoints().current(),
                 before.hitPoints().temporary(), after.hitPoints().temporary(), before.dead(), after.dead(), slots,
-                pools, before.exhaustion(), after.exhaustion());
+                pools, before.exhaustion(), after.exhaustion(), itemChanges(before.equipment(), after.equipment()));
+    }
+
+    // The entries the encounter used some of up, by how many the sheet carries before and after (D210)
+    private static List<CombatResultPreview.ItemChange> itemChanges(List<InventoryItem> before, List<InventoryItem> after) {
+        List<CombatResultPreview.ItemChange> changes = new ArrayList<>();
+        for (InventoryItem entry : before) {
+            if (after.contains(entry)) continue;
+            InventoryItem changed = after.stream()
+                    .filter(candidate -> sameEntry(candidate, entry.name(), entry.spell()) && !before.contains(candidate))
+                    .findFirst().orElse(null);
+            changes.add(new CombatResultPreview.ItemChange(
+                    entry.spell() != null ? entry.name() + " (" + entry.spell() + ")" : entry.name(),
+                    entry.carried(), changed != null ? changed.carried() : 0));
+        }
+        return changes;
+    }
+
+    // Whether the entry is the one named, ignoring case, a scroll by its spell too
+    static boolean sameEntry(InventoryItem entry, String name, String spell) {
+        return entry != null && entry.name() != null && entry.name().trim().equalsIgnoreCase(name.trim())
+                && Objects.equals(lower(entry.spell()), lower(spell));
+    }
+
+    private static String lower(String text) {
+        return text == null || text.isBlank() ? null : text.trim().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /**
+     * The inventory after the items a participant used up (D210): for each entry, by name and a scroll's spell, as many
+     * fewer as were used since it joined, an entry with none left removed. Uses beyond what the sheet carries take
+     * nothing more, as when the sheet changed during the fight.
+     */
+    static List<InventoryItem> afterItemsUsed(List<InventoryItem> equipment, Map<String, Integer> joined,
+                                              Map<String, Integer> ended) {
+        if (ended.isEmpty()) return equipment;
+        List<InventoryItem> after = new ArrayList<>(equipment);
+        ended.forEach((key, count) -> {
+            int toTake = count - joined.getOrDefault(key, 0);
+            int bar = key.indexOf('|');
+            String name = bar >= 0 ? key.substring(0, bar) : key;
+            String spell = bar >= 0 ? key.substring(bar + 1) : null;
+            for (int i = 0; i < after.size() && toTake > 0; i++) {
+                InventoryItem entry = after.get(i);
+                if (!sameEntry(entry, name, spell) || entry.carried() == 0) continue;
+                int taken = Math.min(toTake, entry.carried());
+                toTake -= taken;
+                int left = entry.carried() - taken;
+                if (left == 0) {
+                    after.remove(i--);
+                } else {
+                    after.set(i, new InventoryItem(entry.name(), left, entry.description(), entry.itemId(),
+                            entry.equipped(), entry.attuned(), entry.spell()));
+                }
+            }
+        });
+        return List.copyOf(after);
     }
 
     /**
@@ -160,12 +217,13 @@ public class WriteBackService {
      * {@link #writeTo}.
      */
     record Sheet(CurrentHitPoints.Totals hitPoints, boolean dead, Map<String, SpellSlot> slots,
-                 List<ResourcePoolEntry> pools, int exhaustion, int baseMaximum) {
+                 List<ResourcePoolEntry> pools, int exhaustion, int baseMaximum, List<InventoryItem> equipment) {
 
         static Sheet of(PlayerCharacter character) {
             return new Sheet(CharacterSheetService.totals(character), character.isDead(), character.getSpellSlots(),
                     orEmpty(character.getResourcePools()).stream().filter(Objects::nonNull).toList(),
-                    Exhaustion.clamp(character.getExhaustionLevel()), CharacterSheetService.baseMaximum(character));
+                    Exhaustion.clamp(character.getExhaustionLevel()), CharacterSheetService.baseMaximum(character),
+                    orEmpty(character.getEquipment()).stream().filter(Objects::nonNull).toList());
         }
 
         /** The totals after each of the character's results in turn. */
@@ -238,10 +296,13 @@ public class WriteBackService {
                         endedUses)));
             }
             return new Sheet(outcome.hitPoints(), outcome.dead(), slotsAfter, List.copyOf(poolsAfter), exhaustionAfter,
-                    baseMaximum);
+                    baseMaximum, afterItemsUsed(equipment, joined.itemsUsed(), ended.itemsUsed()));
         }
 
         void writeTo(PlayerCharacter character) {
+            if (!equipment.equals(orEmpty(character.getEquipment()).stream().filter(Objects::nonNull).toList())) {
+                character.setEquipment(new ArrayList<>(equipment));
+            }
             character.setHpCurrent(hitPoints.current());
             character.setHpTemp(hitPoints.temporary());
             character.setDead(dead);

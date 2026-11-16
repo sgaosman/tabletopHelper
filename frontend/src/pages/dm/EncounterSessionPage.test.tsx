@@ -638,16 +638,17 @@ describe('DM EncounterSessionPage', () => {
         hpTempBefore: 0, hpTempAfter: 4, deadBefore: false, deadAfter: false, exhaustionBefore: 1, exhaustionAfter: 2,
         slots: [{ slot: '1', max: 2, usedBefore: 0, usedAfter: 1 }],
         pools: [{ poolId: 'class:barbarian-rage', displayName: 'Rage', maxUses: 2, currentBefore: 2, currentAfter: 1 }],
+        items: [{ name: 'Potion of Healing', quantityBefore: 2, quantityAfter: 1 }],
       },
       {
         characterId: 'char-002', name: 'Bram', lifeState: 'DEAD', hpMax: 20, hpBefore: 20, hpAfter: 0,
         hpTempBefore: 0, hpTempAfter: 0, deadBefore: false, deadAfter: true, slots: [], pools: [],
-        exhaustionBefore: 0, exhaustionAfter: 0,
+        exhaustionBefore: 0, exhaustionAfter: 0, items: [],
       },
       {
         characterId: 'char-003', name: 'Cora', lifeState: 'STABLE', hpMax: 24, hpBefore: 0, hpAfter: 0,
         hpTempBefore: 0, hpTempAfter: 0, deadBefore: false, deadAfter: false, slots: [], pools: [],
-        exhaustionBefore: 0, exhaustionAfter: 0,
+        exhaustionBefore: 0, exhaustionAfter: 0, items: [],
       },
     ] satisfies CombatResultPreview[];
 

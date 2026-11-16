@@ -90,6 +90,7 @@ public class SpellcastingService {
     private final FormSpells formSpells;
     private final SpellCounters spellCounters;
     private final DefensiveSpells defensiveSpells;
+    private final ItemSpells itemSpells;
 
     /**
      * Casts a spell for a player character or a monster: everything is checked, and the cast charged to the
@@ -104,8 +105,16 @@ public class SpellcastingService {
         requireCanCast(caster);
         manualModifiers.require(encounter, userId, ManualModifiers.forSpell(caster,
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC()));
-        SpellSources.Payment payment = casterSpells.payment(caster, request.getSpellName(), request.getSpellSource(),
-                request.getSlotLevel());
+        // A magic item's charges or a spell scroll pay through the item the request names (D210)
+        boolean fromItem = request.getSpellSource() == SpellSource.ITEM || request.getSpellSource() == SpellSource.SCROLL;
+        if (!fromItem && request.getItemName() != null && !request.getItemName().isBlank()) {
+            throw new ValidationException("Only a cast with an item's charges or from a scroll names an item");
+        }
+        SpellSources.Payment payment = fromItem
+                ? itemSpells.payment(caster, request.getSpellName(), request.getSpellSource(), request.getItemName(),
+                        request.getSlotLevel())
+                : casterSpells.payment(caster, request.getSpellName(), request.getSpellSource(),
+                        request.getSlotLevel());
         MetamagicCasting.Plan metamagic = metamagicCasting.plan(caster, payment, request.getMetamagic(),
                 request.getTargetIds());
         boolean quickened = metamagic.has(Metamagic.Option.QUICKENED);
@@ -128,7 +137,8 @@ public class SpellcastingService {
         // before anything is spent
         CombatAccess.requireReachable(caster, targets);
         spellCaster.requireTargetTypes(casting.spellName(), targets);
-        SpellNumbers own = numbers(caster, payment.origin());
+        // An item's own save DC or a scroll's is the spell's own number, not a Manual Modifier (D210)
+        SpellNumbers own = fromItem ? itemNumbers(caster, payment) : numbers(caster, payment.origin());
         List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(own.attackBonus(), own.saveDc(),
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC());
         // A summoning spell's creatures are checked before anything is spent (D182)
@@ -166,6 +176,15 @@ public class SpellcastingService {
                         caster.getDisplayName() + "'s " + payment.spellName() + costNote));
 
         casterSpells.spend(encounter, caster, payment);
+        // A scroll of a spell above what its reader can cast takes a check first; on a failure the spell is lost with
+        // the scroll, and nothing else happens (DMG p.200, D210)
+        if (payment.source() == SpellSource.SCROLL) {
+            String failed = scrollCheck(encounter, caster, payment, own);
+            if (failed != null) {
+                return response(encounter, new SpellCaster.CastResult(payment.spellName(), payment.spellLevel(), false,
+                        null, failed, List.of()), payment.castLevel(), payment.source());
+            }
+        }
         metamagicCasting.spend(caster, metamagic);
         manualModifiers.log(encounter, CombatActionType.SPELL_CAST, caster,
                 caster.getDisplayName() + "'s " + payment.spellName(), userId, modifiers);
@@ -854,6 +873,29 @@ public class SpellcastingService {
         String ability = character != null ? characterService.mainSpellcastingAbility(character)
                 : caster.getSpellcastingAbility();
         return new SpellNumbers(caster.getSpellAttackBonus(), caster.getSpellSaveDc(), ability);
+    }
+
+    // The numbers a spell from an item or scroll is cast with (D210)
+    private SpellNumbers itemNumbers(EncounterParticipant caster, SpellSources.Payment payment) {
+        ItemSpells.Numbers numbers = itemSpells.numbers(caster, payment);
+        return new SpellNumbers(numbers.attackBonus(), numbers.saveDc(), numbers.ability());
+    }
+
+    // The check reading a scroll of a spell too high for its reader takes (DMG p.200): logged either way, and the
+    // failure's summary returned; null when it passes or needs none
+    private String scrollCheck(Encounter encounter, EncounterParticipant caster, SpellSources.Payment payment,
+                               SpellNumbers own) {
+        Optional<ItemSpells.ScrollCheck> check = itemSpells.scrollCheck(caster, payment.spellName());
+        if (check.isEmpty()) {
+            return null;
+        }
+        ItemSpells.CheckRoll rolled = itemSpells.rollScrollCheck(caster, check.get(),
+                own.attackBonus() != null ? own.attackBonus() : 0);
+        String description = caster.getDisplayName() + "'s " + payment.spellName() + " is of a higher level than they "
+                + "can cast, so reading " + payment.itemName() + " takes " + rolled.description()
+                + (rolled.success() ? ": they cast it." : ": the spell disappears from the scroll with no effect.");
+        combatLog.write(encounter, CombatActionType.SPELL_CAST, description, caster, null);
+        return rolled.success() ? null : description;
     }
 
     // The spell's own numbers unless a Manual Modifier replaces them; a caster without them has +0 and DC 10

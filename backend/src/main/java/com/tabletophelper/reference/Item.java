@@ -92,6 +92,41 @@ public class Item {
     @Column(name = "bonus_ac")
     private Integer bonusAc;
 
+    /** How many charges the item has, such as a Wand of Magic Missiles' 7 (D210); null for an item without charges. */
+    private Integer charges;
+
+    /**
+     * When the item regains its charges, as the data says: "dawn", "dusk", "midnight", "restLong" or "special"; null for
+     * an item that never does, such as a Ring of Three Wishes.
+     */
+    @Column(length = 20)
+    private String recharge;
+
+    /** How many charges it regains, a dice formula such as "1d6 + 1" or a number; null for all of them. */
+    @Column(name = "recharge_amount", length = 30)
+    private String rechargeAmount;
+
+    /**
+     * The spells the item casts, as the 5etools data lists them: an object keyed by how they are paid for, such as
+     * {@code {"charges": {"1": ["magic missile"]}}}, or a plain list; null for none.
+     */
+    @JsonRawValue
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "attached_spells", columnDefinition = "jsonb")
+    private String attachedSpells;
+
+    /** A spell scroll's spell level, 0 for a cantrip (DMG p.200); null for anything else. */
+    @Column(name = "spell_scroll_level")
+    private Integer spellScrollLevel;
+
+    /** The save DC the item's text gives the spells cast from it, as a Wand of Fireballs' 15; null for the wielder's. */
+    @Column(name = "spell_save_dc")
+    private Integer spellSaveDc;
+
+    /** The spell attack bonus the item's text gives the spells cast from it; null for the wielder's. */
+    @Column(name = "spell_attack_bonus")
+    private Integer spellAttackBonus;
+
     @Column(length = 100)
     private String source;
 

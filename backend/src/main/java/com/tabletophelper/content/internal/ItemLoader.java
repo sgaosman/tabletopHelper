@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 @RequiredArgsConstructor
@@ -55,11 +57,17 @@ public class ItemLoader implements ContentLoader {
         return List.of("data/5etools/items-base.json", "data/5etools/items.json");
     }
 
-    // Version 2 writes the armour columns (M13.5) and reads "stealth": false as no disadvantage
+    // Version 2 writes the armour columns (M13.5) and reads "stealth": false as no disadvantage; 3 the charges, recharge,
+    // attached spells, scroll level and the item's own spell DC and attack bonus (D210, V38)
     @Override
     public int version() {
-        return 2;
+        return 3;
     }
+
+    // A dice formula in 5etools markup, such as {@dice 1d6 + 1}
+    private static final Pattern DICE_MARKUP = Pattern.compile("\\{@dice ([^}|]+)(?:\\|[^}]*)?}");
+    private static final Pattern DC_MARKUP = Pattern.compile("\\{@dc (\\d{1,2})}");
+    private static final Pattern HIT_MARKUP = Pattern.compile("\\{@hit (\\d{1,2})}");
 
     @Override
     public void load(LoadContext context) {
@@ -141,6 +149,14 @@ public class ItemLoader implements ContentLoader {
                 .strengthRequirement(armourCategory != null ? wholeNumber(i.get("strength")) : null)
                 .stealthDisadvantage(armourCategory != null && i.path("stealth").asBoolean(false))
                 .bonusAc(armourCategory != null ? wholeNumber(i.get("bonusAc")) : null)
+                .charges(i.path("charges").isIntegralNumber() ? i.path("charges").asInt(0) : null)
+                .recharge(i.path("recharge").isString() ? i.path("recharge").asString("") : null)
+                .rechargeAmount(rechargeAmount(i.get("rechargeAmount")))
+                .attachedSpells(i.has("attachedSpells") ? objectMapper.writeValueAsString(i.get("attachedSpells")) : null)
+                .spellScrollLevel(i.path("spellScrollLevel").isIntegralNumber() ? i.path("spellScrollLevel").asInt(0) : null)
+                .spellSaveDc(i.has("attachedSpells") ? ownNumber(i.get("entries"), DC_MARKUP, "your spell save DC") : null)
+                .spellAttackBonus(i.has("attachedSpells")
+                        ? ownNumber(i.get("entries"), HIT_MARKUP, "your spell attack bonus") : null)
                 .source(i.path("source").asString(null))
                 .isHomebrew(false)
                 .build();
@@ -189,6 +205,52 @@ public class ItemLoader implements ContentLoader {
             if (text.matches("[+-]?\\d{1,3}")) return Integer.parseInt(text.startsWith("+") ? text.substring(1) : text);
         }
         return null;
+    }
+
+    /**
+     * How many charges an item regains, without the markup: "{@dice 1d6 + 1}" is "1d6 + 1" and 3 is "3"; null for none
+     * or anything else.
+     */
+    static String rechargeAmount(JsonNode value) {
+        if (value == null || value.isNull()) return null;
+        if (value.isIntegralNumber()) return String.valueOf(value.asInt(0));
+        if (!value.isString()) return null;
+        String text = DICE_MARKUP.matcher(value.asString("")).replaceAll("$1").trim();
+        return text.isEmpty() ? null : text;
+    }
+
+    /**
+     * The number the item's own text gives the spells cast from it, as "(save {@dc 15})" on a Wand of Fireballs: the
+     * first such number in a passage about casting. Null when any passage says the wielder's own is used ("using your
+     * spell save DC"), as a Staff of Power's does, or none gives one.
+     */
+    static Integer ownNumber(JsonNode entries, Pattern number, String wieldersOwn) {
+        List<String> passages = new ArrayList<>();
+        passages(entries, passages);
+        if (passages.stream().anyMatch(passage -> passage.toLowerCase(Locale.ROOT).contains(wieldersOwn.toLowerCase(Locale.ROOT)))) {
+            return null;
+        }
+        for (String passage : passages) {
+            Matcher found = number.matcher(passage);
+            if (passage.toLowerCase(Locale.ROOT).contains("cast") && found.find()) {
+                return Integer.parseInt(found.group(1));
+            }
+        }
+        return null;
+    }
+
+    // Every string among the entries, nested entries and list items included
+    private static void passages(JsonNode node, List<String> out) {
+        if (node == null || node.isNull()) return;
+        if (node.isString()) {
+            out.add(node.asString(""));
+        } else if (node.isArray()) {
+            for (JsonNode child : node) passages(child, out);
+        } else if (node.isObject()) {
+            passages(node.get("entries"), out);
+            passages(node.get("items"), out);
+            passages(node.get("entry"), out);
+        }
     }
 
     private String parseCost(JsonNode i) {

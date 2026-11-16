@@ -329,6 +329,51 @@ class WriteBackServiceTest {
         assertThat(f.writeBack.revive(aria.getId(), dmId).getHpCurrent()).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("The potions and scrolls a participant used up come off the sheet, an entry with none left going; the preview shows them first (D210)")
+    void itemsUsedWriteBack() {
+        PlayerCharacter aria = f.create(f.human, CharacterFixture.scores(), f.fighter, 2);
+        aria.setEquipment(new java.util.ArrayList<>(List.of(
+                new com.tabletophelper.character.state.InventoryItem("Potion of Healing", 3, null, null, null, null),
+                new com.tabletophelper.character.state.InventoryItem("Spell Scroll (1st Level)", 1, null, null, null,
+                        null, "Shield"),
+                new com.tabletophelper.character.state.InventoryItem("Spell Scroll (1st Level)", 1, null, null, null,
+                        null, "Sleep"),
+                new com.tabletophelper.character.state.InventoryItem("Rope", 1, null, null, null, null))));
+        CombatTotals ended = totals(18, 0, Map.of(), Map.of())
+                .withItemsUsed(Map.of("Potion of Healing", 2, "Spell Scroll (1st Level)|Shield", 1));
+        CombatResults results = results(new CharacterResult(aria.getId(), totals(18, 0, Map.of(), Map.of()), ended,
+                LifeState.ALIVE));
+
+        List<CombatResultPreview> previews = f.writeBack.preview(results);
+        assertThat(previews.getFirst().items()).containsExactlyInAnyOrder(
+                new CombatResultPreview.ItemChange("Potion of Healing", 3, 1),
+                new CombatResultPreview.ItemChange("Spell Scroll (1st Level) (Shield)", 1, 0));
+        assertThat(aria.getEquipment()).hasSize(4);
+
+        f.writeBack.apply(results);
+
+        assertThat(aria.getEquipment()).extracting(e -> e.name() + "|" + e.spell() + "|" + e.quantity())
+                .containsExactly("Potion of Healing|null|1", "Spell Scroll (1st Level)|Sleep|1", "Rope|null|1");
+    }
+
+    @Test
+    @DisplayName("Uses beyond what the sheet still carries take nothing more, and totals without items change no inventory (D210)")
+    void itemsUsedWithinWhatIsCarried() {
+        PlayerCharacter aria = f.create(f.human, CharacterFixture.scores(), f.fighter, 2);
+        List<com.tabletophelper.character.state.InventoryItem> carried = new java.util.ArrayList<>(List.of(
+                new com.tabletophelper.character.state.InventoryItem("Potion of Healing", 1, null, null, null, null)));
+        aria.setEquipment(carried);
+
+        f.writeBack.apply(results(new CharacterResult(aria.getId(), totals(18, 0, Map.of(), Map.of()),
+                totals(18, 0, Map.of(), Map.of()), LifeState.ALIVE)));
+        assertThat(aria.getEquipment()).isSameAs(carried);
+
+        f.writeBack.apply(results(new CharacterResult(aria.getId(), totals(18, 0, Map.of(), Map.of()),
+                totals(18, 0, Map.of(), Map.of()).withItemsUsed(Map.of("potion of healing", 3)), LifeState.ALIVE)));
+        assertThat(aria.getEquipment()).isEmpty();
+    }
+
     /** The character stored again under this ID. */
     private PlayerCharacter withId(PlayerCharacter pc, String id) {
         pc.setId(UUID.fromString(id));
