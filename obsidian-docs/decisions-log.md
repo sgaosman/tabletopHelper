@@ -4220,3 +4220,32 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D176, D182, D185, D187, D196, D204, D208
 
 **Tests:** `UndoServiceTest` (controller both ways, old snapshots, a reverted summoning coming back), `CommandRecorderTest`, `FeatureEffectsTest`, `RaceFeatureEffectsTest`, and over HTTP `MonsterRidersTailIT` (a ghost's possession undone), `FifthLevelSpellsIT` (Dominate Person undone), `SummonIT` (Conjure Animals counterspelled, the Counterspell undone, then the cast), `RacialPoolsIT` and `FeatureEffectsIT`; 4,595 backend unit and 550 integration tests on its branch.
+
+
+## D215: Backend Fixes from the Overnight Review
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration; stale pool mappings deleted on the next content load)
+
+**Context:** the code review of the user's overnight run of 2026-11-16 read the character, content, maintenance and identity code and confirmed seven defects and two more on closer reading; all were fixed with regression tests. Calls are the lead's, recorded for review.
+
+**Decision:**
+1. **Half-feats:** a feat that offers an ability choice refuses a missing `featAbility` or one off its list with a 400, before anything changes (PHB p.165, Athlete's STR or DEX).
+2. **Resilient** requires its saving throw, which must be on the feat's list and the ability it raises (PHB p.168), stored short ("WIS") and not added twice under another name. The feat picker sends the chosen ability as the save instead of asking separately.
+3. **Channel Divinity doesn't stack** across Cleric and Paladin (PHB p.164): `ResourcePoolService.shareChannelDivinity` keeps one pool when a character has both, the one with more uses (on a tie the one the sheet has, else the first class's), spent uses kept up to its maximum. Either class's options spend it; Guided Strike and the frontend find the shared pool.
+4. **Passwords over 72 bytes** (BCrypt's limit) are a 400 on registration, counted in bytes, and an ordinary "Invalid username or password" on login, not a 500.
+5. **Sign-in throttling:** `AuthRateLimitFilter` with an in-memory `AttemptLimiter` limits logins per IP (20 a minute) and per username (10) and registrations per IP (5), answering 429 with `Retry-After` (`app.auth.rate-limit`). An unknown username runs a dummy password comparison so its timing matches a wrong password. `application-prod.yml` sets `server.forward-headers-strategy: native` so the per-IP limit sees the client behind Caddy.
+6. **Creation checks:** a subclass of another class, or one sent without its class, is a 400, and a character created with several classes must meet each class's multiclass prerequisites (PHB p.163) with its starting scores.
+7. **Stale pool mappings:** `LoadContext.upsertDeletingMissing` deletes and logs rows the data no longer has, used only for `class_feature_pools`, `monster_pool_triggers` and `race_feature_pools`, which nothing references by id; other content keeps [[#D169]]'s keep-and-log.
+8. **`recompute-characters`** processes each character in its own transaction, so one database failure no longer rolls back every character's fix; a failing character is reported as skipped.
+9. **A registration race** on the unique username or email is a 409, not a 500.
+
+**Rules calls (the lead's, to confirm):** Channel Divinity keeps one existing pool rather than a new shared id; the throttle counts every attempt, not only failures; a half-feat's ability is recorded as sent, in lower case.
+
+**Real database:** no migration. Stale mapping rows are deleted on the next content load. Characters holding both Channel Divinity pools merge on their next recalculation or a `recompute-characters` run with apply. Resilient records saved as "STRENGTH" still work and aren't rewritten.
+
+**Key files:** `character/FeatEffectResolver.java`, `components/character/FeatChoices.tsx`, `resourcepool/ResourcePoolService.java`, `encounter/internal/ChannelDivinityEffects.java`, `AttackService.java`, `utils/classFeatures.ts`, `identity/internal/AuthService.java`, `AuthRateLimitFilter.java`, `AttemptLimiter.java`, `character/CharacterService.java`, `content/internal/LoadContext.java`, `maintenance/RecomputeCharactersJob.java`, `application-prod.yml`
+
+**Related:** D125, D158, D169, D178, D208
+
+**Tests:** `FeatEffectResolverTest`, `PendingChoicesIT`, `FeatPicker.test.tsx`, `ResourcePoolServiceTest`, `ChannelDivinityEffectsTest`, `ChannelDivinityIT`, `classFeatures.test.ts`, new `AuthLimitsIT`, `LoadContextTest`, `RecomputeCharactersJob` tests and creation-check cases; 4,614 backend unit, 552 integration and 1,223 frontend tests on its branch; 4,626, 558 and 1,236 merged with D213 and D214.
