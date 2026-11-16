@@ -351,6 +351,71 @@ class LevelProgressionTest {
         }
 
         @Test
+        @DisplayName("A Fighter 4 at 2 of 32 hit points levelled down to 0 and back is at 2 of 32 again: the 5 the "
+                + "lower maximum couldn't take are taken off the level's raise (D234)")
+        void hitPointsTheDropCouldNotTakeComeOffTheRaise() {
+            PlayerCharacter pc = fighter(4);
+            pc.setHpCurrent(2);
+
+            f.levelDown(pc);
+            assertThat(pc.getHpMax()).isEqualTo(25);
+            assertThat(pc.getHpCurrent()).isZero();
+            f.levelUp(pc, f.fighter);
+
+            assertThat(pc.getHpMax()).isEqualTo(32);
+            assertThat(pc.getHpCurrent()).isEqualTo(2);
+            assertThat(pc.getLevelDownUses()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("A Fighter 4 at 10 of 32 levelled down to 1 and back is at 10 of 32 again (D234)")
+        void hitPointsComeBackAfterSeveralLevels() {
+            PlayerCharacter pc = fighter(4);
+            pc.setHpCurrent(10);
+
+            f.levelDown(pc);
+            f.levelDown(pc);
+            f.levelDown(pc);
+            assertThat(pc.getHpCurrent()).isZero();
+            f.levelUp(pc, f.fighter);
+            f.levelUp(pc, f.fighter);
+            f.levelUp(pc, f.fighter);
+
+            assertThat(pc.getHpMax()).isEqualTo(32);
+            assertThat(pc.getHpCurrent()).isEqualTo(10);
+        }
+
+        @Test
+        @DisplayName("A character at 0 hit points levelled down and back stays at 0 (D234)")
+        void characterAtZeroDownAndUpStaysAtZero() {
+            PlayerCharacter pc = fighter(3);
+            pc.setHpCurrent(0);
+
+            f.levelDown(pc);
+            f.levelUp(pc, f.fighter);
+
+            assertThat(pc.getHpCurrent()).isZero();
+            assertThat(pc.isDead()).isFalse();
+        }
+
+        @Test
+        @DisplayName("A long rest after the level-down restores every hit point, so the level comes back with its whole "
+                + "raise (D234)")
+        void longRestClearsTheHitPointsKept() {
+            PlayerCharacter pc = fighter(4);
+            pc.setHpCurrent(2);
+            f.levelDown(pc);
+            pc.setHpCurrent(10);
+
+            f.rests.longRest(pc.getId(), f.userId);
+            assertThat(pc.getHpCurrent()).isEqualTo(25);
+            f.levelUp(pc, f.fighter);
+
+            assertThat(pc.getHpCurrent()).isEqualTo(32);
+            assertThat(pc.getLevelDownUses()).isEmpty();
+        }
+
+        @Test
         @DisplayName("A level removed and gained back leaves a spent pool spent (D222)")
         void spentPoolStaysSpent() {
             PlayerCharacter pc = fighter(2);

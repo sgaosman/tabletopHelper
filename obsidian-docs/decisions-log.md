@@ -4726,3 +4726,24 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D155, D169
 
 **Tests:** `ContentStartupTest` (phase below the web server's, loads once, fail-on-error stops the start) and `ContentStartupOrderIT` (the port stays closed while content loads and opens after); 4,957 backend unit and 597 integration tests pass.
+
+---
+
+## D234: Review Fixes for D221, D222 and D228
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration: new JSONB fields on `level_down_uses` entries, left out when empty)
+
+**Context:** a fresh review of the fixes merged during the user's overnight run of 2026-11-16 ([[#D220]]–[[#D233]]) found two ways round [[#D222]]'s "a level-down and level-up gives nothing back", a gap like the one [[#D221]] closed, and wasted work from [[#D228]]. The calls are the lead's, recorded for review.
+
+**Decision:**
+- **A long rest between a level-down and its level-up counts as a rest at the full level** (amends [[#D222]]). It dropped every level-down record, so a Fighter 5 with all Hit Dice spent could level to 1, rest (one die back) and level up to 5 with all five fresh, instead of the three spent a rest at 5th leaves; Power Surge came back full rather than at one ([[#D230]]). The rest now works out what it would have restored at the highest level a record holds (half that level's Hit Dice, at least one, largest dice first) and the records keep the rest; a long-rest pool with a reset amount stays spent to what the rest would leave it at; slots and other pools still refill. **(limit)** Levels whose level-down lost no Hit Dice leave no record, so the rest may give back slightly fewer dice than at the true level, never more.
+- **The HP a level-down can't take below 0 comes back off the raise** (amends [[#D222]]). A Fighter 3 at 2/30 levelled down to 0 and up to 7/30. A level-down now records that shortfall (`hpShortfall`) and the level-up takes it off its raise, never below 0; a long rest clears it. **(limit)** Healing while at the lower maximum doesn't reduce it.
+- **The 1 MB body cap matches the decoded path** (amends [[#D221]]), as the login limit does, so `/%61pi/...` no longer skips it.
+- **The command recording is unbound before commit** (amends [[#D228]]): the after-commit broadcast found it still bound and settled the stale encounter's offers again on every broadcast.
+
+**Key files:** `LevelDownSpending.java`, `character/state/LevelDownUses.java`, `RestService.java`, `CurrentHitPoints.java` (Javadoc), `RequestSizeFilter.java`, `CommandRecorder.java`
+
+**Related:** D221, D222, D228, D230
+
+**Tests:** round trips through a long rest (Fighter 5 ends at 3/5 spent, multiclass largest dice first, Power Surge at 1/3), HP shortfall round trips (2/32 and 10/32 kept, 0 kept, a long rest in between giving the whole raise), encoded paths capped, the recording gone after commit; 4,967 backend unit and 597 integration tests pass.

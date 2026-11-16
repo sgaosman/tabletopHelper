@@ -121,6 +121,10 @@ public class CommandRecorder {
                 if (recording.isEmpty()) {
                     commands.delete(recording.command);
                 }
+                // The recording ends with its transaction's commit (D234, amending D228): until afterCompletion
+                // unbound it, the after-commit broadcast's responses found it still bound, settled it again on the
+                // encounter as the broadcast reloaded it, and counted it in undo
+                TransactionSynchronizationManager.unbindResourceIfPossible(RESOURCE_KEY);
             }
 
             @Override
@@ -135,6 +139,8 @@ public class CommandRecorder {
      * kept only while the hit is all it did to the wizard, what it changed and what sums it up, and, for a command that
      * changed nothing, the Counterspell offers it set aside. A response built after this shows the offers and undo as
      * they are stored. Outside a recording of the encounter it does nothing, and settling twice changes nothing more.
+     * Once the command's transaction has begun to commit it is no longer recording, so the after-commit broadcast's
+     * responses settle nothing (D234).
      */
     public static void settle(Encounter encounter) {
         current().filter(r -> r.encounter == encounter || Objects.equals(r.encounter.getId(), encounter.getId()))

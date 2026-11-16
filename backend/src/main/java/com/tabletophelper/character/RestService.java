@@ -169,14 +169,19 @@ public class RestService {
         }
         // Finishing a long rest lowers exhaustion by one for a creature that has had food and drink, which the sheet
         // takes it has (PHB p.186, p.291, D183); the hit points then fill to the maximum that level leaves
+        LevelDownSpending.Before beforeRest = LevelDownSpending.Before.of(character);
         character.setExhaustionLevel(Exhaustion.afterLongRest(character.getExhaustionLevel()));
         character.setHpCurrent(CharacterSheetService.totals(character).maximum());
         character.setHpTemp(0);
         recoverHitDice(character);
         resetAllSlots(character);
         resetAllPools(character);
-        // Everything a level-down kept spent is restored too (D222)
-        LevelDownSpending.afterLongRest(character);
+        // What a level-down kept spent is restored as the rest would restore it at the character's full level: the
+        // slots, hit points and filled pools, but only half the full level's Hit Dice, and a pool that resets to an
+        // amount only to that amount (D234, amending D222, which restored everything)
+        Map<String, Integer> context = resourcePoolService.buildCharacterContext(character);
+        LevelDownSpending.afterLongRest(character, beforeRest, pool ->
+                resourcePoolService.resetPools(List.of(pool), "longRest", context).pools().getFirst().currentUses());
         return characterCommands.finish(character);
     }
 

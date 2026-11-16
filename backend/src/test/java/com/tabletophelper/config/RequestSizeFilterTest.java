@@ -48,6 +48,23 @@ class RequestSizeFilterTest {
     }
 
     @Test
+    @DisplayName("A path that reaches /api only once decoded or cleaned, such as /%61pi/..., is capped too (D234)")
+    void encodedApiPathIsCapped() throws Exception {
+        for (String uri : new String[]{"/%61pi/characters/x/inventory", "//api/campaigns", "/api;x=1/campaigns",
+                "/%61%70%69/campaigns"}) {
+            MockHttpServletRequest request = new MockHttpServletRequest("PUT", uri);
+            request.setContent(new byte[(int) RequestSizeFilter.MAX_BODY_BYTES + 1]);
+            MockFilterChain chain = new MockFilterChain();
+            MockHttpServletResponse response = new MockHttpServletResponse();
+
+            filter.doFilter(request, response, chain);
+
+            assertEquals(413, response.getStatus(), uri);
+            assertNull(chain.getRequest(), uri);
+        }
+    }
+
+    @Test
     @DisplayName("A body sent without a length stops with an IOException once past 1 MB")
     void overTheCapWithoutLength() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/campaigns") {

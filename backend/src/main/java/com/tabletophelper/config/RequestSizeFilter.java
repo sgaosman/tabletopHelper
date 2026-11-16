@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.UrlPathHelper;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -35,10 +36,15 @@ public class RequestSizeFilter extends OncePerRequestFilter {
 
     static final long MAX_BODY_BYTES = 1024 * 1024;
 
+    private static final UrlPathHelper PATHS = new UrlPathHelper();
+
+    // The path is the one Spring matches handlers against, decoded and cleaned of path parameters and doubled
+    // slashes, as AuthRateLimitFilter reads it: the raw URI let /%61pi/... or /;x/api/... past the cap to a controller
+    // (D234, amending D221)
     @Override
     protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
-        String uri = request.getRequestURI();
-        return uri == null || !uri.startsWith(request.getContextPath() + "/api/");
+        String path = PATHS.getPathWithinApplication(request);
+        return !path.startsWith("/api/");
     }
 
     @Override

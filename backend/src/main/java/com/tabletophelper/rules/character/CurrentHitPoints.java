@@ -47,7 +47,10 @@ public final class CurrentHitPoints {
     /**
      * The hit points a character has once its maximum changes: a higher maximum raises them by as much, and a lower one
      * takes as much off them, never below 0 (D222, replacing D167's rule that a lower maximum only capped them), so a
-     * level gained and then removed leaves a damaged character's hit points as they were. A character the drop leaves
+     * level gained and then removed leaves a damaged character's hit points as they were. What a drop would take below
+     * 0 isn't lost: a level-down records it, and the level's raise gives that much less when it comes back
+     * (character.LevelDownSpending, D234, amending D222), so a level removed and gained back leaves them as they were
+     * too. A character the drop leaves
      * at 0 is only at 0 hit points: the sheet keeps no dying state, and it never dies of it. A dead character stays at 0
      * whatever its maximum does, since only the DM's revival brings it back (D166). A character with no maximum yet,
      * one being created, keeps what it has, within the new maximum.

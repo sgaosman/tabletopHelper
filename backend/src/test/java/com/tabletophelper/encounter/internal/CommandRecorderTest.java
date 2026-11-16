@@ -13,6 +13,8 @@ import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.Optional;
@@ -111,6 +113,38 @@ class CommandRecorderTest {
         assertNotNull(before.encounter());
         assertEquals(goblin.getId(), before.encounter().currentTurnParticipantId());
         assertEquals(1, before.encounter().roundNumber());
+    }
+
+    @Test
+    @DisplayName("Once the command's transaction commits it is no longer recording: the after-commit broadcast's "
+            + "responses don't settle it again on the encounter (D234)")
+    void broadcastAfterCommitDoesNotSettleAgain() {
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            f.commandRecorder.record(f.encounter, f.dmUserId);
+            orc.setHpCurrent(23);
+            assertTrue(CommandRecorder.current().isPresent());
+            TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.beforeCommit(false));
+            CommandSnapshot committed = lastCommand().getBeforeState();
+            assertEquals(1, committed.participants().size());
+
+            // The broadcast runs after the commit, before afterCompletion, with the encounter as it reloaded it: here
+            // the goblin changed too, which a settle would take for this command's change
+            goblin.setHpCurrent(1);
+            TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+            assertTrue(CommandRecorder.current().isEmpty());
+            CommandRecorder.settle(f.encounter);
+            Optional<UndoInfo> undo = f.commandRecorder.undoInfo(f.encounter);
+
+            assertSame(committed, lastCommand().getBeforeState(), "the committed snapshot is left alone");
+            assertEquals(1, lastCommand().getBeforeState().participants().size());
+            assertTrue(undo.isPresent());
+            assertEquals(lastCommand().getId(), undo.get().commandId());
+        } finally {
+            List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+            TransactionSynchronizationManager.clearSynchronization();
+            synchronizations.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
+        }
     }
 
     @Test

@@ -658,6 +658,102 @@ class RestServiceTest {
         }
 
         @Test
+        @DisplayName("A long rest between a level-down and the level-up restores only the Hit Dice it would at the full "
+                + "level: a Fighter 5 with all five spent, levelled to 1, rested and levelled back, has three spent (D234)")
+        void longRestAfterLevelDownRestoresHalfTheFullLevelsHitDice() {
+            PlayerCharacter pc = f.create(f.human, CON_14, f.fighter, 5);
+            pc.setHitDice(Map.of("Fighter", new HitDicePool(10, 5, 0)));
+            for (int i = 0; i < 4; i++) {
+                f.levelDown(pc);
+            }
+            assertThat(pc.getHitDice()).containsEntry("Fighter", new HitDicePool(10, 1, 0));
+
+            f.rests.longRest(pc.getId(), f.userId);
+            assertThat(pc.getHitDice()).containsEntry("Fighter", new HitDicePool(10, 1, 1));
+            for (int i = 0; i < 4; i++) {
+                f.levelUp(pc, f.fighter);
+            }
+
+            // A Fighter 5 resting with five spent gets two back (PHB p.186), so three stay spent
+            assertThat(pc.getHitDice()).containsEntry("Fighter", new HitDicePool(10, 5, 2));
+            assertThat(pc.getLevelDownUses()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("A multiclass character's long rest at the lower level restores the full level's largest dice first (D234)")
+        void longRestAfterLevelDownRestoresTheLargestDiceFirst() {
+            PlayerCharacter pc = f.create(f.human, CON_14, f.fighter, 2, f.wizard, 2);
+            pc.setHitDice(Map.of("Fighter", new HitDicePool(10, 2, 0), "Wizard", new HitDicePool(6, 2, 0)));
+            // Down to Fighter 2: the two wizard dice go spent with their levels
+            f.levelDown(pc);
+            f.levelDown(pc);
+
+            // Four dice bring back two at the full level, both d10s, though a rest at level 2 brings back one
+            f.rests.longRest(pc.getId(), f.userId);
+            assertThat(pc.getHitDice()).containsEntry("Fighter", new HitDicePool(10, 2, 2));
+            f.levelUp(pc, f.wizard);
+            f.levelUp(pc, f.wizard);
+
+            assertThat(pc.getHitDice()).containsEntry("Fighter", new HitDicePool(10, 2, 2))
+                    .containsEntry("Wizard", new HitDicePool(6, 2, 0));
+        }
+
+        @Test
+        @DisplayName("A War Wizard's Power Surge removed with its level and gained back after a long rest has the one "
+                + "use the rest resets it to, spent or not before (XGE p.60, D230, D234)")
+        void powerSurgeAfterLevelDownAndLongRest() {
+            String poolId = "subclass:war-magic-power-surge";
+            Subclass warMagic = Subclass.builder().id(UUID.randomUUID()).name("School of War Magic")
+                    .characterClass(f.wizard).features("[]").build();
+            ResourcePoolDefinition surge = ResourcePoolDefinition.builder().poolId(poolId).displayName("Power Surge")
+                    .sourceType("CLASS").maxUsesFormula("max(1, intelligenceModifier)").resetOn("longRest")
+                    .resetAmount("1").build();
+            ClassFeaturePool surgePool = ClassFeaturePool.builder().characterClass(f.wizard).subclass(warMagic)
+                    .minLevel(2).poolDefinition(surge).build();
+            when(f.subclassRepository.findById(warMagic.getId())).thenReturn(Optional.of(warMagic));
+            when(f.featurePoolRepository.findByClassIdAndLevelAndSubclass(eq(f.wizard.getId()), anyInt(),
+                    eq(warMagic.getId()))).thenAnswer(inv -> inv.<Integer>getArgument(1) >= 2
+                    ? List.of(surgePool) : List.of());
+
+            for (int spentBefore : new int[]{3, 0}) {
+                PlayerCharacter pc = f.create(f.human, CON_14, f.wizard, 2);
+                pc.setMulticlassEntries(List.of(new ClassEntry(f.wizard.getId(), "Wizard", warMagic.getId(),
+                        warMagic.getName(), 2)));
+                f.characterStats.apply(pc);
+                uses(pc, poolId, 3 - spentBefore);
+
+                f.levelDown(pc);
+                assertThat(pc.getResourcePools()).noneMatch(p -> p.poolId().equals(poolId));
+                f.rests.longRest(pc.getId(), f.userId);
+                f.levelUp(pc, f.wizard);
+
+                assertThat(pc.getResourcePools()).filteredOn(p -> p.poolId().equals(poolId))
+                        .extracting(ResourcePoolEntry::maxUses, ResourcePoolEntry::currentUses)
+                        .as("spent %d before", spentBefore)
+                        .containsExactly(tuple(3, 1));
+            }
+        }
+
+        @Test
+        @DisplayName("A long rest between a level-down and the level-up still restores the slots and pools it fills (D234)")
+        void longRestAfterLevelDownStillFillsSlotsAndPools() {
+            PlayerCharacter pc = f.create(f.human, CON_14, f.fighter, 2, f.wizard, 1);
+            uses(pc, "class:fighter-action-surge", 0);
+            pc.setSpellSlots(Map.of("1", new SpellSlot(2, 2)));
+            f.levelDown(pc);
+            f.levelDown(pc);
+
+            f.rests.longRest(pc.getId(), f.userId);
+            assertThat(pc.getLevelDownUses()).isEmpty();
+            f.levelUp(pc, f.fighter);
+            f.levelUp(pc, f.wizard);
+
+            assertThat(pc.getResourcePools()).filteredOn(p -> p.poolId().equals("class:fighter-action-surge"))
+                    .extracting(ResourcePoolEntry::currentUses).containsExactly(1);
+            assertThat(pc.getSpellSlots()).containsEntry("1", new SpellSlot(2, 0));
+        }
+
+        @Test
         @DisplayName("A long rest gives a magic item's pool its own dice of charges back, and leaves one that never recharges (D210)")
         void itemPoolsRechargeByTheirRule() {
             PlayerCharacter pc = f.create(f.human, CON_14, f.fighter, 5);
