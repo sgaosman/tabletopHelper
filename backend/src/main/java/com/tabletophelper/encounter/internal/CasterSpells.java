@@ -60,6 +60,19 @@ class CasterSpells {
     }
 
     /**
+     * The spells the caster has, looked up in the spells table; what it can pay with now is read apart, so a caller
+     * asking several times in one command looks them up once ({@link #options(EncounterParticipant, List)}).
+     */
+    List<SpellSources.Known> known(EncounterParticipant caster) {
+        return spells(caster);
+    }
+
+    /** Each of the spells, found by {@link #known}, that the caster can cast now, with what can pay for it. */
+    List<SpellOption> options(EncounterParticipant caster, List<SpellSources.Known> known) {
+        return SpellSources.options(known, purse(caster));
+    }
+
+    /**
      * How the caster pays for casting the spell, which nothing has spent yet; a 400 for a spell it can't cast now
      * or can't pay for. A monster that joined without its spellcasting set up gets it first.
      */

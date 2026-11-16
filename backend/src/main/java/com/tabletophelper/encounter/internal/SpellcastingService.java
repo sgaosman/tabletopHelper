@@ -22,6 +22,7 @@ import com.tabletophelper.encounter.dto.RepeatSpellEffectRequest;
 import com.tabletophelper.encounter.dto.SpellOption;
 import com.tabletophelper.encounter.dto.SpellSlotRequest;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
+import com.tabletophelper.encounter.state.ReactionOffer;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.SpellSource;
 import com.tabletophelper.encounter.state.WildShapeForm;
@@ -102,6 +103,11 @@ public class SpellcastingService {
                                        UUID userId) {
         Encounter encounter = access.beginFor(encounterId, actorParticipantId, userId);
         EncounterParticipant caster = CombatAccess.participant(encounter, actorParticipantId);
+        // A cast answering a reaction offer names one still standing for the caster, else it is a 409 before anything
+        // is spent (D216)
+        ReactionOffer answered = reactionAnswers != null && request.getReactionOfferId() != null
+                ? reactionAnswers.answered(encounter, caster, request.getReactionOfferId(), request.getSpellName())
+                : null;
         requireCanCast(caster);
         manualModifiers.require(encounter, userId, ManualModifiers.forSpell(caster,
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC()));
@@ -178,9 +184,8 @@ public class SpellcastingService {
                 attackBonus(own, request.getOverrideSpellAttackBonus()), userId);
         // Shield cast in answer to a hit takes the hit back when it now misses (PHB p.275, D216), also before its own
         // cost is spent
-        if (reactionAnswers != null && request.getReactionOfferId() != null && scrollFailed == null
-                && ReactionOffers.SHIELD.equalsIgnoreCase(casting.spellName())) {
-            reactionAnswers.shield(encounter, caster, request.getReactionOfferId(), userId);
+        if (answered != null && scrollFailed == null && ReactionOffers.SHIELD.equalsIgnoreCase(casting.spellName())) {
+            reactionAnswers.shield(encounter, caster, answered, userId);
         }
         economy.charge(encounter, caster,
                 Charge.spell(cost, kind, EncounterTurns.isCurrentTurn(encounter, caster.getId())), tooLong, userId,

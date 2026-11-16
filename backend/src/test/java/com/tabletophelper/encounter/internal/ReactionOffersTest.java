@@ -405,7 +405,7 @@ class ReactionOffersTest {
         }
 
         @Test
-        @DisplayName("the next command that isn't a reaction ends every offer, a turn change included")
+        @DisplayName("a turn change ends every offer from the commands before it")
         void nextCommand() {
             f.encounter.setReactionOffers(new ArrayList<>(List.of(offer(wizard, UUID.randomUUID()))));
 
@@ -427,7 +427,7 @@ class ReactionOffersTest {
 
             f.inTransaction(() -> {
                 f.commandRecorder.record(f.encounter, f.dmUserId);
-                assertThat(offers()).isEmpty();
+                assertThat(offers()).containsExactly(wizards, clerics);
                 f.economy.charge(f.encounter, wizard, Charge.of(ActionCost.REACTION, false), f.dmUserId,
                         new ActionEconomyKeeper.Command(com.tabletophelper.encounter.CombatActionType.POOL_USE,
                                 "Wizard's reaction"));

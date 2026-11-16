@@ -37,6 +37,15 @@ class ReactionPromptsIT extends IntegrationTest {
 
     private static final List<String> SHIPPED = List.of("Shield", "Fire Bolt", "Counterspell");
 
+    // A Multiattack whose claw +5 AC would stop and whose bite it wouldn't
+    private static final String GOBLIN = """
+            {"actions": [
+               {"name": "Claw", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 4,
+                "effects": [{"effectType": "DAMAGE", "damageDice": "3", "damageType": "slashing"}]},
+               {"name": "Bite", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 10,
+                "effects": [{"effectType": "DAMAGE", "damageDice": "30", "damageType": "piercing"}]},
+               {"name": "Multiattack", "isMultiattack": true, "multiattackComponents": ["Claw", "Bite"]}]}""";
+
     private static final String ARCHMAGE = """
             {"spellcasting": {"ability": "INT", "attackBonus": 9, "saveDC": 17, "slots": {"3": 3},
              "spellsByLevel": {"3": ["counterspell"]}}}""";
@@ -64,7 +73,7 @@ class ReactionPromptsIT extends IntegrationTest {
         SHIPPED.forEach(this::shipped);
 
         encounterId = createEncounter(dm.accessToken(), campaignId);
-        goblinId = monster("Goblin", null);
+        goblinId = monster("Goblin", MonsterTemplates.parse(GOBLIN));
         coraId = idOf(addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "PLAYER", "characterId", cora, "displayName", "Aria")), "Aria");
         archmageId = monster("Archmage", MonsterTemplates.parse(ARCHMAGE));
@@ -171,20 +180,20 @@ class ReactionPromptsIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("An offer ends with the next command that isn't a reaction, a turn change included")
-    void expiresOnTheNextCommand() {
+    @DisplayName("An offer lasts past other commands until the turn changes")
+    void lastsUntilTheTurnChanges() {
         dice.script(11, 3);
         expect(HttpStatus.OK, goblinAttack());
         assertThat(dmView().get("reactionOffers")).hasSize(1);
 
-        // The goblin's next attack misses (a natural 1), which ends the first offer and makes none
+        // The goblin's next attack misses (a natural 1): the first offer stands, and the miss makes none
         dice.script(1);
         expect(HttpStatus.OK, goblinAttack());
-        assertThat(dmView().get("reactionOffers")).isEmpty();
+        assertThat(dmView().get("reactionOffers")).hasSize(1);
 
         dice.script(11, 3);
         expect(HttpStatus.OK, goblinAttack());
-        assertThat(dmView().get("reactionOffers")).hasSize(1);
+        assertThat(dmView().get("reactionOffers")).hasSize(2);
         nextTurn();
         assertThat(dmView().get("reactionOffers")).isEmpty();
 
@@ -211,6 +220,64 @@ class ReactionPromptsIT extends IntegrationTest {
         assertThat(dmView().get("reactionOffers")).isEmpty();
         expect(HttpStatus.CONFLICT, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
                 + "/combat/dismiss-reaction", Map.of("offerId", offerId), player.accessToken()));
+    }
+
+    @Test
+    @DisplayName("An offer stands through the goblin's next attack at someone else, as an Extra Attack, and Shield "
+            + "then still takes the first hit back")
+    void standsThroughAnotherAttack() {
+        dice.script(11, 3);
+        expect(HttpStatus.OK, goblinAttack());
+        String offerId = onlyOffer(playerView()).get("id").asString();
+
+        // 14 + 4 hits the archmage's AC 15 for 5
+        dice.script(14, 5);
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/attack?actorId="
+                + goblinId, new HashMap<>(Map.of("targetId", archmageId, "attackBonus", 4, "damageDice", "1d6")),
+                dm.accessToken()));
+        assertThat(hp(archmageId)).isEqualTo(94);
+        assertThat(onlyOffer(playerView()).get("id").asString()).isEqualTo(offerId);
+
+        expect(HttpStatus.OK, castSpell(coraId, Map.of("spellName", "Shield", "slotLevel", 1,
+                "targetIds", List.of(coraId), "reactionOfferId", offerId), player.accessToken()));
+        assertThat(hp(coraId)).isEqualTo(20);
+        assertThat(hp(archmageId)).isEqualTo(94);
+    }
+
+    @Test
+    @DisplayName("Shield from the claw of a Multiattack whose bite still hit and dropped Aria takes nothing back")
+    void multiattackNotTakenBack() {
+        // Claw 10 + 4 = 14, a miss against 17; Bite 10 + 10 = 20 still hits, for 30
+        dice.script(10, 10);
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/monster-action",
+                Map.of("monsterParticipantId", goblinId, "actionName", "Multiattack", "actionSource", "ACTION",
+                        "targetParticipantIds", List.of(coraId)), dm.accessToken()));
+        assertThat(hp(coraId)).isZero();
+        JsonNode offer = onlyOffer(dmView());
+        assertThat(offer.get("attackTotal").asInt()).isEqualTo(14);
+        assertThat(offer.get("options").get(0).get("resolves").asBoolean()).isFalse();
+
+        expect(HttpStatus.OK, castSpell(coraId, Map.of("spellName", "Shield", "slotLevel", 1,
+                "targetIds", List.of(coraId), "reactionOfferId", offer.get("id").asString()), dm.accessToken()));
+        assertThat(hp(coraId)).isZero();
+        assertThat(log()).anyMatch(line -> line.contains("which misses, but the hit can't be taken back here"));
+    }
+
+    @Test
+    @DisplayName("A cast naming an offer that has gone or never was is a 409 that spends nothing")
+    void goneOffer() {
+        dice.script(11, 3);
+        expect(HttpStatus.OK, goblinAttack());
+
+        expect(HttpStatus.CONFLICT, castSpell(coraId, Map.of("spellName", "Shield", "slotLevel", 1,
+                "targetIds", List.of(coraId), "reactionOfferId", UUID.randomUUID().toString()),
+                player.accessToken()));
+
+        assertThat(hp(coraId)).isEqualTo(17);
+        JsonNode aria = participant(dmView(), coraId);
+        assertThat(aria.get("spellSlotsCurrent").get("1").get("used").asInt()).isZero();
+        assertThat(aria.get("turnEconomy").get("reactionUsed").asBoolean()).isFalse();
+        assertThat(dmView().get("reactionOffers")).hasSize(1);
     }
 
     // ── Helpers ─────────────────────────────────────────────────

@@ -37,9 +37,29 @@ public final class EncounterViews {
 
     private EncounterViews() {}
 
-    /** The DM View for the campaign's DM, the Player View for everyone else. */
+    /**
+     * The DM View for the campaign's DM, the Player View for everyone else, with only the reaction offers for the
+     * creatures that player controls (D216).
+     * <p>
+     * The players' WebSocket topic is one for every player, so the Player View it carries keeps the offers for every
+     * creature on the players' side, and each player's page shows only its own. That shows a player nothing new: an
+     * offer's options are the spells, slot levels and pools of a player character, which the Player View already
+     * shows for each, and its trigger is in the players' log.
+     */
     public static EncounterResponse forUser(EncounterResponse dmView, UUID userId) {
-        return userId.equals(dmView.getDmUserId()) ? dmView : playerView(dmView);
+        if (userId.equals(dmView.getDmUserId())) {
+            return dmView;
+        }
+        EncounterResponse view = playerView(dmView);
+        Set<UUID> controlled = view.getParticipants().stream()
+                .filter(p -> userId.equals(p.getControlledByUserId()))
+                .map(ParticipantResponse::getId)
+                .collect(Collectors.toSet());
+        return view.toBuilder()
+                .reactionOffers(Optional.ofNullable(view.getReactionOffers()).orElse(List.of()).stream()
+                        .filter(offer -> controlled.contains(offer.reactorId()))
+                        .toList())
+                .build();
     }
 
     /** As {@link #forUser(EncounterResponse, UUID)}, for the encounter state inside a spell result. */

@@ -114,6 +114,8 @@ public final class EncounterTurns {
     public static void moveTo(Encounter encounter, Turn turn) {
         encounter.setCurrentTurnParticipantId(turn != null && !turn.isLair() ? turn.combatant().id() : null);
         encounter.setLairTurn(turn != null && turn.isLair());
+        // The reaction offers of earlier commands end with the turn (D216)
+        CommandRecorder.turnChanged(encounter);
     }
 
     /**

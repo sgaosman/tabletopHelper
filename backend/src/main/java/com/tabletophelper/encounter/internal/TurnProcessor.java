@@ -131,6 +131,8 @@ public class TurnProcessor {
             return false;
         }
         effectApplier.spendExtraTurn(creature, turns.get());
+        // Another turn is a new turn, which ends the reaction offers of earlier commands (D216)
+        CommandRecorder.turnChanged(encounter);
         combatLog.write(encounter, CombatActionType.TURN_ADVANCE, creature.getDisplayName() + " takes another turn ("
                 + turns.get().spell() + ", " + (left - 1) + " more after this; Round " + encounter.getRoundNumber()
                 + ")", null, creature);

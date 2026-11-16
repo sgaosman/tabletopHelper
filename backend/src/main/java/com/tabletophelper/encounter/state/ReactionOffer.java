@@ -14,8 +14,9 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 /**
  * A reaction a creature may take in answer to something that has just happened in the fight (D216), stored in
  * {@code encounters.reaction_offers} (V39). The server never waits for an answer: the triggering command has already
- * resolved, and the offer only lists what the creature could do now and how. It lasts until the next combat command
- * that isn't a reaction, a turn change included, or until it is answered, dismissed or its command undone.
+ * resolved, and the offer only lists what the creature could do now and how. It lasts until it is answered or
+ * dismissed, its reactor spends its reaction, leaves or dies, the turn changes, or its command is undone or taken back.
+ * A Counterspell offer lasts only while its spell is the newest command, as only that can be countered (D196).
  *
  * @param id               the offer's own ID, which an answer or a dismissal names
  * @param commandId        the combat command that triggered it (M14), or null outside a recorded command

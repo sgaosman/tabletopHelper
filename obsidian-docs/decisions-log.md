@@ -4317,6 +4317,18 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Tests:** `ReactionOffersTest` (25), `ReactionPromptsIT` (5: a goblin's hit on a wizard taken back by Shield and restored by undo, a Shield that still hits, an archmage's Counterspell offered to the DM and countering, offers expiring, undo and dismissal), `ReactionPrompt.test.tsx` (10) and a player-page filter test; 4,680 backend unit, 568 integration and 1,255 frontend tests on its branch; 4,691, 571 and 1,258 merged with D218, whose scroll check now also comes before a Shield answer (a Shield read from a scroll that fails its check takes nothing back). Checked in the browser on the rehearsal copy: a fighter's Magic Missile from a wand beside a monster mage raised a "Mage can react" prompt on the DM's page with Counterspell at slot levels 3 to 5 and Skip; taking it countered the spell, the knight's 9 damage came back (52/52), the mage spent a 3rd-level slot, the wand's charge stayed spent, and the prompt cleared.
 
 
+
+**Update (2026-11-16, review fixes):** a review of the code confirmed six defects, all fixed with regression tests.
+- **Shield takes a hit back only exactly:** the take-back required the hit to be the wizard's only offer in its command, but a later hit that raised no offer (the wizard at 0, or a roll still beating AC + 5) or save damage in the same command went uncounted, and the whole multiattack was reverted. Now Shield takes a hit back only when it was the only thing its command did to the wizard, nothing later changed the wizard, and the attacker is unchanged apart from what it keeps; otherwise the +5 applies with an advisory log line. One attack of a multiattack alone can't be taken back exactly, since the wizard's state between attacks isn't recorded, so it is refused.
+- **A stale answer is refused:** a cast with a `reactionOfferId` that no longer matches a standing offer for its caster answers 409 before anything is spent, 400 if the offer doesn't include that spell.
+- **What a taken-back attack keeps:** a shared `KeptCosts` keeps the attacker's (or countered caster's) slots, pools, turn spent and items used, so a scroll read for the attack stays spent ([[#D218]]); Shield also keeps the attacker's conditions, effects and concentration as the attack left them (a spent True Strike stays spent), while Counterspell keeps [[#D196]]'s return of the countered caster's earlier concentration and effects.
+- **Offers last:** an offer now stands until answered or dismissed, the reactor's reaction is spent, the reactor dies or leaves, or the turn changes, so a second Extra Attack or the DM's next monster no longer wipes another creature's Shield or Counterspell offer; offers that became impossible are hidden and dropped at the next command. A Counterspell offer goes as soon as a command that changes anything follows its spell, since only the newest command can be countered.
+- **Spell lookups** for offers are made once per reactor per command.
+- **Each player's own offers:** the REST view gives a player only offers for creatures they control. The WebSocket player topic is shared by all players and keeps every player-side offer, which shows only spells, slots and pools the player view already shows for every character, apart from revealing another player's Shield scroll.
+
+**Calls (the lead's, to confirm):** a reactor incapacitated after its offer keeps it and the cast's own checks refuse the answer; any change to the wizard later in the same command, even a grapple from the hit itself, makes Shield advisory.
+
+**Tests:** new `ReactionAnswersTest` (14), with `ReactionOffersTest`, `EncounterViewsTest` and `ReactionPromptsIT` extended (offers standing through another attack and until the turn changes, a multiattack not taken back, a gone offer); 4,708 backend unit, 574 integration and 1,258 frontend tests.
 ## D218: Item Use Fixes from Review
 
 **Date:** 2026-11-16
@@ -4346,3 +4358,25 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Tests:** 11 new backend unit, 3 new integration (with `ItemUseIT` extended by a mage and a Counterspell scroll) and 3 new frontend tests; 4,666 backend unit, 565 integration and 1,247 frontend tests.
 
 **Update (2026-11-16, browser retest):** relinking a wand from a copy of the inventory taken before it was unlinked, or with a forged count, still refilled it, because the server took `chargesSpent` from the request. `CharacterSheetService.withStoredCharges` now takes each entry's count from the stored entry (the same linked item, else the same name), ignoring the request's; checked against the rehearsal copy (a 5/7 wand unlinked and relinked from a stale copy with a forged 0 stays 5/7), with `CharacterSheetServiceTest.storedChargesWin`; 4,692 backend unit and 571 integration tests.
+
+
+## D219: Damage Parts in Results, Empowered Blades and Ice Knife, Range Wording
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration; spell loader version 3)
+
+**Context:** four small open items left by [[#D207]] and [[#D212]], done during the user's overnight run of 2026-11-16; calls are the lead's, recorded for review.
+
+**Decision:**
+- **Damage parts:** monster-action and spell-cast results gain `damageParts` (each type with the amount that got through the target's defences; always present, empty when nothing did), keeping the single `damageType`. The quick result under the monster actions reads "12 slashing + 4 lightning" instead of [[#D207]]'s first type only, and the cast result lists the types instead of "N dmg"; with one part, or parts that don't add up to the total (Harm's floor, Death Ward), the total shows as before.
+- **Empowered on Booming Blade and Green-Flame Blade** rerolls only the spell's own dice rolled on the cast, never the weapon's; Green-Flame Blade's leap takes the rerolls left. [[#D212]]'s note asking the DM to reroll is gone.
+- **Empowered on Ice Knife** reaches its burst: rerolls are shared across the spell's damage rolls in the order rolled, as Magic Missile's darts share them ([[#D212]]), the hit's piercing roll using up to as many as it has dice (a critical counting its dice twice) and the burst the rest; a miss leaves them all to the burst.
+- **Range wording:** single-unit ranges read "1 mile" and "1 foot"; the spell loader moves to version 3, so spells re-import on the next start.
+
+**Rules calls (the lead's, to confirm):** Empowered rerolls only dice rolled on the cast, so Booming Blade's thunder when the target moves isn't rerolled; a roll counts as using up to as many rerolls as it has dice, as Magic Missile's darts do.
+
+**Key files:** encounter result DTOs and `MonsterActionService`, `SpellCaster.java`, `SpellcastingService.java`, `rules/combat/Metamagic.java`, `content/internal/SpellLoader.java`, `components/encounter/InlineMonsterActions.tsx`, `ResultView.tsx`, `api/generated/openapi.json`, `schema.d.ts`
+
+**Related:** D207, D212
+
+**Tests:** new resolver, Empowered (Ice Knife hit and miss, both blades with the weapon die untouched), damage-parts and range-text cases, a damage-parts helper test file, and two-type cases in `InlineMonsterActions.test.tsx` and `ResultView.test.tsx`; 4,705 backend unit, 571 integration and 1,265 frontend tests on its branch.

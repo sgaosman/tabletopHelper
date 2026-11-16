@@ -126,19 +126,11 @@ public class SpellCounters {
                 + check + (success ? " - the spell fails and has no effect." : " - the spell goes ahead.");
         if (success) {
             EncounterParticipant caster = countered.caster();
-            // The failed spell's cost stays spent (PHB p.228: the creature was casting it)
-            var slots = caster.getSpellSlotsCurrent() != null
-                    ? new LinkedHashMap<>(caster.getSpellSlotsCurrent()) : null;
-            var pools = caster.getResourcePoolsCurrent() != null
-                    ? new ArrayList<>(caster.getResourcePoolsCurrent()) : null;
-            var economy = caster.getTurnEconomy();
-            // A scroll read for it stays used up, as a potion would (D210)
-            var itemsUsed = caster.getItemsUsed() != null ? new ArrayList<>(caster.getItemsUsed()) : null;
+            // The failed spell's cost stays spent (PHB p.228: the creature was casting it), and a scroll read for it
+            // stays used up, as a potion would (D210, D218); what it keeps is shared with Shield's take-back (D216)
+            KeptCosts kept = KeptCosts.of(KeptCosts.Kind.SPELL, caster);
             undoService.revert(encounter, countered.command(), userId);
-            caster.setSpellSlotsCurrent(slots);
-            caster.setResourcePoolsCurrent(pools);
-            caster.setTurnEconomy(economy);
-            caster.setItemsUsed(itemsUsed);
+            kept.putBack(caster);
         }
         combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.SPELL_CAST, text),
                         counterer, countered.caster())

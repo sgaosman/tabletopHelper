@@ -5,6 +5,7 @@ import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.EncounterViews;
 import com.tabletophelper.encounter.dto.SpellOption;
+import com.tabletophelper.encounter.state.ParticipantCombatState;
 import com.tabletophelper.encounter.state.ReactionOffer;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.monster.MonsterTemplates;
@@ -69,11 +70,38 @@ public class ReactionOffers {
      * The reactor as it was just before what triggered the offer, which a reaction that changes that event is judged
      * on: Shield is cast when the attack hits, before its damage drops the wizard (PHB p.275).
      */
-    public record Before(LifeState lifeState, List<String> conditions) {
+    public record Before(LifeState lifeState, List<String> conditions, ParticipantCombatState state) {
 
         public static Before of(EncounterParticipant participant) {
-            return new Before(participant.getLifeState(), List.copyOf(CreatureStats.conditionNames(participant)));
+            return new Before(participant.getLifeState(), List.copyOf(CreatureStats.conditionNames(participant)),
+                    ParticipantCombatState.of(participant));
         }
+    }
+
+    /**
+     * Whether the offer can still be taken (D216): its reactor is still in the fight and not dead, and hasn't spent
+     * its reaction or been kept from reactions since. An offer that can't goes from the encounter as the next command
+     * starts, and isn't shown meanwhile. A reactor that has since become incapacitated keeps it until then; the cast's
+     * own checks refuse the answer.
+     */
+    public static boolean open(Encounter encounter, ReactionOffer offer) {
+        if (offer == null || offer.reactorId() == null) {
+            return false;
+        }
+        EncounterParticipant reactor = encounter.getParticipants().stream()
+                .filter(p -> offer.reactorId().equals(p.getId()))
+                .findFirst()
+                .orElse(null);
+        if (reactor == null || reactor.getLifeState() == LifeState.DEAD || EncounterTurns.dismissed(reactor)
+                || CombatAccess.banished(reactor)) {
+            return false;
+        }
+        TurnEconomy economy = reactor.getTurnEconomy() != null ? reactor.getTurnEconomy() : TurnEconomy.fresh();
+        if (ActionEconomy.check(economy.budget(), Charge.of(ActionCost.REACTION, false), List.of()).isPresent()) {
+            return false;
+        }
+        return ActiveModifiers.on(reactor).stream()
+                .noneMatch(found -> found.modifier().kind() == OngoingModifier.Kind.NO_REACTIONS);
     }
 
     /**
@@ -92,19 +120,39 @@ public class ReactionOffers {
     public void afterHarm(Encounter encounter, EncounterParticipant actor, String actorName,
                           EncounterParticipant target, boolean hit, boolean critical, Integer attackTotal,
                           Integer armourClass, Before before, int damageTaken, List<String> damageTypes) {
-        if (target == null || (!hit && damageTaken <= 0)) {
+        if (target == null) {
             return;
         }
         try {
+            Optional<CommandRecorder.Recording> recording = CommandRecorder.current();
+            // Whether this is the first thing the command did to the target, and whether it did anything: Shield
+            // takes a hit back only when that hit is all the command did to the wizard (D216)
+            boolean first = before == null || before.state() == null || recording.isEmpty()
+                    || recording.get().unchangedSinceStart(target.getId(), before.state());
+            boolean touched = hit || damageTaken > 0 || (before != null && before.state() != null
+                    && recording.isPresent()
+                    && !recording.get().same(before.state(), ParticipantCombatState.of(target)));
+            if (touched && recording.isPresent()) {
+                notOnlyHit(encounter, recording.get().id(), target);
+            }
+            if (!hit && damageTaken <= 0) {
+                return;
+            }
             List<ReactionOffer.ReactionOption> options = harmOptions(actor, target, hit, critical, attackTotal, armourClass,
-                    before, damageTaken, damageTypes);
+                    before, damageTaken, damageTypes, first);
             if (!options.isEmpty()) {
-                add(encounter, new ReactionOffer(UUID.randomUUID(), commandId(), target.getId(),
+                ReactionOffer offer = new ReactionOffer(UUID.randomUUID(), commandId(), target.getId(),
                         target.getDisplayName(), hit ? ReactionOffer.Trigger.ATTACK_HIT : ReactionOffer.Trigger.DAMAGE,
                         actor != null ? actor.getId() : null, actor != null ? actor.getDisplayName() : actorName,
                         hit ? attackTotal : null, hit ? armourClass : null, hit && critical,
                         damageTaken > 0 ? damageTaken : null, damageTaken > 0 ? List.copyOf(damageTypes) : null,
-                        null, null, options));
+                        null, null, options);
+                add(encounter, offer);
+                // The wizard as the hit left it, which it must still be as the command ends for Shield to take the
+                // hit back (settle)
+                if (recording.isPresent() && resolvingShield(offer, offer.commandId(), target.getId())) {
+                    recording.get().hitEnded(offer.id(), ParticipantCombatState.of(target));
+                }
             }
         } catch (RuntimeException e) {
             log.warn("Couldn't work out the reactions offered to {}: {}", target.getDisplayName(), e.getMessage(), e);
@@ -154,7 +202,7 @@ public class ReactionOffers {
     private List<ReactionOffer.ReactionOption> harmOptions(EncounterParticipant actor, EncounterParticipant target,
                                                    boolean hit, boolean critical, Integer attackTotal,
                                                    Integer armourClass, Before before, int damageTaken,
-                                                   List<String> damageTypes) {
+                                                   List<String> damageTypes, boolean first) {
         List<ReactionOffer.ReactionOption> options = new ArrayList<>();
         if (EncounterTurns.dismissed(target) || CombatAccess.banished(target)) {
             return options;
@@ -176,12 +224,14 @@ public class ReactionOffers {
                         ? "A critical hit still hits; the +5 AC lasts until the start of its next turn."
                         : armourClass == null || attackTotal == null
                         ? "+5 AC until the start of its next turn."
-                        : misses
+                        : misses && first
                         ? "+5 AC makes it " + shielded + ": the attack roll of " + attackTotal
                                 + " misses, and the hit is taken back."
+                        : misses
+                        ? notOnlyHitNote(shielded, attackTotal, "before it")
                         : "+5 AC makes it " + shielded + ", but the attack roll of " + attackTotal
                                 + " still hits; the +5 AC lasts until the start of its next turn.";
-                spell(target, SHIELD, SHIELD, null, List.of(target.getId()), misses, level -> note)
+                spell(target, SHIELD, SHIELD, null, List.of(target.getId()), misses && first, level -> note)
                         .ifPresent(options::add);
             }
             if (reactsNow && seesActor) {
@@ -211,6 +261,82 @@ public class ReactionOffers {
             stonesEndurance(target, damageTaken).ifPresent(options::add);
         }
         return options;
+    }
+
+    /*
+     * The command has done more to the target than an earlier hit it offered Shield against: that hit is no longer all
+     * the command did to the wizard, so taking it back would take the rest back too (D216). Its Shield stays offered for
+     * the +5 AC, and the DM restores the hit by hand.
+     */
+    private static void notOnlyHit(Encounter encounter, UUID commandId, EncounterParticipant target) {
+        notOnlyHit(encounter, offer -> resolvingShield(offer, commandId, target.getId()));
+    }
+
+    /**
+     * As the command ends: an offer whose Shield would take a hit back stays so only while the wizard is still as
+     * that hit left it, so that nothing else in the command, such as a later attack's rider that reaches it without
+     * damage, is taken back with it (D216).
+     */
+    static void settle(Encounter encounter, CommandRecorder.Recording recording) {
+        List<ReactionOffer> offers = encounter.getReactionOffers() != null ? encounter.getReactionOffers() : List.of();
+        List<UUID> changed = new ArrayList<>();
+        for (ReactionOffer offer : offers) {
+            ParticipantCombatState leftBy = recording.hitEnd(offer.id());
+            EncounterParticipant reactor = leftBy == null ? null : encounter.getParticipants().stream()
+                    .filter(p -> offer.reactorId().equals(p.getId())).findFirst().orElse(null);
+            if (leftBy != null && (reactor == null || !recording.same(leftBy, ParticipantCombatState.of(reactor)))) {
+                changed.add(offer.id());
+            }
+        }
+        if (!changed.isEmpty()) {
+            notOnlyHit(encounter, offer -> changed.contains(offer.id())
+                    && resolvingShield(offer, recording.id(), offer.reactorId()));
+        }
+    }
+
+    private static void notOnlyHit(Encounter encounter, java.util.function.Predicate<ReactionOffer> marking) {
+        List<ReactionOffer> offers = encounter.getReactionOffers() != null ? encounter.getReactionOffers() : List.of();
+        if (offers.stream().noneMatch(marking)) {
+            return;
+        }
+        List<ReactionOffer> marked = new ArrayList<>();
+        for (ReactionOffer offer : offers) {
+            if (!marking.test(offer)) {
+                marked.add(offer);
+                continue;
+            }
+            int shielded = offer.armourClass() + 5;
+            List<ReactionOffer.ReactionOption> options = offer.options().stream()
+                    .map(option -> isShield(option)
+                            ? ReactionOffer.ReactionOption.spell(option.name(), option.spellName(),
+                                    option.spellSource(), option.slotLevels(), option.castOption(), option.targetIds(),
+                                    false, notOnlyHitNote(shielded, offer.attackTotal(), "after it"))
+                            : option)
+                    .toList();
+            marked.add(new ReactionOffer(offer.id(), offer.commandId(), offer.reactorId(), offer.reactorName(),
+                    offer.trigger(), offer.triggerActorId(), offer.triggerActorName(), offer.attackTotal(),
+                    offer.armourClass(), offer.critical(), offer.damageTaken(), offer.damageTypes(), offer.spellName(),
+                    offer.spellLevel(), options));
+        }
+        encounter.setReactionOffers(marked);
+    }
+
+    /** Whether the option is Shield. */
+    static boolean isShield(ReactionOffer.ReactionOption option) {
+        return option.kind() == ReactionOffer.Kind.SPELL && SHIELD.equalsIgnoreCase(option.spellName());
+    }
+
+    private static boolean resolvingShield(ReactionOffer offer, UUID commandId, UUID targetId) {
+        return offer != null && commandId.equals(offer.commandId()) && targetId.equals(offer.reactorId())
+                && offer.trigger() == ReactionOffer.Trigger.ATTACK_HIT && offer.armourClass() != null
+                && offer.attackTotal() != null
+                && offer.options().stream().anyMatch(option -> isShield(option) && option.resolves());
+    }
+
+    private static String notOnlyHitNote(int shielded, int attackTotal, String when) {
+        return "+5 AC makes it " + shielded + ": the attack roll of " + attackTotal + " misses, but the same action "
+                + "did more to it " + when + ", so the DM restores this hit's damage and effects by hand; the +5 AC "
+                + "lasts until the start of its next turn.";
     }
 
     // The Stone's Endurance pool with a use left, taken with the damage just taken (D208)
@@ -256,7 +382,12 @@ public class ReactionOffers {
         }
         List<SpellOption> known;
         try {
-            known = casterSpells.options(reactor);
+            // The reactor's known spells are looked up once a command, however many offers it raises (D216)
+            List<SpellSources.Known> spells = CommandRecorder.current()
+                    .map(recording -> recording.memo(new KnownSpells(reactor.getId()),
+                            () -> casterSpells.known(reactor)))
+                    .orElseGet(() -> casterSpells.known(reactor));
+            known = casterSpells.options(reactor, spells);
         } catch (RuntimeException e) {
             return Optional.empty();
         }
@@ -298,6 +429,10 @@ public class ReactionOffers {
 
     private static boolean has(EncounterParticipant participant, String condition) {
         return CreatureStats.conditionNames(participant).stream().anyMatch(condition::equalsIgnoreCase);
+    }
+
+    // The key a reactor's known spells are kept under for the command
+    private record KnownSpells(UUID reactorId) {
     }
 
     private static UUID commandId() {

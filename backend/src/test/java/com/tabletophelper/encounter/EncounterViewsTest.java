@@ -371,6 +371,35 @@ class EncounterViewsTest {
         }
 
         @Test
+        @DisplayName("A player gets only the reaction offers for creatures they control, the DM every offer (D216)")
+        void playerGetsOnlyTheirOwnOffers() {
+            UUID otherPlayerId = UUID.randomUUID();
+            ParticipantResponse legolas = gimli().toBuilder().id(UUID.randomUUID()).displayName("Legolas")
+                    .controlledByUserId(otherPlayerId).build();
+            var gimlis = offer(gimliId, "Gimli");
+            var legolases = offer(legolas.getId(), "Legolas");
+            var dmView = encounter(false, gimli(), legolas, goblin(5)).toBuilder()
+                    .reactionOffers(List.of(gimlis, legolases, offer(goblinId, "Goblin")))
+                    .build();
+
+            assertEquals(List.of(gimlis.id()), EncounterViews.forUser(dmView, playerId).getReactionOffers().stream()
+                    .map(com.tabletophelper.encounter.state.ReactionOffer::id).toList());
+            assertEquals(List.of(legolases.id()), EncounterViews.forUser(dmView, otherPlayerId).getReactionOffers()
+                    .stream().map(com.tabletophelper.encounter.state.ReactionOffer::id).toList());
+            assertEquals(3, EncounterViews.forUser(dmView, dmId).getReactionOffers().size());
+            // The players' shared topic carries every player-side offer; each page shows its own
+            assertEquals(2, EncounterViews.playerView(dmView).getReactionOffers().size());
+        }
+
+        private com.tabletophelper.encounter.state.ReactionOffer offer(UUID reactorId, String name) {
+            return new com.tabletophelper.encounter.state.ReactionOffer(UUID.randomUUID(), null, reactorId, name,
+                    com.tabletophelper.encounter.state.ReactionOffer.Trigger.ATTACK_HIT, goblinId, "Goblin", 15, 12,
+                    false, 3, List.of("slashing"), null, null, List.of(
+                            com.tabletophelper.encounter.state.ReactionOffer.ReactionOption.spell("Shield", "Shield",
+                                    null, List.of(1), null, List.of(reactorId), true, null)));
+        }
+
+        @Test
         @DisplayName("A spell result carries the caller's view of the encounter and keeps everything else")
         void spellResultCarriesTheCallersView() {
             var result = CastSpellResponse.builder()

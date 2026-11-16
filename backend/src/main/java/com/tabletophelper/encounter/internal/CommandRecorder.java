@@ -76,6 +76,20 @@ public class CommandRecorder {
     }
 
     /**
+     * The encounter's turn has changed (D216): the reaction offers of earlier commands go. Outside a command, every
+     * offer goes.
+     */
+    public static void turnChanged(Encounter encounter) {
+        Optional<Recording> recording = current()
+                .filter(r -> r.encounter == encounter || Objects.equals(r.encounter.getId(), encounter.getId()));
+        if (recording.isPresent()) {
+            recording.get().turnChanged();
+        } else {
+            encounter.setReactionOffers(new ArrayList<>());
+        }
+    }
+
+    /**
      * Starts recording the command the user is giving on the locked, Active encounter. Outside a transaction, or
      * when the transaction is recording one already, it does nothing.
      */
@@ -90,17 +104,22 @@ public class CommandRecorder {
                 .beforeState(CommandSnapshot.empty())
                 .build());
         Recording recording = new Recording(command, encounter);
-        // The reaction offers of the commands before it end as it starts, unless it turns out to be a reaction, which
-        // keeps the other creatures' (D216)
-        recording.priorOffers = ReactionOffer.without(encounter.getReactionOffers(), offer -> false);
-        encounter.setReactionOffers(new ArrayList<>());
+        // The reaction offers stand until answered, dismissed, their reactor's reaction is spent or the turn changes
+        // (D216). Those that can no longer be taken go now, and so does a Counterspell offer, which only answers the
+        // newest command (D196): this one comes after its spell, unless it turns out to change nothing
+        recording.offersAtStart = ReactionOffer.without(encounter.getReactionOffers(), offer -> false);
+        encounter.setReactionOffers(ReactionOffer.without(recording.offersAtStart,
+                offer -> offer.trigger() == ReactionOffer.Trigger.SPELL_CAST
+                        || !ReactionOffers.open(encounter, offer)));
         TransactionSynchronizationManager.bindResource(RESOURCE_KEY, recording);
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void beforeCommit(boolean readOnly) {
+                ReactionOffers.settle(encounter, recording);
                 recording.settle();
                 if (recording.isEmpty()) {
                     commands.delete(recording.command);
+                    recording.counterspellOffersBack();
                 }
             }
 
@@ -200,8 +219,12 @@ public class CommandRecorder {
         private final Map<UUID, LogPatch> patches = new LinkedHashMap<>();
         private String kind;
         private String summary;
-        // The reaction offers there were before the command, which it ended (D216); null once given back
-        private List<ReactionOffer> priorOffers;
+        // The reaction offers there were as the command started (D216)
+        private List<ReactionOffer> offersAtStart;
+        // What reaction offers work out once per command, such as each reactor's known spells (D216)
+        private final Map<Object, Object> memo = new HashMap<>();
+        // The reactor as each hit it may Shield against left it, by offer (D216)
+        private final Map<UUID, ParticipantCombatState> hitEnds = new HashMap<>();
 
         private Recording(CombatCommand command, Encounter encounter) {
             this.command = command;
@@ -227,28 +250,71 @@ public class CommandRecorder {
             patches.putIfAbsent(entry.getId(), new LogPatch(entry.getId(), entry.getLrResolved()));
         }
 
-        /** The reaction offers there were before this command started, which it has ended unless it is a reaction. */
-        public List<ReactionOffer> priorOffers() {
-            return priorOffers != null ? List.copyOf(priorOffers) : List.of();
+        /** The reaction offers there were as this command started, which an answer to one names (D216). */
+        public List<ReactionOffer> offersAtStart() {
+            return offersAtStart != null ? List.copyOf(offersAtStart) : List.of();
         }
 
-        /**
-         * The command is the participant's reaction (D216): the other creatures' offers from before it stand again,
-         * after any the command has made itself, and the reactor's go, as its reaction is spent.
-         */
+        /** The command is the participant's reaction (D216): its reaction is spent, so its offers go. */
         public void reactionTaken(UUID reactorId) {
-            List<ReactionOffer> offers = new ArrayList<>(priorOffers != null ? priorOffers : List.of());
-            offers.addAll(encounter.getReactionOffers() != null ? encounter.getReactionOffers() : List.of());
-            priorOffers = null;
-            encounter.setReactionOffers(ReactionOffer.withoutReactor(offers, reactorId));
+            encounter.setReactionOffers(ReactionOffer.withoutReactor(encounter.getReactionOffers(), reactorId));
         }
 
         /** Drops the offers the command triggered, which another command has taken back (D216). */
         public void commandTakenBack(UUID commandId) {
-            if (priorOffers != null) {
-                priorOffers = ReactionOffer.withoutCommand(priorOffers, commandId);
-            }
             encounter.setReactionOffers(ReactionOffer.withoutCommand(encounter.getReactionOffers(), commandId));
+        }
+
+        /**
+         * The turn has changed (D216): the offers of the commands before this one go, as their moment has passed; those
+         * this command has made since, such as for damage at the start of the new turn, stand.
+         */
+        public void turnChanged() {
+            encounter.setReactionOffers(ReactionOffer.without(encounter.getReactionOffers(),
+                    offer -> !command.getId().equals(offer.commandId())));
+        }
+
+        /**
+         * The value worked out once for this command under the key, such as a reactor's known spells, which don't
+         * change while one command runs (D216).
+         */
+        @SuppressWarnings("unchecked")
+        public <T> T memo(Object key, java.util.function.Supplier<T> compute) {
+            return (T) memo.computeIfAbsent(key, ignored -> compute.get());
+        }
+
+        /** Whether the participant was as it is in the state when the command started; true for one it brought in. */
+        public boolean unchangedSinceStart(UUID participantId, ParticipantCombatState state) {
+            JsonNode before = participantsBefore.get(participantId);
+            return before == null || before.equals(objectMapper.valueToTree(state));
+        }
+
+        /** Notes the reactor as the hit an offer answers left it (D216). */
+        public void hitEnded(UUID offerId, ParticipantCombatState state) {
+            hitEnds.put(offerId, state);
+        }
+
+        /** The reactor as the hit the offer answers left it, or null for an offer this command didn't note. */
+        public ParticipantCombatState hitEnd(UUID offerId) {
+            return hitEnds.get(offerId);
+        }
+
+        /** Whether the two states of a participant are the same. */
+        public boolean same(ParticipantCombatState one, ParticipantCombatState other) {
+            return objectMapper.valueToTree(one).equals(objectMapper.valueToTree(other));
+        }
+
+        // A command that changed nothing doesn't follow the spell a Counterspell offer answers, so the offer stands
+        private void counterspellOffersBack() {
+            List<ReactionOffer> offers = new ArrayList<>(encounter.getReactionOffers() != null
+                    ? encounter.getReactionOffers() : List.of());
+            for (ReactionOffer offer : offersAtStart != null ? offersAtStart : List.<ReactionOffer>of()) {
+                if (offer.trigger() == ReactionOffer.Trigger.SPELL_CAST && !offers.contains(offer)
+                        && ReactionOffers.open(encounter, offer)) {
+                    offers.add(offer);
+                }
+            }
+            encounter.setReactionOffers(offers);
         }
 
         /** Names the command for one that writes no entry, such as a change of which monsters fight in their lair. */

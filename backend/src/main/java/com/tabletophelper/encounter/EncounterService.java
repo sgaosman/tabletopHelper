@@ -25,6 +25,7 @@ import com.tabletophelper.encounter.internal.Fears;
 import com.tabletophelper.encounter.internal.FeatureEffects;
 import com.tabletophelper.encounter.internal.MetamagicCasting;
 import com.tabletophelper.encounter.internal.MonsterPools;
+import com.tabletophelper.encounter.internal.ReactionOffers;
 import com.tabletophelper.encounter.internal.SpellEffects;
 import com.tabletophelper.encounter.internal.Summoner;
 import com.tabletophelper.encounter.state.SummonLink;
@@ -822,8 +823,13 @@ public class EncounterService {
                 .showExactMonsterHp(Boolean.TRUE.equals(campaign.getShowExactMonsterHp()))
                 .allowPlayerManualModifiers(!Boolean.FALSE.equals(campaign.getAllowPlayerManualModifiers()))
                 .undo(commandRecorder.undoInfo(encounter).orElse(null))
+                // Only the offers that can still be taken: one whose reactor has since spent its reaction, died or
+                // left goes from the encounter as the next command starts (D216)
                 .reactionOffers(encounter.getStatus() == EncounterStatus.ACTIVE && encounter.getReactionOffers() != null
-                        ? List.copyOf(encounter.getReactionOffers()) : List.of())
+                        ? encounter.getReactionOffers().stream()
+                                .filter(offer -> ReactionOffers.open(encounter, offer))
+                                .toList()
+                        : List.of())
                 .build();
     }
 
