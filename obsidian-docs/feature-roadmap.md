@@ -161,12 +161,12 @@
 **Status:** Deferred — trigger is when the DM and players can play a full session of D&D with up to 5th level characters (and up to CR 15 monsters) at minimum, with any combination of character classes and enemies and only occasionally (fewer than 5 unique instances per combat session) have to manually adjudicate rulings. Requires M12 (CR 0-10 monsters), M12.5 (CR 11-15 expansion), and M13 (action economy for reactions) at minimum before the combat UI is stable enough to polish.
 
 **Tasks:**
-- [ ] Mobile-responsive encounter screens
-- [ ] Error handling — toast notifications, WebSocket disconnect/reconnect
-- [ ] Loading states for all async operations
-- [ ] Dockerfiles (backend + frontend)
-- [ ] docker-compose.prod.yml
-- [ ] Nginx configuration (reverse proxy + SSL)
+- [x] Mobile-responsive encounter screens
+- [x] Error handling — toast notifications, WebSocket disconnect/reconnect
+- [x] Loading states for all async operations
+- [x] Dockerfiles (backend + frontend)
+- [x] docker-compose.prod.yml
+- [x] Nginx configuration (reverse proxy + SSL) — done: Caddy instead of Nginx (`frontend/Caddyfile`, prod compose) (audit 2026-11-16)
 - [ ] Deploy to Hetzner VPS or Railway
 - [ ] End-to-end testing with real devices
 
@@ -525,30 +525,30 @@ Phase 3 — Multiclass at creation:
 **Goal:** a player character's AC comes from what they wear, not a fixed value set at creation. Today AC is 10 + DEX from creation plus DM Adjustments, because armour isn't modelled ([[decisions-log#D158]]). Scheduled before M14 because every attack against a player character reads AC, and M6's trigger counts the DM setting AC by hand as a manual ruling.
 
 **Backend tasks:**
-- [ ] Armour data on items: base AC, category (light, medium, heavy, shield), Strength requirement and Stealth disadvantage, loaded from the 5etools item data; a Flyway migration adds the columns
-- [ ] AC as a Derived Stat in `CharacterStats`, worked out from the equipped body armour and shield:
+- [x] Armour data on items: base AC, category (light, medium, heavy, shield), Strength requirement and Stealth disadvantage, loaded from the 5etools item data; a Flyway migration adds the columns
+- [x] AC as a Derived Stat in `CharacterStats`, worked out from the equipped body armour and shield:
   - unarmoured: 10 + DEX
   - light armour: base + DEX
   - medium armour: base + DEX, up to +2
   - heavy armour: base only
   - a shield: +2
   - DM Adjustments added on top
-- [ ] Alternative AC calculations, with the highest one used:
+- [x] Alternative AC calculations, with the highest one used:
   - Barbarian Unarmoured Defence: 10 + DEX + CON, a shield allowed
   - Monk Unarmoured Defence: 10 + DEX + WIS, no armour or shield
   - Draconic Resilience: 13 + DEX
   - racial natural armour, such as a Lizardfolk's 13 + DEX
-- [ ] Only one suit of body armour and one shield can be equipped at a time; equipping a second answers 400
-- [ ] Heavy armour below its Strength requirement lowers speed by 10 feet (PHB p.144)
-- [ ] Armour with Stealth disadvantage gives disadvantage on Stealth checks, including the Hide standard action (closes the D174 open item)
-- [ ] Armour worn without proficiency: disadvantage on ability checks, saves and attack rolls that use STR or DEX, and no spellcasting (PHB p.144)
-- [ ] `recompute-characters` gives every character its new AC, run as a dry run first. Its report flags AC DM Adjustments whose reason looks like armour, which would now count twice.
+- [x] Only one suit of body armour and one shield can be equipped at a time; equipping a second answers 400
+- [x] Heavy armour below its Strength requirement lowers speed by 10 feet (PHB p.144)
+- [x] Armour with Stealth disadvantage gives disadvantage on Stealth checks, including the Hide standard action (closes the D174 open item)
+- [x] Armour worn without proficiency: disadvantage on ability checks, saves and attack rolls that use STR or DEX, and no spellcasting (PHB p.144)
+- [x] `recompute-characters` gives every character its new AC, run as a dry run first. Its report flags AC DM Adjustments whose reason looks like armour, which would now count twice.
 
 **Frontend tasks:**
-- [ ] Stats tab: shows how AC is made up, for example "Chain Mail 16 + Shield 2 + DM +1 = 19"
-- [ ] Inventory: an equip toggle for armour and shields that enforces one of each
-- [ ] Warnings for missing armour proficiency and an unmet Strength requirement
-- [ ] Wizard: AC preview from starting equipment
+- [x] Stats tab: shows how AC is made up, for example "Chain Mail 16 + Shield 2 + DM +1 = 19"
+- [x] Inventory: an equip toggle for armour and shields that enforces one of each
+- [x] Warnings for missing armour proficiency and an unmet Strength requirement
+- [x] Wizard: AC preview from starting equipment
 
 **Knock-on effects:**
 - Encounters copy AC when a participant is added and again when the encounter starts (D166). An encounter already under way keeps the old AC, and changing armour mid-encounter doesn't reach the participant.
@@ -562,17 +562,17 @@ Phase 3 — Multiclass at creation:
 **Goal:** DM can undo any combat action, fully restoring prior state.
 
 **Backend tasks:**
-- [ ] Add `stateSnapshot` JSONB column to `CombatLog` entity — stores before-state of every affected participant (HP, conditions, concentration, death saves, spell slots, legendary actions/resistances remaining)
-- [ ] Capture snapshot before every combat action (damage, healing, spell cast, condition add/remove, monster action, item use)
-- [ ] Cascading effects (e.g., concentration drop → condition removal on multiple targets) captured in the outermost action's snapshot — see [[decisions-log#D037]]
-- [ ] `POST /api/encounters/{id}/combat/undo` endpoint (DM-only): restores all participant states from the most recent log entry's snapshot, deletes the log entry
-- [ ] Support multi-step undo (undo the last N actions)
-- [ ] Undo clears any conditions, buffs, or effects that were applied by the undone action
+- [x] Add `stateSnapshot` JSONB column to `CombatLog` entity — stores before-state of every affected participant (HP, conditions, concentration, death saves, spell slots, legendary actions/resistances remaining) — done: before-state on `combat_commands` (V32), D176 (audit 2026-11-16)
+- [x] Capture snapshot before every combat action (damage, healing, spell cast, condition add/remove, monster action, item use) — done: `CommandRecorder`, D176 (audit 2026-11-16)
+- [x] Cascading effects (e.g., concentration drop → condition removal on multiple targets) captured in the outermost action's snapshot — see [[decisions-log#D037]]
+- [x] `POST /api/encounters/{id}/combat/undo` endpoint (DM-only): restores all participant states from the most recent log entry's snapshot, deletes the log entry — done: with `{expectedCommandId, steps}`; entries are marked undone, D176 (audit 2026-11-16)
+- [x] Support multi-step undo (undo the last N actions)
+- [x] Undo clears any conditions, buffs, or effects that were applied by the undone action
 
 **Frontend tasks:**
-- [ ] DM-only "Undo Last Action" button in encounter session
-- [ ] Confirmation dialog showing what will be undone
-- [ ] Combat log entry removal on undo (with visual feedback)
+- [x] DM-only "Undo Last Action" button in encounter session
+- [x] Confirmation dialog showing what will be undone
+- [x] Combat log entry removal on undo (with visual feedback) — done: entries dimmed and struck through, plus an UNDO entry, D176 (audit 2026-11-16)
 
 ## Milestone 15: Persistent Spell Effects as Companion Participants
 
@@ -581,34 +581,34 @@ Phase 3 — Multiclass at creation:
 **Goal:** Persistent AoE zone effects (Hunger of Hadar, Cloud of Daggers, Spirit Guardians, Moonbeam, etc.) and non-concentration persistent effects (Spiritual Weapon) appear as sub-cards beneath the caster in the initiative order. **Note:** Summoning creatures (Conjure Animals, Find Familiar) are handled in M26 — this milestone covers persistent *effects* that do not make independent decisions.
 
 **Backend tasks:**
-- [ ] New `ParticipantType`: `COMPANION`
-- [ ] `summonedByParticipantId` FK on `EncounterParticipant` linking companion to caster
-- [ ] Auto-create companion participant when a persistent zone/concentration effect spell is cast
-- [ ] **Extend `dropConcentrationCascade()` to also remove COMPANION participants** (not just conditions). When a caster drops concentration, all COMPANIONs `summonedByParticipantId` matching that caster are removed.
+- [x] New `ParticipantType`: `COMPANION` — done: in M26, D182 (audit 2026-11-16)
+- [x] `summonedByParticipantId` FK on `EncounterParticipant` linking companion to caster — done: `summoned_by_participant_id`, V34, D182 (audit 2026-11-16)
+- [x] Auto-create companion participant when a persistent zone/concentration effect spell is cast — done differently: zone spells are Spell Effects on the caster (D177); only summons become companions (D182) (audit 2026-11-16)
+- [x] **Extend `dropConcentrationCascade()` to also remove COMPANION participants** (not just conditions). When a caster drops concentration, all COMPANIONs `summonedByParticipantId` matching that caster are removed. — done: through the owning Spell Effect, D182 (audit 2026-11-16)
 - [ ] **Cascade companion effects:** If a COMPANION applied conditions to other participants (e.g., a summoned fey's charm), those conditions are also removed when the COMPANION is removed.
-- [ ] Auto-remove companion when concentration drops or duration ends
-- [ ] Companion actions resolve through the same effect engine
-- [ ] Companion initiative: acts on caster's turn (or specific initiative as defined by spell)
+- [x] Auto-remove companion when concentration drops or duration ends — done: D182 (audit 2026-11-16)
+- [x] Companion actions resolve through the same effect engine
+- [x] Companion initiative: acts on caster's turn (or specific initiative as defined by spell)
 
 **Frontend tasks:**
-- [ ] Sub-card UI: companion participants rendered as indented cards beneath their caster
-- [ ] Companion action buttons (e.g., Spiritual Weapon attack, Flaming Sphere ram)
-- [ ] Visual link between companion and caster (concentration indicator)
+- [x] Sub-card UI: companion participants rendered as indented cards beneath their caster — done: `SpellEffectCard`, `SummonGroupCard` (audit 2026-11-16)
+- [x] Companion action buttons (e.g., Spiritual Weapon attack, Flaming Sphere ram)
+- [x] Visual link between companion and caster (concentration indicator)
 
 ## Milestone 16: Short/Long Rest System
 
 **Goal:** Implement rest mechanics for resource recovery between encounters.
 
 **Backend tasks:**
-- [ ] `POST /api/characters/{id}/short-rest` — hit dice spending for HP recovery, feature/charge recovery (per short rest resources)
-- [ ] `POST /api/characters/{id}/long-rest` — full HP recovery, hit dice recovery (half total, rounded down), all spell slot recovery, all feature/charge recovery (per long rest resources)
-- [ ] Warlock Pact Magic: spell slots recover on short rest
-- [ ] Resource tracking: charges and uses for class features, racial abilities, magic items
+- [x] `POST /api/characters/{id}/short-rest` — hit dice spending for HP recovery, feature/charge recovery (per short rest resources)
+- [x] `POST /api/characters/{id}/long-rest` — full HP recovery, hit dice recovery (half total, rounded down), all spell slot recovery, all feature/charge recovery (per long rest resources)
+- [x] Warlock Pact Magic: spell slots recover on short rest
+- [ ] Resource tracking: charges and uses for class features, racial abilities, magic items — class, feat and innate pools done; magic item charges not tracked (audit 2026-11-16)
 
 **Frontend tasks:**
-- [ ] Short rest modal: hit dice spending interface (select number of hit dice to spend, show HP recovery preview, confirm)
-- [ ] Long rest button with summary of what recovers
-- [ ] Resource counters on character sheet (used/total for each tracked resource)
+- [x] Short rest modal: hit dice spending interface (select number of hit dice to spend, show HP recovery preview, confirm)
+- [x] Long rest button with summary of what recovers
+- [x] Resource counters on character sheet (used/total for each tracked resource)
 
 ## Milestone 17: Class Feature Automation
 
@@ -617,22 +617,22 @@ Phase 3 — Multiclass at creation:
 **Goal:** Automate common class features used in combat encounters. Builds on M24.5 (Generic Resource Pool) for resource tracking and M13 (action economy) for spend action type validation.
 
 **Backend tasks:**
-- [ ] Feature action endpoints: `POST /api/encounters/{id}/combat/use-feature`
-- [ ] Seed class feature resource pools from M7 class feature analysis data into `resource_pools`
-- [ ] Fighter: Second Wind (bonus action heal), Action Surge (extra action)
-- [ ] Cleric: Channel Divinity (class + subclass options), Turn Undead
-- [ ] Rogue: Cunning Action (bonus action Dash/Disengage/Hide), Sneak Attack (extra damage, once per turn)
-- [ ] Paladin: Divine Smite (extra damage on hit, uses spell slot), Lay on Hands (healing pool)
-- [ ] Bard: Bardic Inspiration (bonus action, give ally a die to add to roll)
-- [ ] Barbarian: Rage (bonus action, resistance to physical damage, extra melee damage)
-- [ ] Monk: Ki Points, Flurry of Blows, Patient Defense, Step of the Wind
-- [ ] Druid: Wild Shape (stat block swap)
-- [ ] Wizard: Arcane Recovery (recover spell slots on short rest)
+- [x] Feature action endpoints: `POST /api/encounters/{id}/combat/use-feature` — done: through `use-pool`, D178 (audit 2026-11-16)
+- [x] Seed class feature resource pools from M7 class feature analysis data into `resource_pools`
+- [x] Fighter: Second Wind (bonus action heal), Action Surge (extra action)
+- [x] Cleric: Channel Divinity (class + subclass options), Turn Undead
+- [x] Rogue: Cunning Action (bonus action Dash/Disengage/Hide), Sneak Attack (extra damage, once per turn)
+- [x] Paladin: Divine Smite (extra damage on hit, uses spell slot), Lay on Hands (healing pool)
+- [x] Bard: Bardic Inspiration (bonus action, give ally a die to add to roll)
+- [x] Barbarian: Rage (bonus action, resistance to physical damage, extra melee damage)
+- [x] Monk: Ki Points, Flurry of Blows, Patient Defense, Step of the Wind
+- [x] Druid: Wild Shape (stat block swap) — done: `WildShapeService` (audit 2026-11-16)
+- [x] Wizard: Arcane Recovery (recover spell slots on short rest)
 
 **Frontend tasks:**
-- [ ] Feature buttons in encounter action panel (context-aware: show on correct turn, check uses remaining)
-- [ ] Feature resource counters from `resource_pools_current` (Ki points, Bardic Inspiration uses, Channel Divinity uses, etc.)
-- [ ] Divine Smite prompt on hit (choose spell slot level for extra damage)
+- [x] Feature buttons in encounter action panel (context-aware: show on correct turn, check uses remaining)
+- [x] Feature resource counters from `resource_pools_current` (Ki points, Bardic Inspiration uses, Channel Divinity uses, etc.)
+- [x] Divine Smite prompt on hit (choose spell slot level for extra damage)
 
 **Dependencies:** M24.5 (resource pools), M13 (action economy), M7 class feature analysis data.
 
@@ -643,21 +643,21 @@ Phase 3 — Multiclass at creation:
 **Goal:** Implement Sorcerer-specific metamagic options with Sorcery Point tracking. Builds on M24.5 (Generic Resource Pool) for Sorcery Points and M13 (action economy) for Quickened Spell interaction.
 
 **Backend tasks:**
-- [ ] Sorcery Points via `resource_pools` with `sourceType="CLASS"`, `resetOn="longRest"`
-- [ ] Metamagic options:
+- [x] Sorcery Points via `resource_pools` with `sourceType="CLASS"`, `resetOn="longRest"`
+- [x] Metamagic options:
   - Twinned Spell: spend sorcery points = spell level to target a second creature
   - Quickened Spell: spend 2 points to cast as bonus action instead of action (validated by M13 action economy)
   - Subtle Spell: spend 1 point to cast without verbal/somatic components
   - Heightened Spell: spend 3 points to give one target disadvantage on save
   - Other metamagic options as needed
-- [ ] Font of Magic: convert sorcery points ↔ spell slots (exchanges between resource pool and spell slot systems)
-- [ ] Validation: correct sorcery point cost, eligible spells for each metamagic
-- [ ] **Full testing against all currently implemented spells** to verify metamagic interactions
+- [x] Font of Magic: convert sorcery points ↔ spell slots (exchanges between resource pool and spell slot systems)
+- [x] Validation: correct sorcery point cost, eligible spells for each metamagic
+- [ ] **Full testing against all currently implemented spells** to verify metamagic interactions — not recorded as done in D179 (audit 2026-11-16)
 
 **Frontend tasks:**
-- [ ] Metamagic toggle buttons when casting a spell (show eligible options)
-- [ ] Sorcery Point counter from `resource_pools` on character sheet and encounter panel
-- [ ] Font of Magic UI: convert points to slots or slots to points
+- [x] Metamagic toggle buttons when casting a spell (show eligible options)
+- [x] Sorcery Point counter from `resource_pools` on character sheet and encounter panel
+- [x] Font of Magic UI: convert points to slots or slots to points
 
 **Dependencies:** M24.5 (resource pools), M13 (action economy), M11 (spell resolver)
 
@@ -695,11 +695,11 @@ Phase 3 — Multiclass at creation:
 **Example:** Clicking "prepared spells" shows: *"Prepared Spells: spells you've chosen to have ready for casting. Clerics, Druids, Paladins, and Wizards can change their prepared spells after a long rest."*
 
 **Tasks:**
-- [ ] Build a glossary map (term → definition) covering core D&D 5e jargon: spell save DC, proficiency bonus, prepared spells, spell slots, hit dice, saving throws, advantage/disadvantage, concentration, ritual, cantrip, etc.
-- [ ] Wrap bolded `<strong>` spans in `FormattedDescription.tsx` with an `onClick` handler
-- [ ] Create a `GlossaryModal` or popover component that displays the definition
-- [ ] Definitions should be concise, class-aware where relevant, and written for someone who has never played D&D
-- [ ] Mobile-friendly: popover should work well on touch devices (tap to open, tap outside to close)
+- [x] Build a glossary map (term → definition) covering core D&D 5e jargon: spell save DC, proficiency bonus, prepared spells, spell slots, hit dice, saving throws, advantage/disadvantage, concentration, ritual, cantrip, etc. — done: 104 terms, `GET /api/reference/glossary`, D180 (audit 2026-11-16)
+- [x] Wrap bolded `<strong>` spans in `FormattedDescription.tsx` with an `onClick` handler — done: `GlossaryText` matches terms in any text, D180 (audit 2026-11-16)
+- [x] Create a `GlossaryModal` or popover component that displays the definition
+- [x] Definitions should be concise, class-aware where relevant, and written for someone who has never played D&D
+- [x] Mobile-friendly: popover should work well on touch devices (tap to open, tap outside to close) — done: a centred dialog: tap to open, tap the backdrop to close (audit 2026-11-16)
 
 **Dependencies:** None — builds on existing `FormattedDescription.tsx` component from M10.
 
@@ -882,6 +882,8 @@ A `resource_pools` JSONB column on `player_characters` and `resource_pools_curre
 
 ## Milestone 24.5b: Racial Resource Pools
 
+**Status (audit 2026-11-16):** not built. Only racial spells with their own uses are pools (`innate:<spell>`, sourceType RACE, D165); racial features such as Breath Weapon, Relentless Endurance or Fey Step have no pools yet.
+
 **Goal:** Extend the M24.5 resource pool system to cover racial features with limited uses (Dragonborn Breath Weapon, Firbolg Hidden Step, Eladrin Fey Step, etc.), bringing them into the same unified pool lifecycle as class features.
 
 **Backend tasks:**
@@ -963,14 +965,14 @@ A `resource_pools` JSONB column on `player_characters` and `resource_pools_curre
 **Status:** Implemented (2026-11-09).
 
 **Requirements:**
-- [ ] Summoned creature picker: select creature(s) matching the spell's CR/type constraints (e.g., Conjure Animals: 1 CR 2, 2 CR 1, 4 CR 1/2, or 8 CR 1/4 beasts)
-- [ ] Auto-add summoned creatures to the encounter as COMPANION participants with correct stat blocks
-- [ ] Initiative handling: player chooses whether summoned creatures follow the caster's turn or roll their own initiative as a group
-- [ ] Upcast scaling: automatically multiply creature count for upcast levels (e.g., Conjure Animals at 5th: double creatures)
-- [ ] Auto-cleanup: remove summoned creatures when concentration drops, caster drops to 0 HP, or spell duration expires
-- [ ] Link summoned creatures to the caster's concentration so `dropConcentrationCascade()` removes them
-- [ ] DM override: allow DM to choose specific creatures (RAW says DM picks for Conjure spells)
-- [ ] Summoned creature actions: either auto-resolve via the existing action system or flag for manual resolution
+- [x] Summoned creature picker: select creature(s) matching the spell's CR/type constraints (e.g., Conjure Animals: 1 CR 2, 2 CR 1, 4 CR 1/2, or 8 CR 1/4 beasts)
+- [x] Auto-add summoned creatures to the encounter as COMPANION participants with correct stat blocks
+- [x] Initiative handling: player chooses whether summoned creatures follow the caster's turn or roll their own initiative as a group — done: the spell decides; following the caster offered as a house rule, D182 (audit 2026-11-16)
+- [x] Upcast scaling: automatically multiply creature count for upcast levels (e.g., Conjure Animals at 5th: double creatures)
+- [x] Auto-cleanup: remove summoned creatures when concentration drops, caster drops to 0 HP, or spell duration expires
+- [x] Link summoned creatures to the caster's concentration so `dropConcentrationCascade()` removes them — done: through the owning Spell Effect, D182 (audit 2026-11-16)
+- [x] DM override: allow DM to choose specific creatures (RAW says DM picks for Conjure spells)
+- [x] Summoned creature actions: either auto-resolve via the existing action system or flag for manual resolution
 
 **Spells in scope (levels 0–3 in current definitions):**
 Conjure Animals (L3), Summon Beast (L2), Summon Fey (L3), Summon Shadowspawn (L3), Summon Undead (L3), Summon Lesser Demons (L3), Find Familiar (L1), Find Steed (L2), Flock of Familiars (L2), Animate Dead (L3), Tiny Servant (L3)
