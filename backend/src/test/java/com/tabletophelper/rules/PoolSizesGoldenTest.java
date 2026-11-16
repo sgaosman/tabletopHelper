@@ -13,6 +13,9 @@ import com.tabletophelper.reference.CharacterClassRepository;
 import com.tabletophelper.reference.ClassFeaturePool;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.MonsterPoolTriggerRepository;
+import com.tabletophelper.reference.Race;
+import com.tabletophelper.reference.RaceFeaturePool;
+import com.tabletophelper.reference.RaceFeaturePoolRepository;
 import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.reference.ResourcePoolDefinitionRepository;
 import com.tabletophelper.reference.Subclass;
@@ -303,6 +306,52 @@ class PoolSizesGoldenTest {
             "monster:breath-weapon-5-6", 1,
             "monster:breath-weapon-6", 1);
 
+    /**
+     * The race pools (M24.5b, D208): the 2014-era books give each one use between rests, and MPMM's versions as many
+     * uses as the proficiency bonus, so a pool here is true when its uses are the proficiency bonus. Each comes at 1st
+     * level, the Aasimar transformations at 3rd through their mappings, which ResourcePoolServiceTest checks.
+     */
+    private static final Map<String, Boolean> RACE_POOLS = Map.ofEntries(
+            // PHB p.34, Breath Weapon: "you can't use it again until you complete a short or long rest"
+            Map.entry("race:breath-weapon", false),
+            // PHB p.41, Relentless Endurance: "until you finish a long rest"
+            Map.entry("race:relentless-endurance", false),
+            // VGM p.109, Stone's Endurance; MPMM p.21, a number of times equal to the proficiency bonus
+            Map.entry("race:stones-endurance", false),
+            Map.entry("race:stones-endurance-pb", true),
+            // VGM p.105, Healing Hands, Radiant Soul, Radiant Consumption, Necrotic Shroud: once per long rest
+            Map.entry("race:healing-hands", false),
+            Map.entry("race:radiant-soul", false),
+            Map.entry("race:radiant-consumption", false),
+            Map.entry("race:necrotic-shroud", false),
+            // VGM p.107, Hidden Step; MPMM p.14
+            Map.entry("race:hidden-step", false),
+            Map.entry("race:hidden-step-pb", true),
+            // VGM p.113, Hungry Jaws; MPMM p.27
+            Map.entry("race:hungry-jaws", false),
+            Map.entry("race:hungry-jaws-pb", true),
+            // ERLW p.33-34, Shifting and the subraces' Shifting Features; MPMM p.32
+            Map.entry("race:shifting", false),
+            Map.entry("race:shifting-beasthide", false),
+            Map.entry("race:shifting-longtooth", false),
+            Map.entry("race:shifting-swiftstride", false),
+            Map.entry("race:shifting-wildhunt", false),
+            Map.entry("race:shifting-pb", true),
+            // MOT p.21, Daunting Roar
+            Map.entry("race:daunting-roar", false),
+            // MTF p.61, Fey Step; MPMM p.13
+            Map.entry("race:fey-step", false),
+            Map.entry("race:fey-step-pb", true),
+            // MTF p.62, Blessing of the Raven Queen
+            Map.entry("race:blessing-of-the-raven-queen", false),
+            // VGM p.119, Fury of the Small, Saving Face, and Grovel, Cower, and Beg; MPMM p.17
+            Map.entry("race:fury-of-the-small", false),
+            Map.entry("race:fury-of-the-small-pb", true),
+            Map.entry("race:saving-face", false),
+            Map.entry("race:grovel-cower-and-beg", false),
+            // VGM p.115, Feline Agility: once, until the tabaxi moves 0 feet on a turn
+            Map.entry("race:feline-agility", false));
+
     // ── What the loader writes ───────────────────────────────────
 
     private static final Map<String, ResourcePoolDefinition> DEFINITIONS = new LinkedHashMap<>();
@@ -359,7 +408,9 @@ class PoolSizesGoldenTest {
         SubclassRepository subclasses = mock(SubclassRepository.class);
         when(subclasses.findAll()).thenReturn(new ArrayList<>(SUBCLASSES.values()));
 
-        new ResourcePoolLoader(definitions, mappings, triggers, classes, subclasses, objectMapper)
+        new ResourcePoolLoader(definitions, mappings, triggers, classes, subclasses,
+                mock(com.tabletophelper.reference.RaceFeaturePoolRepository.class),
+                mock(com.tabletophelper.reference.RaceRepository.class), objectMapper)
                 .load(new LoadContext(objectMapper));
 
         // The class's pools as the repository's queries find them
@@ -369,7 +420,8 @@ class PoolSizesGoldenTest {
         when(lookups.findByClassIdAndLevelAndSubclass(any(), anyInt(), any()))
                 .thenAnswer(invocation -> poolsOf(invocation.getArgument(0), invocation.getArgument(1),
                         invocation.getArgument(2)));
-        service = new ResourcePoolService(lookups, JacksonDefaults.mapper());
+        service = new ResourcePoolService(lookups, mock(com.tabletophelper.reference.RaceFeaturePoolRepository.class),
+                JacksonDefaults.mapper());
     }
 
     private static List<ClassFeaturePool> poolsOf(UUID classId, int level, UUID subclassId) {
@@ -414,8 +466,10 @@ class PoolSizesGoldenTest {
     @DisplayName("Every pool definition the loader writes has its sizes typed out here, and every one typed out here is written")
     void everyDefinitionIsCovered() {
         Set<String> typed = new TreeSet<>(MONSTER_POOLS.keySet());
+        typed.addAll(RACE_POOLS.keySet());
         CLASS_POOLS.forEach(book -> typed.add(book.poolId()));
-        assertEquals(CLASS_POOLS.size() + MONSTER_POOLS.size(), typed.size(), "a pool is typed out twice");
+        assertEquals(CLASS_POOLS.size() + MONSTER_POOLS.size() + RACE_POOLS.size(), typed.size(),
+                "a pool is typed out twice");
         assertEquals(typed, new TreeSet<>(DEFINITIONS.keySet()));
         assertEquals(CLASS_POOLS.size(), MAPPINGS.size(), "each class pool has one class mapping");
     }
@@ -519,6 +573,35 @@ class PoolSizesGoldenTest {
                         pool.getKey() + ", modifier " + modifier);
             }
         }
+    }
+
+    @Test
+    @DisplayName("A race pool has one use, or MPMM's proficiency bonus, at every level from 1 to 20 (D208)")
+    void racePoolSizes() {
+        List<String> failures = new ArrayList<>();
+        for (var pool : RACE_POOLS.entrySet()) {
+            ResourcePoolDefinition definition = DEFINITIONS.get(pool.getKey());
+            Race race = Race.builder().id(UUID.randomUUID()).name("Test Race").source("PHB").build();
+            RaceFeaturePoolRepository races = mock(RaceFeaturePoolRepository.class);
+            when(races.findByRaceIdAndMinLevelLessThanEqual(any(), anyInt())).thenReturn(List.of(
+                    RaceFeaturePool.builder().race(race).minLevel(1).poolDefinition(definition).build()));
+            ResourcePoolService racial = new ResourcePoolService(mock(ClassFeaturePoolRepository.class), races,
+                    JacksonDefaults.mapper());
+            for (int level = 1; level <= 20; level++) {
+                PlayerCharacter character = PlayerCharacter.builder().level(level).proficiencyBonus(pb(level))
+                        .strength(10).dexterity(10).constitution(16).intelligence(10).wisdom(10).charisma(8)
+                        .raceRef(race).build();
+                int expected = pool.getValue() ? pb(level) : 1;
+                Integer actual = racial.reconciledPools(character, racial.buildCharacterContext(character)).stream()
+                        .filter(entry -> entry.poolId().equals(pool.getKey())).map(ResourcePoolEntry::maxUses)
+                        .findFirst().orElse(null);
+                if (!Objects.equals(expected, actual)) {
+                    failures.add(pool.getKey() + " at level " + level + ": the book gives " + expected + ", the pool "
+                            + show(actual));
+                }
+            }
+        }
+        assertTrue(failures.isEmpty(), String.join("\n", failures));
     }
 
     private static String show(Integer uses) {

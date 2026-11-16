@@ -39,7 +39,7 @@ class ContentLoadIT extends IntegrationTest {
 
     private static final List<String> TABLES = List.of("conditions", "spells", "items", "monsters", "races",
             "character_classes", "subclasses", "backgrounds", "feats", "optional_features", "class_feature_pools",
-            "monster_pool_triggers");
+            "monster_pool_triggers", "race_feature_pools");
 
     @Autowired private ContentLoading contentLoading;
     @Autowired private PreviewContentJob previewContentJob;
@@ -91,7 +91,15 @@ class ContentLoadIT extends IntegrationTest {
         Map<String, List<String>> loaded = rows();
         assertThat(loaded.get("monsters")).hasSizeGreaterThan(2500);
         assertThat(loaded.get("class_feature_pools")).hasSize(75);
-        assertThat(loaded.get("resource_pool_definitions")).hasSize(79);
+        assertThat(loaded.get("resource_pool_definitions")).hasSize(106);
+        // The race pools (D208): each row of resource-pools.json's racePools names a race row the races loader wrote
+        assertThat(loaded.get("race_feature_pools")).hasSize(39);
+        assertThat(jdbcTemplate.queryForList("SELECT r.name || '|' || r.source FROM race_feature_pools p "
+                + "JOIN races r ON r.id = p.race_id WHERE p.pool_id = 'race:breath-weapon' ORDER BY 1", String.class))
+                .containsExactly("Draconblood Dragonborn|EGW", "Dragonborn|PHB", "Ravenite Dragonborn|EGW");
+        assertThat(jdbcTemplate.queryForObject("SELECT min_level FROM race_feature_pools p JOIN races r "
+                + "ON r.id = p.race_id WHERE r.name = 'Fallen Aasimar' AND p.pool_id = 'race:necrotic-shroud'",
+                Integer.class)).isEqualTo(3);
         // V27's level tables (D169): Rage's uses by barbarian level, unlimited at 20th
         assertThat(jdbcTemplate.queryForObject("SELECT level_table::text FROM resource_pool_definitions "
                 + "WHERE pool_id = 'class:barbarian-rage'", String.class))

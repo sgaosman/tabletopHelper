@@ -58,10 +58,12 @@ public class ContentSnapshotJob implements MaintenanceJob {
 
     private static final String CLASS_KEY = "c.name || '|' || coalesce(c.source, '')";
     private static final String SUBCLASS_KEY = "s.name || '|' || coalesce(s.source, '')";
+    private static final String RACE_KEY = "r.name || '|' || coalesce(r.source, '')";
 
     // The reference tables. A race, class, background, spell, monster, item, feat and optional feature is known by
     // its name and source, a subclass by its class's too, a condition by its name, a pool definition by its pool ID,
-    // a class's pool by its class, subclass and pool, and a monster trigger by its pool and condition.
+    // a class's pool by its class, subclass and pool, a monster trigger by its pool and condition, and a race's pool by
+    // its race and pool (D208).
     private static final List<ReferenceTable> TABLES = List.of(
             byNameAndSource("races"),
             byNameAndSource("character_classes"),
@@ -81,7 +83,9 @@ public class ContentSnapshotJob implements MaintenanceJob {
                     "JOIN character_classes c ON c.id = t.class_id LEFT JOIN subclasses s ON s.id = t.subclass_id",
                     List.of("class_id", "subclass_id"), "'class', " + CLASS_KEY + ", 'subclass', " + SUBCLASS_KEY),
             new ReferenceTable("monster_pool_triggers", "id", "t.pool_id || '|' || t.trigger_condition::text", "",
-                    List.of(), null));
+                    List.of(), null),
+            new ReferenceTable("race_feature_pools", "id", RACE_KEY + " || '|' || t.pool_id",
+                    "JOIN races r ON r.id = t.race_id", List.of("race_id"), "'race', " + RACE_KEY));
 
     /** The reference tables, each with its primary key column, in the order the snapshot reads them. */
     static Map<String, String> referenceTables() {

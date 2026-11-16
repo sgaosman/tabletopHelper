@@ -38,20 +38,34 @@ class FlywayMigrationIT extends IntegrationTest {
             "player_characters.background_id",
             "class_feature_pools.subclass_id",
             "class_feature_pools.pool_id",
+            "race_feature_pools.pool_id",
             "monster_pool_triggers.pool_id");
 
     @Autowired
     private EntityManagerFactory entityManagerFactory;
 
     @Test
-    @DisplayName("Flyway applied V0–V6 and V8–V36 to the empty database; V7 was never used")
+    @DisplayName("Flyway applied V0–V6 and V8–V37 to the empty database; V7 was never used")
     void appliedVersionsMatchMigrationFiles() {
         List<String> versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
 
         assertThat(versions).containsExactly("0", "1", "2", "3", "4", "5", "6", "8", "9", "10", "11", "12", "13", "14", "15",
                 "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33",
-                "34", "35", "36");
+                "34", "35", "36", "37");
+    }
+
+    @Test
+    @DisplayName("V37 adds race_feature_pools, a race row's pools by race and pool, removed with their race (D208)")
+    void raceFeaturePools() {
+        assertThat(jdbcTemplate.queryForList("SELECT column_name::text FROM information_schema.columns "
+                + "WHERE table_name = 'race_feature_pools' ORDER BY ordinal_position", String.class))
+                .containsExactly("id", "race_id", "min_level", "pool_id", "created_at");
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM pg_indexes "
+                + "WHERE indexname = 'uq_race_feature_pools_race_pool'", Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                + "WHERE conrelid = 'race_feature_pools'::regclass AND contype = 'f' "
+                + "AND pg_get_constraintdef(oid) LIKE '%races%'", String.class)).contains("ON DELETE CASCADE");
     }
 
     @Test

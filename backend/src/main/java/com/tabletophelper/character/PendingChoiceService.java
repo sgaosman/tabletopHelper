@@ -37,6 +37,7 @@ import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.character.ClassProgression;
 import com.tabletophelper.rules.character.ClassTables;
 import com.tabletophelper.rules.combat.Metamagic;
+import com.tabletophelper.rules.combat.RacialFeatures.DraconicAncestry;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
@@ -144,6 +145,7 @@ public class PendingChoiceService {
                 CharacterUpdates.recordChoices(character, index, c -> c.withSpells(learned));
             }
             case MYSTIC_ARCANUM -> applyMysticArcanum(character, choice, index, request.getSpells());
+            case DRACONIC_ANCESTRY -> applyDraconicAncestry(character, choice, index, request.getDraconicAncestry());
         }
 
         List<PendingChoice> pending = copy(character.getPendingChoices());
@@ -166,6 +168,7 @@ public class PendingChoiceService {
         given.put("proficiencies", request.getProficiencies());
         given.put("spells", request.getSpells());
         given.put("swap", request.getSwap());
+        given.put("draconicAncestry", request.getDraconicAncestry());
         List<String> takes = switch (type) {
             case ASI -> List.of("asi");
             case FEAT -> List.of("feat");
@@ -176,6 +179,7 @@ public class PendingChoiceService {
             case PROFICIENCY -> List.of("proficiencies");
             case SUBCLASS_CANTRIP, CANTRIPS, MYSTIC_ARCANUM -> List.of("spells");
             case SPELLS -> List.of("spells", "swap");
+            case DRACONIC_ANCESTRY -> List.of("draconicAncestry");
         };
         given.forEach((field, value) -> {
             if (value != null && !takes.contains(field)) {
@@ -183,6 +187,58 @@ public class PendingChoiceService {
                         + ", not " + field);
             }
         });
+    }
+
+    // ── Draconic ancestry (D208) ─────────────────────────────────
+
+    /*
+     * A Dragonborn's draconic ancestry (PHB p.34): one of the choice's dragons, recorded on the level that owes it, the
+     * 1st, with the resistance to its damage type, which the sheet keeps if it has it already.
+     */
+    private static void applyDraconicAncestry(PlayerCharacter character, PendingChoice choice, int index,
+                                              String dragon) {
+        List<String> options = choice.options() != null ? choice.options() : DraconicAncestry.dragons();
+        DraconicAncestry ancestry = DraconicAncestry.of(dragon)
+                .filter(found -> options.stream().anyMatch(option -> option.equalsIgnoreCase(found.dragon())))
+                .orElseThrow(() -> new ValidationException("A draconic ancestry is one of " + String.join(", ", options)
+                        + (dragon != null && !dragon.isBlank() ? ", not " + dragon.trim() : "")));
+        recordDraconicAncestry(character, index, ancestry);
+    }
+
+    private static void recordDraconicAncestry(PlayerCharacter character, int index, DraconicAncestry ancestry) {
+        CharacterUpdates.recordChoices(character, index, c -> c.withDraconicAncestry(ancestry.dragon()));
+        DraconicAncestries.grantResistance(character, ancestry);
+    }
+
+    /*
+     * At creation, a race with the Draconic Ancestry trait records the ancestry the request names on the 1st level, with
+     * its resistance, or owes the choice of any of the ten dragons. A dragon the table doesn't have, or one given for a
+     * race without the trait, is a 400.
+     */
+    private List<PendingChoice> creationAncestry(PlayerCharacter character, String dragon) {
+        boolean owed = DraconicAncestries.owedBy(character.getRaceRef(), objectMapper);
+        boolean given = dragon != null && !dragon.isBlank();
+        if (!owed) {
+            if (given) {
+                throw new ValidationException("Only a race with the Draconic Ancestry trait chooses a draconic "
+                        + "ancestry");
+            }
+            return List.of();
+        }
+        int index = CharacterUpdates.historyIndex(character, 1);
+        if (!given || index < 0) {
+            return List.of(ancestryChoice(DraconicAncestry.dragons()));
+        }
+        DraconicAncestry ancestry = DraconicAncestry.of(dragon).orElseThrow(() -> new ValidationException(
+                "A draconic ancestry is one of " + String.join(", ", DraconicAncestry.dragons()) + ", not "
+                        + dragon.trim()));
+        recordDraconicAncestry(character, index, ancestry);
+        return List.of();
+    }
+
+    private static PendingChoice ancestryChoice(List<String> options) {
+        return new PendingChoice(UUID.randomUUID(), Type.DRACONIC_ANCESTRY, Source.RACE, 1, null, null, null, 1,
+                options, null, null, null);
     }
 
     // ── Ability Score Improvements and feats ─────────────────────
@@ -765,6 +821,7 @@ public class PendingChoiceService {
         owed = expertiseCovered(character, owed, request.getSkillExpertises());
         owed = spellsCovered(character, owed);
         owed.addAll(creationFeats(character));
+        owed.addAll(creationAncestry(character, request.getDraconicAncestry()));
         owed.sort(PendingChoices.ORDER);
         character.setPendingChoices(owed);
     }
@@ -1268,6 +1325,13 @@ public class PendingChoiceService {
                     null, ClassProgression.spellList(classTables, level.className(), null).orElse(level.className())));
         }
         missed.addAll(missedProficiencyChoices(character, pending));
+        // A Dragonborn made before D208 chose a resistance but no ancestry: the choice offers the dragons of that type
+        if (DraconicAncestries.owedBy(character.getRaceRef(), objectMapper)
+                && DraconicAncestries.of(character).isEmpty()
+                && pending.stream().noneMatch(c -> c.type() == Type.DRACONIC_ANCESTRY)
+                && CharacterUpdates.historyIndex(character, 1) >= 0) {
+            missed.add(ancestryChoice(DraconicAncestries.options(character)));
+        }
         missed.sort(PendingChoices.ORDER);
         return missed;
     }

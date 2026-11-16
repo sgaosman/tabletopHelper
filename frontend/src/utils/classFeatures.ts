@@ -9,10 +9,23 @@ import { chargeBlock, poolMetadata, type EconomyCost } from './turnEconomy';
  * what each use does; this only words and offers it.
  */
 export type PoolEffect = 'rage' | 'second-wind' | 'lay-on-hands' | 'ki' | 'channel-divinity' | 'bardic-inspiration'
-  | 'arcane-recovery' | 'wild-shape' | 'heads';
+  | 'arcane-recovery' | 'wild-shape' | 'heads' | RacialEffect;
+
+/** The racial features a race pool's use carries out (M24.5b, D208). */
+export type RacialEffect = 'breath-weapon' | 'relentless-endurance' | 'stones-endurance' | 'healing-hands'
+  | 'hidden-step' | 'hungry-jaws' | 'shifting' | 'daunting-roar' | 'radiant-soul' | 'radiant-consumption'
+  | 'necrotic-shroud' | 'racial-note';
 
 const POOL_EFFECTS: PoolEffect[] = ['rage', 'second-wind', 'lay-on-hands', 'ki', 'channel-divinity',
-  'bardic-inspiration', 'arcane-recovery', 'wild-shape', 'heads'];
+  'bardic-inspiration', 'arcane-recovery', 'wild-shape', 'heads', 'breath-weapon', 'relentless-endurance',
+  'stones-endurance', 'healing-hands', 'hidden-step', 'hungry-jaws', 'shifting', 'daunting-roar', 'radiant-soul',
+  'radiant-consumption', 'necrotic-shroud', 'racial-note'];
+
+/** The entries the 1-minute racial features leave among their creature's conditions (D208). */
+export const SHIFTED = 'shifted';
+export const RADIANT_SOUL = 'radiant soul';
+export const RADIANT_CONSUMPTION = 'radiant consumption';
+export const NECROTIC_SHROUD = 'necrotic shroud';
 
 /** What a pool use sends besides the participant and the pool: its uses, option and target. */
 export type PoolUseOptions = Omit<UsePoolRequest, 'participantId' | 'poolId'>;
@@ -81,6 +94,26 @@ export function featureMarker(condition: Pick<ConditionEntry, 'name'>
       description: WILD_SHAPE_TEXT,
     };
     case RECKLESS: return { label: 'Reckless', description: RECKLESS_TEXT };
+    case SHIFTED: return {
+      label: 'Shifted',
+      description: "Shifted for 1 minute: its temporary hit points, and its subrace's or option's benefit (ERLW p.33).",
+    };
+    case RADIANT_SOUL: return {
+      label: 'Radiant Soul',
+      description: 'For 1 minute: a flying speed of 30 feet, and once on each of its turns one attack or spell deals '
+        + 'extra radiant damage equal to its level (VGM p.105).',
+    };
+    case RADIANT_CONSUMPTION: return {
+      label: 'Radiant Consumption',
+      description: 'For 1 minute: bright light; at the end of each of its turns it and each creature within 10 feet '
+        + 'take radiant damage equal to half its level, and once on each of its turns one attack or spell deals extra '
+        + 'radiant damage equal to its level (VGM p.105).',
+    };
+    case NECROTIC_SHROUD: return {
+      label: 'Necrotic Shroud',
+      description: 'For 1 minute: once on each of its turns one attack or spell deals extra necrotic damage equal to '
+        + 'its level (VGM p.105).',
+    };
     case INSPIRED: return {
       label: `Inspired${condition.heldDie ? ` (d${condition.heldDie.sides})` : ''}`,
       description: INSPIRATION_TEXT + (condition.heldDie?.onFailedSave ? ' Kept for the next failed save.' : ''),
@@ -160,6 +193,17 @@ export function poolEffectText(effect: PoolEffect | null): string | null {
     case 'arcane-recovery': return 'used when finishing a short rest, on the character sheet';
     case 'wild-shape': return 'become a beast you have seen, for up to half your druid level in hours';
     case 'heads': return 'its multiattack bites once per head; change it as heads die or regrow';
+    case 'breath-weapon': return "pick the creatures in the area; each saves against your draconic ancestry's damage";
+    case 'relentless-endurance': return 'used by itself: the first drop to 0 HP leaves you at 1 instead';
+    case 'stones-endurance': return 'after taking damage, enter it: 1d12 + CON of it is restored';
+    case 'healing-hands': return 'touch a creature to restore HP equal to your level';
+    case 'hidden-step': return 'invisible until the start of your next turn, or until you attack or cast';
+    case 'hungry-jaws': return 'roll the bite, then say whether it hit for the temporary HP';
+    case 'shifting': return 'shift for 1 minute, with temporary HP';
+    case 'daunting-roar': return 'creatures picked that hear you save (WIS) or are frightened';
+    case 'radiant-soul': return 'transform for 1 minute: fly 30 ft., extra radiant damage';
+    case 'radiant-consumption': return 'transform for 1 minute: searing light, extra radiant damage';
+    case 'necrotic-shroud': return 'transform for 1 minute; creatures picked save (CHA) or are frightened';
     default: return null;
   }
 }

@@ -1137,6 +1137,434 @@
       "spendActionType": "ACTION",
       "description": "Breath weapon recharges on a roll of 6 on a d6 at the start of the monster's turn.",
       "icon": "wind"
+    },
+    {
+      "poolId": "race:breath-weapon",
+      "displayName": "Breath Weapon",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Exhale destructive energy in the shape and damage type of your draconic ancestry (a 5 by 30 ft. line or a 15 ft. cone). Each creature in the area makes a saving throw (Dexterity, or Constitution against cold and poison), DC 8 + your Constitution modifier + your proficiency bonus, taking 2d6 damage on a failed save and half as much on a success; 3d6 at 6th level, 4d6 at 11th and 5d6 at 16th. Pick the creatures in the area. Once per short or long rest (PHB p.34).",
+      "metadata": {
+        "effect": "breath-weapon"
+      },
+      "icon": "wind"
+    },
+    {
+      "poolId": "race:relentless-endurance",
+      "displayName": "Relentless Endurance",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "When you are reduced to 0 hit points but not killed outright, you drop to 1 hit point instead. Used automatically in an encounter. Once per long rest (PHB p.41).",
+      "metadata": {
+        "effect": "relentless-endurance"
+      },
+      "icon": "heart"
+    },
+    {
+      "poolId": "race:stones-endurance",
+      "displayName": "Stone's Endurance",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "When you take damage, use your reaction to roll a d12, add your Constitution modifier, and reduce the damage by that total. Enter the damage just taken. Once per short or long rest (VGM p.109).",
+      "metadata": {
+        "effect": "stones-endurance"
+      },
+      "icon": "shield-check"
+    },
+    {
+      "poolId": "race:stones-endurance-pb",
+      "displayName": "Stone's Endurance",
+      "sourceType": "RACE",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "When you take damage, use your reaction to roll a d12, add your Constitution modifier, and reduce the damage by that total. Enter the damage just taken. Proficiency bonus times per long rest (MPMM p.21).",
+      "metadata": {
+        "effect": "stones-endurance"
+      },
+      "icon": "shield-check"
+    },
+    {
+      "poolId": "race:healing-hands",
+      "displayName": "Healing Hands",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "As an action, touch a creature to restore hit points equal to your level. Once per long rest (VGM p.105).",
+      "metadata": {
+        "effect": "healing-hands",
+        "healing": "totalLevel"
+      },
+      "icon": "heart"
+    },
+    {
+      "poolId": "race:hidden-step",
+      "displayName": "Hidden Step",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, turn invisible until the start of your next turn or until you attack, make a damage roll, or force someone to make a saving throw. Once per short or long rest (VGM p.107).",
+      "metadata": {
+        "effect": "hidden-step"
+      },
+      "icon": "sparkles"
+    },
+    {
+      "poolId": "race:hidden-step-pb",
+      "displayName": "Hidden Step",
+      "sourceType": "RACE",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, turn invisible until the start of your next turn or until you attack, make a damage roll, or force someone to make a saving throw. Proficiency bonus times per long rest (MPMM p.14).",
+      "metadata": {
+        "effect": "hidden-step"
+      },
+      "icon": "sparkles"
+    },
+    {
+      "poolId": "race:hungry-jaws",
+      "displayName": "Hungry Jaws",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, make a special attack with your bite. If it hits, it deals its normal damage and you gain temporary hit points equal to your Constitution modifier (minimum 1). Roll the bite, then use this saying whether it hit. Once per short or long rest (VGM p.113).",
+      "metadata": {
+        "effect": "hungry-jaws",
+        "tempHp": "max(1, constitutionModifier)"
+      },
+      "icon": "paw-print"
+    },
+    {
+      "poolId": "race:hungry-jaws-pb",
+      "displayName": "Hungry Jaws",
+      "sourceType": "RACE",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, make a special attack with your bite. If it hits, it deals its normal damage and you gain temporary hit points equal to your proficiency bonus. Roll the bite, then use this saying whether it hit. Proficiency bonus times per long rest (MPMM p.27).",
+      "metadata": {
+        "effect": "hungry-jaws",
+        "tempHp": "proficiencyBonus"
+      },
+      "icon": "paw-print"
+    },
+    {
+      "poolId": "race:shifting",
+      "displayName": "Shifting",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, assume a more bestial appearance for 1 minute, gaining temporary hit points equal to your level + your Constitution modifier (minimum 1). Once per short or long rest (ERLW p.33).",
+      "metadata": {
+        "effect": "shifting",
+        "tempHp": "max(1, totalLevel + constitutionModifier)"
+      },
+      "icon": "paw-print"
+    },
+    {
+      "poolId": "race:shifting-beasthide",
+      "displayName": "Shifting (Beasthide)",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, shift for 1 minute, gaining temporary hit points equal to your level + your Constitution modifier (minimum 1) and 1d6 more; while shifted you have a +1 bonus to AC. Once per short or long rest (ERLW p.34).",
+      "metadata": {
+        "effect": "shifting",
+        "tempHp": "max(1, totalLevel + constitutionModifier) + 1d6",
+        "rider": "+1 AC while shifted (the DM adds it)"
+      },
+      "icon": "paw-print"
+    },
+    {
+      "poolId": "race:shifting-longtooth",
+      "displayName": "Shifting (Longtooth)",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, shift for 1 minute, gaining temporary hit points equal to your level + your Constitution modifier (minimum 1); while shifted you can make an unarmed strike with your fangs as a bonus action, dealing 1d6 + your Strength modifier piercing damage. Once per short or long rest (ERLW p.34).",
+      "metadata": {
+        "effect": "shifting",
+        "tempHp": "max(1, totalLevel + constitutionModifier)",
+        "rider": "a fang unarmed strike as a bonus action, 1d6 + Strength modifier piercing"
+      },
+      "icon": "paw-print"
+    },
+    {
+      "poolId": "race:shifting-swiftstride",
+      "displayName": "Shifting (Swiftstride)",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, shift for 1 minute, gaining temporary hit points equal to your level + your Constitution modifier (minimum 1); while shifted your walking speed increases by 10 feet and you can move up to 10 feet as a reaction when a creature ends its turn within 5 feet of you. Once per short or long rest (ERLW p.34).",
+      "metadata": {
+        "effect": "shifting",
+        "tempHp": "max(1, totalLevel + constitutionModifier)",
+        "rider": "+10 ft. walking speed, and a 10 ft. move as a reaction when a creature ends its turn within 5 ft."
+      },
+      "icon": "paw-print"
+    },
+    {
+      "poolId": "race:shifting-wildhunt",
+      "displayName": "Shifting (Wildhunt)",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, shift for 1 minute, gaining temporary hit points equal to your level + your Constitution modifier (minimum 1); while shifted you have advantage on Wisdom checks, and no creature within 30 feet of you can make an attack roll with advantage against you unless you're incapacitated. Once per short or long rest (ERLW p.34).",
+      "metadata": {
+        "effect": "shifting",
+        "tempHp": "max(1, totalLevel + constitutionModifier)",
+        "rider": "advantage on Wisdom checks; no attack roll against it from within 30 ft. has advantage unless it is incapacitated"
+      },
+      "icon": "paw-print"
+    },
+    {
+      "poolId": "race:shifting-pb",
+      "displayName": "Shifting",
+      "sourceType": "RACE",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, shift for 1 minute, gaining temporary hit points equal to twice your proficiency bonus, and the benefit of the shifting option you chose. Proficiency bonus times per long rest (MPMM p.32).",
+      "metadata": {
+        "effect": "shifting",
+        "tempHp": "2*proficiencyBonus",
+        "rider": "the benefit of its chosen shifting option"
+      },
+      "icon": "paw-print"
+    },
+    {
+      "poolId": "race:daunting-roar",
+      "displayName": "Daunting Roar",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, roar: each creature of your choice within 10 feet of you that can hear you makes a Wisdom saving throw, DC 8 + your Constitution modifier + your proficiency bonus, or is frightened of you until the end of your next turn. Deafened creatures are unaffected. Once per short or long rest (MOT p.21).",
+      "metadata": {
+        "effect": "daunting-roar"
+      },
+      "icon": "zap"
+    },
+    {
+      "poolId": "race:radiant-soul",
+      "displayName": "Radiant Soul",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "From 3rd level, as an action, transform for 1 minute: you have a flying speed of 30 feet, and once on each of your turns one attack or spell deals extra radiant damage equal to your level. Once per long rest (VGM p.105).",
+      "metadata": {
+        "effect": "radiant-soul"
+      },
+      "icon": "sun"
+    },
+    {
+      "poolId": "race:radiant-consumption",
+      "displayName": "Radiant Consumption",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "From 3rd level, as an action, transform for 1 minute: you shed bright light, and at the end of each of your turns you and each creature within 10 feet of you take radiant damage equal to half your level (rounded up); once on each of your turns one attack or spell deals extra radiant damage equal to your level. Once per long rest (VGM p.105).",
+      "metadata": {
+        "effect": "radiant-consumption"
+      },
+      "icon": "sun"
+    },
+    {
+      "poolId": "race:necrotic-shroud",
+      "displayName": "Necrotic Shroud",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "From 3rd level, as an action, transform for 1 minute: creatures other than your allies within 10 feet of you that can see you make a Charisma saving throw, DC 8 + your proficiency bonus + your Charisma modifier, or are frightened of you until the end of your next turn; once on each of your turns one attack or spell deals extra necrotic damage equal to your level. Pick the creatures. Once per long rest (VGM p.105).",
+      "metadata": {
+        "effect": "necrotic-shroud"
+      },
+      "icon": "sun"
+    },
+    {
+      "poolId": "race:fey-step",
+      "displayName": "Fey Step",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, magically teleport up to 30 feet to an unoccupied space you can see. From 3rd level your season adds an effect. Once per short or long rest (MTF p.61).",
+      "metadata": {
+        "effect": "racial-note",
+        "note": "teleports up to 30 feet to an unoccupied space it can see (from 3rd level its season's effect too, which the DM resolves)"
+      },
+      "icon": "wind"
+    },
+    {
+      "poolId": "race:fey-step-pb",
+      "displayName": "Fey Step",
+      "sourceType": "RACE",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, magically teleport up to 30 feet to an unoccupied space you can see. From 3rd level your season adds an effect. Proficiency bonus times per long rest (MPMM p.13).",
+      "metadata": {
+        "effect": "racial-note",
+        "note": "teleports up to 30 feet to an unoccupied space it can see (from 3rd level its season's effect too, which the DM resolves)"
+      },
+      "icon": "wind"
+    },
+    {
+      "poolId": "race:blessing-of-the-raven-queen",
+      "displayName": "Blessing of the Raven Queen",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, magically teleport up to 30 feet to an unoccupied space you can see. From 3rd level you also have resistance to all damage until the start of your next turn. Once per long rest (MTF p.62).",
+      "metadata": {
+        "effect": "racial-note",
+        "note": "teleports up to 30 feet to an unoccupied space it can see (from 3rd level with resistance to all damage until the start of its next turn, which the DM applies)"
+      },
+      "icon": "wind"
+    },
+    {
+      "poolId": "race:fury-of-the-small",
+      "displayName": "Fury of the Small",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "When you damage a creature larger than you with an attack or a spell, deal extra damage to it equal to your level. Once per short or long rest (VGM p.119).",
+      "metadata": {
+        "effect": "racial-note",
+        "note": "deals extra damage equal to its level ({level}) to a larger creature it just damaged with an attack or spell; the DM applies it"
+      },
+      "icon": "flame"
+    },
+    {
+      "poolId": "race:fury-of-the-small-pb",
+      "displayName": "Fury of the Small",
+      "sourceType": "RACE",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "When you damage a creature larger than you with an attack or a spell, deal extra damage to it equal to your proficiency bonus. Proficiency bonus times per long rest (MPMM p.17).",
+      "metadata": {
+        "effect": "racial-note",
+        "note": "deals extra damage equal to its proficiency bonus ({proficiencyBonus}) to a larger creature it just damaged with an attack or spell; the DM applies it"
+      },
+      "icon": "flame"
+    },
+    {
+      "poolId": "race:saving-face",
+      "displayName": "Saving Face",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "When you miss with an attack roll or fail an ability check or saving throw, gain a bonus to the roll equal to the number of allies you can see within 30 feet of you (maximum +5). Once per short or long rest (VGM p.119).",
+      "metadata": {
+        "effect": "racial-note",
+        "note": "adds the number of allies it can see within 30 feet (maximum +5) to the attack roll, ability check or saving throw it just missed or failed; the DM judges the new result"
+      },
+      "icon": "shield-check"
+    },
+    {
+      "poolId": "race:grovel-cower-and-beg",
+      "displayName": "Grovel, Cower, and Beg",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "As an action, cower pathetically to distract nearby foes: until the end of your next turn, your allies gain advantage on attack rolls against enemies within 10 feet of you that can see you. Once per short or long rest (VGM p.119).",
+      "metadata": {
+        "effect": "racial-note",
+        "note": "cowers pathetically: until the end of its next turn its allies have advantage on attack rolls against enemies within 10 feet of it that can see it (the attackers tick advantage)"
+      },
+      "icon": "shield-check"
+    },
+    {
+      "poolId": "race:feline-agility",
+      "displayName": "Feline Agility",
+      "sourceType": "RACE",
+      "maxUsesFormula": "1",
+      "resetOn": "never",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "When you move on your turn in combat, you can double your speed until the end of the turn. You can't use it again until you move 0 feet on one of your turns; then regain it. A long rest also restores it (VGM p.115).",
+      "metadata": {
+        "effect": "racial-note",
+        "note": "doubles its speed until the end of the turn",
+        "regain": true
+      },
+      "icon": "wind"
     }
   ],
   "classPools": [
@@ -1715,6 +2143,206 @@
       "subclassSource": "TCE",
       "minLevel": 6,
       "poolId": "subclass:scribes-manifest-mind"
+    }
+  ],
+  "racePools": [
+    {
+      "race": "Dragonborn",
+      "raceSource": "PHB",
+      "poolId": "race:breath-weapon"
+    },
+    {
+      "race": "Draconblood Dragonborn",
+      "raceSource": "EGW",
+      "poolId": "race:breath-weapon"
+    },
+    {
+      "race": "Ravenite Dragonborn",
+      "raceSource": "EGW",
+      "poolId": "race:breath-weapon"
+    },
+    {
+      "race": "Half-Orc",
+      "raceSource": "PHB",
+      "poolId": "race:relentless-endurance"
+    },
+    {
+      "race": "Orc (Ixalan)",
+      "raceSource": "PSX",
+      "poolId": "race:relentless-endurance"
+    },
+    {
+      "race": "Minotaur (Amonkhet)",
+      "raceSource": "PSA",
+      "poolId": "race:relentless-endurance"
+    },
+    {
+      "race": "Orc",
+      "raceSource": "MPMM",
+      "poolId": "race:relentless-endurance"
+    },
+    {
+      "race": "Goliath",
+      "raceSource": "VGM",
+      "poolId": "race:stones-endurance"
+    },
+    {
+      "race": "Goliath",
+      "raceSource": "MPMM",
+      "poolId": "race:stones-endurance-pb"
+    },
+    {
+      "race": "Aasimar",
+      "raceSource": "VGM",
+      "poolId": "race:healing-hands"
+    },
+    {
+      "race": "Fallen Aasimar",
+      "raceSource": "VGM",
+      "poolId": "race:healing-hands"
+    },
+    {
+      "race": "Protector Aasimar",
+      "raceSource": "VGM",
+      "poolId": "race:healing-hands"
+    },
+    {
+      "race": "Scourge Aasimar",
+      "raceSource": "VGM",
+      "poolId": "race:healing-hands"
+    },
+    {
+      "race": "Protector Aasimar",
+      "raceSource": "VGM",
+      "poolId": "race:radiant-soul",
+      "minLevel": 3
+    },
+    {
+      "race": "Scourge Aasimar",
+      "raceSource": "VGM",
+      "poolId": "race:radiant-consumption",
+      "minLevel": 3
+    },
+    {
+      "race": "Fallen Aasimar",
+      "raceSource": "VGM",
+      "poolId": "race:necrotic-shroud",
+      "minLevel": 3
+    },
+    {
+      "race": "Firbolg",
+      "raceSource": "VGM",
+      "poolId": "race:hidden-step"
+    },
+    {
+      "race": "Firbolg",
+      "raceSource": "MPMM",
+      "poolId": "race:hidden-step-pb"
+    },
+    {
+      "race": "Lizardfolk",
+      "raceSource": "VGM",
+      "poolId": "race:hungry-jaws"
+    },
+    {
+      "race": "Lizardfolk",
+      "raceSource": "MPMM",
+      "poolId": "race:hungry-jaws-pb"
+    },
+    {
+      "race": "Shifter",
+      "raceSource": "ERLW",
+      "poolId": "race:shifting"
+    },
+    {
+      "race": "Beasthide Shifter",
+      "raceSource": "ERLW",
+      "poolId": "race:shifting-beasthide"
+    },
+    {
+      "race": "Longtooth Shifter",
+      "raceSource": "ERLW",
+      "poolId": "race:shifting-longtooth"
+    },
+    {
+      "race": "Swiftstride Shifter",
+      "raceSource": "ERLW",
+      "poolId": "race:shifting-swiftstride"
+    },
+    {
+      "race": "Wildhunt Shifter",
+      "raceSource": "ERLW",
+      "poolId": "race:shifting-wildhunt"
+    },
+    {
+      "race": "Shifter",
+      "raceSource": "MPMM",
+      "poolId": "race:shifting-pb"
+    },
+    {
+      "race": "Leonin",
+      "raceSource": "MOT",
+      "poolId": "race:daunting-roar"
+    },
+    {
+      "race": "Eladrin Elf",
+      "raceSource": "MTF",
+      "poolId": "race:fey-step"
+    },
+    {
+      "race": "Eladrin",
+      "raceSource": "MPMM",
+      "poolId": "race:fey-step-pb"
+    },
+    {
+      "race": "Shadar-kai Elf",
+      "raceSource": "MTF",
+      "poolId": "race:blessing-of-the-raven-queen"
+    },
+    {
+      "race": "Goblin",
+      "raceSource": "VGM",
+      "poolId": "race:fury-of-the-small"
+    },
+    {
+      "race": "Goblin",
+      "raceSource": "ERLW",
+      "poolId": "race:fury-of-the-small"
+    },
+    {
+      "race": "Goblin",
+      "raceSource": "GGR",
+      "poolId": "race:fury-of-the-small"
+    },
+    {
+      "race": "Goblin",
+      "raceSource": "MPMM",
+      "poolId": "race:fury-of-the-small-pb"
+    },
+    {
+      "race": "Hobgoblin",
+      "raceSource": "VGM",
+      "poolId": "race:saving-face"
+    },
+    {
+      "race": "Hobgoblin",
+      "raceSource": "ERLW",
+      "poolId": "race:saving-face"
+    },
+    {
+      "race": "Kobold",
+      "raceSource": "VGM",
+      "poolId": "race:grovel-cower-and-beg"
+    },
+    {
+      "race": "Tabaxi",
+      "raceSource": "VGM",
+      "poolId": "race:feline-agility"
+    },
+    {
+      "race": "Tabaxi",
+      "raceSource": "MPMM",
+      "poolId": "race:feline-agility"
     }
   ],
   "monsterTriggers": [

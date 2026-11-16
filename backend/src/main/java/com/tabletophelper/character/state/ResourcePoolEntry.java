@@ -60,6 +60,15 @@ public record ResourcePoolEntry(
                 spendActionType, icon, metadata);
     }
 
+    /** The same pool, named as coming from this source, such as a race's pool from "Half-Orc" (D208). */
+    public ResourcePoolEntry withSourceName(String newSourceName) {
+        return new ResourcePoolEntry(
+                poolId, displayName, sourceType, newSourceName,
+                maxUses, maxUsesFormula, currentUses,
+                resetOn, resetAmount, resetCheck,
+                spendActionType, icon, metadata);
+    }
+
     /** Whether the pool has no limit, such as Rage at Barbarian 20: spending it is never refused (D169). */
     @JsonIgnore
     public boolean unlimited() {

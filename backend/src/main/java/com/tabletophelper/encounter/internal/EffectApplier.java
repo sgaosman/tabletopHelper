@@ -540,6 +540,7 @@ public class EffectApplier {
                 + (healing < outcome.healing() ? " " + target.getDisplayName() + " can't regain hit points ("
                         + noHealingSource(target) + ")." : "")
                 + (warded != null ? " " + warded : "") + floorNote
+                + (taken.endured() != null ? " " + taken.endured() : "")
                 + (dust ? " " + target.getDisplayName() + " is disintegrated, reduced to fine gray dust." : "")
                 + killNote;
         CombatLog.CombatLogBuilder entry = CombatLogWriter.about(
@@ -674,7 +675,8 @@ public class EffectApplier {
         VitalsChange change = taken.change();
 
         String description = actorName + " deals " + total + " damage to " + target.getDisplayName()
-                + (type != null ? " (" + type + defenceNote(defences) + ")" : "") + (warded != null ? ". " + warded : "");
+                + (type != null ? " (" + type + defenceNote(defences) + ")" : "") + (warded != null ? ". " + warded : "")
+                + (taken.endured() != null ? ". " + taken.endured() : "");
         combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.DAMAGE, description),
                 actor, target).damageDealt(total));
         logReverted(encounter, target, taken);
@@ -3672,11 +3674,12 @@ public class EffectApplier {
      * @param change  what the damage did to them
      * @param form    the beast form that dropped, or null
      * @param carried the damage that carried over to the normal form
+     * @param endured what the log adds when Relentless Endurance left the creature at 1 hit point (D208), or null
      */
-    private record Taken(Vitals before, VitalsChange change, WildShapeForm form, int carried) {
+    private record Taken(Vitals before, VitalsChange change, WildShapeForm form, int carried, String endured) {
     }
 
-    private static Taken takeDamage(EncounterParticipant target, int damage, boolean critical) {
+    private Taken takeDamage(EncounterParticipant target, int damage, boolean critical) {
         Vitals before = vitals(target);
         if (before.lifeState() == LifeState.ALIVE && WildShapeForm.of(target).isPresent()
                 && BeastShapes.dropsForm(damage, before.hp(), before.tempHp())) {
@@ -3684,13 +3687,55 @@ public class EffectApplier {
             target.setHpTemp(0);
             WildShapeForm form = revert(target).orElseThrow();
             Vitals normal = vitals(target);
-            VitalsChange change = DamageRules.takeDamage(normal, carried, critical);
+            // The beast form reverts first; Relentless Endurance then meets what carries over to the normal form
+            String endured = relentlessEndurance(target, normal, carried, critical);
+            VitalsChange change = DamageRules.takeDamage(normal, endured != null ? enduredDamage(normal) : carried,
+                    critical);
             setVitals(target, change.vitals());
-            return new Taken(normal, change, form, carried);
+            return new Taken(normal, change, form, carried, endured);
         }
-        VitalsChange change = DamageRules.takeDamage(before, damage, critical);
+        String endured = relentlessEndurance(target, before, damage, critical);
+        VitalsChange change = DamageRules.takeDamage(before, endured != null ? enduredDamage(before) : damage,
+                critical);
         setVitals(target, change.vitals());
-        return new Taken(before, change, null, 0);
+        return new Taken(before, change, null, 0, endured);
+    }
+
+    /*
+     * Relentless Endurance (PHB p.41, D208): a creature with a use of the trait's pool left that the damage would drop to
+     * 0 hit points without killing it outright drops to 1 instead, and the use is spent. Massive damage kills it
+     * outright, so the trait does nothing then (PHB p.197). Death Ward, which isn't optional, comes first (PHB p.230),
+     * so a warded creature never reaches this. Returns what the log adds, or null when the trait doesn't apply.
+     */
+    private static String relentlessEndurance(EncounterParticipant target, Vitals before, int damage,
+                                              boolean critical) {
+        if (damage <= 0 || before.lifeState() != LifeState.ALIVE) {
+            return null;
+        }
+        VitalsChange trial = DamageRules.takeDamage(before, damage, critical);
+        if (!trial.droppedToZero() || trial.massiveDamage()) {
+            return null;
+        }
+        List<ResourcePoolEntry> pools = target.getResourcePoolsCurrent() != null
+                ? target.getResourcePoolsCurrent() : List.of();
+        ResourcePoolEntry pool = pools.stream()
+                .filter(p -> p != null && RaceFeatureEffects.RELENTLESS_ENDURANCE.equals(FeatureEffects.effectOf(p))
+                        && (p.unlimited() || p.currentUses() > 0))
+                .findFirst().orElse(null);
+        if (pool == null) {
+            return null;
+        }
+        List<ResourcePoolEntry> spent = ResourcePoolService.spend(pools, pool.poolId(), 1, target.getDisplayName());
+        target.setResourcePoolsCurrent(spent);
+        ResourcePoolEntry after = spent.stream().filter(p -> p != null && pool.poolId().equals(p.poolId()))
+                .findFirst().orElse(pool);
+        return target.getDisplayName() + " drops to 1 hit point instead of 0 (" + pool.displayName() + "; "
+                + (after.unlimited() ? "unlimited" : after.currentUses() + "/" + after.maxUses()) + " left).";
+    }
+
+    // The damage that leaves an enduring creature at 1 hit point
+    private static int enduredDamage(Vitals before) {
+        return Math.max(0, before.hp() + before.tempHp() - 1);
     }
 
     private void logReverted(Encounter encounter, EncounterParticipant target, Taken taken) {

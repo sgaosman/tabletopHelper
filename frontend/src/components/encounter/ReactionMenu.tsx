@@ -139,7 +139,7 @@ export default function ReactionMenu({
           <section aria-label="Reaction pools" className="space-y-1">
             <h3 className="font-heading text-[15px] font-semibold text-ink">Pools used as a reaction</h3>
             <ResourcePoolDisplay pools={reactionPools} participant={participant} asDm={asDm}
-              onUse={poolId => actions.usePool({ participantId: participant.id, poolId })} />
+              onUse={(poolId, options) => actions.usePool({ participantId: participant.id, poolId, ...options })} />
           </section>
         )}
 

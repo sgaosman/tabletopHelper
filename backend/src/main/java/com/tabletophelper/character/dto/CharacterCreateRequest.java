@@ -74,6 +74,9 @@ public class CharacterCreateRequest {
     // The ability race and feat spells are cast with, such as a Fairy's choice of INT, WIS or CHA; a class's own
     // spells use the class's ability
     private String spellcastingAbility;
+    // A Dragonborn's draconic ancestry (PHB p.34, D208), such as "Red", for a race with the Draconic Ancestry trait;
+    // recorded on the 1st level with the resistance of its damage type, or left out to be chosen on the sheet
+    private String draconicAncestry;
     // No features: the class's come from the class data, and feats only through Pending Choices and DM Adjustments
     // (D158), so a request can't add a feat it never took
     private List<String> damageResistances;

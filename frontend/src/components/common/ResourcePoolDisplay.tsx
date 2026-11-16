@@ -12,6 +12,7 @@ import IconButton from '../ui/IconButton';
 import { usePending } from '../../hooks/usePending';
 import FlexibleCastingControls from './FlexibleCastingControls';
 import { SORCERY_POINTS } from '../../utils/metamagic';
+import { ancestryLabel, DRACONIC_ANCESTRIES } from '../../utils/draconicAncestry';
 
 interface ResourcePoolDisplayProps {
   pools?: ResourcePoolEntry[] | null;
@@ -145,7 +146,10 @@ export default function ResourcePoolDisplay({
 
 // The pools whose use their own controls send, with the points, option or target it needs; Arcane Recovery is used on a
 // short rest, not at the table (M17)
-const OWN_CONTROLS: string[] = ['lay-on-hands', 'bardic-inspiration', 'arcane-recovery', 'wild-shape', 'heads'];
+const OWN_CONTROLS: string[] = ['lay-on-hands', 'bardic-inspiration', 'arcane-recovery', 'wild-shape', 'heads',
+  // Racial features with creatures, an amount or an outcome to send (D208); Relentless Endurance is used by itself
+  'breath-weapon', 'daunting-roar', 'necrotic-shroud', 'healing-hands', 'stones-endurance', 'hungry-jaws',
+  'relentless-endurance'];
 
 const USE_BUTTON = 'ml-1 px-1.5 py-0.5 font-heading text-[11px] font-semibold tracking-[0.02em] bg-ink/10 hover:bg-ink/20 '
   + 'text-ink disabled:opacity-40 disabled:hover:bg-ink/10';
@@ -300,6 +304,10 @@ function FeatureControls({ effect, entry, participant, targets, blocked, busy, a
   }
   if (effect === 'heads') {
     return <HeadsControls entry={entry} blocked={blocked} onUse={onUse} />;
+  }
+  if (effect && RACIAL_CONTROLS.includes(effect)) {
+    return <RacialControls effect={effect} entry={entry} participant={participant} targets={targets}
+      blocked={blocked} busy={busy} asDm={asDm} onUse={onUse} />;
   }
   if (effect !== 'ki') return null;
   const budget = chargeBlock(participant, { cost: 'BONUS_ACTION' });
@@ -514,6 +522,133 @@ function WildShapeControls({ entry, participant, blocked, asDm, onUse, onHeal }:
           {!twoUses && <span className="text-[11px] text-muted">Needs two uses of Wild Shape left</span>}
         </div>
       )}
+    </div>
+  );
+}
+
+// The racial features whose controls RacialControls draws (D208)
+const RACIAL_CONTROLS: PoolEffect[] = ['breath-weapon', 'daunting-roar', 'necrotic-shroud', 'healing-hands',
+  'stones-endurance', 'hungry-jaws', 'racial-note'];
+
+/**
+ * A racial feature's use (M24.5b, D208): the creatures a Breath Weapon, Daunting Roar or Necrotic Shroud reaches, with
+ * the dragon a Dragonborn without a recorded ancestry breathes as; the creature Healing Hands touches; the damage
+ * Stone's Endurance reduces; whether Hungry Jaws' bite hit; and Regain for a pool its user gets back by hand, as Feline
+ * Agility after a turn without moving. There is no map, so the player picks the creatures in range; the server checks
+ * the rest.
+ */
+function RacialControls({ effect, entry, participant, targets, blocked, busy, asDm, onUse }: {
+  effect: PoolEffect;
+  entry: ResourcePoolEntry;
+  participant: EncounterParticipant;
+  targets?: EncounterParticipant[];
+  blocked: boolean;
+  /** A use of one of the pools is being sent; a regain, which an empty pool doesn't stop, waits only for this */
+  busy: boolean;
+  asDm: boolean;
+  onUse: (options: PoolUseOptions) => void;
+}) {
+  const [picked, setPicked] = useState<string[]>([]);
+  const [targetId, setTargetId] = useState(participant.id);
+  const [damage, setDamage] = useState('');
+  const [dragon, setDragon] = useState('');
+  const budget = poolBudgetBlock(participant, entry);
+  const overBudget = budget !== null && !asDm;
+  const disabled = blocked || entry.currentUses < 1 || overBudget;
+  const base = `race-${participant.id}-${entry.poolId}`;
+  const others = (targets ?? []).filter(t => t.id !== participant.id && t.lifeState !== 'DEAD');
+
+  if (effect === 'racial-note') {
+    if (metadataOf(entry).regain !== true) return null;
+    return (
+      <button type="button" disabled={busy || entry.currentUses >= entry.maxUses}
+        aria-label={`Regain ${entry.displayName}`} onClick={() => onUse({ option: 'regain' })} className={USE_BUTTON}
+        title="After a turn on which it moved 0 feet">
+        Regain
+      </button>
+    );
+  }
+  if (effect === 'hungry-jaws') {
+    return (
+      <div className="flex items-center gap-1" role="group" aria-label={`${entry.displayName}: the bite`}>
+        <button type="button" disabled={disabled} onClick={() => onUse({ option: 'hit' })} className={USE_BUTTON}>
+          Bite hit
+        </button>
+        <button type="button" disabled={disabled} onClick={() => onUse({ option: 'miss' })} className={USE_BUTTON}>
+          Bite missed
+        </button>
+      </div>
+    );
+  }
+  if (effect === 'stones-endurance') {
+    const amount = Number.parseInt(damage, 10);
+    const invalid = !Number.isInteger(amount) || amount < 1;
+    return (
+      <div className="flex flex-wrap items-center gap-1" role="group" aria-label={`${entry.displayName}: damage taken`}>
+        <label htmlFor={`${base}-damage`} className="text-[11px] text-muted">Damage taken</label>
+        <input id={`${base}-damage`} type="number" min={1} value={damage} onChange={e => setDamage(e.target.value)}
+          className={`${SMALL_FIELD} w-14`} />
+        <button type="button" disabled={disabled || invalid} aria-label={`Use ${entry.displayName}`}
+          onClick={() => onUse({ amounts: [amount] })} className={USE_BUTTON}>
+          Use
+        </button>
+      </div>
+    );
+  }
+  if (effect === 'healing-hands') {
+    const choices = [participant, ...others];
+    return (
+      <div className="flex flex-wrap items-center gap-1" role="group" aria-label={`${entry.displayName}: creature`}>
+        <label htmlFor={`${base}-target`} className="sr-only">{entry.displayName} creature</label>
+        <select id={`${base}-target`} value={targetId} onChange={e => setTargetId(e.target.value)} className={SMALL_FIELD}>
+          {choices.map(c => (
+            <option key={c.id} value={c.id}>{c.id === participant.id ? `${c.displayName} (self)` : c.displayName}</option>
+          ))}
+        </select>
+        <button type="button" disabled={disabled} aria-label={`Use ${entry.displayName}`}
+          onClick={() => onUse(targetId === participant.id ? {} : { targetIds: [targetId] })} className={USE_BUTTON}>
+          Use
+        </button>
+      </div>
+    );
+  }
+  // Breath Weapon, Daunting Roar and Necrotic Shroud: the creatures picked; the shroud may pick none
+  const selected = picked.filter(id => others.some(o => o.id === id));
+  const needsCreatures = effect !== 'necrotic-shroud';
+  function toggle(id: string) {
+    setPicked(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
+  }
+  return (
+    <div className="flex flex-col gap-1" role="group" aria-label={`${entry.displayName}: creatures`}>
+      <div className="flex flex-wrap items-center gap-1">
+        {effect === 'breath-weapon' && (
+          <>
+            <label htmlFor={`${base}-dragon`} className="text-[11px] text-muted">Ancestry</label>
+            <select id={`${base}-dragon`} value={dragon} onChange={e => setDragon(e.target.value)} className={SMALL_FIELD}>
+              <option value="">As recorded</option>
+              {DRACONIC_ANCESTRIES.map(a => <option key={a.dragon} value={a.dragon}>{ancestryLabel(a)}</option>)}
+            </select>
+          </>
+        )}
+        <button type="button" disabled={disabled || (needsCreatures && selected.length === 0)}
+          aria-label={`Use ${entry.displayName}`}
+          onClick={() => onUse({
+            ...(selected.length > 0 ? { targetIds: selected } : {}),
+            ...(effect === 'breath-weapon' && dragon ? { option: dragon } : {}),
+          })}
+          className={USE_BUTTON}>
+          {entry.displayName}
+        </button>
+      </div>
+      <fieldset className="flex flex-wrap gap-x-3 gap-y-1">
+        <legend className="sr-only">{entry.displayName}: creatures</legend>
+        {others.map(c => (
+          <label key={c.id} className="inline-flex items-center gap-1 text-[12px] text-ink">
+            <input type="checkbox" checked={selected.includes(c.id)} onChange={() => toggle(c.id)} />
+            {c.displayName}
+          </label>
+        ))}
+      </fieldset>
     </div>
   );
 }

@@ -27,6 +27,7 @@ import com.tabletophelper.reference.FeatPrerequisite;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.OptionalFeature;
 import com.tabletophelper.reference.Race;
+import com.tabletophelper.rules.combat.RacialFeatures;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
@@ -2201,6 +2202,100 @@ class PendingChoiceServiceTest {
             known.add(new KnownSpell(null, "Plane Shift", 7, "arcanum:Warlock", null, null, null, null, null));
             pc.setSpellsKnown(known);
             assertThat(f.choices.missedChoices(pc)).noneMatch(c -> c.type() == Type.MYSTIC_ARCANUM);
+        }
+    }
+
+    @Nested
+    @DisplayName("Draconic ancestry (PHB p.34, D208)")
+    class DraconicAncestry {
+
+        // A Dragonborn row as the races loader writes it: its traits name Draconic Ancestry
+        private final Race dragonborn = Race.builder().id(UUID.randomUUID()).name("Dragonborn").source("PHB")
+                .speed("{\"walk\": 30}")
+                .traits("[{\"name\": \"Draconic Ancestry\", \"description\": \"Choose a dragon\"}, "
+                        + "{\"name\": \"Breath Weapon\", \"description\": \"Exhale\"}]")
+                .build();
+
+        @BeforeEach
+        void knowTheDragonborn() {
+            lenient().when(f.raceRepository.findById(dragonborn.getId())).thenReturn(Optional.of(dragonborn));
+        }
+
+        private PlayerCharacter dragonborn(String ancestry) {
+            return create(f.fighter, 1, request -> {
+                request.setRaceId(dragonborn.getId());
+                request.setDraconicAncestry(ancestry);
+            });
+        }
+
+        @Test
+        @DisplayName("A Dragonborn created without its ancestry owes a race choice on the 1st level of the ten dragons")
+        void owedAtCreation() {
+            PlayerCharacter pc = dragonborn(null);
+
+            PendingChoice choice = f.pending(pc, Type.DRACONIC_ANCESTRY);
+            assertThat(choice).isNotNull();
+            assertThat(choice.source()).isEqualTo(Source.RACE);
+            assertThat(choice.characterLevel()).isEqualTo(1);
+            assertThat(choice.options()).containsExactly("Black", "Blue", "Brass", "Bronze", "Copper", "Gold", "Green",
+                    "Red", "Silver", "White");
+        }
+
+        @Test
+        @DisplayName("An ancestry the creation request names is recorded on the 1st level with its resistance, and "
+                + "owes nothing")
+        void recordedAtCreation() {
+            PlayerCharacter pc = dragonborn("red");
+
+            assertThat(pc.getLevelHistory().getFirst().choices().draconicAncestry()).isEqualTo("Red");
+            assertThat(pc.getDamageResistances()).containsExactly("fire");
+            assertThat(f.pending(pc, Type.DRACONIC_ANCESTRY)).isNull();
+            assertThat(DraconicAncestries.of(pc)).contains(RacialFeatures.DraconicAncestry.RED);
+        }
+
+        @Test
+        @DisplayName("Another race can't name an ancestry, and a dragon the table doesn't have is refused")
+        void creationRefusals() {
+            assertThatThrownBy(() -> create(f.fighter, 1, request -> request.setDraconicAncestry("Red")))
+                    .isInstanceOf(ValidationException.class);
+            assertThatThrownBy(() -> dragonborn("Purple")).isInstanceOf(ValidationException.class);
+        }
+
+        @Test
+        @DisplayName("Making the choice records the dragon on the 1st level and gives its resistance; another dragon "
+                + "or another answer is a 400 that changes nothing")
+        void madeOnTheSheet() {
+            PlayerCharacter pc = dragonborn(null);
+            PendingChoice choice = f.pending(pc, Type.DRACONIC_ANCESTRY);
+
+            assertThatThrownBy(() -> f.choose(pc, choice, request -> request.setDraconicAncestry("Purple")))
+                    .isInstanceOf(ValidationException.class);
+            assertThatThrownBy(() -> f.choose(pc, choice, request -> request.setFightingStyle("Archery")))
+                    .isInstanceOf(ValidationException.class);
+
+            f.choose(pc, choice, request -> request.setDraconicAncestry("White"));
+
+            PlayerCharacter stored = f.stored(pc.getId());
+            assertThat(stored.getLevelHistory().getFirst().choices().draconicAncestry()).isEqualTo("White");
+            assertThat(stored.getDamageResistances()).containsExactly("cold");
+            assertThat(f.pending(stored, Type.DRACONIC_ANCESTRY)).isNull();
+        }
+
+        @Test
+        @DisplayName("The backfill owes a Dragonborn made before D208 the choice, of the dragons whose type it resists "
+                + "already, once")
+        void missedByOlderDragonborn() {
+            PlayerCharacter pc = dragonborn(null);
+            pc.setPendingChoices(new ArrayList<>(pc.getPendingChoices().stream()
+                    .filter(c -> c.type() != Type.DRACONIC_ANCESTRY).toList()));
+            pc.setDamageResistances(new ArrayList<>(List.of("fire")));
+
+            List<PendingChoice> missed = f.choices.missedChoices(pc);
+
+            assertThat(missed).filteredOn(c -> c.type() == Type.DRACONIC_ANCESTRY).singleElement()
+                    .satisfies(c -> assertThat(c.options()).containsExactly("Brass", "Gold", "Red"));
+            f.choices.addPending(pc, missed);
+            assertThat(f.choices.missedChoices(pc)).noneMatch(c -> c.type() == Type.DRACONIC_ANCESTRY);
         }
     }
 }

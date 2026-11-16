@@ -21,14 +21,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The content-snapshot job (D169): its files for each of the 13 reference tables, by ID and by natural key, and its
+ * The content-snapshot job (D169): its files for each of the 14 reference tables, by ID and by natural key, and its
  * comparison with a snapshot taken earlier, against reference rows inserted here.
  */
 class ContentSnapshotJobIT extends IntegrationTest {
 
     private static final List<String> TABLES = List.of("races", "character_classes", "subclasses", "backgrounds",
             "spells", "monsters", "conditions", "items", "feats", "optional_features", "resource_pool_definitions",
-            "class_feature_pools", "monster_pool_triggers");
+            "class_feature_pools", "monster_pool_triggers", "race_feature_pools");
 
     @Autowired private DataSource dataSource;
 
@@ -89,11 +89,14 @@ class ContentSnapshotJobIT extends IntegrationTest {
     @DisplayName("Writes each reference table by ID and by natural key, sorted, the by-key rows without IDs or timestamps")
     void writesEveryTable() throws IOException {
         Path output = directory.resolve("before");
+        // A race's pool (D208), known by its race and pool
+        jdbcTemplate.update("INSERT INTO race_feature_pools (id, race_id, min_level, pool_id) "
+                + "VALUES (gen_random_uuid(), ?, 1, 'subclass:battle-master-superiority-dice')", dwarf);
 
         MaintenanceReport report = snapshot(output);
 
         assertThat(report.applied()).isFalse();
-        assertThat(report.examined()).isEqualTo(9);
+        assertThat(report.examined()).isEqualTo(10);
         assertThat(report.changes()).isEmpty();
         assertThat(report.warnings()).isEmpty();
         for (String table : TABLES) {
@@ -126,6 +129,11 @@ class ContentSnapshotJobIT extends IntegrationTest {
         assertThat(pool.path("row").has("subclass_id")).isFalse();
         assertThat(pool.path("row").path("subclass").asString()).isEqualTo("Battle Master|PHB");
         assertThat(pool.path("row").path("min_level").asInt()).isEqualTo(3);
+
+        JsonNode racePool = lines(output.resolve("race_feature_pools.by-key.jsonl")).get(0);
+        assertThat(racePool.path("key").asString()).isEqualTo("Dwarf|PHB|subclass:battle-master-superiority-dice");
+        assertThat(racePool.path("row").has("race_id")).isFalse();
+        assertThat(racePool.path("row").path("race").asString()).isEqualTo("Dwarf|PHB");
 
         JsonNode definition = lines(output.resolve("resource_pool_definitions.by-id.jsonl")).get(0);
         assertThat(definition.path("id").asString()).isEqualTo("subclass:battle-master-superiority-dice");

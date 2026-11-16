@@ -2314,6 +2314,7 @@ export interface components {
             asi?: components["schemas"]["AsiChoice"] | null;
             /** Format: uuid */
             choiceId: string;
+            draconicAncestry?: string | null;
             expertiseSkills?: string[] | null;
             feat?: components["schemas"]["AsiChoice"] | null;
             fightingStyle?: string | null;
@@ -2612,6 +2613,7 @@ export interface components {
             damageResistances?: string[] | null;
             /** Format: int32 */
             dexterity?: number | null;
+            draconicAncestry?: string | null;
             equipment?: components["schemas"]["InventoryItem"][] | null;
             /** Format: int32 */
             intelligence?: number | null;
@@ -3511,6 +3513,7 @@ export interface components {
         LevelChoices: {
             asi?: components["schemas"]["AbilityScoreImprovement"] | null;
             cantrips?: string[] | null;
+            draconicAncestry?: string | null;
             expertise?: string[] | null;
             feats?: components["schemas"]["FeatTaken"][] | null;
             fightingStyle?: string | null;
@@ -3893,7 +3896,7 @@ export interface components {
             spellList?: string | null;
             swap?: boolean | null;
             /** @enum {string} */
-            type: "SUBCLASS" | "FIGHTING_STYLE" | "METAMAGIC" | "PROFICIENCY" | "SUBCLASS_CANTRIP" | "ASI" | "FEAT" | "EXPERTISE" | "CANTRIPS" | "SPELLS" | "MYSTIC_ARCANUM";
+            type: "SUBCLASS" | "FIGHTING_STYLE" | "METAMAGIC" | "PROFICIENCY" | "SUBCLASS_CANTRIP" | "ASI" | "FEAT" | "DRACONIC_ANCESTRY" | "EXPERTISE" | "CANTRIPS" | "SPELLS" | "MYSTIC_ARCANUM";
         };
         PlaceSummonRequest: {
             creatureType?: string | null;

@@ -14,6 +14,9 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.PoolLevelTable;
+import com.tabletophelper.reference.Race;
+import com.tabletophelper.reference.RaceFeaturePool;
+import com.tabletophelper.reference.RaceFeaturePoolRepository;
 import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Expression;
@@ -66,12 +69,14 @@ public class ResourcePoolService {
     ) {}
 
     private final ClassFeaturePoolRepository classFeaturePoolRepository;
+    private final RaceFeaturePoolRepository raceFeaturePoolRepository;
     private final ObjectMapper objectMapper;
 
     // ── Character sheet ──────────────────────────────────────────
 
     /**
-     * The pools a character should have, from the class feature definitions for its classes and subclasses, one
+     * The pools a character should have, from the class feature definitions for its classes and subclasses, the race
+     * feature definitions its race row grants at its total level (M24.5b, D208), such as a Dragonborn's Breath Weapon, one
      * {@code innate:<spell>} pool for each spell it can cast now with uses of its own (D165), a
      * {@code mystic-arcanum:<level>} pool for each Mystic Arcanum spell it knows (PHB p.108), and one
      * {@code feat:<feat>} pool for each feat with limited uses that its level history records or the DM granted, such
@@ -110,6 +115,20 @@ public class ResourcePoolService {
         }
 
         int characterLevel = character.getLevel() != null ? character.getLevel() : 1;
+        // A race's pools, by its row, so a subrace has its own (D208); a new race's pools come in and the old one's go
+        // below with the other orphans
+        Race race = character.getRaceRef();
+        if (race != null && race.getId() != null) {
+            for (RaceFeaturePool rp : raceFeaturePoolRepository.findByRaceIdAndMinLevelLessThanEqual(race.getId(),
+                    characterLevel)) {
+                ResourcePoolDefinition def = rp.getPoolDefinition();
+                if (def == null || !desiredPoolIds.add(def.getPoolId())) continue;
+                int maxUses = evaluateMaxUses(def.getMaxUsesFormula(), context, def.getPoolId());
+                byPoolId.put(def.getPoolId(), buildEntry(def, null, def.getMaxUsesFormula(), maxUses,
+                        keptUses(byPoolId.get(def.getPoolId()), maxUses)).withSourceName(race.getName()));
+            }
+        }
+
         for (KnownSpell spell : orEmpty(character.getSpellsKnown())) {
             if (!hasInnateUses(spell, characterLevel)) continue;
             String poolId = ResourcePoolEntry.innatePoolId(spell.name());

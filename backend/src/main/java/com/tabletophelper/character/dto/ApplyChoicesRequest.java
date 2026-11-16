@@ -17,7 +17,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * {@code subclassId} for a subclass, {@code expertiseSkills} for Expertise, {@code fightingStyle} for a Fighting
  * Style, {@code metamagic} for a sorcerer's Metamagic options, {@code proficiencies} for a subclass's bonus
  * proficiencies, by name, and {@code spells} for cantrips or spells, a subclass's cantrips among them, with
- * {@code swap} for a known caster's optional swap.
+ * {@code swap} for a known caster's optional swap, and {@code draconicAncestry} for a Dragonborn's draconic
+ * ancestry, by its dragon, such as "Red" (D208).
  */
 @Data
 public class ApplyChoicesRequest {
@@ -34,6 +35,7 @@ public class ApplyChoicesRequest {
     private List<String> metamagic;
     private List<String> proficiencies;
     private List<String> spells;
+    private String draconicAncestry;
 
     @Valid
     private SpellSwap swap;
