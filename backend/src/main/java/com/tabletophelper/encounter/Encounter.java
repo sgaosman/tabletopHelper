@@ -73,6 +73,13 @@ public class Encounter {
     @Column(name = "monsters_in_lair", columnDefinition = "jsonb")
     private List<UUID> monstersInLair;
 
+    // The reactions creatures may take in answer to the newest combat command (D216, V39). A command that isn't a
+    // reaction clears them as it starts (CommandRecorder), and undo clears them
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "reaction_offers", columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private List<com.tabletophelper.encounter.state.ReactionOffer> reactionOffers = new ArrayList<>();
+
     @OneToMany(mappedBy = "encounter", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<EncounterParticipant> participants = new ArrayList<>();

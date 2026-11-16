@@ -34,6 +34,7 @@ import ManualAttackForm from '../../components/encounter/ManualAttackForm';
 import InlineMonsterActions, { type MonsterActionTab } from '../../components/encounter/InlineMonsterActions';
 import StandardActionMenu from '../../components/encounter/StandardActionMenu';
 import ReactionMenu from '../../components/encounter/ReactionMenu';
+import ReactionPrompt from '../../components/encounter/ReactionPrompt';
 import HitFollowUps from '../../components/encounter/HitFollowUps';
 import InspirationControls from '../../components/encounter/InspirationControls';
 import SummonAwaitingBanner from '../../components/encounter/SummonAwaitingBanner';
@@ -526,6 +527,9 @@ function DmSessionView() {
         )}
 
         {turnError && <p role="alert" className="text-debuff font-body text-[15px] font-semibold mb-4">{turnError}</p>}
+
+        {/* Every reaction on offer after the newest command, the monsters' and the players' (D216) */}
+        {isActive && <ReactionPrompt offers={encounter.reactionOffers ?? []} />}
 
         {/* What a Spell Effect's area may do to the creature whose turn it is (M15) */}
         {isActive && (

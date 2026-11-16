@@ -14,6 +14,7 @@ import com.tabletophelper.encounter.state.CommandSnapshot;
 import com.tabletophelper.encounter.state.EncounterTurnState;
 import com.tabletophelper.encounter.state.LogPatch;
 import com.tabletophelper.encounter.state.ParticipantCombatState;
+import com.tabletophelper.encounter.state.ReactionOffer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
@@ -89,6 +90,10 @@ public class CommandRecorder {
                 .beforeState(CommandSnapshot.empty())
                 .build());
         Recording recording = new Recording(command, encounter);
+        // The reaction offers of the commands before it end as it starts, unless it turns out to be a reaction, which
+        // keeps the other creatures' (D216)
+        recording.priorOffers = ReactionOffer.without(encounter.getReactionOffers(), offer -> false);
+        encounter.setReactionOffers(new ArrayList<>());
         TransactionSynchronizationManager.bindResource(RESOURCE_KEY, recording);
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
@@ -195,6 +200,8 @@ public class CommandRecorder {
         private final Map<UUID, LogPatch> patches = new LinkedHashMap<>();
         private String kind;
         private String summary;
+        // The reaction offers there were before the command, which it ended (D216); null once given back
+        private List<ReactionOffer> priorOffers;
 
         private Recording(CombatCommand command, Encounter encounter) {
             this.command = command;
@@ -218,6 +225,30 @@ public class CommandRecorder {
         /** Notes an older entry the command is about to change, as it is before the change. */
         public void patched(CombatLog entry) {
             patches.putIfAbsent(entry.getId(), new LogPatch(entry.getId(), entry.getLrResolved()));
+        }
+
+        /** The reaction offers there were before this command started, which it has ended unless it is a reaction. */
+        public List<ReactionOffer> priorOffers() {
+            return priorOffers != null ? List.copyOf(priorOffers) : List.of();
+        }
+
+        /**
+         * The command is the participant's reaction (D216): the other creatures' offers from before it stand again,
+         * after any the command has made itself, and the reactor's go, as its reaction is spent.
+         */
+        public void reactionTaken(UUID reactorId) {
+            List<ReactionOffer> offers = new ArrayList<>(priorOffers != null ? priorOffers : List.of());
+            offers.addAll(encounter.getReactionOffers() != null ? encounter.getReactionOffers() : List.of());
+            priorOffers = null;
+            encounter.setReactionOffers(ReactionOffer.withoutReactor(offers, reactorId));
+        }
+
+        /** Drops the offers the command triggered, which another command has taken back (D216). */
+        public void commandTakenBack(UUID commandId) {
+            if (priorOffers != null) {
+                priorOffers = ReactionOffer.withoutCommand(priorOffers, commandId);
+            }
+            encounter.setReactionOffers(ReactionOffer.withoutCommand(encounter.getReactionOffers(), commandId));
         }
 
         /** Names the command for one that writes no entry, such as a change of which monsters fight in their lair. */

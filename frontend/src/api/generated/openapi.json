@@ -2150,6 +2150,47 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/dismiss-reaction": {
+      "post": {
+        "operationId": "dismissReaction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissReactionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/divine-smite": {
       "post": {
         "operationId": "divineSmite",
@@ -6593,6 +6634,11 @@
             "format": "int32",
             "nullable": true
           },
+          "reactionOfferId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "slotLevel": {
             "maximum": 9,
             "minimum": 0,
@@ -8512,6 +8558,18 @@
           }
         }
       },
+      "DismissReactionRequest": {
+        "required": [
+          "offerId"
+        ],
+        "type": "object",
+        "properties": {
+          "offerId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "DismissSummonsRequest": {
         "required": [
           "participantIds"
@@ -8747,6 +8805,7 @@
           "monstersInLair",
           "name",
           "participants",
+          "reactionOffers",
           "roundNumber",
           "status",
           "turnOrder"
@@ -8795,6 +8854,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ParticipantResponse"
+            }
+          },
+          "reactionOffers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReactionOffer"
             }
           },
           "roundNumber": {
@@ -12150,6 +12215,170 @@
           "subrace": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "ReactionOffer": {
+        "required": [
+          "critical",
+          "id",
+          "options",
+          "reactorId",
+          "reactorName",
+          "trigger"
+        ],
+        "type": "object",
+        "properties": {
+          "armourClass": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "attackTotal": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "commandId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "critical": {
+            "type": "boolean"
+          },
+          "damageTaken": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "damageTypes": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReactionOption"
+            }
+          },
+          "reactorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reactorName": {
+            "type": "string"
+          },
+          "spellLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellName": {
+            "type": "string",
+            "nullable": true
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "ATTACK_HIT",
+              "DAMAGE",
+              "SPELL_CAST"
+            ]
+          },
+          "triggerActorId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "triggerActorName": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ReactionOption": {
+        "required": [
+          "kind",
+          "name",
+          "resolves"
+        ],
+        "type": "object",
+        "properties": {
+          "actionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "castOption": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "SPELL",
+              "POOL",
+              "MONSTER_REACTION"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "poolId": {
+            "type": "string",
+            "nullable": true
+          },
+          "resolves": {
+            "type": "boolean"
+          },
+          "slotLevels": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "spellName": {
+            "type": "string",
+            "nullable": true
+          },
+          "spellSource": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "SLOT",
+              "PACT_SLOT",
+              "INNATE",
+              "MYSTIC_ARCANUM",
+              "NONE",
+              "ITEM",
+              "SCROLL"
+            ]
+          },
+          "targetIds": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         }
       },

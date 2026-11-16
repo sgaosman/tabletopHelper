@@ -671,7 +671,7 @@ export function makeMockEncounter(overrides: Partial<Encounter> = {}): Encounter
     id: 'enc-001', campaignId: 'camp-001', campaignName: 'Test Campaign', name: 'Goblin Ambush',
     status: 'ACTIVE', currentTurnIndex: current >= 0 ? current : null, roundNumber: 1, sessionCode: 'ABC123XY',
     participants, turnOrder, monstersInLair: [],
-    createdAt: makeTimestamp(), allowPlayerManualModifiers: true,
+    createdAt: makeTimestamp(), allowPlayerManualModifiers: true, reactionOffers: [],
   } satisfies Encounter;
   return { ...encounter, ...overrides };
 }

@@ -66,6 +66,9 @@ public class UndoService {
                     + " can be undone");
         }
 
+        // Every reaction offer goes: they answered the newest command, which is being taken back or came after the
+        // one that is (D216)
+        encounter.setReactionOffers(new java.util.ArrayList<>());
         Instant now = Instant.now();
         for (CombatCommand command : undoing) {
             restore(encounter, command, false);
@@ -92,6 +95,10 @@ public class UndoService {
      */
     public void revert(Encounter encounter, CombatCommand command, UUID userId) {
         restore(encounter, command, true);
+        // The reactions offered in answer to it go with it (D216)
+        CommandRecorder.current().ifPresent(recording -> recording.commandTakenBack(command.getId()));
+        encounter.setReactionOffers(com.tabletophelper.encounter.state.ReactionOffer.withoutCommand(
+                encounter.getReactionOffers(), command.getId()));
         command.setUndoneAt(Instant.now());
         command.setUndoneBy(userId);
         revive(command);

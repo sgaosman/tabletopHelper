@@ -48,6 +48,15 @@ export type BardicInspirationRequest = Schemas['BardicInspirationRequest'];
 /** The Protection fighting style's reaction for a creature within 5 feet, logged for the DM (PHB p.72, M17). */
 export type ProtectionRequest = Schemas['ProtectionRequest'];
 
+/**
+ * A reaction a creature may take in answer to the newest combat command (D216): an attack that hit it, damage it took or
+ * a spell another creature cast. The server never waits for it; it lasts until the next command that isn't a reaction.
+ */
+export type ReactionOffer = Schemas['ReactionOffer'];
+/** One reaction on offer, naming the command that takes it (cast-spell, use-pool or monster-action). */
+export type ReactionOption = Schemas['ReactionOption'];
+export type DismissReactionRequest = Schemas['DismissReactionRequest'];
+
 export type CastSpellRequest = Schemas['CastSpellRequest'];
 
 /**

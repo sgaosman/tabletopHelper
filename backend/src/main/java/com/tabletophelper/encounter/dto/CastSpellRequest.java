@@ -73,4 +73,8 @@ public class CastSpellRequest {
     // controls the target may choose, the DM or the player a spell gave control to; a target left out takes its standing
     // choice, its spellConsent
     private Map<UUID, Boolean> spellConsents;
+
+    // The reaction offer the cast answers (D216): Shield cast in answer to a hit takes the hit back when its +5 AC makes
+    // the attack roll miss. Optional; an offer that has gone changes nothing, and other spells ignore it
+    private UUID reactionOfferId;
 }

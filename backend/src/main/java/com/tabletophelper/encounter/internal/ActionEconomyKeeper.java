@@ -74,6 +74,10 @@ public class ActionEconomyKeeper {
         }
         TurnEconomy economy = actor.getTurnEconomy() != null ? actor.getTurnEconomy() : TurnEconomy.fresh();
         actor.setTurnEconomy(economy.withBudget(ActionEconomy.spend(budget, charge)));
+        // A reaction leaves the other creatures' reaction offers standing, and ends the reactor's own (D216)
+        if (charge.cost() == ActionCost.REACTION) {
+            CommandRecorder.current().ifPresent(recording -> recording.reactionTaken(actor.getId()));
+        }
     }
 
     private static TurnBudget budget(EncounterParticipant actor) {
