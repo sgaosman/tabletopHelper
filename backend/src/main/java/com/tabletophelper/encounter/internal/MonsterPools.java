@@ -253,7 +253,8 @@ public class MonsterPools {
      */
     static ResourcePoolEntry rechargePool(MonsterTemplates.Action action, String monsterName, String spendActionType) {
         Matcher recharge = RECHARGE.matcher(action.recharge() != null ? action.recharge().trim() : "");
-        String name = action.name() != null ? action.name() : "";
+        // Actions that share a recharge, as a metallic dragon's two breath weapons, share its pool (D227)
+        String name = action.rechargeName() != null ? action.rechargeName() : "";
         if (!recharge.matches() || name.isBlank()) {
             return null;
         }

@@ -123,6 +123,28 @@ describe('InlineMonsterActions', () => {
   });
 });
 
+describe('InlineMonsterActions: a shared recharge (D227)', () => {
+  beforeEach(() => {
+    setupAuthToken();
+    server.use(http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json({
+      actions: [
+        { name: 'Fire Breath', recharge: '5-6', rechargeGroup: 'Breath Weapons', deliveryMethod: 'SAVING_THROW' },
+        { name: 'Sleep Breath', recharge: '5-6', rechargeGroup: 'Breath Weapons', deliveryMethod: 'SAVING_THROW' },
+        { name: 'Wing Buffet', recharge: '5-6', deliveryMethod: 'SAVING_THROW' },
+      ],
+      resourcePools: { 'monster:recharge:breath-weapons': { currentUses: 0 } },
+    } satisfies MonsterActionTemplate & { resourcePools: Record<string, { currentUses: number }> })));
+  });
+
+  it("disables both breath weapons once their shared Breath Weapons pool is spent, and not another recharge", async () => {
+    await renderActions();
+
+    expect(await screen.findByRole('button', { name: /Fire Breath/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Sleep Breath/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Wing Buffet/ })).toBeEnabled();
+  });
+});
+
 describe('InlineMonsterActions: limited uses (MM p.11)', () => {
   beforeEach(() => {
     setupAuthToken();

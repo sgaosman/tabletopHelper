@@ -260,6 +260,9 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      * @param damageOptions           the damage types the monster chooses from when it uses the action, as a
      *                                dracohydra's Bite's "acid, cold, fire, lightning, or poison" (FTD); its parts of
      *                                damageType "option" deal the type chosen; empty for none (D207)
+     * @param rechargeGroup           the name of the recharge this action shares with others, as a brass dragon's Fire
+     *                                Breath and Sleep Breath share its Breath Weapons' "Recharge 5-6" (MM p.105): its
+     *                                recharge pool is the group's, so using either spends both; null for its own (D227)
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Action(String name, String description, Boolean automatable, String deliveryMethod,
@@ -273,7 +276,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                          @JsonProperty("isEyeRays") boolean eyeRays, Integer rayCount, List<Ray> rays,
                          String dmNote, Integer grappleLimit, boolean grappleLimitBlocks, String immuneAfterSave,
                          List<String> exemptTypes, List<String> targetTypes, boolean targetGrappled, Heads heads,
-                         OnAllHit onAllHit, List<String> damageOptions) {
+                         OnAllHit onAllHit, List<String> damageOptions, String rechargeGroup) {
 
         /** The damage type of a part the monster chooses when it uses the action (D207). */
         public static final String OPTION = "option";
@@ -301,7 +304,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                     halfOnSave, targetCount, secondarySaveDc, secondarySaveAbility, effects, recharge, uses, usesPerDay,
                     usesRecharge, rechargeType, cost, multiattack, multiattackComponents, multiattackDescription,
                     multiattackNote, eyeRays, rayCount, rays, dmNote, grappleLimit, grappleLimitBlocks,
-                    immuneAfterSave, exemptTypes, targetTypes, targetGrappled, heads, onAllHit, null);
+                    immuneAfterSave, exemptTypes, targetTypes, targetGrappled, heads, onAllHit, null, null);
         }
 
         /** Whether the monster chooses the damage type when it uses the action (D207). */
@@ -326,7 +329,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                     usesPerDay, usesRecharge, rechargeType, cost, multiattack, multiattackComponents,
                     multiattackDescription, multiattackNote, eyeRays, rayCount, rays, dmNote, grappleLimit,
                     grappleLimitBlocks, immuneAfterSave, exemptTypes, targetTypes, targetGrappled, heads, onAllHit,
-                    damageOptions);
+                    damageOptions, rechargeGroup);
         }
 
         /**
@@ -337,6 +340,11 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
             return new Action(name, null, null, "AUTO_HIT", null, null, null, null, false, 1, null, null, effects,
                     null, null, null, null, null, null, false, null, null, null, false, null, null, null, null, false,
                     null, null, null, false, null, null);
+        }
+
+        /** The name its d6 recharge pool goes by: its recharge group's, or else its own (D227). */
+        public String rechargeName() {
+            return rechargeGroup != null && !rechargeGroup.isBlank() ? rechargeGroup.trim() : name;
         }
 
         /** A legendary action's cost: its number, or 1 when it has none or gives a range. */

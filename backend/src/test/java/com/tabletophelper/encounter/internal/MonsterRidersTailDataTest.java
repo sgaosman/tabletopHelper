@@ -98,8 +98,8 @@ class MonsterRidersTailDataTest {
     @Test
     @DisplayName("The counts: 42 swallows (34 regurgitating, 7 only for a grappled creature), 2 engulfings, 22 with a "
             + "limit, 18 actions only for a grappled target, 6 petrifications over two saves, 2 ability drains, 12 "
-            + "drops to 0 (11 stable but poisoned), 7 risings, 7 possessions, 18 actions rebuilt and 5 stale notes "
-            + "replaced")
+            + "drops to 0 (11 stable but poisoned), 7 risings, 8 possessions (Caradoc's, DSotDQ, once D227 named it "
+            + "without its recharge digit), 19 actions rebuilt and 5 stale notes replaced")
     void counts() {
         Map<String, Integer> counts = new TreeMap<>();
         for (Found found : actions()) {
@@ -143,9 +143,9 @@ class MonsterRidersTailDataTest {
         // grappled target). D209 reads the regisaur's Swallow and adds the slithering bloodfin's: 2 more swallows, each
         // regurgitating, with a limit and only for a grappled target
         assertEquals(Map.ofEntries(Map.entry("ABILITY_REDUCTION", 2), Map.entry("AT_ZERO", 12),
-                Map.entry("COUNTED_SAVES", 6), Map.entry("ON_KILL", 7), Map.entry("POSSESSION", 7),
+                Map.entry("COUNTED_SAVES", 6), Map.entry("ON_KILL", 7), Map.entry("POSSESSION", 8),
                 Map.entry("engulfed", 2), Map.entry("limit", 22), Map.entry("noteReplaced", 5),
-                Map.entry("onlyIfGrappled", 7), Map.entry("rebuilt", 18), Map.entry("regurgitates", 34),
+                Map.entry("onlyIfGrappled", 7), Map.entry("rebuilt", 19), Map.entry("regurgitates", 34),
                 Map.entry("stable", 11), Map.entry("swallowed", 42), Map.entry("targetGrappled", 18)), counts);
     }
 

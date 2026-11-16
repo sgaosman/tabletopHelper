@@ -204,6 +204,11 @@ export interface MonsterAction {
    * damageType "option" deal the type chosen, which the request's damageType names (D207).
    */
   damageOptions?: string[];
+  /**
+   * The recharge this action shares with others, as a brass dragon's Fire Breath and Sleep Breath share its Breath
+   * Weapons' "Recharge 5-6" (MM p.105): its recharge pool is named for the group rather than the action (D227).
+   */
+  rechargeGroup?: string;
 }
 
 export interface MonsterEffect {

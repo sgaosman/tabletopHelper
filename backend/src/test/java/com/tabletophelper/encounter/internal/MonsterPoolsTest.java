@@ -150,6 +150,27 @@ class MonsterPoolsTest {
         }
 
         @Test
+        @DisplayName("Breath weapons sharing a recharge share one pool named for the group, so either spends it (MM "
+                + "p.105, D227)")
+        void sharedRechargePool() {
+            Monster dragon = monster("Adult Brass Dragon", null, null, """
+                    {"actions": [{"name": "Fire Breath", "recharge": "5-6", "rechargeGroup": "Breath Weapons"},
+                                 {"name": "Sleep Breath", "recharge": "5-6", "rechargeGroup": "Breath Weapons"},
+                                 {"name": "Bite"}]}""");
+            MonsterTemplates templates = dragon.getActionTemplates();
+
+            List<ResourcePoolEntry> pools = monsterPools.pools(dragon);
+
+            assertEquals(List.of("monster:recharge:breath-weapons"), poolIds(pools));
+            assertEquals("Breath Weapons", pool(pools, "monster:recharge:breath-weapons").displayName());
+            assertEquals("1d6>=5", pool(pools, "monster:recharge:breath-weapons").resetCheck());
+            for (String breath : List.of("Fire Breath", "Sleep Breath")) {
+                assertEquals("monster:recharge:breath-weapons", MonsterPools.rechargePool(
+                        templates.find("ACTION", breath).orElseThrow(), dragon.getName(), "ACTION").poolId());
+            }
+        }
+
+        @Test
         @DisplayName("A bonus action or reaction with a d6 recharge gets a pool costing what it costs, and one that "
                 + "comes back after a rest gets a limited pool instead (D174)")
         void bonusActionAndReactionRechargePools() {

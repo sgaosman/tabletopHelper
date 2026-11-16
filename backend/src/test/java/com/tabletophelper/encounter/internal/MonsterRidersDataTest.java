@@ -123,14 +123,14 @@ class MonsterRidersDataTest {
     }
 
     @Test
-    @DisplayName("The scorpion's lost 1 piercing is back, marked as the pass's")
+    @DisplayName("The scorpion's lost 1 piercing is back first, as the stat block has it, marked as the pass's (D227)")
     void scorpionKeepsItsPiercing() {
         JsonNode sting = json("Scorpion", "MM", "Sting");
-        JsonNode added = sting.path("effects").get(1);
+        JsonNode added = sting.path("effects").get(0);
         assertEquals("1", added.path("damageDice").asString());
         assertEquals("added", added.path("_rider").asString());
         assertEquals("[\"saveDC\",\"saveAbility\",\"halfOnSave\"]",
-                sting.path("effects").get(0).path("_riderKeys").toString());
+                sting.path("effects").get(1).path("_riderKeys").toString());
     }
 
     // ── Step 2: damage that waits on a condition ─────────────────
