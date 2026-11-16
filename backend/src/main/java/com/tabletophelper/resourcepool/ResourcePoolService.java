@@ -8,7 +8,10 @@ import com.tabletophelper.character.state.FeatResourceEntry;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.reference.ClassFeaturePool;
+import com.tabletophelper.reference.Item;
+import com.tabletophelper.reference.ItemRepository;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -71,6 +74,7 @@ public class ResourcePoolService {
     private final ClassFeaturePoolRepository classFeaturePoolRepository;
     private final RaceFeaturePoolRepository raceFeaturePoolRepository;
     private final ObjectMapper objectMapper;
+    private final ItemRepository itemRepository;
 
     // ── Character sheet ──────────────────────────────────────────
 
@@ -167,6 +171,15 @@ public class ResourcePoolService {
                     .withCurrentUses(keptUses(byPoolId.get(poolId), uses)));
         }
 
+        // A magic item's charges (D210): a linked item the character carries with charges, attuned to when it requires
+        // attunement (DMG p.136); one pool for each item, however many are carried
+        for (Item item : chargedItems(character)) {
+            String poolId = ResourcePoolEntry.itemPoolId(item.getName());
+            if (!desiredPoolIds.add(poolId)) continue;
+            byPoolId.put(poolId, ResourcePoolEntry.magicItem(item.getName(), item.getCharges(), item.getRecharge(),
+                    item.getRechargeAmount()).withCurrentUses(keptUses(byPoolId.get(poolId), item.getCharges())));
+        }
+
         // Remove orphaned pools (source no longer present)
         byPoolId.keySet().retainAll(desiredPoolIds);
         return new ArrayList<>(byPoolId.values());
@@ -214,6 +227,26 @@ public class ResourcePoolService {
 
     private static String effectOf(ResourcePoolEntry pool) {
         return pool.metadata() instanceof Map<?, ?> map && map.get("effect") instanceof String effect ? effect : null;
+    }
+
+    // The linked items with charges the character carries, attuned where they require it, in inventory order
+    private List<Item> chargedItems(PlayerCharacter character) {
+        List<InventoryItem> entries = orEmpty(character.getEquipment()).stream()
+                .filter(entry -> entry != null && entry.itemId() != null && entry.carried() > 0)
+                .toList();
+        if (entries.isEmpty()) return List.of();
+        Map<UUID, Item> byId = new HashMap<>();
+        for (Item item : itemRepository.findAllById(entries.stream().map(InventoryItem::itemId).distinct().toList())) {
+            byId.put(item.getId(), item);
+        }
+        List<Item> charged = new ArrayList<>();
+        for (InventoryItem entry : entries) {
+            Item item = byId.get(entry.itemId());
+            if (item == null || item.getCharges() == null || item.getCharges() <= 0) continue;
+            if (Boolean.TRUE.equals(item.getRequiresAttunement()) && !Boolean.TRUE.equals(entry.attuned())) continue;
+            charged.add(item);
+        }
+        return charged;
     }
 
     // The row of the definition's level table at the level of the class it names, or null without one
@@ -398,7 +431,8 @@ public class ResourcePoolService {
         for (ResourcePoolEntry e : pools) {
             boolean shouldReset = switch (resetTrigger) {
                 case "shortRest" -> "shortRest".equals(e.resetOn());
-                case "longRest" -> true; // long rest resets everything
+                // A long rest resets everything but a magic item that never regains its charges (D210)
+                case "longRest" -> !ResourcePoolEntry.NO_RESET.equals(e.resetOn());
                 case "turn" -> "turn".equals(e.resetOn());
                 default -> false;
             };
@@ -489,6 +523,7 @@ public class ResourcePoolService {
         }
         Map<String, Integer> ctx = new LinkedHashMap<>(context);
         ctx.put("maxUses", entry.maxUses());
+        ctx.put("currentUses", entry.currentUses());
         return Expression.evaluate(entry.resetAmount(), ctx);
     }
 

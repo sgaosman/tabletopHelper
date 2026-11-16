@@ -112,6 +112,27 @@ class CasterSpells {
                         + " uses their level " + payment.spellLevel() + " Mystic Arcanum for " + payment.spellName()
                         + " (" + pool.currentUses() + "/" + pool.maxUses() + " remaining)", null, caster);
             }
+            case ITEM -> {
+                // A magic item's charges (D210); the destruction roll some items make on their last charge is the DM's
+                String poolId = payment.pool().poolId();
+                resourcePoolService.spendPool(caster, poolId, payment.uses());
+                ResourcePoolEntry pool = caster.getResourcePoolsCurrent().stream()
+                        .filter(candidate -> poolId.equals(candidate.poolId())).findFirst().orElseThrow();
+                String lastCharge = pool.currentUses() == 0
+                        ? "; its last charge is spent, so the DM rolls for whatever its description says happens then"
+                        : "";
+                combatLog.write(encounter, CombatActionType.SPELL_SLOT_USE, caster.getDisplayName() + " expends "
+                        + payment.uses() + (payment.uses() == 1 ? " charge" : " charges") + " of " + pool.displayName()
+                        + " (" + pool.currentUses() + "/" + pool.maxUses() + " remaining)" + lastCharge, null, caster);
+            }
+            case SCROLL -> {
+                // The scroll is used up as it is read, whether or not the spell takes (DMG p.200, D210)
+                String spell = payment.spellName();
+                ItemSpells.useUp(caster, payment.itemName(), spell);
+                combatLog.write(encounter, CombatActionType.SPELL_SLOT_USE, caster.getDisplayName() + " reads "
+                        + payment.itemName() + " of " + spell + ", which crumbles to dust ("
+                        + ItemSpells.left(caster, payment.itemName(), spell) + " left)", null, caster);
+            }
             case NONE -> {
             }
         }

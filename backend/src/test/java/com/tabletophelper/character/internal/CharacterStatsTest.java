@@ -71,7 +71,7 @@ class CharacterStatsTest {
     private final ItemRepository itemRepository = mock(ItemRepository.class);
     private final CharacterStats stats = new CharacterStats(classRepository, subclassRepository,
             new ResourcePoolService(featurePools,
-                    mock(com.tabletophelper.reference.RaceFeaturePoolRepository.class), JacksonDefaults.mapper()), JacksonDefaults.mapper(),
+                    mock(com.tabletophelper.reference.RaceFeaturePoolRepository.class), JacksonDefaults.mapper(), itemRepository), JacksonDefaults.mapper(),
             TestClassTables.load(), new EquippedArmour(itemRepository));
 
     private final CharacterClass fighter = caster("Fighter", 10, null, false);

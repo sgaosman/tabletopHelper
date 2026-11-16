@@ -421,7 +421,7 @@ class PoolSizesGoldenTest {
                 .thenAnswer(invocation -> poolsOf(invocation.getArgument(0), invocation.getArgument(1),
                         invocation.getArgument(2)));
         service = new ResourcePoolService(lookups, mock(com.tabletophelper.reference.RaceFeaturePoolRepository.class),
-                JacksonDefaults.mapper());
+                JacksonDefaults.mapper(), mock(com.tabletophelper.reference.ItemRepository.class));
     }
 
     private static List<ClassFeaturePool> poolsOf(UUID classId, int level, UUID subclassId) {
@@ -586,7 +586,7 @@ class PoolSizesGoldenTest {
             when(races.findByRaceIdAndMinLevelLessThanEqual(any(), anyInt())).thenReturn(List.of(
                     RaceFeaturePool.builder().race(race).minLevel(1).poolDefinition(definition).build()));
             ResourcePoolService racial = new ResourcePoolService(mock(ClassFeaturePoolRepository.class), races,
-                    JacksonDefaults.mapper());
+                    JacksonDefaults.mapper(), mock(com.tabletophelper.reference.ItemRepository.class));
             for (int level = 1; level <= 20; level++) {
                 PlayerCharacter character = PlayerCharacter.builder().level(level).proficiencyBonus(pb(level))
                         .strength(10).dexterity(10).constitution(16).intelligence(10).wisdom(10).charisma(8)

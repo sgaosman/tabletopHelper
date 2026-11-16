@@ -113,9 +113,17 @@ final class SpellSources {
      *                   innate use for INNATE, "arcanum:Warlock" for MYSTIC_ARCANUM, and otherwise a class's entry when
      *                   the caster has the spell from one
      * @param castingTime what casting it costs from a turn (D174)
+     * @param uses       the charges ITEM spends from its pool, or the uses another source spends
+     * @param itemName   the inventory entry that pays for ITEM and SCROLL (D210); null otherwise
      */
     record Payment(String spellName, int spellLevel, SpellSource source, int castLevel, String slotKey,
-                   ResourcePoolEntry pool, String origin, CastingTime castingTime) {
+                   ResourcePoolEntry pool, String origin, CastingTime castingTime, int uses, String itemName) {
+
+        /** A payment of one use, or none, from no item. */
+        Payment(String spellName, int spellLevel, SpellSource source, int castLevel, String slotKey,
+                ResourcePoolEntry pool, String origin, CastingTime castingTime) {
+            this(spellName, spellLevel, source, castLevel, slotKey, pool, origin, castingTime, 1, null);
+        }
     }
 
     // ── Options ──────────────────────────────────────────────────
@@ -351,6 +359,9 @@ final class SpellSources {
                 }
                 yield new Payment(name, level, SpellSource.NONE, level, null, null, origin, castingTime);
             }
+            // An item's charges and a scroll pay through ItemSpells, which the request names the item for (D210)
+            case ITEM, SCROLL -> throw new ValidationException(name + " is cast " + with(source)
+                    + " by naming the item");
         };
     }
 
@@ -401,6 +412,8 @@ final class SpellSources {
             case INNATE -> "with an innate use";
             case MYSTIC_ARCANUM -> "with a Mystic Arcanum";
             case NONE -> "without a slot or a use";
+            case ITEM -> "with a magic item's charges";
+            case SCROLL -> "from a spell scroll";
         };
     }
 

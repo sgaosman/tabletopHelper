@@ -8,6 +8,7 @@ import {
 } from '../../utils/turnEconomy';
 import Modal from '../ui/Modal';
 import ObjectInteractionBox from './ObjectInteractionBox';
+import UseItemModal from './UseItemModal';
 import { FIELD_INPUT, FIELD_LABEL, SUBMIT_BUTTON } from './formStyles';
 
 type ActionCost = 'ACTION' | 'BONUS_ACTION';
@@ -60,6 +61,8 @@ export default function StandardActionMenu({ participant, participants, asDm = f
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  // Use an Item: a potion, a magic item's spell or a spell scroll from the character's inventory (D210)
+  const [usingItem, setUsingItem] = useState(false);
 
   const choices = choicesFor(participant, features, asDm);
   const choice = choices.find(c => c.action === chosen) ?? null;
@@ -106,6 +109,13 @@ export default function StandardActionMenu({ participant, participants, asDm = f
     const c = choices.find(x => x.action === 'USE_OBJECT');
     if (c) choose(c, description);
   };
+
+  if (usingItem) {
+    return (
+      <UseItemModal participant={participant} participants={participants} asDm={asDm} allowManualModifiers={asDm}
+        onClose={onClose} />
+    );
+  }
 
   return (
     <Modal title={<><Footprints className="w-5 h-5 text-ink" />Actions</>} subtitle={participant.displayName}
@@ -176,6 +186,18 @@ export default function StandardActionMenu({ participant, participants, asDm = f
               {sending ? '...' : `Take ${choice.label}`}
             </button>
           </form>
+        )}
+
+        {participant.participantType === 'PLAYER' && (
+          <div className="border-t border-rule pt-3">
+            <button type="button" onClick={() => setUsingItem(true)}
+              className="w-full text-left px-3 py-2 border border-rule bg-page-alt hover:bg-rule font-body">
+              <span className="block font-heading text-[15px] font-semibold text-ink">Use an Item</span>
+              <span className="block text-[12.5px] font-semibold text-muted">
+                Drink or give a potion, cast a magic item's spell, or read a spell scroll
+              </span>
+            </button>
+          </div>
         )}
 
         <div className="border-t border-rule pt-3">

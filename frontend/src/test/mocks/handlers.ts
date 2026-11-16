@@ -8,7 +8,7 @@ import type {
 } from '../../types/character';
 import type {
   AttackOption, AttackRollPreview, CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate, MultiattackOption,
-  FormOptions, SpellOption, WildShapeOptions,
+  FormOptions, SpellOption, UsableItems, WildShapeOptions,
 } from '../../types/combat';
 import type {
   CombatResultPreview, ConditionEntry, Encounter, EncounterParticipant, ParticipantType, ResourcePoolEntry, SpellEffect,
@@ -324,6 +324,9 @@ export const combatHandlers = [
   http.post(`${BASE}/encounters/:id/combat/cast-spell`, async () => HttpResponse.json(makeMockCastSpellResponse())),
   // A caster with nothing to cast; tests that cast serve the options they need (D164, D165)
   http.get(`${BASE}/encounters/:id/combat/spell-options`, async () => HttpResponse.json([] satisfies SpellOption[])),
+  http.get(`${BASE}/encounters/:id/combat/usable-items`, async () =>
+    HttpResponse.json({ potions: [], chargedItems: [], scrolls: [] } satisfies UsableItems)),
+  http.post(`${BASE}/encounters/:id/combat/use-item`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/turn/next`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/turn/previous`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/repeat-spell-effect`, async () => HttpResponse.json(makeMockCastSpellResponse())),

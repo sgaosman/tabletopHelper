@@ -24,6 +24,9 @@ import java.util.Map;
  *                         any; written only when there are some, so totals stored before it existed read as none
  * @param exhaustionLevel  the exhaustion level, 1 to 6 (PHB p.291, D183); null for none, and written only when there
  *                         is some, so totals stored before it existed read as none
+ * @param itemsUsed        how many of each inventory entry the participant used up, such as potions drunk, keyed as
+ *                         encounter's ItemUse keys them, "Spell Scroll (1st Level)|Shield" for a scroll (D210); written only
+ *                         when there are some, so totals stored before it existed read as none
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CombatTotals(
@@ -32,14 +35,23 @@ public record CombatTotals(
         Map<String, Integer> slotsUsed,
         Map<String, Integer> poolsCurrentUses,
         @JsonInclude(JsonInclude.Include.NON_EMPTY) Map<String, Integer> slotsCreated,
-        @JsonInclude(JsonInclude.Include.NON_NULL) Integer exhaustionLevel
+        @JsonInclude(JsonInclude.Include.NON_NULL) Integer exhaustionLevel,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) Map<String, Integer> itemsUsed
 ) {
 
     public CombatTotals {
+        itemsUsed = withoutNulls(itemsUsed);
         slotsUsed = withoutNulls(slotsUsed);
         poolsCurrentUses = withoutNulls(poolsCurrentUses);
         slotsCreated = withoutNulls(slotsCreated);
         exhaustionLevel = exhaustionLevel == null || exhaustionLevel <= 0 ? null : Math.min(6, exhaustionLevel);
+    }
+
+    /** Totals with no items used up. */
+    public CombatTotals(int hpCurrent, int hpTemp, Map<String, Integer> slotsUsed,
+                        Map<String, Integer> poolsCurrentUses, Map<String, Integer> slotsCreated,
+                        Integer exhaustionLevel) {
+        this(hpCurrent, hpTemp, slotsUsed, poolsCurrentUses, slotsCreated, exhaustionLevel, null);
     }
 
     /** Totals with no exhaustion. */
@@ -56,7 +68,12 @@ public record CombatTotals(
 
     /** The same totals with this exhaustion level. */
     public CombatTotals withExhaustion(int level) {
-        return new CombatTotals(hpCurrent, hpTemp, slotsUsed, poolsCurrentUses, slotsCreated, level);
+        return new CombatTotals(hpCurrent, hpTemp, slotsUsed, poolsCurrentUses, slotsCreated, level, itemsUsed);
+    }
+
+    /** The same totals with these items used up, by inventory entry (D210). */
+    public CombatTotals withItemsUsed(Map<String, Integer> used) {
+        return new CombatTotals(hpCurrent, hpTemp, slotsUsed, poolsCurrentUses, slotsCreated, exhaustionLevel, used);
     }
 
     /** Totals with no created slots. */

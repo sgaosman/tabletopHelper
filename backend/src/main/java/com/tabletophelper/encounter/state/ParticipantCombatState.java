@@ -45,6 +45,8 @@ import java.util.UUID;
  * @param controllerKept       true in every snapshot that records the controller of any creature; null in one taken
  *                             before, which recorded it only for a summoned creature that one of the players controlled
  *                             and leaves anyone else's as it is
+ * @param itemsUsed            the items it has used up, such as potions drunk (D210); null in a snapshot taken before V38,
+ *                             which leaves them as they are
  */
 public record ParticipantCombatState(
         UUID id,
@@ -65,7 +67,21 @@ public record ParticipantCombatState(
         @JsonInclude(JsonInclude.Include.NON_NULL) SummonLink summon,
         @JsonInclude(JsonInclude.Include.NON_NULL) Integer exhaustionLevel,
         @JsonInclude(JsonInclude.Include.NON_NULL) UUID controlledByUserId,
-        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean controllerKept) {
+        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean controllerKept,
+        @JsonInclude(JsonInclude.Include.NON_NULL) List<ItemUse> itemsUsed) {
+
+    /** A state as snapshots recorded it before V38, without the items used (D210). */
+    public ParticipantCombatState(UUID id, Integer hpCurrent, Integer hpTemp, LifeState lifeState,
+                                  Integer deathSaveSuccesses, Integer deathSaveFailures, Boolean deathSaveDue,
+                                  List<ConditionEntry> activeConditions, ConcentrationInstance concentration,
+                                  List<SpellEffectEntry> activeEffects, Map<String, SpellSlot> spellSlotsCurrent,
+                                  List<ResourcePoolEntry> resourcePoolsCurrent, TurnEconomy turnEconomy,
+                                  String lastLairActionUsed, Boolean dismissed, SummonLink summon,
+                                  Integer exhaustionLevel, UUID controlledByUserId, Boolean controllerKept) {
+        this(id, hpCurrent, hpTemp, lifeState, deathSaveSuccesses, deathSaveFailures, deathSaveDue, activeConditions,
+                concentration, activeEffects, spellSlotsCurrent, resourcePoolsCurrent, turnEconomy, lastLairActionUsed,
+                dismissed, summon, exhaustionLevel, controlledByUserId, controllerKept, null);
+    }
 
     /** A state as snapshots recorded it while only a summoned creature's controller was kept. */
     public ParticipantCombatState(UUID id, Integer hpCurrent, Integer hpTemp, LifeState lifeState,
@@ -138,7 +154,8 @@ public record ParticipantCombatState(
                 participant.getSummon(),
                 participant.getExhaustionLevel() != null ? participant.getExhaustionLevel() : 0,
                 participant.getControlledByUserId(),
-                true);
+                true,
+                copy(participant.getItemsUsed()));
     }
 
     /** Puts the state back on the participant, with lists and maps of its own that later commands may change. */
@@ -172,6 +189,10 @@ public record ParticipantCombatState(
         // D204), a summoned creature that broke free its caster's player (D182), or the DM
         if (Boolean.TRUE.equals(controllerKept) || (summon != null && controlledByUserId != null)) {
             participant.setControlledByUserId(controlledByUserId);
+        }
+        // A potion drunk or a scroll read comes back (D210); a snapshot from before V38 leaves them as they are
+        if (itemsUsed != null) {
+            participant.setItemsUsed(copy(itemsUsed));
         }
     }
 

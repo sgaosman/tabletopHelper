@@ -29,6 +29,8 @@ import type {
   StunningStrikeRequest,
   TurnEconomyRequest,
   UndoRequest,
+  UsableItems,
+  UseItemRequest,
   UsePoolRequest,
   WildShapeHealRequest,
   WildShapeOptions,
@@ -260,6 +262,17 @@ export const combatApi = {
   // bonus action with Cunning Action or Nimble Escape; a player's request over budget is a 409 (D174)
   standardAction(encounterId: string, request: StandardActionRequest) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/standard-action`, request);
+  },
+
+  // A potion drunk, or given to another creature, as an action on the participant's turn (PHB p.153, D210); one more
+  // than the character carries is a 409
+  useItem(encounterId: string, request: UseItemRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/use-item`, request);
+  },
+
+  // The potions, charged items and spell scrolls a player character can use now (D210)
+  getUsableItems(encounterId: string, participantId: string) {
+    return api.get<UsableItems>(`/encounters/${encounterId}/combat/usable-items`, { params: { participantId } });
   },
 
   // An object interaction on the participant's turn: the first each turn is free, and a player's second is a 409

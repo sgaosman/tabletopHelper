@@ -102,7 +102,8 @@ class CombatFixture {
     final CombatLogWriter combatLog = new CombatLogWriter(combatLogRepository);
     final ResourcePoolService resourcePoolService =
             new ResourcePoolService(mock(ClassFeaturePoolRepository.class),
-                    mock(com.tabletophelper.reference.RaceFeaturePoolRepository.class), JacksonDefaults.mapper());
+                    mock(com.tabletophelper.reference.RaceFeaturePoolRepository.class), JacksonDefaults.mapper(),
+                    itemRepository);
     final EffectApplier effectApplier = new EffectApplier(resolver, stats, combatLog, resourcePoolService);
     final AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
     final EncounterCommands encounterCommands = new EncounterCommands(encounterRepository, accessPolicy, eventPublisher);
@@ -137,9 +138,12 @@ class CombatFixture {
     final SpellCounters spellCounters = new SpellCounters(commandRecorder, undoService, combatLogRepository, combatLog,
             spellRepository, spellEffects, effectApplier, stats, resolver);
     final DefensiveSpells defensiveSpells = new DefensiveSpells(resolver, stats, combatLog);
+    // A magic item's spells and spell scrolls (D210)
+    final ItemSpells itemSpells = new ItemSpells(itemRepository, spellRepository, characterService, objectMapper,
+            stats, resolver);
     final SpellcastingService spellcasting = new SpellcastingService(access, accessPolicy, casterSpells, spellCaster,
             spellEffects, effectApplier, economy, manualModifiers, combatLog, encounterRepository, encounterService,
-            characterService, stats, metamagicCasting, summoner, formSpells, spellCounters, defensiveSpells);
+            characterService, stats, metamagicCasting, summoner, formSpells, spellCounters, defensiveSpells, itemSpells);
     final FontOfMagicService fontOfMagic = new FontOfMagicService(access, economy, combatLog, encounterRepository,
             encounterService);
     final MonsterHitEffects monsterHitEffects = new MonsterHitEffects(effectApplier, stats, combatLog, dice, summoner);
@@ -162,6 +166,8 @@ class CombatFixture {
             encounterService, effectApplier);
     final StandardActionService standardActions = new StandardActionService(access, economy, resolver, stats,
             combatLog, effectApplier, objectMapper, encounterRepository, encounterService);
+    final ItemUseService itemUse = new ItemUseService(access, accessPolicy, economy, effectApplier, combatLog, itemSpells,
+            dice, encounterRepository, encounterService);
     final TurnEconomyEditService turnEconomyEdit = new TurnEconomyEditService(access, combatLog, encounterRepository,
             encounterService);
     final HitFollowUpService hitFollowUps = new HitFollowUpService(access, resolver, stats, effectApplier, economy,

@@ -84,6 +84,15 @@ export type UsePoolRequest = Schemas['UsePoolRequest'];
  */
 export type StandardActionRequest = Schemas['StandardActionRequest'];
 
+/** A potion drunk, or given to another creature, as an action (PHB p.153, D210). */
+export type UseItemRequest = Schemas['UseItemRequest'];
+
+/** The potions, charged items and spell scrolls a player character can use now (D210). */
+export type UsableItems = Schemas['UsableItems'];
+export type UsablePotion = Schemas['Potion'];
+export type UsableChargedItem = Schemas['ChargedItem'];
+export type UsableScroll = Schemas['Scroll'];
+
 /** An object interaction on the participant's turn: the first each turn is free (D174). */
 export type ObjectInteractionRequest = Schemas['ObjectInteractionRequest'];
 
@@ -124,7 +133,10 @@ export type MultiattackOption = Schemas['MultiattackOption'];
 /** One attack of a multiattack; maxTargets is null for any number. */
 export type MultiattackComponent = Schemas['ComponentOption'];
 
-/** What pays for a cast spell: a spell slot, a pact slot, an innate use, or nothing (D165). */
+/**
+ * What pays for a cast spell: a spell slot, a pact slot, an innate use, nothing (D165), a magic item's charges or a
+ * spell scroll (D210).
+ */
 export type SpellSource = Schemas['SourceOption']['source'];
 
 /** A spell a participant can cast now, with each Spell Source that can pay for it (D164, D165). */

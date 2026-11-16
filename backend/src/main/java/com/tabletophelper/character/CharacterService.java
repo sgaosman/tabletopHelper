@@ -714,6 +714,14 @@ public class CharacterService {
     }
 
     /**
+     * What the character casts with in each class it has spells in, worked out from its live sheet: the spell lists a
+     * spell scroll is read from (DMG p.200, D210).
+     */
+    public List<ClassSpellcasting> spellcasting(PlayerCharacter character) {
+        return characterStats.spellcasting(character);
+    }
+
+    /**
      * The spellcasting numbers of the class whose subclass this is, for a cantrip the subclass taught, such as a Nature
      * Domain cleric's druid cantrip, cast with Wisdom as the cleric's (PHB p.61); empty when that class doesn't cast,
      * as an Arcane Archer fighter's doesn't.

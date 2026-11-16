@@ -94,14 +94,15 @@ class CharacterFixture {
     final ClassTables classTables = TestClassTables.load();
     final AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
     final ResourcePoolService resourcePoolService =
-            new ResourcePoolService(featurePoolRepository, raceFeaturePoolRepository, JacksonDefaults.mapper());
+            new ResourcePoolService(featurePoolRepository, raceFeaturePoolRepository, JacksonDefaults.mapper(),
+                    itemRepository);
     final EquippedArmour equippedArmour = new EquippedArmour(itemRepository);
     final CharacterStats characterStats = new CharacterStats(classRepository, subclassRepository,
             resourcePoolService, objectMapper, classTables, equippedArmour);
     final CharacterMapper mapper = new CharacterMapper(objectMapper, subclassRepository, characterStats, liveEncounters);
     final CharacterCommands commands = new CharacterCommands(characterRepository, accessPolicy, liveEncounters,
             characterStats, mapper);
-    final InventoryChecks inventoryChecks = new InventoryChecks(itemRepository, equippedArmour);
+    final InventoryChecks inventoryChecks = new InventoryChecks(itemRepository, equippedArmour, spellRepository);
     final FeatEffectResolver featEffectResolver = new FeatEffectResolver(spellRepository);
     final FeatEligibility featEligibility = new FeatEligibility(characterStats, featRepository,
             characterRepository, accessPolicy);

@@ -39,6 +39,10 @@ function ResultRow({ result }: { result: CombatResultPreview }) {
   for (const pool of result.pools) {
     lines.push(`${pool.displayName} ${pool.currentBefore} → ${pool.currentAfter} of ${pool.maxUses}`);
   }
+  // The potions drunk and scrolls read come off the sheet (D210)
+  for (const item of result.items ?? []) {
+    lines.push(`${item.name} ${item.quantityBefore} → ${item.quantityAfter}`);
+  }
   // Exhaustion outlasts the fight, so the sheet takes its change (D183)
   if (result.exhaustionAfter !== result.exhaustionBefore) {
     lines.push(`Exhaustion ${result.exhaustionBefore} → ${result.exhaustionAfter}`);

@@ -4059,20 +4059,37 @@ The plan's twelve questions were answered with its recommended answers when the 
 ## D210: Item Use in Combat
 
 **Date:** 2026-11-16
-**Status:** Accepted — in progress (migration V38; item content reload)
+**Status:** Accepted — implemented (migration V38; item loader version 3)
 
-**Context:** [[#D174]] moved item use out of M13: "Use an Object" is only logged, and the roadmap's item-use modal was never built. A survey found the item table drops 5etools' `charges`, `recharge`, `rechargeAmount`, `attachedSpells` and `spellScrollLevel` (188 items have charges, 111 cast spells from them, 59 potions, 21 scrolls), nothing reads an inventory item's `attuned` flag, and `data/item-effects/item-effect-definitions.json` (104 hand-written effects from M7) is never loaded. Planned during the user's overnight run of 2026-11-16; the calls are the lead's, recorded for review.
+**Context:** [[#D174]] moved item use out of M13: "Use an Object" was only logged and the roadmap's item-use modal was never built. A survey found the item table dropped 5etools' `charges`, `recharge`, `rechargeAmount`, `attachedSpells` and `spellScrollLevel` (188 items have charges, 111 cast spells from them, 59 potions, 21 scrolls), nothing read an inventory item's `attuned` flag, and `data/item-effects/item-effect-definitions.json` (104 hand-written effects from M7) was never loaded. Built during the user's overnight run of 2026-11-16; the calls are the lead's, recorded for review.
 
-**Decision (planned):**
-- **Data:** V38 adds `charges`, `recharge`, `recharge_amount`, `attached_spells` and `spell_scroll_level` to `items`; the item loader moves to version 3.
-- **Potions of healing:** `POST /combat/use-item` drinks or administers a potion as an action (PHB p.153), rolling 2d4 + 2, 4d4 + 4, 8d4 + 8 or 10d4 + 20 (DMG p.187). The potion is spent through the participant's own record of used items, applied to the sheet by Write-back at the end of the encounter, so undo restores it ([[#D176]]).
-- **Charged items:** a linked, attuned (where required) item with charges gets an `item:<name>` resource pool (sourceType `MAGIC_ITEM`, uses = charges, recharging on a long rest by its dice as the nearest the app has to dawn). Items that cast spells cast them through the spell flow with a new item source, paying charges and using the item's own DC or attack bonus where it states one, the wielder's otherwise.
-- **Spell scrolls:** cast through the spell flow at the scroll's level with the DMG p.200 DC and attack bonus, consumed on use; the ability check for a spell above the reader's highest slot is rolled.
-- **Attunement:** an Attune toggle on the inventory, a limit of three attuned items (DMG p.138), and attunement required before an item's charges or spells can be used.
-- **Left to the DM:** a wand's destruction roll on its last charge, and items whose effects the app cannot resolve.
+**Decision:**
+- **Data:** V38 adds `charges`, `recharge`, `recharge_amount` (markup stripped), `attached_spells`, `spell_scroll_level`, `spell_save_dc` and `spell_attack_bonus` to `items`, and `items_used` to `encounter_participants`; the item loader moves to version 3 and reads an item's own DC or attack bonus from the passage about casting, leaving them null where its text says "your spell save DC". The hand-written item effects stay unused: the 5etools data covers potions, charges and spells.
+- **Attunement:** an Attune toggle on the inventory for a linked item that requires attunement, at most three (DMG p.138), a fourth refused with a 400 and greyed out.
+- **Potions:** `POST /combat/use-item {participantId, itemName, targetId?}` drinks or gives a potion as an action (PHB p.153). Potions of Healing, Greater, Superior and Supreme roll 2d4 + 2, 4d4 + 4, 8d4 + 8 and 10d4 + 20 (DMG p.187); other potions are spent and logged with their description for the DM. The use is recorded in the participant's `itemsUsed`, which undo restores ([[#D176]]) and Write-back takes off the sheet at the encounter's end (the End dialog lists them); a character can't use more than it carries. `GET /combat/usable-items` lists a participant's potions, charged items and scrolls.
+- **Charged items:** a linked item with charges, attuned where required, gets an `item:<name>` pool (sourceType `MAGIC_ITEM`, uses = charges) through `ResourcePoolService.reconciledPools`, gone when unlinked or unattuned, spent charges kept while it stays. Its spells cast through the spell flow with the new `SpellSource.ITEM` and `itemName`, paying charges by `attachedSpells`, one level higher per extra charge where the text says so, at the item's own DC or attack bonus or else the wielder's, which is not a Manual Modifier ([[#D164]]); a spell the app has no row for is refused with a 400 naming it.
+- **Spell scrolls:** an inventory scroll records its `spell`; it casts through `SpellSource.SCROLL` at the scroll's level with the DMG p.200 DC and attack bonus, only for a spell on one of the reader's class lists, after a DC 10 + spell level check with the spellcasting ability when the spell is above what the reader can cast (a failure loses the scroll with no effect); the scroll is used up as a potion is.
+- **Frontend:** a "Use an Item" entry in the standard action menu opens `UseItemModal`; potions take a target, charged items and scrolls open the cast screen with the item as the source and its numbers shown. Item pools show in `ResourcePoolDisplay` with a wand icon.
 
-**Related:** D174, D176, D164, D165, D208; roadmap M13
+**Rules calls (the lead's, to confirm):**
+- Charges that come back at dawn, dusk or midnight return on a long rest, current charges plus the item's dice; items that never recharge or recharge by their own rule get a new reset `none` that rests skip, left to the DM.
+- A potion or scroll entry that reaches 0 is removed from the sheet.
+- An item's DC or attack bonus comes from its own text, else the wielder's main spellcasting numbers.
+- "1 charge per spell level, up to Nth" applies only to the spell named in that sentence (the Staff of Healing's Cure Wounds stops at 4th).
+- A scroll is read by the reader's class that can cast the highest level among those whose list has the spell; the check follows the ability-check advantage rules, and Metamagic on a failed scroll spends no sorcery points.
+- Item spells are offered only from the Use an Item dialog, not the ordinary spell list.
+- Spending an item's last charge logs a general reminder of its destruction roll for the DM.
+- Potion use logs as a standard action, needing no new log type.
 
+**Trade-offs and open items:** items that cast spells "per day" or at will rather than with charges aren't automated; repeating a lasting Spell Effect cast from an item uses the wielder's numbers; one charge pool per item name, even when two are carried; charges enter an encounter with the sheet when the character joins or it starts.
+
+**Real database:** V38 applies on its next start and the item content reloads; sheets gain item pools on their next character command or a `recompute-characters` run; players link and attune their wands and staffs before a fight.
+
+**Key files:** `db/migration/V38__item_use.sql`, `reference/Item.java`, `content/internal/ItemLoader.java`, `character/state/InventoryItem.java`, `character/InventoryChecks.java`, `resourcepool/ResourcePoolService.java`, `character/state/ResourcePoolEntry.java`, `encounter/internal/ItemUseService.java`, `Potions.java`, `ItemSpells.java`, `UsableItems.java`, `SpellSources.java`, `CasterSpells.java`, `SpellcastingService.java`, `WriteBackService.java`, `encounter/state/ItemUse.java`, `components/encounter/UseItemModal.tsx`, `StandardActionMenu.tsx`, `SpellCastModal.tsx`, `pages/player/sheet/InventoryTab.tsx`, `EndEncounterModal.tsx`
+
+**Related:** D164, D165, D174, D176, D208; roadmap M13
+
+**Tests:** loader, attunement, potion (healing, action cost, undo, write-back, carried limit), charged item pool and wand casting, scroll DC and check tests with their integration tests, and Vitest for the dialog and attune toggle; `JsonRoundTripJobIT` now counts 40 typed JSON columns and `PreviewMigrationJobIT` previews V38. 3,541 backend unit, 549 integration and 1,229 frontend tests on its branch; 4,655, 562 and 1,244 merged with D212–D215. The merge also gives the unit test JVM a 2 GB heap (`build.gradle.kts`): the grown suite ran out of Gradle's 512 MB default.
 
 ## D211: What a Removed Creature Leaves Behind
 

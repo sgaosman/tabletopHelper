@@ -322,11 +322,24 @@ export function useAttackRollPreview(attacker: EncounterParticipant | null, targ
  * The spells a participant can cast now, with what can pay for each (D164, D165). Casting spends slots and uses,
  * so the options load again each time they are shown.
  */
-export function useSpellOptions(participantId: string) {
+export function useSpellOptions(participantId: string, enabled = true) {
   const { encounterId, view } = useLiveEncounter();
   return useQuery({
     queryKey: queryKeys.encounters.spellOptions(encounterId, view, participantId),
-    queryFn: async () => (await combatApi.getSpellOptions(encounterId, participantId)).data,
+    queryFn: enabled ? async () => (await combatApi.getSpellOptions(encounterId, participantId)).data : skipToken,
+    staleTime: 0,
+  });
+}
+
+/**
+ * The potions, charged items and spell scrolls a player character can use now (D210). Using one spends it, so the
+ * list loads again each time it is shown.
+ */
+export function useUsableItems(participantId: string) {
+  const { encounterId, view } = useLiveEncounter();
+  return useQuery({
+    queryKey: queryKeys.encounters.usableItems(encounterId, view, participantId),
+    queryFn: async () => (await combatApi.getUsableItems(encounterId, participantId)).data,
     staleTime: 0,
   });
 }
@@ -470,6 +483,8 @@ export function useEncounterAction() {
       changeForm: change(combatApi.changeForm),
       standardAction: change(combatApi.standardAction),
       objectInteraction: change(combatApi.objectInteraction),
+      // A potion drunk or given (D210)
+      useItem: change(combatApi.useItem),
       // What follows a melee weapon hit, and the Protection reaction (M17)
       divineSmite: change(combatApi.divineSmite),
       stunningStrike: change(combatApi.stunningStrike),

@@ -5,6 +5,7 @@ import com.tabletophelper.character.CombatResults.CharacterResult;
 import com.tabletophelper.character.WriteBackService;
 import com.tabletophelper.character.dto.CombatResultPreview;
 import com.tabletophelper.character.state.CombatTotals;
+import com.tabletophelper.encounter.state.ItemUse;
 import com.tabletophelper.encounter.state.WildShapeForm;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +15,9 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Write-back's side in the encounter module (D166): each player character's participant, what it joined with and what
@@ -75,6 +78,20 @@ class EncounterResults {
         int hp = WildShapeForm.of(participant).map(WildShapeForm::normalHpCurrent).orElse(participant.getHpCurrent());
         return CombatTotals.of(hp, participant.getHpTemp() != null ? participant.getHpTemp() : 0,
                 participant.getSpellSlotsCurrent(), participant.getResourcePoolsCurrent())
-                .withExhaustion(participant.getExhaustionLevel() != null ? participant.getExhaustionLevel() : 0);
+                .withExhaustion(participant.getExhaustionLevel() != null ? participant.getExhaustionLevel() : 0)
+                .withItemsUsed(itemsUsed(participant));
+    }
+
+    // How many of each inventory entry it used up, such as potions drunk and scrolls read (D210)
+    private static Map<String, Integer> itemsUsed(EncounterParticipant participant) {
+        Map<String, Integer> used = new LinkedHashMap<>();
+        if (participant.getItemsUsed() != null) {
+            for (ItemUse use : participant.getItemsUsed()) {
+                if (use != null && use.name() != null) {
+                    used.merge(use.key(), 1, Integer::sum);
+                }
+            }
+        }
+        return used;
     }
 }

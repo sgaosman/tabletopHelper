@@ -59,6 +59,9 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // The unit suite loads the bundled spell, monster and item data in many tests (the Metamagic data test alone
+    // walks every spell template), which outgrew Gradle's 512 MB default test heap
+    maxHeapSize = "2g"
 }
 
 // Deprecation and removal warnings show at every compile, so APIs the next Spring Boot, Hibernate or

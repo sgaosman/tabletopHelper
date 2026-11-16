@@ -496,7 +496,7 @@ Phase 3 — Multiclass at creation:
   - Help: grant advantage on next attack or ability check against a target
   - Hide: contested Stealth check (log result, DM adjudicates)
   - Dash: double movement (informational log entry)
-- [ ] Item use in combat: — moved out of M13 (see below); Use an Object is logged as a standard action
+- [x] Item use in combat: — moved out of M13 (see below); Use an Object is logged as a standard action — done: potions, charged items and scrolls (D210)
   - `POST /api/encounters/{id}/combat/use-item` endpoint
   - Charge tracking and deduction
   - Attunement check (if item requires attunement, verify character is attuned)
@@ -512,7 +512,7 @@ Phase 3 — Multiclass at creation:
 - [x] Reaction counter display per participant — `TurnEconomyBar`
 - [x] Bonus action modal: show available bonus actions (bonus action spells, class abilities like Cunning Action) — the spell flow's casting-time badges, `StandardActionMenu`'s bonus-action versions and the pool menus
 - [x] Standard action buttons: Dodge, Help, Hide, Dash in a burger menu — `StandardActionMenu`
-- [ ] Item use modal: list equipped/attuned items with charges, select item → resolve effect — moved out of M13 (see below)
+- [x] Item use modal: list equipped/attuned items with charges, select item → resolve effect — moved out of M13 (see below) — done: potions, charged items and scrolls (D210)
 - [x] Free object interaction: freetext input logged to combat log — `ObjectInteractionBox`
 - [x] Action economy indicators: visual display of action/bonus action/reaction availability per turn — `TurnEconomyBar` on the DM's rows and the player's "This Turn" card, with greyed options and reasons
 

@@ -93,7 +93,7 @@ export default function ResourcePoolDisplay({
                 ? 'bg-rule-light text-muted'
                 : 'bg-page-alt text-ink'
               }`}
-            title={`${entry.displayName} — ${entry.sourceName || entry.sourceType} — resets on ${entry.resetOn}${entry.resetCheck ? ` (recharge ${entry.resetCheck})` : ''}`}
+            title={`${entry.displayName} — ${entry.sourceName || entry.sourceType} — ${entry.resetOn === 'none' ? 'no rest restores it' : `resets on ${entry.resetOn}`}${entry.resetCheck ? ` (recharge ${entry.resetCheck})` : ''}`}
           >
             {/* Icon placeholder — mapped from lucide-react icon name */}
             <span className="text-xs opacity-60">{iconChar(entry.icon)}</span>
@@ -912,6 +912,8 @@ function iconChar(icon?: string | null): string {
     case 'crown': return '👑';
     case 'wind': return '💨';
     case 'sparkles': return '✨';
+    // A magic item's charges (D210)
+    case 'wand': return '🪄';
     case 'paw-print': return '🐾';
     case 'git-branch': return '🐉';
     default: return '●';

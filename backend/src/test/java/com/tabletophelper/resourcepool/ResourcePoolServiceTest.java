@@ -45,12 +45,15 @@ class ResourcePoolServiceTest {
     @Mock
     private RaceFeaturePoolRepository raceFeaturePoolRepository;
 
+    @Mock
+    private com.tabletophelper.reference.ItemRepository itemRepository;
+
     private ResourcePoolService service;
 
     @BeforeEach
     void setUp() {
         service = new ResourcePoolService(classFeaturePoolRepository, raceFeaturePoolRepository,
-                JacksonDefaults.mapper());
+                JacksonDefaults.mapper(), itemRepository);
     }
 
     // ── Pool reset: full reset ────────────────────────────────────
@@ -616,6 +619,70 @@ class ResourcePoolServiceTest {
 
         assertEquals(5, findPool(monk.getResourcePoolsCurrent(), "ki").currentUses());
         assertFalse(service.recoverPool(EncounterParticipant.builder().build(), "ki", 1));
+    }
+
+    // ── Magic item charges (D210) ─────────────────────────────────
+
+    @Test
+    @DisplayName("A linked Wand of Magic Missiles gets a 7-charge MAGIC_ITEM pool, spent with an action, regaining 1d6 + 1 on a long rest (D210)")
+    void wandPool() {
+        com.tabletophelper.reference.Item wand = wand(false);
+        PlayerCharacter character = carrying(new com.tabletophelper.character.state.InventoryItem(wand.getName(), 1,
+                null, wand.getId(), null, null));
+        when(itemRepository.findAllById(List.of(wand.getId()))).thenReturn(List.of(wand));
+
+        ResourcePoolEntry pool = findPool(reconcile(character), "item:wand-of-magic-missiles");
+
+        assertEquals("MAGIC_ITEM", pool.sourceType());
+        assertEquals(7, pool.maxUses());
+        assertEquals(7, pool.currentUses());
+        assertEquals("longRest", pool.resetOn());
+        assertEquals("currentUses + (1d6 + 1)", pool.resetAmount());
+        assertEquals("ACTION", pool.spendActionType());
+    }
+
+    @Test
+    @DisplayName("An item requiring attunement has its pool only while attuned; unattuning drops it, and the spent charges are kept while it stays (D210)")
+    void attunedPool() {
+        com.tabletophelper.reference.Item wand = wand(true);
+        when(itemRepository.findAllById(List.of(wand.getId()))).thenReturn(List.of(wand));
+        PlayerCharacter character = carrying(new com.tabletophelper.character.state.InventoryItem(wand.getName(), 1,
+                null, wand.getId(), null, null));
+        assertTrue(reconcile(character).stream().noneMatch(p -> p.poolId().startsWith("item:")));
+
+        character.setEquipment(List.of(new com.tabletophelper.character.state.InventoryItem(wand.getName(), 1, null,
+                wand.getId(), null, true)));
+        character.setResourcePools(reconcile(character).stream()
+                .map(p -> p.poolId().equals("item:wand-of-magic-missiles") ? p.withCurrentUses(3) : p).toList());
+        assertEquals(3, findPool(reconcile(character), "item:wand-of-magic-missiles").currentUses());
+
+        character.setEquipment(List.of());
+        assertTrue(reconcile(character).stream().noneMatch(p -> p.poolId().startsWith("item:")));
+    }
+
+    @Test
+    @DisplayName("A long rest gives an item's pool its dice of charges back, up to the maximum, and leaves one that never recharges (D210)")
+    void itemPoolsOnALongRest() {
+        ResourcePoolEntry wand = ResourcePoolEntry.magicItem("Wand of Web", 7, "dawn", "3").withCurrentUses(2);
+        ResourcePoolEntry full = ResourcePoolEntry.magicItem("Staff of Fire", 10, "dawn", "6").withCurrentUses(8);
+        ResourcePoolEntry never = ResourcePoolEntry.magicItem("Ring of Spell Turning", 3, null, null).withCurrentUses(1);
+
+        List<ResourcePoolEntry> reset = service.resetPools(List.of(wand, full, never), "longRest", Map.of()).pools();
+
+        assertEquals(5, findPool(reset, "item:wand-of-web").currentUses());
+        assertEquals(10, findPool(reset, "item:staff-of-fire").currentUses());
+        assertEquals(1, findPool(reset, "item:ring-of-spell-turning").currentUses());
+        assertEquals("none", never.resetOn());
+    }
+
+    private static com.tabletophelper.reference.Item wand(boolean attunement) {
+        return com.tabletophelper.reference.Item.builder().id(UUID.randomUUID()).name("Wand of Magic Missiles")
+                .source("DMG").charges(7).recharge("dawn").rechargeAmount("1d6 + 1").requiresAttunement(attunement)
+                .build();
+    }
+
+    private static PlayerCharacter carrying(com.tabletophelper.character.state.InventoryItem entry) {
+        return PlayerCharacter.builder().level(3).equipment(new java.util.ArrayList<>(List.of(entry))).build();
     }
 
     // ── Context building ─────────────────────────────────────────

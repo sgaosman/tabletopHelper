@@ -1287,18 +1287,22 @@ class PreviewMigrationJobIT extends IntegrationTest {
         return rows;
     }
 
-    @Test
-    @DisplayName("Previews V36 on a database at V35: every participant loads with HELPFUL, and nothing is written")
-    void previewsV36() {
-        v36Rows();
-        DataSource v36 = schemaDataSource(V36_SCHEMA);
+    // V36's preview went once the entities mapped V38's items_used (D210); its apply test stays below
 
-        MaintenanceReport report = new PreviewMigrationJob(v36, new JdbcTemplate(v36), entityManagerFactory,
-                objectMapper, "36").run(false);
+    @Test
+    @DisplayName("Previews V38 on a database at V37: every participant loads with no items used, and nothing is written (D210)")
+    void previewsV38() {
+        v36Rows();
+        Flyway.configure().dataSource(dataSource).schemas(V36_SCHEMA).locations("classpath:db/migration")
+                .target("37").load().migrate();
+        DataSource v38 = schemaDataSource(V36_SCHEMA);
+
+        MaintenanceReport report = new PreviewMigrationJob(v38, new JdbcTemplate(v38), entityManagerFactory,
+                objectMapper, "38").run(false);
 
         assertThat(report.warnings()).isEmpty();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
-                + "AND column_name = 'spell_consent'", Integer.class, V36_SCHEMA)).isZero();
+                + "AND column_name = 'items_used'", Integer.class, V36_SCHEMA)).isZero();
     }
 
     @Test

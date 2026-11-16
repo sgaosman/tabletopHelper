@@ -323,6 +323,83 @@ class CharacterSheetServiceTest {
             assertThat(response.getEquipment()).hasSize(3);
         }
 
+        @Test
+        @DisplayName("Three items requiring attunement can be attuned, a fourth is a 400 that changes nothing (DMG p.138, D210)")
+        void attunementLimit() {
+            PlayerCharacter pc = fighter(1);
+            List<Item> items = List.of(attunable("Cloak of Protection"), attunable("Ring of Protection"),
+                    attunable("Amulet of Health"), attunable("Belt of Giant Strength"));
+            items.forEach(this::stub);
+
+            CharacterResponse response = f.sheet.updateInventory(pc.getId(), inventory(attuned(items.get(0)),
+                    attuned(items.get(1)), attuned(items.get(2)), linked(items.get(3), false)), f.userId);
+            assertThat(response.getEquipment()).filteredOn(entry -> Boolean.TRUE.equals(entry.attuned())).hasSize(3);
+
+            List<InventoryItem> before = pc.getEquipment();
+            assertThatThrownBy(() -> f.sheet.updateInventory(pc.getId(), inventory(attuned(items.get(0)),
+                    attuned(items.get(1)), attuned(items.get(2)), attuned(items.get(3))), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("A character can be attuned to no more than 3 magic items at a time (DMG p.138), not 4");
+            assertThat(pc.getEquipment()).isEqualTo(before);
+        }
+
+        @Test
+        @DisplayName("Only a linked item that requires attunement can be attuned: a longsword or an unlinked entry is a 400 (D210)")
+        void onlyAttunableItems() {
+            PlayerCharacter pc = fighter(1);
+            Item longsword = Item.builder().id(UUID.randomUUID()).name("Longsword").source("PHB").build();
+            stub(longsword);
+
+            assertThatThrownBy(() -> f.sheet.updateInventory(pc.getId(), inventory(attuned(longsword)), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Longsword doesn't require attunement");
+            assertThatThrownBy(() -> f.sheet.updateInventory(pc.getId(), inventory(
+                    new InventoryItem("Mystery Ring", 1, null, null, null, true)), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Link Mystery Ring to its item before attuning to it");
+        }
+
+        @Test
+        @DisplayName("A spell scroll holds a spell of its own level, named as the spells table has it; any other item, or a spell of another level, is a 400 (D210)")
+        void scrollSpells() {
+            PlayerCharacter pc = fighter(1);
+            Item scroll = Item.builder().id(UUID.randomUUID()).name("Spell Scroll (1st Level)").source("DMG")
+                    .type("Scroll").spellScrollLevel(1).build();
+            Item rope = Item.builder().id(UUID.randomUUID()).name("Rope").source("PHB").build();
+            stub(scroll);
+            stub(rope);
+            when(f.spellRepository.findByNameIgnoreCase("shield")).thenReturn(Optional.of(
+                    com.tabletophelper.reference.Spell.builder().name("Shield").level(1).build()));
+            when(f.spellRepository.findByNameIgnoreCase("Fireball")).thenReturn(Optional.of(
+                    com.tabletophelper.reference.Spell.builder().name("Fireball").level(3).build()));
+
+            CharacterResponse response = f.sheet.updateInventory(pc.getId(), inventory(
+                    new InventoryItem(scroll.getName(), 2, null, scroll.getId(), null, null, " shield ")), f.userId);
+            assertThat(response.getEquipment().getFirst().spell()).isEqualTo("Shield");
+
+            assertThatThrownBy(() -> f.sheet.updateInventory(pc.getId(), inventory(
+                    new InventoryItem(scroll.getName(), 1, null, scroll.getId(), null, null, "Fireball")), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Spell Scroll (1st Level) holds a level 1 spell, and Fireball is level 3");
+            assertThatThrownBy(() -> f.sheet.updateInventory(pc.getId(), inventory(
+                    new InventoryItem("Rope", 1, null, rope.getId(), null, null, "Shield")), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Only a spell scroll holds a spell: link Rope to its spell scroll");
+        }
+
+        private void stub(Item item) {
+            when(f.itemRepository.existsById(item.getId())).thenReturn(true);
+            when(f.itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+        }
+
+        private static Item attunable(String name) {
+            return Item.builder().id(UUID.randomUUID()).name(name).source("DMG").requiresAttunement(true).build();
+        }
+
+        private static InventoryItem attuned(Item item) {
+            return new InventoryItem(item.getName(), 1, null, item.getId(), null, true);
+        }
+
         private static Item armour(String name, Item.ArmourCategory category, int base) {
             return Item.builder().id(UUID.randomUUID()).name(name).source("PHB").armourCategory(category)
                     .armourClassBase(base).build();

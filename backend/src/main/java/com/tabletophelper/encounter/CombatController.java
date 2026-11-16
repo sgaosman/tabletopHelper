@@ -7,6 +7,7 @@ import com.tabletophelper.encounter.internal.ConditionService;
 import com.tabletophelper.encounter.internal.FontOfMagicService;
 import com.tabletophelper.encounter.internal.HitFollowUpService;
 import com.tabletophelper.encounter.internal.HitPointService;
+import com.tabletophelper.encounter.internal.ItemUseService;
 import com.tabletophelper.encounter.internal.LegendaryResistanceService;
 import com.tabletophelper.encounter.internal.MonsterActionService;
 import com.tabletophelper.encounter.internal.PoolUseService;
@@ -44,6 +45,7 @@ public class CombatController {
     private final LegendaryResistanceService legendaryResistanceService;
     private final PoolUseService poolUseService;
     private final StandardActionService standardActionService;
+    private final ItemUseService itemUseService;
     private final TurnEconomyEditService turnEconomyEditService;
     private final ConditionService conditionService;
     private final HitPointService hitPointService;
@@ -576,6 +578,27 @@ public class CombatController {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = standardActionService.standardAction(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // A potion drunk, or given to another creature, as an action on the participant's turn (PHB p.153, D210)
+    @PostMapping("/use-item")
+    public ResponseEntity<EncounterResponse> useItem(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody UseItemRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = itemUseService.useItem(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // The potions, charged items and spell scrolls a participant can use now: the DM anyone's, a player their own (D210)
+    @GetMapping("/usable-items")
+    public ResponseEntity<UsableItems> getUsableItems(
+            @PathVariable UUID encounterId,
+            @RequestParam UUID participantId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(itemUseService.usableItems(encounterId, participantId, userId));
     }
 
     // An object interaction on the participant's turn, the first each turn free (D174)

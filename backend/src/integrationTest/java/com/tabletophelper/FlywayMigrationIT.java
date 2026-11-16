@@ -45,14 +45,26 @@ class FlywayMigrationIT extends IntegrationTest {
     private EntityManagerFactory entityManagerFactory;
 
     @Test
-    @DisplayName("Flyway applied V0–V6 and V8–V37 to the empty database; V7 was never used")
+    @DisplayName("Flyway applied V0–V6 and V8–V38 to the empty database; V7 was never used")
     void appliedVersionsMatchMigrationFiles() {
         List<String> versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
 
         assertThat(versions).containsExactly("0", "1", "2", "3", "4", "5", "6", "8", "9", "10", "11", "12", "13", "14", "15",
                 "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33",
-                "34", "35", "36", "37");
+                "34", "35", "36", "37", "38");
+    }
+
+    @Test
+    @DisplayName("V38 adds the items' charges, recharge, attached spells, scroll level and own spell numbers, and a participant's items_used (D210)")
+    void itemUseColumns() {
+        assertThat(jdbcTemplate.queryForList("SELECT column_name::text FROM information_schema.columns "
+                + "WHERE table_name = 'items' AND column_name IN ('charges', 'recharge', 'recharge_amount', "
+                + "'attached_spells', 'spell_scroll_level', 'spell_save_dc', 'spell_attack_bonus')", String.class))
+                .hasSize(7);
+        assertThat(jdbcTemplate.queryForMap("SELECT data_type, is_nullable, column_default FROM information_schema.columns "
+                + "WHERE table_name = 'encounter_participants' AND column_name = 'items_used'"))
+                .containsEntry("data_type", "jsonb").containsEntry("is_nullable", "NO");
     }
 
     @Test

@@ -41,6 +41,9 @@ export const queryKeys = {
     /** What a participant can cast now and what pays for each spell: the DM's for anyone, a player's for their own. */
     spellOptions: (encounterId: string, view: EncounterView, participantId: string) =>
       ['encounters', encounterId, view, 'participants', participantId, 'spell-options'] as const,
+    /** The potions, charged items and spell scrolls a player character can use now (D210). */
+    usableItems: (encounterId: string, view: EncounterView, participantId: string) =>
+      ['encounters', encounterId, view, 'participants', participantId, 'usable-items'] as const,
     /** The weapons a participant can attack with and their numbers: the DM's for anyone, a player's for their own. */
     attackOptions: (encounterId: string, view: EncounterView, participantId: string) =>
       ['encounters', encounterId, view, 'participants', participantId, 'attack-options'] as const,
