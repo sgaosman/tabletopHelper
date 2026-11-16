@@ -113,6 +113,7 @@ public class ResourcePoolService {
                         keptUses(byPoolId.get(def.getPoolId()), maxUses)));
             }
         }
+        shareChannelDivinity(character, byPoolId, desiredPoolIds);
 
         int characterLevel = character.getLevel() != null ? character.getLevel() : 1;
         // A race's pools, by its row, so a subrace has its own (D208); a new race's pools come in and the old one's go
@@ -169,6 +170,50 @@ public class ResourcePoolService {
         // Remove orphaned pools (source no longer present)
         byPoolId.keySet().retainAll(desiredPoolIds);
         return new ArrayList<>(byPoolId.values());
+    }
+
+    /**
+     * A character with Channel Divinity from two classes, a cleric and a paladin, gains the second class's options but
+     * no more uses (PHB p.164), so it keeps one Channel Divinity pool: the one with the most uses at its levels (the
+     * cleric's from 6th level), on a tie the one its sheet already has, else the first class's. Every option of
+     * either class spends it (ChannelDivinityEffects). The uses already spent from each pool on the sheet stay spent
+     * from the one kept, never more than its maximum. A pool is Channel Divinity by its definition's
+     * {@code metadata.effect}.
+     */
+    private static void shareChannelDivinity(PlayerCharacter character, Map<String, ResourcePoolEntry> byPoolId,
+                                             Set<String> desiredPoolIds) {
+        List<ResourcePoolEntry> pools = desiredPoolIds.stream()
+                .map(byPoolId::get)
+                .filter(pool -> pool != null && CHANNEL_DIVINITY_EFFECT.equals(effectOf(pool)))
+                .toList();
+        if (pools.size() < 2) return;
+        Map<String, ResourcePoolEntry> onSheet = orEmpty(character.getResourcePools()).stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(ResourcePoolEntry::poolId, e -> e, (a, b) -> a));
+        ResourcePoolEntry kept = pools.stream()
+                .max(Comparator.comparingInt(ResourcePoolEntry::maxUses)
+                        .thenComparing(pool -> onSheet.containsKey(pool.poolId())))
+                .orElseThrow();
+        int spent = pools.stream()
+                .map(pool -> onSheet.get(pool.poolId()))
+                .filter(Objects::nonNull)
+                .mapToInt(old -> Math.max(0, old.maxUses() - old.currentUses()))
+                .sum();
+        for (ResourcePoolEntry pool : pools) {
+            if (pool != kept) {
+                desiredPoolIds.remove(pool.poolId());
+                byPoolId.remove(pool.poolId());
+            }
+        }
+        byPoolId.put(kept.poolId(), kept.withCurrentUses(Math.max(0, kept.maxUses() - spent)));
+    }
+
+    // The use-pool effect of a Channel Divinity pool, a cleric's or a paladin's, as encounter's ChannelDivinityEffects
+    // names it
+    private static final String CHANNEL_DIVINITY_EFFECT = "channel-divinity";
+
+    private static String effectOf(ResourcePoolEntry pool) {
+        return pool.metadata() instanceof Map<?, ?> map && map.get("effect") instanceof String effect ? effect : null;
     }
 
     // The row of the definition's level table at the level of the class it names, or null without one

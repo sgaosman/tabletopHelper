@@ -6,6 +6,7 @@ import com.tabletophelper.maintenance.BackfillPendingChoicesJob;
 import com.tabletophelper.maintenance.MaintenanceReport;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.FeatAbilityIncrease;
 import com.tabletophelper.reference.FeatEffects;
 import com.tabletophelper.reference.FeatRepository;
 import com.tabletophelper.reference.OptionalFeature;
@@ -386,6 +387,69 @@ class PendingChoicesIT extends IntegrationTest {
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/characters/" + aria + "/pools/spend",
                 Map.of("poolId", "feat:lucky"), player.accessToken()));
         assertThat(get(aria).get("resourcePools").toString()).contains("\"poolId\":\"feat:lucky\"");
+    }
+
+    @Test
+    @DisplayName("Resilient through the ASI needs its ability, one it offers, and the same ability's saving throw "
+            + "(PHB p.168); refused answers are 400s that change nothing, and the save is stored abbreviated")
+    void resilientChoices() {
+        String abilities = "[\"str\", \"dex\", \"con\", \"int\", \"wis\", \"cha\"]";
+        UUID resilientId = featRepository.save(Feat.builder().name("Resilient").source("PHB").description("Resilient")
+                .abilityScoreIncrease(FeatAbilityIncrease.parse("[{\"choose\": {\"from\": " + abilities
+                        + ", \"amount\": 1}}]"))
+                .effects(FeatEffects.parse("{\"savingThrowProficiencies\": [{\"choose\": {\"from\": " + abilities
+                        + "}}]}"))
+                .build()).getId();
+        JsonNode created = create(Map.of("level", 4));
+        String aria = created.get("id").asString();
+        String asi = id(created, "ASI", 4);
+
+        assertThat(error(apply(aria, Map.of("choiceId", asi, "asi", Map.of("type", "feat", "featId", resilientId,
+                "savingThrowChoice", "WIS"))), HttpStatus.BAD_REQUEST)).contains("Resilient increases");
+        assertThat(error(apply(aria, Map.of("choiceId", asi, "asi", Map.of("type", "feat", "featId", resilientId,
+                "featAbility", "WIS", "savingThrowChoice", "DEX"))), HttpStatus.BAD_REQUEST))
+                .isEqualTo("Resilient's saving throw is the ability it increases, WIS, not DEX");
+        assertThat(error(apply(aria, Map.of("choiceId", asi, "asi", Map.of("type", "feat", "featId", resilientId,
+                "featAbility", "luck", "savingThrowChoice", "WIS"))), HttpStatus.BAD_REQUEST))
+                .isEqualTo("'luck' is not an ability");
+        JsonNode unchanged = get(aria);
+        assertThat(unchanged.get("wisdom").asInt()).isEqualTo(10);
+        assertThat(described(unchanged)).contains("4 ASI");
+
+        JsonNode taken = applied(aria, Map.of("choiceId", asi, "asi", Map.of("type", "feat", "featId", resilientId,
+                "featAbility", "wis", "savingThrowChoice", "wisdom")));
+
+        assertThat(taken.get("wisdom").asInt()).isEqualTo(11);
+        assertThat(taken.get("savingThrowProficiencies").toString()).contains("\"WIS\"").doesNotContain("WISDOM");
+    }
+
+    @Test
+    @DisplayName("Creation refuses a subclass of another class and a second class whose multiclass prerequisites the "
+            + "scores miss (PHB p.163) with 400s, saving nothing; scores that meet them create the character")
+    void creationChecksSubclassAndPrerequisites() {
+        UUID wizardId = characterClassRepository.save(CharacterClass.builder().name("Wizard").source("PHB")
+                .hitDice(6).subclassLevel(2).isSpellcaster(true).isPactMagic(false).spellcastingAbility("INT")
+                .multiclassRequirements("[{\"ability\":\"INT\",\"minimum\":13}]").build()).getId();
+        Map<String, Object> wrongSubclass = new LinkedHashMap<>(Map.of("name", "Aria", "raceId", humanId,
+                "classId", wizardId, "subclassId", championId, "level", 3, "strength", 10, "dexterity", 14,
+                "constitution", 12, "intelligence", 16));
+        wrongSubclass.put("wisdom", 10);
+        wrongSubclass.put("charisma", 10);
+        assertThat(error(exchange(HttpMethod.POST, "/api/characters", wrongSubclass, player.accessToken()),
+                HttpStatus.BAD_REQUEST)).isEqualTo("Champion is a Fighter subclass, not a Wizard one");
+
+        Map<String, Object> multiclass = new LinkedHashMap<>(Map.of("name", "Aria", "raceId", humanId,
+                "classId", fighterId, "level", 3, "strength", 16, "dexterity", 14, "constitution", 12,
+                "intelligence", 10, "wisdom", 10, "charisma", 10));
+        multiclass.put("multiclassClassEntries", List.of(Map.of("classId", fighterId, "level", 2),
+                Map.of("classId", wizardId, "level", 1)));
+        assertThat(error(exchange(HttpMethod.POST, "/api/characters", multiclass, player.accessToken()),
+                HttpStatus.BAD_REQUEST)).startsWith("The ability scores don't meet the multiclass prerequisites for "
+                + "Wizard");
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM player_characters", Integer.class)).isZero();
+
+        multiclass.put("intelligence", 13);
+        expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters", multiclass, player.accessToken()));
     }
 
     @Test

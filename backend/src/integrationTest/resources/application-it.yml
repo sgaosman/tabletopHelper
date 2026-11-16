@@ -11,3 +11,9 @@ app:
   jwt:
     # Its own secret, because R3 removes the default from application.yml (D156)
     secret: integration-tests-only-secret-that-is-long-enough-for-hs512-signing-0123456789
+  auth:
+    # Every test registers and logs in from 127.0.0.1, so the limits are out of reach; AuthRateLimitIT lowers them
+    rate-limit:
+      login-per-ip: 1000000
+      login-per-username: 1000000
+      register-per-ip: 1000000

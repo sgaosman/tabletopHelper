@@ -104,14 +104,17 @@ public class ChannelDivinityEffects {
         if (uses != 1) {
             throw new ValidationException(pool.displayName() + " is used once at a time");
         }
-        String className = classOf(pool);
-        Option option = ChannelDivinity.option(optionId)
-                .filter(found -> found.className().equals(className))
-                .orElseThrow(() -> new ValidationException(className + " Channel Divinity has no option \"" + optionId
-                        + "\"; its options are " + java.util.Arrays.stream(Option.values())
-                        .filter(known -> known.className().equals(className))
-                        .map(Option::id).collect(Collectors.joining(", "))));
+        String poolClass = classOf(pool);
         PlayerCharacter character = user.getCharacter();
+        // A cleric-paladin has one Channel Divinity pool, which every option of either class spends (PHB p.164)
+        Option option = ChannelDivinity.option(optionId)
+                .filter(found -> found.className().equals(poolClass)
+                        || FeatureEffects.classLevel(character, found.className()) > 0)
+                .orElseThrow(() -> new ValidationException(poolClass + " Channel Divinity has no option \"" + optionId
+                        + "\"; its options are " + java.util.Arrays.stream(Option.values())
+                        .filter(known -> known.className().equals(poolClass))
+                        .map(Option::id).collect(Collectors.joining(", "))));
+        String className = option.className();
         int level = FeatureEffects.classLevel(character, className);
         if (!option.availableTo(className, subclassOf(character, className), level)) {
             throw new ConflictException(option.label() + " needs " + className + " level " + option.level()

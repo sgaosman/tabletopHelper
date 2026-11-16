@@ -89,11 +89,13 @@ public class ResourcePoolLoader implements ContentLoader {
         List<CharacterClass> classes = classRepo.findAll();
         Map<String, ResourcePoolDefinition> definitions = context.upsert("resource_pool_definitions", poolDefRepo,
                 definitions(root.path("definitions"), classes), ResourcePoolDefinition::getPoolId);
-        context.upsert("class_feature_pools", classFeaturePoolRepo,
+        // The mapping tables say which pools a class, a monster or a race has, and the pools are worked out from their
+        // rows, so a row the data dropped is deleted rather than kept granting its pool; nothing references them by ID
+        context.upsertDeletingMissing("class_feature_pools", classFeaturePoolRepo,
                 classPools(root.path("classPools"), definitions, classes), ResourcePoolLoader::classPoolKey);
-        context.upsert("monster_pool_triggers", monsterTriggerRepo,
+        context.upsertDeletingMissing("monster_pool_triggers", monsterTriggerRepo,
                 monsterTriggers(root.path("monsterTriggers"), definitions), trigger -> triggerKey(context, trigger));
-        context.upsert("race_feature_pools", raceFeaturePoolRepo,
+        context.upsertDeletingMissing("race_feature_pools", raceFeaturePoolRepo,
                 racePools(root.path("racePools"), definitions), ResourcePoolLoader::racePoolKey);
     }
 

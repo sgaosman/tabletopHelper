@@ -654,6 +654,84 @@ class ResourcePoolServiceTest {
                 null, resetCheck, "ACTION", null, Map.of());
     }
 
+    // ── Channel Divinity from two classes (PHB p.164) ─────────────
+
+    private static final String CLERIC_CD = "class:cleric-channel-divinity";
+    private static final String PALADIN_CD = "class:paladin-channel-divinity";
+
+    // A cleric-paladin at these levels, with the sheet's pools, each class's Channel Divinity pool as the data defines it
+    private PlayerCharacter clericPaladin(int clericLevel, int paladinLevel, ResourcePoolEntry... onSheet) {
+        UUID clericId = UUID.randomUUID();
+        UUID paladinId = UUID.randomUUID();
+        ClassFeaturePool cleric = ClassFeaturePool.builder().minLevel(2).poolDefinition(ResourcePoolDefinition.builder()
+                .poolId(CLERIC_CD).displayName("Channel Divinity").sourceType("CLASS").maxUsesFormula("1")
+                .resetOn("shortRest").metadata("{\"effect\": \"channel-divinity\"}")
+                .levelTable(new PoolLevelTable("Cleric", List.of(new Row(6, "2", null, null, null),
+                        new Row(18, "3", null, null, null))))
+                .build()).build();
+        ClassFeaturePool paladin = ClassFeaturePool.builder().minLevel(3).poolDefinition(ResourcePoolDefinition.builder()
+                .poolId(PALADIN_CD).displayName("Channel Divinity").sourceType("CLASS").maxUsesFormula("1")
+                .resetOn("shortRest").metadata("{\"effect\": \"channel-divinity\"}").build()).build();
+        when(classFeaturePoolRepository.findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(clericId,
+                clericLevel)).thenReturn(clericLevel >= 2 ? List.of(cleric) : List.of());
+        when(classFeaturePoolRepository.findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(paladinId,
+                paladinLevel)).thenReturn(paladinLevel >= 3 ? List.of(paladin) : List.of());
+        return PlayerCharacter.builder().level(clericLevel + paladinLevel)
+                .multiclassEntries(List.of(new ClassEntry(paladinId, "Paladin", null, null, paladinLevel),
+                        new ClassEntry(clericId, "Cleric", null, null, clericLevel)))
+                .resourcePools(List.of(onSheet))
+                .build();
+    }
+
+    private static ResourcePoolEntry channelDivinity(String poolId, int maxUses, int currentUses) {
+        return new ResourcePoolEntry(poolId, "Channel Divinity", "CLASS", null, maxUses, "1", currentUses, "shortRest",
+                null, null, "ACTION", null, Map.of("effect", "channel-divinity"));
+    }
+
+    @Test
+    @DisplayName("A Paladin 3 / Cleric 6 has one Channel Divinity pool, the cleric's 2 uses, not the paladin's on top (PHB p.164)")
+    void channelDivinityFromTwoClassesIsOnePool() {
+        List<ResourcePoolEntry> pools = reconcile(clericPaladin(6, 3));
+
+        List<ResourcePoolEntry> divinity = pools.stream().filter(p -> p.poolId().contains("channel-divinity")).toList();
+        assertEquals(1, divinity.size());
+        assertEquals(CLERIC_CD, divinity.getFirst().poolId());
+        assertEquals(2, divinity.getFirst().maxUses());
+        assertEquals(2, divinity.getFirst().currentUses());
+    }
+
+    @Test
+    @DisplayName("On a tie the pool the sheet already has is kept: a Paladin 3 who took Cleric 2 keeps the paladin's single use")
+    void channelDivinityTieKeepsTheSheetsPool() {
+        List<ResourcePoolEntry> pools = reconcile(clericPaladin(2, 3, channelDivinity(PALADIN_CD, 1, 0)));
+
+        assertEquals(List.of(PALADIN_CD), pools.stream().map(ResourcePoolEntry::poolId)
+                .filter(id -> id.contains("channel-divinity")).toList());
+        assertEquals(0, findPool(pools, PALADIN_CD).currentUses(), "the use spent stays spent");
+    }
+
+    @Test
+    @DisplayName("A sheet with both pools reconciles to the one with more uses, the uses spent from either staying spent, never below 0")
+    void channelDivinityExistingSheetWithBothPools() {
+        List<ResourcePoolEntry> onePaladinUseSpent = reconcile(clericPaladin(6, 3,
+                channelDivinity(CLERIC_CD, 2, 2), channelDivinity(PALADIN_CD, 1, 0)));
+        assertEquals(List.of(CLERIC_CD), onePaladinUseSpent.stream().map(ResourcePoolEntry::poolId)
+                .filter(id -> id.contains("channel-divinity")).toList());
+        assertEquals(1, findPool(onePaladinUseSpent, CLERIC_CD).currentUses());
+
+        List<ResourcePoolEntry> allSpent = reconcile(clericPaladin(6, 3,
+                channelDivinity(CLERIC_CD, 2, 0), channelDivinity(PALADIN_CD, 1, 0)));
+        assertEquals(0, findPool(allSpent, CLERIC_CD).currentUses());
+    }
+
+    @Test
+    @DisplayName("A single-class paladin keeps its own Channel Divinity pool")
+    void channelDivinitySingleClassUnchanged() {
+        List<ResourcePoolEntry> pools = reconcile(clericPaladin(1, 3));
+
+        assertEquals(1, findPool(pools, PALADIN_CD).maxUses());
+    }
+
     private List<ResourcePoolEntry> reconcile(PlayerCharacter character) {
         return service.reconciledPools(character, service.buildCharacterContext(character));
     }

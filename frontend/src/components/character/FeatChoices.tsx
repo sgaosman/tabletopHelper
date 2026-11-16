@@ -73,11 +73,16 @@ export default function FeatChoices({ feat, character, onSelectionChange, onBack
   const proficientSkills = character.skillProficiencies ?? [];
   const existingExpertise = character.skillExpertises ?? [];
 
+  // A feat that increases an ability of the player's choice and gives a saving throw of their choice, Resilient, gives
+  // that ability's saving throw (PHB p.168), so the one choice answers both
+  const saveFollowsAbility = needed.ability && needed.savingThrow;
+
   const selection = useMemo((): AsiChoice | null => {
+    const save = saveFollowsAbility ? abilityChoice : savingThrowChoice;
     const complete = (!needed.ability || abilityChoice)
       && (!needed.resistance || resistanceChoice)
       && skillChoices.length >= needed.skill
-      && (!needed.savingThrow || savingThrowChoice)
+      && (!needed.savingThrow || save)
       && expertiseChoices.length >= needed.expertise
       && toolChoices.length >= needed.tool
       && languageChoices.length >= needed.language
@@ -88,7 +93,7 @@ export default function FeatChoices({ feat, character, onSelectionChange, onBack
     const asi: AsiChoice = { type: 'feat', featId: feat.id, featAbility: abilityChoice || undefined };
     if (resistanceChoice) asi.resistanceChoice = resistanceChoice;
     if (skillChoices.length) asi.skillProficiencyChoices = skillChoices;
-    if (savingThrowChoice) asi.savingThrowChoice = savingThrowChoice;
+    if (needed.savingThrow && save) asi.savingThrowChoice = save;
     if (expertiseChoices.length) asi.expertiseSkillChoices = expertiseChoices;
     if (toolChoices.length) asi.toolProficiencyChoices = toolChoices;
     if (languageChoices.length) asi.languageChoices = languageChoices;
@@ -96,7 +101,7 @@ export default function FeatChoices({ feat, character, onSelectionChange, onBack
     if (optionalFeatureChoices.length) asi.optionalFeatureIds = optionalFeatureChoices;
     if (spellIds.length > 0) asi.spellIds = spellIds;
     return asi;
-  }, [feat.id, needed, abilityChoice, resistanceChoice, skillChoices, savingThrowChoice, expertiseChoices,
+  }, [feat.id, needed, saveFollowsAbility, abilityChoice, resistanceChoice, skillChoices, savingThrowChoice, expertiseChoices,
     toolChoices, languageChoices, weaponChoices, optionalFeatureChoices, chosenSpells, slots, spellIds]);
 
   // The parent holds the selection the dialog sends
@@ -172,7 +177,13 @@ export default function FeatChoices({ feat, character, onSelectionChange, onBack
           </ChoiceSection>
         )}
 
-        {needed.savingThrow && (
+        {saveFollowsAbility && (
+          <p className="font-body text-[13px] text-muted">
+            You gain proficiency in saving throws of the ability you increase.
+          </p>
+        )}
+
+        {needed.savingThrow && !saveFollowsAbility && (
           <ChoiceSection title="Choose saving throw proficiency">
             <div className="flex flex-wrap gap-2">
               {ABILITIES.map(({ key, label }) => (

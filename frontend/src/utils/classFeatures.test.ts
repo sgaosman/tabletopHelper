@@ -121,6 +121,22 @@ describe('classFeatures: Channel Divinity, Bardic Inspiration and Arcane Recover
       .toBe('Not a War Domain cleric');
   });
 
+  it("offers both classes' options from a cleric-paladin's one shared pool (PHB p.164), and Guided Strike spends it", () => {
+    const options = ['turn-undead', 'guided-strike', 'sacred-weapon'];
+    const shared = { channelDivinityOptions: options,
+      resourcePoolsCurrent: [pool('class:paladin-channel-divinity', 1, 'channel-divinity')] };
+    expect(channelOptions(shared, { poolId: 'class:paladin-channel-divinity' }).map(o => o.id))
+      .toEqual(['turn-undead', 'guided-strike', 'sacred-weapon']);
+    expect(guidedStrikeBlock(shared)).toBeNull();
+
+    // A sheet copied before the pools were shared still has both, each with its own class's options
+    const both = { channelDivinityOptions: options, resourcePoolsCurrent: [
+      pool('class:cleric-channel-divinity', 1, 'channel-divinity'),
+      pool('class:paladin-channel-divinity', 1, 'channel-divinity')] };
+    expect(channelOptions(both, { poolId: 'class:paladin-channel-divinity' }).map(o => o.id))
+      .toEqual(['sacred-weapon']);
+  });
+
   it('works out what Arcane Recovery can bring back (PHB p.115)', () => {
     expect(arcaneRecoveryBudget(1)).toBe(1);
     expect(arcaneRecoveryBudget(5)).toBe(3);

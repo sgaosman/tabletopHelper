@@ -113,6 +113,10 @@ public class CharacterService {
         if (request.getSubclassId() != null) {
             subclassRef = subclassRepository.findById(request.getSubclassId())
                     .orElseThrow(() -> new ValidationException("Subclass not found"));
+            if (classRef == null) {
+                throw new ValidationException("A subclass needs its class: send the classId");
+            }
+            requireSubclassOf(subclassRef, classRef);
         }
 
         Background backgroundRef = null;
@@ -142,6 +146,7 @@ public class CharacterService {
 
         List<LevelUpCalculator.LevelGain> progression;
         List<ClassEntry> multiclassEntries;
+        List<CharacterClass> multiclassRefs = List.of();
         String characterClassName = className;
 
         if (isMulticlass) {
@@ -155,6 +160,7 @@ public class CharacterService {
             }
             List<LevelUpCalculator.ClassInput> classInputs = new ArrayList<>();
             List<ClassEntry> mcEntryList = new ArrayList<>();
+            multiclassRefs = new ArrayList<>();
 
             for (ClassEntry mce : mcEntries) {
                 UUID mcClassId = mce.classId();
@@ -163,10 +169,12 @@ public class CharacterService {
 
                 CharacterClass mcClassRef = characterClassRepository.findById(mcClassId)
                         .orElseThrow(() -> new ValidationException("Class not found: " + mcClassId));
+                multiclassRefs.add(mcClassRef);
                 Subclass mcSubclassRef = null;
                 if (mcSubclassId != null) {
                     mcSubclassRef = subclassRepository.findById(mcSubclassId)
                             .orElseThrow(() -> new ValidationException("Subclass not found: " + mcSubclassId));
+                    requireSubclassOf(mcSubclassRef, mcClassRef);
                 }
 
                 String mcClassName = mcClassRef.getName();
@@ -243,6 +251,7 @@ public class CharacterService {
                 .levelHistory(LevelUpCalculator.levelHistory(progression))
                 .build();
 
+        requireMulticlassPrerequisites(character, multiclassRefs);
         recordCreationHpGains(character);
         pendingChoices.owedAtCreation(character, request);
         // The race's choice, or else the first casting class's, so a feat taken later that chooses its own ability
@@ -252,6 +261,35 @@ public class CharacterService {
         }
         characterStats.apply(character);
         return character;
+    }
+
+    // A subclass named with a class must be one of that class's
+    private static void requireSubclassOf(Subclass subclass, CharacterClass characterClass) {
+        CharacterClass owner = subclass.getCharacterClass();
+        if (owner != null && owner.getId() != null && !owner.getId().equals(characterClass.getId())) {
+            throw new ValidationException(subclass.getName() + " is a " + owner.getName() + " subclass, not a "
+                    + characterClass.getName() + " one");
+        }
+    }
+
+    /**
+     * A character created with more than one class meets every one's multiclassing prerequisites with the scores it
+     * is created with (PHB p.163), as levelling into a new class requires the new class's and each current class's.
+     *
+     * @throws ValidationException naming the classes whose prerequisites it doesn't meet
+     */
+    private void requireMulticlassPrerequisites(PlayerCharacter character, List<CharacterClass> classes) {
+        if (classes.size() < 2) return;
+        List<String> unmet = classes.stream()
+                .filter(c -> !MulticlassValidator.meetsPrerequisites(objectMapper, c.getMulticlassRequirements(),
+                        character))
+                .map(c -> c.getName() + " (" + MulticlassValidator.describePrerequisites(objectMapper,
+                        c.getMulticlassRequirements(), character) + ")")
+                .toList();
+        if (!unmet.isEmpty()) {
+            throw new ValidationException("The ability scores don't meet the multiclass prerequisites for "
+                    + String.join(" and ", unmet));
+        }
     }
 
     // The ability the race lets the player choose for its spells, abbreviated; null for none

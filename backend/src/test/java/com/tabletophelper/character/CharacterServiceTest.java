@@ -529,6 +529,51 @@ class CharacterServiceTest {
                     .hasMessage("Subclass not found: " + missing);
             verify(f.characterRepository, never()).save(any());
         }
+
+        @Test
+        @DisplayName("A subclass of another class, single-class or among multiclass entries, is a 400 that saves nothing")
+        void subclassOfAnotherClassIs400() {
+            CharacterCreateRequest single = request("Bram", f.wizard, f.human);
+            single.setLevel(3);
+            single.setSubclassId(f.champion.getId());
+            assertThatThrownBy(() -> create(single)).isInstanceOf(ValidationException.class)
+                    .hasMessage("Champion is a Fighter subclass, not a Wizard one");
+
+            CharacterCreateRequest multi = request("Bram", f.fighter, f.human);
+            multi.setLevel(5);
+            multi.setIntelligence(13);
+            multi.setMulticlassClassEntries(List.of(new ClassEntry(f.fighter.getId(), null, null, null, 3),
+                    new ClassEntry(f.wizard.getId(), null, f.champion.getId(), null, 2)));
+            assertThatThrownBy(() -> create(multi)).isInstanceOf(ValidationException.class)
+                    .hasMessage("Champion is a Fighter subclass, not a Wizard one");
+            verify(f.characterRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Created in two classes, the scores must meet both classes' multiclass prerequisites (PHB p.163): "
+                + "INT 10 can't be a Fighter 3 / Wizard 2, nor STR 10 DEX 10 a Wizard 3 / Fighter 2; INT 13 can")
+        void multiclassPrerequisitesAtCreation() {
+            CharacterCreateRequest noInt = request("Bram", f.fighter, f.human);
+            noInt.setLevel(5);
+            noInt.setMulticlassClassEntries(List.of(new ClassEntry(f.fighter.getId(), null, null, null, 3),
+                    new ClassEntry(f.wizard.getId(), null, null, null, 2)));
+            assertThatThrownBy(() -> create(noInt)).isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("multiclass prerequisites for Wizard (INT 13 (you have 10");
+
+            CharacterCreateRequest weak = request("Bram", f.wizard, f.human);
+            weak.setLevel(5);
+            weak.setStrength(10);
+            weak.setDexterity(10);
+            weak.setIntelligence(16);
+            weak.setMulticlassClassEntries(List.of(new ClassEntry(f.wizard.getId(), null, null, null, 3),
+                    new ClassEntry(f.fighter.getId(), null, null, null, 2)));
+            assertThatThrownBy(() -> create(weak)).isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("Fighter (");
+            verify(f.characterRepository, never()).save(any());
+
+            noInt.setIntelligence(13);
+            assertThat(create(noInt).getMulticlassEntries()).hasSize(2);
+        }
     }
 
     @Nested

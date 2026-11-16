@@ -25,6 +25,14 @@ app:
   auth:
     # The refresh cookie is Secure everywhere except the dev profile, which runs on plain HTTP (D156)
     cookie-secure: true
+    # Login and registration attempts allowed in each window before a 429 with Retry-After (AuthRateLimitFilter):
+    # logins by IP address and by the username tried, registrations by IP address. Counted in memory
+    rate-limit:
+      enabled: true
+      window: 1m
+      login-per-ip: 20
+      login-per-username: 10
+      register-per-ip: 5
 
 # The frontend generates its API types from this spec, so its output must be stable: OpenAPI 3.0
 # with nullable, keys in order and JSON responses (D171). The prod profile turns the docs off (D154)

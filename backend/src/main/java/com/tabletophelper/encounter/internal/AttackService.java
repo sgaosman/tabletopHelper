@@ -323,11 +323,18 @@ public class AttackService {
                 : after.currentUses() + "/" + after.maxUses() + " left"), actor, null);
     }
 
+    // The cleric's Channel Divinity pool, or, for a cleric-paladin whose sheet keeps the paladin's as the one pool both
+    // classes share (PHB p.164), that one
     private static ResourcePoolEntry channelDivinityPool(EncounterParticipant participant) {
         List<ResourcePoolEntry> pools = participant.getResourcePoolsCurrent();
-        return pools == null ? null : pools.stream()
+        if (pools == null) return null;
+        return pools.stream()
                 .filter(pool -> pool != null && CLERIC_CHANNEL_DIVINITY.equals(pool.poolId()))
                 .findFirst()
+                .or(() -> pools.stream()
+                        .filter(pool -> pool != null
+                                && ChannelDivinityEffects.EFFECT.equals(FeatureEffects.effectOf(pool)))
+                        .findFirst())
                 .orElse(null);
     }
 

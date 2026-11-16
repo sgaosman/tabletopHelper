@@ -73,6 +73,38 @@ class LoadContextTest {
     }
 
     @Test
+    @DisplayName("A mapping table's rows the data lacks are deleted, the rest updated or added, and the count says deleted")
+    void deletesMissingMappingRows() {
+        OptionalFeatureRepository repository = mock(OptionalFeatureRepository.class);
+        OptionalFeature archery = feature(UUID.randomUUID(), "Archery", "+2");
+        OptionalFeature retired = feature(UUID.randomUUID(), "Retired Style", "Gone from the data");
+        when(repository.findAll()).thenReturn(List.of(archery, retired));
+        savesWhatItIsGiven(repository);
+
+        Map<String, OptionalFeature> rows = context.upsertDeletingMissing("optional_features", repository,
+                List.of(feature(null, "Archery", "+2"), feature(null, "Defense", "+1 AC")),
+                f -> LoadContext.nameAndSource(f.getName(), f.getSource()));
+
+        assertThat(rows).containsOnlyKeys("Archery|PHB", "Defense|PHB");
+        verify(repository).deleteAll(List.of(retired));
+        LoadContext.TableCounts counts = context.counts().getFirst();
+        assertThat(counts).isEqualTo(new LoadContext.TableCounts("optional_features", 1, 0, 1, 0, 0, 1));
+        assertThat(counts.toString()).contains("1 missing from the data (deleted)").doesNotContain("(kept)");
+    }
+
+    @Test
+    @DisplayName("Deleting the missing rows deletes nothing when the data has them all")
+    void deletesNothingWhenNothingMissing() {
+        OptionalFeatureRepository repository = mock(OptionalFeatureRepository.class);
+        when(repository.findAll()).thenReturn(List.of(feature(UUID.randomUUID(), "Archery", "+2")));
+
+        context.upsertDeletingMissing("optional_features", repository, List.of(feature(null, "Archery", "+2")),
+                f -> LoadContext.nameAndSource(f.getName(), f.getSource()));
+
+        verify(repository, never()).deleteAll(anyIterable());
+    }
+
+    @Test
     @DisplayName("JSON that differs only in spacing and key order is unchanged, and a column another loader owns is left alone")
     void sameJsonAndOwnedColumns() {
         SpellRepository repository = mock(SpellRepository.class);
