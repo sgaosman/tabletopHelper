@@ -7,7 +7,7 @@ import { useSpellSearch } from '../../queries/reference';
 import type { ClassSpellcasting, PendingChoice, PlayerCharacter } from '../../types/character';
 import type { KnownSpell as SpellEntry } from '../../types/encounter';
 import type { Spell } from '../../types/reference';
-import { isSpellbookChoice as copiesToSpellbook } from '../../utils/pendingChoices';
+import { isSpellbookChoice as copiesToSpellbook, isSwapOnlyChoice } from '../../utils/pendingChoices';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
 import SpellPicker, { type SpellState } from './SpellPicker';
@@ -36,7 +36,8 @@ interface Props {
  * Chooses a class's spells, which one command saves: the spells it prepares, what a wizard copies into or takes out
  * of its spellbook, or, in the 'choice' mode, the cantrips or spells one of its levels' Pending Choices owes (D159),
  * exactly as many as the choice counts and of a level the class could learn then, with a known caster's optional swap
- * of one spell it knows. Every mode picks through SpellPicker, from the spell list the server names for the class
+ * of one spell it knows. A level whose Spells Known don't rise owes the swap alone (D223): the dialog then offers only
+ * the swap, and making the choice without one keeps every spell. Every mode picks through SpellPicker, from the spell list the server names for the class
  * (the choice's spellList, or the class's), or in the spellbook modes from the spellbook itself. The server checks
  * each spell against the class's list, level and limit.
  */
@@ -65,6 +66,7 @@ export default function ManageSpellsModal({
   const isChoice = type === 'choice' && !!choice;
   const isCantripChoice = isChoice && choice?.type === 'CANTRIPS';
   const isSpellbookChoice = isChoice && !!choice && copiesToSpellbook(choice);
+  const isSwapOnly = isChoice && !!choice && isSwapOnlyChoice(choice);
   const choiceCount = choice?.count ?? 0;
   const isWizardPrepared = type === 'prepared' && className === 'Wizard';
   const isSpellbookMode = type === 'spellbook';
@@ -204,7 +206,7 @@ export default function ManageSpellsModal({
   const choiceSaving = applyChoices.isPending || applyChoices.isSuccess;
   const levelText = choice?.className ? `${choice.className} ${choice.classLevel}` : className;
   const modalTitle = isChoice
-    ? isCantripChoice ? 'Learn Cantrips' : isSpellbookChoice ? 'Add to Spellbook' : 'Learn Spells'
+    ? isSwapOnly ? 'Replace a Spell' : isCantripChoice ? 'Learn Cantrips' : isSpellbookChoice ? 'Add to Spellbook' : 'Learn Spells'
     : isSpellbookMode
       ? 'Add to Spellbook'
       : isRemoveSpellbook
@@ -212,7 +214,9 @@ export default function ManageSpellsModal({
         : isWizardPrepared
           ? 'Prepare from Spellbook'
           : 'Change Prepared Spells';
-  const modalSubtitle = isChoice
+  const modalSubtitle = isSwapOnly
+    ? `${levelText}: you may replace one spell you know, up to level ${maxSpellLevel}`
+    : isChoice
     ? `${levelText}: choose ${choiceCount} (${picked.length}/${choiceCount})${
       isCantripChoice ? '' : `, up to level ${maxSpellLevel}`}`
     : isSpellbookMode || isRemoveSpellbook
@@ -232,7 +236,9 @@ export default function ManageSpellsModal({
           </Button>
           <Button onClick={handleSave} disabled={isChoice ? !choiceComplete || choiceSaving : saving}>
             {isChoice
-              ? choiceSaving ? 'Saving...' : isCantripChoice ? 'Learn Cantrips' : isSpellbookChoice ? 'Add to Spellbook' : 'Learn Spells'
+              ? choiceSaving ? 'Saving...'
+                : isSwapOnly ? replace ? 'Replace Spell' : 'Keep My Spells'
+                : isCantripChoice ? 'Learn Cantrips' : isSpellbookChoice ? 'Add to Spellbook' : 'Learn Spells'
               : saving ? 'Saving...' : 'Save Changes'}
           </Button>
         </>
@@ -244,7 +250,7 @@ export default function ManageSpellsModal({
         </div>
       )}
 
-      <SpellPicker
+      {!isSwapOnly && <SpellPicker
         value={value}
         onChange={change}
         max={isChoice ? choiceCount : type === 'prepared' ? prepLimit : undefined}
@@ -255,7 +261,7 @@ export default function ManageSpellsModal({
         emptyText={!spellbookSpells
           ? `Search for ${className} spells to add them.`
           : isRemoveSpellbook ? 'No spells in spellbook.' : 'No spells in spellbook to prepare.'}
-      />
+      />}
 
       {/* A known caster may also replace one spell it knows as it gains a level */}
       {isChoice && choice?.swap && (

@@ -178,6 +178,15 @@ public class CharacterController {
         return ResponseEntity.ok(restService.shortRest(characterId, request, userId));
     }
 
+    /** The best Song of Rest a bard of the character's campaign can perform for its short rest (PHB p.54, D223). */
+    @GetMapping("/{characterId}/song-of-rest")
+    public ResponseEntity<SongOfRestResponse> getSongOfRest(
+            @PathVariable UUID characterId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(restService.songOfRestOffered(characterId, userId));
+    }
+
     @PostMapping("/{characterId}/long-rest")
     public ResponseEntity<CharacterResponse> longRest(
             @PathVariable UUID characterId,

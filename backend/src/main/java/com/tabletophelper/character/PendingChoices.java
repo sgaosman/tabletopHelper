@@ -21,7 +21,8 @@ import java.util.UUID;
  * Cantrips Known rise, and its spells. A class that
  * knows a set number of spells, a bard, ranger, sorcerer or warlock or an Eldritch Knight or Arcane Trickster (PHB
  * p.51, p.89, p.99, p.105, p.74, p.97), learns those by which its Spells Known rise and may replace one it already
- * knows as it does; a wizard copies spells into its spellbook, six at 1st level and two at each level after (PHB
+ * knows on every level it gains in the class, a level whose Spells Known don't rise owing that swap alone (D223); a
+ * wizard copies spells into its spellbook, six at 1st level and two at each level after (PHB
  * p.114); and a class that prepares its spells has none to choose, since it prepares them from its whole list. A
  * warlock also chooses a Mystic Arcanum at Warlock 11th, 13th, 15th and 17th level (PHB p.108), one spell of the
  * arcanum's level each. Invocations, pact boons and maneuvers come later.
@@ -99,6 +100,12 @@ final class PendingChoices {
             if (learned > 0) {
                 owed.add(spellChoice(Type.SPELLS, source, characterLevel, level, learned, highest,
                         before > 0 ? Boolean.TRUE : null, spellList));
+            } else if (known.isPresent() && before > 0) {
+                // A known caster may replace one spell it knows each time it gains a level in the class, even when
+                // its Spells Known don't rise (PHB p.53, p.92, p.101, p.107, p.75, p.98; D223): a swap-only choice,
+                // which the player may decline
+                owed.add(spellChoice(Type.SPELLS, source, characterLevel, level, 0, highest, Boolean.TRUE,
+                        spellList));
             }
         }
         int arcanum = ClassProgression.mysticArcanumLevel(tables, className, classLevel);
@@ -117,9 +124,20 @@ final class PendingChoices {
                                               Source source) {
         Set<Type> without = EnumSet.noneOf(Type.class);
         owedAt(tables, characterLevel, level.withoutSubclass(), source).forEach(choice -> without.add(choice.type()));
+        // A level already gained when the subclass came has no swap of its own to make: the swap is made as the level
+        // is gained (D223)
         return owedAt(tables, characterLevel, level, source).stream()
                 .filter(choice -> SUBCLASS_DEPENDENT.contains(choice.type()) && !without.contains(choice.type()))
+                .filter(choice -> !swapOnly(choice))
                 .toList();
+    }
+
+    /**
+     * Whether the choice is a known caster's swap alone, owed on a level whose Spells Known don't rise (D223): a SPELLS
+     * choice of no spells that offers the swap. Making it with no swap declines it.
+     */
+    static boolean swapOnly(PendingChoice choice) {
+        return choice.type() == Type.SPELLS && choice.count() == 0 && Boolean.TRUE.equals(choice.swap());
     }
 
     private static PendingChoice choice(Type type, Source source, int characterLevel, ClassLevel level, int count,

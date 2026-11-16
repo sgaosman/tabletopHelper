@@ -22,7 +22,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param className      the class, as its class entry names it
  * @param classLevel     the class level that owes it
  * @param count          how many to choose: skills for Expertise, Metamagic options, proficiencies, cantrips, or
- *                       spells; 1 for the others
+ *                       spells; 1 for the others. A SPELLS choice of 0 is a known caster's swap alone, on a level
+ *                       whose Spells Known don't rise (D223), made with no swap to decline it
  * @param options        the fixed list it is chosen from, where it has one: the subclasses, the Fighting Styles, the
  *                       Metamagic options, the feats a background offers, or a SUBCLASS_CANTRIP's cantrips; null for
  *                       any, as an Ability Score Improvement's feat is

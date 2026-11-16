@@ -28,9 +28,10 @@ import static org.assertj.core.api.Assertions.tuple;
  * Everything): the subclass at the class's subclass level, Fighting Styles, Ability Score Improvements, Expertise,
  * the rise in Cantrips Known and, for a class that knows a set number of spells, in Spells Known, with the swap of a
  * known spell from the class's second spell level on, and a wizard's six spellbook spells at 1st level and two after.
- * One part departs from the PHB, as D159 records: the PHB lets a known caster swap a spell at every level from its
- * second on, but here the swap is offered only at a level where Spells Known rise. Each choice is written as its
- * type, then ×count for more than one, then "swap" when it offers one; a class that prepares its spells has no SPELLS.
+ * A known caster may swap a spell at every level it gains in the class once it knows spells (PHB p.53, p.92, p.101,
+ * p.107), so a level whose Spells Known don't rise owes the swap alone, a SPELLS choice of none (D223; until then D159
+ * offered the swap only where Spells Known rose). Each choice is written as its type, then ×count for any count but 1,
+ * then "swap" when it offers one; a class that prepares its spells has no SPELLS.
  * A level not listed owes nothing.
  */
 class PendingChoicesTest {
@@ -56,9 +57,11 @@ class PendingChoicesTest {
                         entry(6, List.of("SPELLS swap")), entry(7, List.of("SPELLS swap")),
                         entry(8, List.of("ASI", "SPELLS swap")), entry(9, List.of("SPELLS swap")),
                         entry(10, List.of("EXPERTISE×2", "CANTRIPS", "SPELLS×2 swap")), entry(11, List.of("SPELLS swap")),
-                        entry(12, List.of("ASI")), entry(13, List.of("SPELLS swap")), entry(14, List.of("SPELLS×2 swap")),
-                        entry(15, List.of("SPELLS swap")), entry(16, List.of("ASI")), entry(17, List.of("SPELLS swap")),
-                        entry(18, List.of("SPELLS×2 swap")), entry(19, List.of("ASI")))),
+                        entry(12, List.of("ASI", "SPELLS×0 swap")), entry(13, List.of("SPELLS swap")),
+                        entry(14, List.of("SPELLS×2 swap")), entry(15, List.of("SPELLS swap")),
+                        entry(16, List.of("ASI", "SPELLS×0 swap")), entry(17, List.of("SPELLS swap")),
+                        entry(18, List.of("SPELLS×2 swap")), entry(19, List.of("ASI", "SPELLS×0 swap")),
+                        entry(20, List.of("SPELLS×0 swap")))),
                 Arguments.of("Cleric", 1, Map.ofEntries(
                         entry(1, List.of("SUBCLASS", "CANTRIPS×3")), entry(4, List.of("ASI", "CANTRIPS")),
                         entry(8, List.of("ASI")), entry(10, List.of("CANTRIPS")), entry(12, List.of("ASI")),
@@ -80,11 +83,13 @@ class PendingChoicesTest {
                         entry(19, List.of("ASI")))),
                 Arguments.of("Ranger", 3, Map.ofEntries(
                         entry(2, List.of("FIGHTING_STYLE", "SPELLS×2")), entry(3, List.of("SUBCLASS", "SPELLS swap")),
-                        entry(4, List.of("ASI")), entry(5, List.of("SPELLS swap")), entry(7, List.of("SPELLS swap")),
-                        entry(8, List.of("ASI")), entry(9, List.of("SPELLS swap")), entry(11, List.of("SPELLS swap")),
-                        entry(12, List.of("ASI")), entry(13, List.of("SPELLS swap")), entry(15, List.of("SPELLS swap")),
-                        entry(16, List.of("ASI")), entry(17, List.of("SPELLS swap")),
-                        entry(19, List.of("ASI", "SPELLS swap")))),
+                        entry(4, List.of("ASI", "SPELLS×0 swap")), entry(5, List.of("SPELLS swap")), entry(6, List.of("SPELLS×0 swap")),
+                        entry(7, List.of("SPELLS swap")), entry(8, List.of("ASI", "SPELLS×0 swap")),
+                        entry(9, List.of("SPELLS swap")), entry(10, List.of("SPELLS×0 swap")), entry(11, List.of("SPELLS swap")),
+                        entry(12, List.of("ASI", "SPELLS×0 swap")), entry(13, List.of("SPELLS swap")), entry(14, List.of("SPELLS×0 swap")),
+                        entry(15, List.of("SPELLS swap")), entry(16, List.of("ASI", "SPELLS×0 swap")),
+                        entry(17, List.of("SPELLS swap")), entry(18, List.of("SPELLS×0 swap")),
+                        entry(19, List.of("ASI", "SPELLS swap")), entry(20, List.of("SPELLS×0 swap")))),
                 Arguments.of("Rogue", 3, Map.ofEntries(
                         entry(1, List.of("EXPERTISE×2")), entry(3, List.of("SUBCLASS")), entry(4, List.of("ASI")),
                         entry(6, List.of("EXPERTISE×2")), entry(8, List.of("ASI")), entry(10, List.of("ASI")),
@@ -97,22 +102,22 @@ class PendingChoicesTest {
                         entry(5, List.of("SPELLS swap")), entry(6, List.of("SPELLS swap")),
                         entry(7, List.of("SPELLS swap")), entry(8, List.of("ASI", "SPELLS swap")),
                         entry(9, List.of("SPELLS swap")), entry(10, List.of("METAMAGIC", "CANTRIPS", "SPELLS swap")),
-                        entry(11, List.of("SPELLS swap")), entry(12, List.of("ASI")), entry(13, List.of("SPELLS swap")),
-                        entry(15, List.of("SPELLS swap")), entry(16, List.of("ASI")),
-                        entry(17, List.of("METAMAGIC", "SPELLS swap")),
-                        entry(19, List.of("ASI")))),
+                        entry(11, List.of("SPELLS swap")), entry(12, List.of("ASI", "SPELLS×0 swap")),
+                        entry(13, List.of("SPELLS swap")), entry(14, List.of("SPELLS×0 swap")), entry(15, List.of("SPELLS swap")),
+                        entry(16, List.of("ASI", "SPELLS×0 swap")), entry(17, List.of("METAMAGIC", "SPELLS swap")),
+                        entry(18, List.of("SPELLS×0 swap")), entry(19, List.of("ASI", "SPELLS×0 swap")), entry(20, List.of("SPELLS×0 swap")))),
                 Arguments.of("Warlock", 1, Map.ofEntries(
                         entry(1, List.of("SUBCLASS", "CANTRIPS×2", "SPELLS×2")), entry(2, List.of("SPELLS swap")),
                         entry(3, List.of("SPELLS swap")), entry(4, List.of("ASI", "CANTRIPS", "SPELLS swap")),
                         entry(5, List.of("SPELLS swap")), entry(6, List.of("SPELLS swap")),
                         entry(7, List.of("SPELLS swap")), entry(8, List.of("ASI", "SPELLS swap")),
-                        entry(9, List.of("SPELLS swap")), entry(10, List.of("CANTRIPS")),
+                        entry(9, List.of("SPELLS swap")), entry(10, List.of("CANTRIPS", "SPELLS×0 swap")),
                         // Mystic Arcanum at 11th, 13th, 15th and 17th level (PHB p.108)
                         entry(11, List.of("SPELLS swap", "MYSTIC_ARCANUM")),
-                        entry(12, List.of("ASI")), entry(13, List.of("SPELLS swap", "MYSTIC_ARCANUM")),
-                        entry(15, List.of("SPELLS swap", "MYSTIC_ARCANUM")),
-                        entry(16, List.of("ASI")), entry(17, List.of("SPELLS swap", "MYSTIC_ARCANUM")),
-                        entry(19, List.of("ASI", "SPELLS swap")))),
+                        entry(12, List.of("ASI", "SPELLS×0 swap")), entry(13, List.of("SPELLS swap", "MYSTIC_ARCANUM")),
+                        entry(14, List.of("SPELLS×0 swap")), entry(15, List.of("SPELLS swap", "MYSTIC_ARCANUM")),
+                        entry(16, List.of("ASI", "SPELLS×0 swap")), entry(17, List.of("SPELLS swap", "MYSTIC_ARCANUM")),
+                        entry(18, List.of("SPELLS×0 swap")), entry(19, List.of("ASI", "SPELLS swap")), entry(20, List.of("SPELLS×0 swap")))),
                 Arguments.of("Wizard", 2, wizard()));
     }
 
@@ -142,17 +147,17 @@ class PendingChoicesTest {
         return described(PendingChoices.owedAt(TABLES, level.classLevel(), level, Source.LEVEL_UP));
     }
 
-    // Each choice as its type, ×count for more than one, and "swap" when it offers one
+    // Each choice as its type, ×count for any count but 1, and "swap" when it offers one
     private static List<String> described(List<PendingChoice> choices) {
         return choices.stream()
-                .map(c -> c.type() + (c.count() > 1 ? "×" + c.count() : "")
+                .map(c -> c.type() + (c.count() != 1 ? "×" + c.count() : "")
                         + (Boolean.TRUE.equals(c.swap()) ? " swap" : ""))
                 .toList();
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("everyClass")
-    @DisplayName("Each class level owes its PHB choices, in order: subclass, Fighting Style, Metamagic, ASI, Expertise, cantrips, spells; a known caster's swap comes only when Spells Known rise")
+    @DisplayName("Each class level owes its PHB choices, in order: subclass, Fighting Style, Metamagic, ASI, Expertise, cantrips, spells; and a known caster's swap at every level after its first, alone where Spells Known don't rise (D223)")
     void everyClassLevel(String className, int subclassLevel, Map<Integer, List<String>> expected) {
         for (int classLevel = 1; classLevel <= 20; classLevel++) {
             assertThat(owed(level(className, null, classLevel, subclassLevel)))
@@ -166,7 +171,7 @@ class PendingChoicesTest {
     void subclassesWithChoices() {
         assertThat(owed(level("Fighter", "Eldritch Knight", 3, 3))).containsExactly("CANTRIPS×2", "SPELLS×3");
         assertThat(owed(level("Fighter", "Eldritch Knight", 4, 3))).containsExactly("ASI", "SPELLS swap");
-        assertThat(owed(level("Fighter", "Eldritch Knight", 5, 3))).isEmpty();
+        assertThat(owed(level("Fighter", "Eldritch Knight", 5, 3))).containsExactly("SPELLS×0 swap");
         assertThat(owed(level("Fighter", "Eldritch Knight", 10, 3))).containsExactly("CANTRIPS", "SPELLS swap");
         assertThat(owed(level("Fighter", "Eldritch Knight", 20, 3))).containsExactly("SPELLS swap");
         assertThat(owed(level("Rogue", "Arcane Trickster", 3, 3))).containsExactly("CANTRIPS×3", "SPELLS×3");
@@ -184,6 +189,9 @@ class PendingChoicesTest {
                 Source.CREATION))).containsExactly("CANTRIPS×2", "SPELLS×3");
         assertThat(described(PendingChoices.owedBySubclass(TABLES, 4, level("Fighter", "Eldritch Knight", 4, 3),
                 Source.CREATION))).containsExactly("SPELLS swap");
+        // A level gained before the subclass came has no swap to make alone (D223)
+        assertThat(PendingChoices.owedBySubclass(TABLES, 5, level("Fighter", "Eldritch Knight", 5, 3),
+                Source.CREATION)).isEmpty();
         assertThat(described(PendingChoices.owedBySubclass(TABLES, 10, level("Fighter", "Champion", 10, 3),
                 Source.LEVEL_UP))).containsExactly("FIGHTING_STYLE");
         assertThat(PendingChoices.owedBySubclass(TABLES, 3, level("Fighter", "Champion", 3, 3), Source.LEVEL_UP)).isEmpty();

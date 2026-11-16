@@ -485,3 +485,23 @@ export function wildShapePoolId(participant: Pick<EncounterParticipant, 'resourc
   const pool = (participant.resourcePoolsCurrent ?? []).find(entry => poolEffect(entry) === 'wild-shape');
   return pool?.poolId ?? WILD_SHAPE_POOL;
 }
+
+/** The Song of Rest dice, d6 to d12 (PHB p.54, D223). */
+export const SONG_OF_REST_DICE = [6, 8, 10, 12] as const;
+
+/**
+ * A short rest's Song of Rest (D223): the die a bard sang with, null for none, or undefined until the dialog has
+ * offered the campaign's best; and the roll entered, blank for the server to roll it.
+ */
+export interface SongOfRestChoice {
+  dieSize: number | null | undefined;
+  roll: string;
+}
+
+/** The roll entered for Song of Rest: undefined for none, and NaN for anything that can't be a roll of the die. */
+export function songOfRestRoll(choice: SongOfRestChoice): number | undefined {
+  const trimmed = choice.roll.trim();
+  if (trimmed === '' || !choice.dieSize) return undefined;
+  const roll = /^\d+$/.test(trimmed) ? Number(trimmed) : NaN;
+  return roll >= 1 && roll <= choice.dieSize ? roll : NaN;
+}

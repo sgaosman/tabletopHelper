@@ -118,4 +118,27 @@ class RestRulesTest {
         assertEquals(Optional.of("Arcane Recovery is a wizard's feature"),
                 Rests.arcaneRecoveryRefusal(0, List.of(1), expended));
     }
+
+    // Song of Rest (PHB p.54, D223): "1d6", rising to 1d8 at 9th level, 1d10 at 13th and 1d12 at 17th
+    @ParameterizedTest(name = "Bard {0}: d{1}")
+    @CsvSource({"2, 6", "8, 6", "9, 8", "12, 8", "13, 10", "16, 10", "17, 12", "20, 12"})
+    @DisplayName("Song of Rest heals a d6 from Bard 2, a d8 at 9, a d10 at 13 and a d12 at 17")
+    void songOfRestDie_byBardLevel(int bardLevel, int die) {
+        assertEquals(Optional.of(die), Rests.songOfRestDie(bardLevel));
+    }
+
+    @Test
+    @DisplayName("A bard below 2nd level has no Song of Rest")
+    void songOfRestDie_belowSecondLevel_none() {
+        assertEquals(Optional.empty(), Rests.songOfRestDie(1));
+        assertEquals(Optional.empty(), Rests.songOfRestDie(0));
+    }
+
+    @Test
+    @DisplayName("Song of Rest heals only a creature that spent Hit Dice and regained hit points by them")
+    void earnsSongOfRest_needsHitDiceThatHealed() {
+        assertEquals(true, Rests.earnsSongOfRest(1, 4));
+        assertEquals(false, Rests.earnsSongOfRest(0, 0));
+        assertEquals(false, Rests.earnsSongOfRest(2, 0));
+    }
 }

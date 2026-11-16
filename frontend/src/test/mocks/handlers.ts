@@ -4,7 +4,7 @@ import { GLOSSARY } from './glossary';
 import type { AuthResponse } from '../../types/auth';
 import type { Campaign, CampaignMember, CampaignSettingsRequest } from '../../types/campaign';
 import type {
-  ArmourClassBreakdown, DmAdjustment, EligibleClassResponse, FeatOptionResponse, LevelUpResponse, PendingChoice, PlayerCharacter, ShortRestResponse,
+  ArmourClassBreakdown, DmAdjustment, EligibleClassResponse, FeatOptionResponse, LevelUpResponse, PendingChoice, PlayerCharacter, ShortRestResponse, SongOfRestResponse,
 } from '../../types/character';
 import type {
   AttackOption, AttackRollPreview, CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate, MultiattackOption,
@@ -142,6 +142,11 @@ export const characterHandlers = [
   // No feat's prerequisite is unmet unless a test says so (D159)
   http.get(`${BASE}/characters/:id/feat-options`, async () => {
     return HttpResponse.json([] satisfies FeatOptionResponse[]);
+  }),
+
+  // No bard in the campaign can sing Song of Rest, unless a test says otherwise (D223)
+  http.get(`${BASE}/characters/:id/song-of-rest`, async () => {
+    return HttpResponse.json({ dieSize: null, bardName: null, bardLevel: null } satisfies SongOfRestResponse);
   }),
 
   http.post(`${BASE}/characters/:id/level-up`, async () => {

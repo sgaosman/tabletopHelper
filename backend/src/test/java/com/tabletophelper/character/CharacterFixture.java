@@ -116,7 +116,8 @@ class CharacterFixture {
             accessPolicy, characterStats, commands, liveEncounters, inventoryChecks, choices, classTables);
     final CharacterSheetService sheet = new CharacterSheetService(commands, campaignRepository, accessPolicy,
             inventoryChecks, resourcePoolService);
-    final RestService rests = new RestService(commands, resourcePoolService, rng);
+    final RestService rests = new RestService(commands, resourcePoolService, rng, characterRepository,
+            accessPolicy);
     final WriteBackService writeBack = new WriteBackService(commands, characterRepository);
 
     final UUID userId = UUID.randomUUID();

@@ -266,10 +266,16 @@ public class CharacterClassLoader implements ContentLoader {
                         + " has no count of 1 or more");
             }
             for (Map.Entry<String, JsonNode> field : cantrip.properties()) {
-                if (!Set.of("count", "spells", "spellList", "grant").contains(field.getKey())) {
+                if (!Set.of("count", "spells", "spellList", "grant", "ofCantripsKnown").contains(field.getKey())) {
                     throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + " has "
-                            + field.getKey() + ", which isn't count, spells, spellList or grant");
+                            + field.getKey() + ", which isn't count, spells, spellList, grant or ofCantripsKnown");
                 }
+            }
+            // ofCantripsKnown marks a cantrip that is one of the class's Cantrips Known, as an Arcane Trickster's Mage
+            // Hand (PHB p.98, D223)
+            if (cantrip.has("ofCantripsKnown") && !cantrip.path("ofCantripsKnown").isBoolean()) {
+                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
+                        + "'s ofCantripsKnown is true or false");
             }
             if (cantrip.has("grant") && (!cantrip.path("grant").isString()
                     || cantrip.path("grant").asString("").isBlank() || cantrip.path("count").asInt() != 1

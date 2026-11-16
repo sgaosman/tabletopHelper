@@ -2298,4 +2298,201 @@ class PendingChoiceServiceTest {
             assertThat(f.choices.missedChoices(pc)).noneMatch(c -> c.type() == Type.DRACONIC_ANCESTRY);
         }
     }
+
+    @Nested
+    @DisplayName("Multiclass skills (PHB p.164, D223)")
+    class MulticlassSkills {
+
+        // A bard as the class data has it: one skill of any when multiclassing, as the loader title-cases the names
+        private final CharacterClass bard = CharacterClass.builder().id(UUID.randomUUID()).name("Bard").hitDice(8)
+                .subclassLevel(3).isSpellcaster(true).isPactMagic(false).spellcastingAbility("CHA")
+                .multiclassRequirements("[{\"ability\":\"CHA\",\"minimum\":13}]")
+                .multiclassProficiencies("{\"armor\":[\"Light\"],\"skills\":{\"count\":1,"
+                        + "\"from\":[\"Athletics\",\"Sleight Of Hand\",\"Stealth\"]}}")
+                .build();
+
+        @BeforeEach
+        void knowTheBard() {
+            lenient().when(f.classRepository.findById(bard.getId())).thenReturn(Optional.of(bard));
+        }
+
+        @Test
+        @DisplayName("Multiclassing into a bard owes one skill of its list, recorded on the level and taken away by levelling down")
+        void bardSkillChosenAndReversed() {
+            PlayerCharacter pc = create(f.fighter, 1, request -> {});
+            f.levelUp(pc, bard);
+
+            PendingChoice skill = f.pending(pc, Type.PROFICIENCY);
+            assertThat(skill.characterLevel()).isEqualTo(2);
+            assertThat(skill.className()).isEqualTo("Bard");
+            assertThat(skill.count()).isEqualTo(1);
+            assertThat(skill.proficiencyOptions().skills()).containsExactly("Athletics", "Sleight of Hand", "Stealth");
+
+            f.choose(pc, skill, request -> request.setProficiencies(List.of("sleight of hand")));
+
+            assertThat(pc.getSkillProficiencies()).contains("Sleight of Hand");
+            assertThat(pc.getLevelHistory().getLast().proficienciesGained().skills()).containsExactly("Sleight of Hand");
+            assertThat(pc.getLevelHistory().getLast().proficienciesGained().armor()).containsExactly("Light");
+            assertThat(pc.getPendingChoices()).noneMatch(c -> c.type() == Type.PROFICIENCY);
+
+            f.levelDown(pc);
+
+            assertThat(pc.getSkillProficiencies()).doesNotContain("Sleight of Hand");
+            assertThat(pc.getArmorProficiencies()).doesNotContain("Light");
+        }
+
+        @Test
+        @DisplayName("A skill off the class's list, or one held already, is a 400; levelling down drops the choice still owed")
+        void refusalsAndPendingDropped() {
+            PlayerCharacter pc = create(f.fighter, 1, request -> request.setSkillProficiencies(List.of("Athletics")));
+            f.levelUp(pc, bard);
+            PendingChoice skill = f.pending(pc, Type.PROFICIENCY);
+
+            assertThatThrownBy(() -> f.choose(pc, skill, request -> request.setProficiencies(List.of("Arcana"))))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Choose from Athletics, Sleight of Hand, Stealth, not Arcana");
+            assertThatThrownBy(() -> f.choose(pc, skill, request -> request.setProficiencies(List.of("Athletics"))))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Aria already has Athletics");
+
+            f.levelDown(pc);
+            assertThat(pc.getPendingChoices()).noneMatch(c -> c.type() == Type.PROFICIENCY);
+        }
+
+        @Test
+        @DisplayName("Only a new class owes the skill, and none when every skill offered is held already")
+        void onlyANewClassAndOnlyWhenLacking() {
+            PlayerCharacter rogue = create(f.fighter, 1, request -> request.setSkillProficiencies(List.of("Stealth")));
+            f.levelUp(rogue, f.rogue);
+            assertThat(rogue.getPendingChoices()).noneMatch(c -> c.type() == Type.PROFICIENCY);
+
+            PlayerCharacter pc = create(f.fighter, 1, request -> {});
+            f.levelUp(pc, f.fighter);
+            assertThat(pc.getPendingChoices()).noneMatch(c -> c.type() == Type.PROFICIENCY);
+        }
+    }
+
+    @Nested
+    @DisplayName("Swap-only levels (D223)")
+    class SwapOnlyLevels {
+
+        // A Sorcerer 11 that knows Magic Missile and Shield, from creation
+        private PlayerCharacter sorcerer() {
+            return create(f.sorcerer, 11, request -> request.setSpellsKnown(List.of(
+                    classSpell("Magic Missile", 1, "Sorcerer"), classSpell("Shield", 1, "Sorcerer"))));
+        }
+
+        private ApplyChoicesRequest.SpellSwap swap(String replace, String with) {
+            ApplyChoicesRequest.SpellSwap swap = new ApplyChoicesRequest.SpellSwap();
+            swap.setReplace(replace);
+            swap.setWith(with);
+            return swap;
+        }
+
+        @Test
+        @DisplayName("A level whose Spells Known don't rise, Sorcerer 12, owes a swap alone (PHB p.101); levelling down gives the spell back")
+        void swapOnlyChoiceMadeAndReversed() {
+            PlayerCharacter pc = sorcerer();
+            assertThat(pc.getPendingChoices()).noneMatch(PendingChoices::swapOnly);
+            f.levelUp(pc, f.sorcerer);
+
+            PendingChoice swapOnly = f.pending(pc, Type.SPELLS);
+            assertThat(swapOnly.characterLevel()).isEqualTo(12);
+            assertThat(swapOnly.count()).isZero();
+            assertThat(swapOnly.swap()).isTrue();
+            assertThat(swapOnly.maxSpellLevel()).isEqualTo(6);
+
+            f.choose(pc, swapOnly, request -> request.setSwap(swap("Shield", "Fireball")));
+
+            assertThat(names(pc, "class:Sorcerer")).containsExactly("Magic Missile", "Fireball");
+            SpellsLearned recorded = pc.getLevelHistory().getLast().choices().spells();
+            assertThat(recorded.learned()).isEmpty();
+            assertThat(recorded.replaced().name()).isEqualTo("Shield");
+            assertThat(recorded.replacement()).isEqualTo("Fireball");
+
+            f.levelDown(pc);
+
+            assertThat(names(pc, "class:Sorcerer")).containsExactly("Magic Missile", "Shield");
+        }
+
+        @Test
+        @DisplayName("The swap is optional: the choice made with no swap goes and changes nothing, and a spell to learn is a 400")
+        void declinedOrRefused() {
+            PlayerCharacter pc = sorcerer();
+            f.levelUp(pc, f.sorcerer);
+            PendingChoice swapOnly = f.pending(pc, Type.SPELLS);
+
+            assertThatThrownBy(() -> f.choose(pc, swapOnly, request -> request.setSpells(List.of("Fireball"))))
+                    .isInstanceOf(ValidationException.class);
+            f.choose(pc, swapOnly, request -> request.setSpells(List.of()));
+
+            assertThat(pc.getPendingChoices()).noneMatch(c -> c.id().equals(swapOnly.id()));
+            assertThat(names(pc, "class:Sorcerer")).containsExactly("Magic Missile", "Shield");
+        }
+    }
+
+    @Nested
+    @DisplayName("Arcane Trickster's Mage Hand (PHB p.98, D223)")
+    class ArcaneTricksterMageHand {
+
+        // As the content loader stores it from subclass-proficiencies.json
+        private final Subclass arcaneTrickster = Subclass.builder().id(UUID.randomUUID()).name("Arcane Trickster")
+                .characterClass(f.rogue)
+                .features("[{\"level\":3,\"name\":\"Spellcasting\",\"description\":\"Wizard spells\"}]")
+                .additionalProficiencies("{\"cantrips\":[{\"count\":1,\"grant\":\"Mage Hand\",\"spellList\":\"Wizard\","
+                        + "\"ofCantripsKnown\":true}]}")
+                .build();
+
+        @BeforeEach
+        void knowTheSubclass() {
+            spell("Mage Hand", 0, "Bard", "Sorcerer", "Warlock", "Wizard");
+            lenient().when(f.subclassRepository.findById(arcaneTrickster.getId())).thenReturn(Optional.of(arcaneTrickster));
+            lenient().when(f.subclassRepository.findByCharacterClassIdOrderByNameAsc(f.rogue.getId()))
+                    .thenReturn(List.of(arcaneTrickster));
+        }
+
+        @Test
+        @DisplayName("Choosing the Arcane Trickster grants Mage Hand and owes two other cantrips of its three; levelling down forgets it")
+        void mageHandGrantedOnTheSheet() {
+            PlayerCharacter pc = create(f.rogue, 3, request -> {});
+            f.choose(pc, f.pending(pc, Type.SUBCLASS), request -> request.setSubclassId(arcaneTrickster.getId()));
+
+            assertThat(names(pc, "subclass:Arcane Trickster")).containsExactly("Mage Hand");
+            assertThat(pc.getLevelHistory().getLast().choices().subclassCantrips()).containsExactly("Mage Hand");
+            PendingChoice cantrips = f.pending(pc, Type.CANTRIPS);
+            assertThat(cantrips.count()).isEqualTo(2);
+            assertThat(f.pending(pc, Type.SPELLS).count()).isEqualTo(3);
+            assertThat(pc.getPendingChoices()).noneMatch(c -> c.type() == Type.SUBCLASS_CANTRIP);
+
+            f.choose(pc, cantrips, request -> request.setSpells(List.of("Fire Bolt", "Minor Illusion")));
+            assertThat(names(pc, "class:Rogue")).containsExactly("Fire Bolt", "Minor Illusion");
+
+            f.levelDown(pc);
+
+            assertThat(pc.getSpellsKnown()).isEmpty();
+            assertThat(pc.getSubclass()).isNull();
+        }
+
+        @Test
+        @DisplayName("Created as an Arcane Trickster, the rogue knows Mage Hand and owes two other cantrips")
+        void mageHandAtCreation() {
+            PlayerCharacter pc = create(f.rogue, 3, request -> request.setSubclassId(arcaneTrickster.getId()));
+
+            assertThat(names(pc, "subclass:Arcane Trickster")).containsExactly("Mage Hand");
+            assertThat(f.pending(pc, Type.CANTRIPS).count()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("A rogue who knows Mage Hand already chooses another wizard cantrip in its place, still one of the three")
+        void mageHandKnownAlready() {
+            PlayerCharacter pc = create(f.rogue, 3, request -> {});
+            pc.setSpellsKnown(List.of(new KnownSpell(null, "Mage Hand", 0, "race:High Elf", null, null, null, null,
+                    null)));
+            f.choose(pc, f.pending(pc, Type.SUBCLASS), request -> request.setSubclassId(arcaneTrickster.getId()));
+
+            PendingChoice instead = f.pending(pc, Type.SUBCLASS_CANTRIP);
+            assertThat(instead.spellList()).isEqualTo("Wizard");
+            assertThat(f.pending(pc, Type.CANTRIPS).count()).isEqualTo(2);
+        }
+    }
 }

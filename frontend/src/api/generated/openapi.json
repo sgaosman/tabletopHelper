@@ -1143,6 +1143,37 @@
         ]
       }
     },
+    "/api/characters/{characterId}/song-of-rest": {
+      "get": {
+        "operationId": "getSongOfRest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SongOfRestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
     "/api/characters/{characterId}/spell-slots/{slot}/restore": {
       "post": {
         "operationId": "restoreSlot",
@@ -12769,6 +12800,14 @@
               "type": "integer",
               "format": "int32"
             }
+          },
+          "songOfRest": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SongOfRest"
+              }
+            ]
           }
         }
       },
@@ -12787,6 +12826,14 @@
             "items": {
               "$ref": "#/components/schemas/HitDieRoll"
             }
+          },
+          "songOfRest": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SongOfRestRoll"
+              }
+            ]
           }
         }
       },
@@ -12813,6 +12860,68 @@
           "usedBefore": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "SongOfRest": {
+        "required": [
+          "dieSize"
+        ],
+        "type": "object",
+        "properties": {
+          "dieSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "roll": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "SongOfRestResponse": {
+        "type": "object",
+        "properties": {
+          "bardLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "bardName": {
+            "type": "string",
+            "nullable": true
+          },
+          "dieSize": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "SongOfRestRoll": {
+        "required": [
+          "dieSize",
+          "healing",
+          "roll",
+          "rolledByServer"
+        ],
+        "type": "object",
+        "properties": {
+          "dieSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "healing": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "roll": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rolledByServer": {
+            "type": "boolean"
           }
         }
       },

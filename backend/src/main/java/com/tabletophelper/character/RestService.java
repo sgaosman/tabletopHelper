@@ -1,11 +1,15 @@
 package com.tabletophelper.character;
 
+import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.ShortRestRequest;
 import com.tabletophelper.character.dto.ShortRestRequest.HitDieSpent;
+import com.tabletophelper.character.dto.ShortRestRequest.SongOfRest;
 import com.tabletophelper.character.dto.ShortRestResponse;
 import com.tabletophelper.character.dto.ShortRestResponse.HitDieRoll;
+import com.tabletophelper.character.dto.ShortRestResponse.SongOfRestRoll;
+import com.tabletophelper.character.dto.SongOfRestResponse;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.ResourcePoolEntry;
@@ -18,12 +22,14 @@ import com.tabletophelper.rules.character.HitDice;
 import com.tabletophelper.rules.character.Rests;
 import com.tabletophelper.rules.character.Rests.SlotRecovery;
 import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,12 +49,14 @@ import static com.tabletophelper.character.CharacterUpdates.orEmpty;
  *       lower whose levels add up to half its wizard level, rounded up, once a day, which its
  *       {@value #ARCANE_RECOVERY} pool counts until its next long rest. A Circle of the Land druid's Natural Recovery
  *       (PHB p.68) follows the same rule with its druid level, once until a long rest, which its
- *       {@value #NATURAL_RECOVERY} pool counts (D222); both on one rest never recover the same slot twice.</li>
+ *       {@value #NATURAL_RECOVERY} pool counts (D222); both on one rest never recover the same slot twice. When a bard
+ *       performed Song of Rest during it (PHB p.54, D223), a character that regains hit points by spending Hit Dice
+ *       regains the bard's die more: a d6 from Bard 2, a d8 at 9th, a d10 at 13th and a d12 at 17th. The rest is the
+ *       character's own, so the request names the die; the server offers the best a bard of its campaign has.</li>
  *   <li>A long rest needs at least 1 hit point. It restores every hit point and clears temporary hit points, brings
  *       back spent Hit Dice up to half the character's total, at least one, the largest first, and restores every
  *       spell slot and every pool, and ends the spell slots a sorcerer created with Flexible Casting (PHB p.101).</li>
  * </ul>
- * Song of Rest isn't applied.
  */
 @Service
 @RequiredArgsConstructor
@@ -64,10 +72,13 @@ public class RestService {
 
     private static final String WIZARD = "Wizard";
     private static final String DRUID = "Druid";
+    private static final String BARD = "Bard";
 
     private final CharacterCommands characterCommands;
     private final ResourcePoolService resourcePoolService;
     private final Rng rng;
+    private final CharacterRepository characterRepository;
+    private final AccessPolicy accessPolicy;
 
     /**
      * A short rest, spending the Hit Dice the request names. It answers with the rested character and each die's roll
@@ -90,11 +101,19 @@ public class RestService {
                 : List.of();
         List<Integer> natural = request != null && request.naturalRecovery() != null ? request.naturalRecovery()
                 : List.of();
+        SongOfRest song = request != null ? request.songOfRest() : null;
+        if (song != null) {
+            requireSongOfRest(song);
+        }
         // Arcane Recovery and Natural Recovery are checked before anything changes, so a refused rest changes nothing
         if (!arcane.isEmpty() || !natural.isEmpty()) {
             requireSlotRecovery(character, arcane, natural);
         }
+        int hpBefore = character.getHpCurrent() != null ? character.getHpCurrent() : 0;
         List<HitDieRoll> rolls = spendHitDice(character, dice);
+        int hpFromHitDice = (character.getHpCurrent() != null ? character.getHpCurrent() : 0) - hpBefore;
+        SongOfRestRoll songRoll = song != null && Rests.earnsSongOfRest(rolls.size(), hpFromHitDice)
+                ? songOfRest(character, song) : null;
         resetPactSlots(character);
         resetShortRestPools(character);
         if (!arcane.isEmpty()) {
@@ -105,7 +124,33 @@ public class RestService {
         }
         // The short-rest pools and pact slots a level-down kept spent are restored now too (D222)
         LevelDownSpending.afterShortRest(character);
-        return new ShortRestResponse(characterCommands.finish(character), rolls);
+        return new ShortRestResponse(characterCommands.finish(character), rolls, songRoll);
+    }
+
+    /**
+     * The best Song of Rest the character could hear on a short rest (PHB p.54, D223): that of the living bard of 2nd
+     * level or higher in its campaign with the highest Bard level, the character itself included, or its own when it is
+     * in no campaign. The short-rest dialog offers it; whether the bard performed is the player's to say.
+     *
+     * @throws NotFoundException for an unknown or deleted character
+     * @throws com.tabletophelper.shared.ForbiddenException for anyone but its owner and its campaign's DM
+     */
+    @Transactional(readOnly = true)
+    public SongOfRestResponse songOfRestOffered(UUID characterId, UUID userId) {
+        PlayerCharacter character = characterRepository.findById(characterId)
+                .filter(found -> !Boolean.FALSE.equals(found.getIsActive()))
+                .orElseThrow(() -> new NotFoundException("Character not found"));
+        UUID campaignId = character.getCampaign() != null ? character.getCampaign().getId() : null;
+        accessPolicy.requireOwnerOrDm(character.getUser().getId(), campaignId, userId);
+        List<PlayerCharacter> party = campaignId != null
+                ? characterRepository.findByCampaignIdAndIsActiveTrue(campaignId) : List.of(character);
+        return party.stream()
+                .filter(member -> !member.isDead())
+                .filter(member -> Rests.songOfRestDie(classLevel(member, BARD)).isPresent())
+                .max(Comparator.comparingInt(member -> classLevel(member, BARD)))
+                .map(bard -> new SongOfRestResponse(Rests.songOfRestDie(classLevel(bard, BARD)).orElseThrow(),
+                        bard.getName(), classLevel(bard, BARD)))
+                .orElse(SongOfRestResponse.NONE);
     }
 
     /**
@@ -184,6 +229,28 @@ public class RestService {
         character.setHitDice(hitDice);
         character.setHpCurrent(CurrentHitPoints.heal(CharacterSheetService.totals(character), healing).current());
         return rolls;
+    }
+
+    // ── Song of Rest (D223) ──────────────────────────────────────
+
+    // A die Song of Rest doesn't have, or a roll outside it, is refused before anything changes
+    private static void requireSongOfRest(SongOfRest song) {
+        if (!Rests.SONG_OF_REST_DICE.contains(song.dieSize())) {
+            throw new ValidationException("Song of Rest heals with a d6, d8, d10 or d12, not a d" + song.dieSize());
+        }
+        if (song.roll() != null && (song.roll() < 1 || song.roll() > song.dieSize())) {
+            throw new ValidationException("A d" + song.dieSize() + " rolls 1 to " + song.dieSize() + ", not "
+                    + song.roll());
+        }
+    }
+
+    // The extra hit points Song of Rest gives (PHB p.54: "regain an extra 1d6 hit points"): the die's roll alone,
+    // entered or rolled here, up to the maximum
+    private SongOfRestRoll songOfRest(PlayerCharacter character, SongOfRest song) {
+        boolean rolledByServer = song.roll() == null;
+        int roll = rolledByServer ? rng.roll(song.dieSize()) : song.roll();
+        character.setHpCurrent(CurrentHitPoints.heal(CharacterSheetService.totals(character), roll).current());
+        return new SongOfRestRoll(song.dieSize(), roll, rolledByServer, roll);
     }
 
     // Half the character's total Hit Dice come back, at least one, the largest first (D158)

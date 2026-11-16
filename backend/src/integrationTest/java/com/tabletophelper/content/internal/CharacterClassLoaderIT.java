@@ -152,7 +152,10 @@ class CharacterClassLoaderIT extends IntegrationTest {
         load();
 
         assertThat(subclassRepository.findAll()).filteredOn(subclass -> subclass.getAdditionalProficiencies() != null)
-                .hasSize(42);
+                .hasSize(43);
+        // The Arcane Trickster's Mage Hand, one of its Cantrips Known at Rogue 3 (PHB p.98, D223)
+        assertThat(proficienciesOf("Arcane Trickster")).isEqualTo(objectMapper.readTree("{\"cantrips\": [{\"count\": 1, "
+                + "\"grant\": \"Mage Hand\", \"spellList\": \"Wizard\", \"ofCantripsKnown\": true}]}"));
         assertThat(proficienciesOf("Life Domain")).isEqualTo(objectMapper.readTree("{\"armor\": [\"heavy\"]}"));
         assertThat(proficienciesOf("War Domain")).isEqualTo(objectMapper.readTree(
                 "{\"armor\": [\"heavy\"], \"weapons\": [\"martial\"]}"));

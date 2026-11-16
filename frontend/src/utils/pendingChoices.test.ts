@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { makeMockCharacter, makeMockPendingChoice } from '../test/mocks/handlers';
 import {
-  choiceLabel, choicesPending, choicesToMake, choiceTitle, hasProficiency, isSpellbookChoice, proficiencyOptionLabel,
+  choiceLabel, choicesPending, choicesToMake, choiceTitle, hasProficiency, isSpellbookChoice, isSwapOnlyChoice,
+  proficiencyOptionLabel,
   proficiencyOptions, proficiencyTaken,
 } from './pendingChoices';
 
@@ -102,5 +103,21 @@ describe('pendingChoices', () => {
     expect(choiceTitle(arcanum)).toBe('Mystic Arcanum (6th)');
     expect(choiceLabel(arcanum)).toBe('Mystic Arcanum (6th) (Warlock 11)');
     expect(choiceTitle({ ...arcanum, maxSpellLevel: null })).toBe('Mystic Arcanum');
+  });
+
+  it("names a known caster's swap alone 'Spell Swap', on a level whose Spells Known don't rise (D223)", () => {
+    const swap = makeMockPendingChoice({ type: 'SPELLS', className: 'Sorcerer', classLevel: 12, count: 0, swap: true });
+    expect(isSwapOnlyChoice(swap)).toBe(true);
+    expect(choiceLabel(swap)).toBe('Spell Swap (Sorcerer 12)');
+    expect(isSwapOnlyChoice({ ...swap, count: 1 })).toBe(false);
+    expect(choiceLabel({ ...swap, count: 1 })).toBe('Spells (Sorcerer 12)');
+  });
+
+  it('names a multiclass skill choice by what it offers (PHB p.164, D223)', () => {
+    const skill = makeMockPendingChoice({
+      type: 'PROFICIENCY', className: 'Bard', classLevel: 1, characterLevel: 5, count: 1,
+      proficiencyOptions: { skills: ['Athletics', 'Sleight of Hand'] },
+    });
+    expect(choiceLabel(skill)).toBe('Skills (Bard 1)');
   });
 });

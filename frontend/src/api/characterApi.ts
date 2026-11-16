@@ -2,7 +2,7 @@ import api from './axiosConfig';
 import type {
   ArmourClassBreakdown, PlayerCharacter, CharacterCreateRequest, LevelUpResponse, ApplyChoicesRequest, EligibleClassResponse, FeatOptionResponse,
   CharacterDetailsRequest, CharacterCampaignRequest, InventoryRequest, HitPointChangeRequest, PoolUseRequest, FontOfMagicRequest,
-  ShortRestRequest, ShortRestResponse, PreparedSpellsRequest, SpellbookRequest, DmAdjustmentRequest,
+  ShortRestRequest, ShortRestResponse, SongOfRestResponse, PreparedSpellsRequest, SpellbookRequest, DmAdjustmentRequest,
 } from '../types/character';
 
 /**
@@ -82,6 +82,11 @@ export const characterApi = {
   /** Answers with the rested character and what each Hit Die spent rolled. */
   shortRest(id: string, data: ShortRestRequest) {
     return api.post<ShortRestResponse>(`/characters/${id}/short-rest`, data);
+  },
+
+  /** The best Song of Rest a bard of the character's campaign can perform for its short rest (D223). */
+  getSongOfRest(id: string) {
+    return api.get<SongOfRestResponse>(`/characters/${id}/song-of-rest`);
   },
 
   longRest(id: string) {
