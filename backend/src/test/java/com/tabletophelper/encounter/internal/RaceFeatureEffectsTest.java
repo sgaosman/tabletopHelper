@@ -399,8 +399,83 @@ class RaceFeatureEffectsTest {
     }
 
     @Nested
+    @DisplayName("Total cover (D185, D204)")
+    class TotalCover {
+
+        @Test
+        @DisplayName("A swallowed dragonborn breathes only on the creature that swallowed it: at others it is a 409 "
+                + "that spends nothing; Healing Hands can't reach into Otiluke's Resilient Sphere")
+        void swallowedAndEnclosed() {
+            EncounterParticipant kriv = f.player("Kriv", 40, 16);
+            f.turnOf(kriv);
+            level(kriv, 6, 3);
+            kriv.getCharacter().setConstitution(14);
+            give(kriv, pool("race:breath-weapon", "Breath Weapon", "ACTION", 1, Map.of("effect", "breath-weapon")));
+            kriv.setActiveConditions(new ArrayList<>(List.of(ConditionEntry.manual("swallowed", null, 1,
+                    orc.getId()))));
+
+            ConflictException outside = assertThrows(ConflictException.class,
+                    () -> use(kriv, "race:breath-weapon", "red", null, goblin));
+            assertTrue(outside.getMessage().startsWith("Kriv is swallowed"), outside.getMessage());
+            assertEquals(1, usesLeft(kriv, "race:breath-weapon"));
+            assertEquals(0, kriv.getTurnEconomy().actionsUsed());
+            assertEquals(30, goblin.getHpCurrent());
+
+            // 3d6 of 4, 5 and 6, and the orc's failed save
+            f.dice.script(4, 5, 6, 5);
+            use(kriv, "race:breath-weapon", "red", null, orc);
+            assertEquals(15, orc.getHpCurrent());
+
+            EncounterParticipant aasimar = f.player("Lumen", 30, 14);
+            f.turnOf(aasimar);
+            level(aasimar, 5, 3);
+            give(aasimar, pool("race:healing-hands", "Healing Hands", "ACTION", 1,
+                    Map.of("effect", "healing-hands", "healing", "totalLevel")));
+            goblin.setHpCurrent(10);
+            goblin.setActiveConditions(new ArrayList<>(List.of(ConditionEntry.manual("enclosed", null, 1))));
+            assertThrows(ConflictException.class, () -> use(aasimar, "race:healing-hands", null, null, goblin));
+            assertEquals(10, goblin.getHpCurrent());
+            assertEquals(1, usesLeft(aasimar, "race:healing-hands"));
+        }
+    }
+
+    @Nested
     @DisplayName("Notes")
     class Notes {
+
+        @Test
+        @DisplayName("Of two regainable pools with the same effect, the one asked for is regained, not the first")
+        void regainsThePoolAskedFor() {
+            EncounterParticipant tabaxi = f.player("Whisker", 20, 14);
+            give(tabaxi, pool("race:feline-agility", "Feline Agility", "FREE", 1, Map.of("effect", "racial-note",
+                    "regain", true)),
+                    pool("race:second-wind-step", "Second Step", "FREE", 1, Map.of("effect", "racial-note",
+                            "regain", true)));
+            use(tabaxi, "race:second-wind-step", null, null);
+            assertEquals(1, usesLeft(tabaxi, "race:feline-agility"));
+            assertEquals(0, usesLeft(tabaxi, "race:second-wind-step"));
+
+            use(tabaxi, "race:second-wind-step", "regain", null);
+
+            assertEquals(1, usesLeft(tabaxi, "race:second-wind-step"));
+            assertEquals(1, usesLeft(tabaxi, "race:feline-agility"));
+        }
+
+        @Test
+        @DisplayName("Of two Shifting pools, the temporary hit points are the formula of the one asked for")
+        void tempHpOfThePoolAskedFor() {
+            EncounterParticipant shifter = f.player("Fang", 30, 14);
+            f.turnOf(shifter);
+            level(shifter, 4, 2);
+            give(shifter, pool("race:shifting-a", "Shifting", "BONUS_ACTION", 1, Map.of("effect", "shifting",
+                    "tempHp", "1")),
+                    pool("race:shifting-b", "Beasthide Shifting", "BONUS_ACTION", 1, Map.of("effect", "shifting",
+                            "tempHp", "7")));
+
+            use(shifter, "race:shifting-b", null, null);
+
+            assertEquals(7, shifter.getHpTemp());
+        }
 
         @Test
         @DisplayName("Fury of the Small logs its extra damage with the goblin's level filled in, for the DM to apply")

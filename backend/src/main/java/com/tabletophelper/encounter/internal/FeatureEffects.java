@@ -23,6 +23,7 @@ import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -114,13 +115,36 @@ public class FeatureEffects {
      *                Preserve Life splits its healing; empty otherwise
      * @param weapon  the weapon the feature imbues, as Sacred Weapon's (PHB p.86), as the attack options name it; null
      *                otherwise
+     * @param poolId  the pool the use is of, which {@link #plan} fills in, so a creature with two pools of one effect
+     *                uses the one asked for; null in a plan not made there
      */
     public record Plan(String effect, String option, ActionCost cost, int spend, EncounterParticipant target,
-                       String note, List<EncounterParticipant> targets, List<Integer> amounts, String weapon) {
+                       String note, List<EncounterParticipant> targets, List<Integer> amounts, String weapon,
+                       String poolId) {
 
         public Plan {
             targets = targets != null ? List.copyOf(targets) : List.of();
             amounts = amounts != null ? List.copyOf(amounts) : List.of();
+        }
+
+        /** A use of no pool in particular. */
+        public Plan(String effect, String option, ActionCost cost, int spend, EncounterParticipant target,
+                    String note, List<EncounterParticipant> targets, List<Integer> amounts, String weapon) {
+            this(effect, option, cost, spend, target, note, targets, amounts, weapon, null);
+        }
+
+        /** The same use, of the pool. */
+        public Plan ofPool(String id) {
+            return new Plan(effect, option, cost, spend, target, note, targets, amounts, weapon, id);
+        }
+
+        /** Every creature the use reaches besides its user: its one target and those it affects. */
+        List<EncounterParticipant> reached(EncounterParticipant user) {
+            List<EncounterParticipant> reached = new ArrayList<>(targets);
+            if (target != null && target != user && !reached.contains(target)) {
+                reached.add(target);
+            }
+            return reached;
         }
 
         /** A use that imbues no weapon. */
@@ -156,6 +180,15 @@ public class FeatureEffects {
      */
     public Plan plan(Encounter encounter, EncounterParticipant user, ResourcePoolEntry pool, UsePoolRequest request,
                      UUID userId, ActionCost poolCost) {
+        Plan plan = planUse(encounter, user, pool, request, userId, poolCost);
+        // Total cover (D185, D204): a feature reaches no creature an attack or a spell couldn't, as one in Otiluke's
+        // Resilient Sphere or swallowed by a purple worm, and nothing outside from inside one
+        CombatAccess.requireReachable(user, plan.reached(user));
+        return plan.ofPool(pool.poolId());
+    }
+
+    private Plan planUse(Encounter encounter, EncounterParticipant user, ResourcePoolEntry pool,
+                         UsePoolRequest request, UUID userId, ActionCost poolCost) {
         String effect = effectOf(pool);
         String option = request.option() != null && !request.option().isBlank()
                 ? request.option().trim().toLowerCase(Locale.ROOT) : null;

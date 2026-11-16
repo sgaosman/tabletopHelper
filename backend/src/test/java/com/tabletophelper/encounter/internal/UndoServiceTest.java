@@ -204,6 +204,118 @@ class UndoServiceTest {
         assertEquals(effects, fighter.getActiveEffects());
     }
 
+    // A Spell Effect on the caster holding the creature under its control, as Dominate Person's or a ghost's Possession
+    private void dominate(EncounterParticipant caster, EncounterParticipant creature) {
+        f.inTransaction(() -> {
+            f.commandRecorder.record(f.encounter, f.dmUserId);
+            SpellEffectEntry effect = f.effectApplier.startEffect(f.encounter, caster, "Dominate Person", null, null,
+                    null, null, false);
+            f.effectApplier.addCondition(f.encounter, creature, "charmed", null);
+            f.effectApplier.takeControl(f.encounter, caster, effect.id(), List.of(creature), "charmed");
+            return null;
+        });
+    }
+
+    @Test
+    @DisplayName("Undoing a player's Dominate gives the monster back to the DM (D187)")
+    void undoesControlOfAMonster() {
+        UUID player = f.playerControlling(fighter);
+        dominate(fighter, goblin);
+        assertEquals(player, goblin.getControlledByUserId());
+
+        undo(1);
+
+        assertNull(goblin.getControlledByUserId());
+        assertFalse(CombatFixture.conditionNames(goblin).contains("charmed"));
+        assertTrue(fighter.getActiveEffects().isEmpty());
+    }
+
+    @Test
+    @DisplayName("Undoing a monster's control of a player character, as a ghost's Possession, gives it back to its "
+            + "player (D204)")
+    void undoesControlOfAPlayerCharacter() {
+        UUID player = f.playerControlling(fighter);
+        dominate(goblin, fighter);
+        assertNull(fighter.getControlledByUserId());
+
+        undo(1);
+
+        assertEquals(player, fighter.getControlledByUserId());
+    }
+
+    @Test
+    @DisplayName("A snapshot taken before every controller was kept leaves a creature nobody summoned with the "
+            + "controller it has")
+    void snapshotBeforeControllersWereKept() {
+        UUID player = f.playerControlling(fighter);
+        ParticipantCombatState old = new ParticipantCombatState(fighter.getId(), 30, 0, LifeState.ALIVE, 0, 0, false,
+                null, null, null, null, null, TurnEconomy.fresh(), null, false, null, 0, null);
+
+        old.restore(fighter);
+
+        assertEquals(player, fighter.getControlledByUserId());
+        ParticipantCombatState kept = ParticipantCombatState.of(goblin);
+        assertTrue(kept.controllerKept());
+        goblin.setControlledByUserId(player);
+        kept.restore(goblin);
+        assertNull(goblin.getControlledByUserId(), "a kept null is the DM's");
+    }
+
+    @Test
+    @DisplayName("A command taken back inside another, as Counterspell takes back a summoning, leaves its creatures "
+            + "gone but their rows kept; undoing the Counterspell brings them back as they were, and undoing the "
+            + "summoning then removes them (D182, D196)")
+    void revertedSummoningComesBack() {
+        UUID player = f.playerControlling(fighter);
+        EncounterParticipant wolf = EncounterParticipant.builder().id(UUID.randomUUID()).encounter(f.encounter)
+                .participantType(com.tabletophelper.encounter.ParticipantType.COMPANION).displayName("Wolf")
+                .hpMax(11).hpCurrent(11).hpTemp(0).armourClass(13).initiative(11).sortOrder(5)
+                .deathSaveSuccesses(0).deathSaveFailures(0).controlledByUserId(player)
+                .summonedByParticipantId(fighter.getId()).build();
+        f.inTransaction(() -> {
+            f.commandRecorder.record(f.encounter, f.dmUserId);
+            SpellEffectEntry effect = f.effectApplier.startEffect(f.encounter, fighter, "Conjure Animals", null, null,
+                    null, null, false);
+            f.encounter.getParticipants().add(wolf);
+            f.combatLog.write(f.encounter, CombatActionType.SUMMON, "Fighter summons a Wolf", fighter, wolf);
+            return effect;
+        });
+        CombatCommand summoning = f.commands.getLast();
+        SpellEffectEntry effect = fighter.getActiveEffects().getFirst();
+        wolf.setHpCurrent(9);
+
+        f.inTransaction(() -> {
+            f.commandRecorder.record(f.encounter, f.dmUserId);
+            f.undoService.revert(f.encounter, summoning, f.dmUserId);
+            f.combatLog.save(CombatLogWriter.about(f.combatLog.entry(f.encounter, CombatActionType.SPELL_CAST,
+                    "Goblin counters Fighter's Conjure Animals"), goblin, fighter).undoesCommandId(summoning.getId()));
+            return null;
+        });
+        CombatCommand counter = f.commands.getLast();
+        assertTrue(f.encounter.getParticipants().contains(wolf), "the row stays");
+        assertTrue(EncounterTurns.dismissed(wolf));
+        assertTrue(fighter.getActiveEffects().isEmpty());
+        assertNotNull(summoning.getUndoneAt());
+
+        org.mockito.Mockito.when(f.combatLogRepository.findByCommandIdOrderByCreatedAtAsc(counter.getId()))
+                .thenReturn(f.log.stream().filter(e -> counter.getId().equals(e.getCommandId())).toList());
+        org.mockito.Mockito.when(f.combatCommandRepository.findById(summoning.getId()))
+                .thenReturn(java.util.Optional.of(summoning));
+        undo(1);
+
+        assertFalse(EncounterTurns.dismissed(wolf));
+        assertEquals(9, wolf.getHpCurrent());
+        assertEquals(11, wolf.getInitiative());
+        assertEquals(player, wolf.getControlledByUserId());
+        assertEquals(List.of(effect), fighter.getActiveEffects());
+        assertNull(summoning.getUndoneAt(), "the summoning stands again");
+
+        undo(summoning.getId(), 1);
+
+        assertFalse(f.encounter.getParticipants().contains(wolf));
+        assertTrue(fighter.getActiveEffects().isEmpty());
+    }
+
     @Test
     @DisplayName("Undo is refused when the newest command isn't the one the DM reviewed, or there is none")
     void refusals() {

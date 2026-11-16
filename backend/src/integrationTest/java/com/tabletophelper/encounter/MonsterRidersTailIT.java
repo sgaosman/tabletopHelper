@@ -41,12 +41,14 @@ class MonsterRidersTailIT extends IntegrationTest {
 
     private RegisteredUser dm;
     private UUID encounterId;
+    private JsonNode campaign;
     private JsonNode definitions;
 
     @BeforeEach
     void setUpTable() throws IOException {
         dm = register("dungeonmaster");
-        UUID campaignId = UUID.fromString(createCampaign(dm.accessToken()).get("id").asString());
+        campaign = createCampaign(dm.accessToken());
+        UUID campaignId = UUID.fromString(campaign.get("id").asString());
         encounterId = createEncounter(dm.accessToken(), campaignId);
         try (InputStream in = new ClassPathResource(DEFINITIONS).getInputStream()) {
             definitions = JacksonDefaults.mapper().readTree(in);
@@ -252,7 +254,48 @@ class MonsterRidersTailIT extends IntegrationTest {
         assertThat(dice.remaining()).isZero();
     }
 
+    @Test
+    @DisplayName("A ghost possesses a player's character, whose player can no longer act for it; undoing the possession "
+            + "gives the character back to the player (D176, D204)")
+    void ghostPossessesAPlayerCharacter_undone() {
+        RegisteredUser player = register("aria");
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
+        UUID character = createCharacter(player.accessToken(), insertRace("Human"), insertClass("Fighter", 10));
+        String aria = idOf(addParticipant(dm.accessToken(), encounterId,
+                Map.of("participantType", "PLAYER", "characterId", character, "displayName", "Aria")), "Aria");
+        String ghost = addMonster(monster("Ghost", "MM", "Medium", "Undead", 45, 11), "Ghost");
+        start(ghost, aria);
+
+        // Aria's CHA save of 2 fails DC 13
+        dice.script(2);
+        expect(HttpStatus.OK, monsterAction(ghost, "Possession", aria));
+        JsonNode possessed = participant(dmView(), aria);
+        assertThat(conditions(possessed)).contains("possessed");
+        assertThat(possessed.get("controlledByUserId") == null || possessed.get("controlledByUserId").isNull())
+                .isTrue();
+        nextTurn();
+        assertThat(dodge(aria, player).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        // The Next Turn and the possession
+        String newest = dmView().get("undo").get("commandId").asString();
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/undo",
+                Map.of("expectedCommandId", newest, "steps", 2), dm.accessToken()));
+        JsonNode freed = participant(dmView(), aria);
+        assertThat(conditions(freed)).doesNotContain("possessed");
+        assertThat(freed.get("controlledByUserId").asString()).isEqualTo(player.id().toString());
+        assertThat(conditions(participant(dmView(), ghost))).doesNotContain("possessing");
+
+        nextTurn();
+        expect(HttpStatus.OK, dodge(aria, player));
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
+
+    private ResponseEntity<String> dodge(String participantId, RegisteredUser user) {
+        return exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/standard-action",
+                Map.of("participantId", participantId, "action", "DODGE"), user.accessToken());
+    }
 
     private void start(String... order) {
         List<Map<String, Object>> initiatives = new ArrayList<>();

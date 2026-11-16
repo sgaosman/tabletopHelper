@@ -68,7 +68,7 @@ public class UndoService {
 
         Instant now = Instant.now();
         for (CombatCommand command : undoing) {
-            restore(encounter, command);
+            restore(encounter, command, false);
             command.setUndoneAt(now);
             command.setUndoneBy(userId);
             revive(command);
@@ -86,10 +86,12 @@ public class UndoService {
      * Takes back a command inside another command, as a successful Counterspell takes back the spell it counters
      * (PHB p.228, D196): what the command changed is put back and it is marked undone, so its entries are dimmed for
      * the DM and dropped for players. The command doing it writes its own entry naming the command it undid, so undoing
-     * that command later brings this one back ({@link #revive}).
+     * that command later brings this one back ({@link #revive}). The creatures the command brought into the fight, such
+     * as a countered Conjure Animals' wolves, disappear rather than go, so that undoing the command doing it brings them
+     * back as they were, with their IDs, places in the turn order and the Spell Effect that summoned them.
      */
     public void revert(Encounter encounter, CombatCommand command, UUID userId) {
-        restore(encounter, command);
+        restore(encounter, command, true);
         command.setUndoneAt(Instant.now());
         command.setUndoneBy(userId);
         revive(command);
@@ -109,7 +111,7 @@ public class UndoService {
     }
 
     // Puts back what the command changed: its participants, the encounter's turn and the log entries it changed
-    private void restore(Encounter encounter, CombatCommand command) {
+    private void restore(Encounter encounter, CombatCommand command, boolean keepCreated) {
         CommandSnapshot before = command.getBeforeState();
         if (before == null) {
             throw new ConflictException("That action can no longer be undone");
@@ -127,9 +129,17 @@ public class UndoService {
             before.encounter().restore(encounter);
         }
         // The participants the command brought into the fight, such as a spell's summoned creatures, go (D182). Their
-        // log entries keep their IDs, which name no row, and the encounter's turn, restored above, never names them
+        // log entries keep their IDs, which name no row, and the encounter's turn, restored above, never names them.
+        // Taken back inside another command, they only disappear, rows kept: that command's own snapshot then holds
+        // them as they were, and undoing it brings them back, where a deleted row could not come back (D196)
         if (before.createdParticipantIds() != null && !before.createdParticipantIds().isEmpty()) {
-            encounter.getParticipants().removeIf(p -> before.createdParticipantIds().contains(p.getId()));
+            if (keepCreated) {
+                encounter.getParticipants().stream()
+                        .filter(p -> before.createdParticipantIds().contains(p.getId()))
+                        .forEach(p -> p.setDismissed(true));
+            } else {
+                encounter.getParticipants().removeIf(p -> before.createdParticipantIds().contains(p.getId()));
+            }
         }
         for (LogPatch patch : before.logPatches() != null ? before.logPatches() : List.<LogPatch>of()) {
             combatLogRepository.findById(patch.logId()).ifPresent(entry -> entry.setLrResolved(patch.lrResolved()));
