@@ -1991,7 +1991,9 @@ def merged(existing, generated):
 #   - a key it adds to a part the entry had lists in that part's "_riderKeys", or "_riderNulls" when it replaced a null;
 #   - a part it takes away is kept in the action's "_riderRemoved" with its place;
 #   - what it adds to the dmNote is the action's "_riderNote", with "_riderNoteNew" when there was no dmNote;
-#   - a key it adds to the action itself, as a grapple limit or a save's immunity (D203), lists in "_riderActionKeys".
+#   - a key it adds to the action itself, as a grapple limit or a save's immunity (D203), lists in "_riderActionKeys";
+#   - a value of the action's own it puts right, as a save action's halfOnSave (D207), keeps the value it had in
+#     "_riderActionReplaced".
 RIDER_LISTS = (('action', 'actions', 'ACTION'), ('bonus', 'bonusActions', 'BONUS_ACTION'),
                ('reaction', 'reactions', 'REACTION'), ('legendary', 'legendaryActions', 'LEGENDARY'),
                ('mythic', 'mythicActions', 'MYTHIC'))
@@ -2042,6 +2044,9 @@ def strip_riders(action):
         action['dmNote'] = replaced
     for k in action.pop('_riderActionKeys', []):
         action.pop(k, None)
+    # A value of the action's own the pass put right, as a save action's halfOnSave (D207)
+    for k, v in action.pop('_riderActionReplaced', {}).items():
+        action[k] = v
 
 
 def add_action_keys(action, keys):
@@ -2287,6 +2292,47 @@ def save_pass(actions, stat, raw, stats):
     keys = save_riders(raw)
     if keys and add_action_keys(action, keys):
         stats['save actions given an immunity or exemption'] += 1
+    save_options(action, raw, stats)
+
+
+# The start of a hand-written note that the type of the damage is the DM's to choose, stale once the options are read
+CHOICE_NOTE = 'The damage type or amount is a choice the DM settles by hand: '
+
+
+def save_options(action, raw, stats):
+    """Damage of a type the monster chooses (D207) takes the place of the hand-built save action's damage of the same
+    dice, which had one of the types or none, as the Aspect of Tiamat's acid Chromatic Flames (FTD) or the Storm Giant
+    Tempest Caller's null Tempest Call (BGG); the options come with it, and a halfOnSave its stat block contradicts is
+    put right, marked in "_riderActionReplaced" with the value it had."""
+    chosen, options = chosen_types(raw)
+    if not options or not isinstance(action.get('effects'), list):
+        return
+    effects = action['effects']
+    read = [p for p in damage_parts(chosen)[0] if p['damageType'] == 'option']
+    changed = False
+    for part in read:
+        if any(isinstance(p, dict) and p.get('effectType') == 'DAMAGE' and dice_key(p) == dice_key(part)
+               for p in effects):
+            continue
+        index = next((i for i, p in enumerate(effects) if isinstance(p, dict) and p.get('effectType') == 'DAMAGE'
+                      and not p.get('_rider') and dice_key(p)[0] == dice_key(part)[0]
+                      and not any(p.get(k) is not None for k in DAMAGE_RIDER_KEYS)), None)
+        if index is None:
+            continue
+        action.setdefault('_riderRemoved', []).append({'at': index, 'part': effects[index]})
+        effects[index] = dict(part, _rider='added')
+        changed = True
+    if not changed and not any(isinstance(p, dict) and p.get('damageType') == 'option' for p in effects):
+        return
+    add_action_keys(action, {'damageOptions': options})
+    half = bool(re.search(r'half as much|half damage', raw))
+    if action.get('halfOnSave') is not None and action['halfOnSave'] != half:
+        action.setdefault('_riderActionReplaced', {})['halfOnSave'] = action['halfOnSave']
+        action['halfOnSave'] = half
+    if (action.get('dmNote') or '').startswith(CHOICE_NOTE):
+        action['_riderNoteReplaced'] = action.pop('dmNote')
+    if changed:
+        stats['damage given options'] += 1
 
 
 # The keys of a hand-built action a rebuilt one keeps: its name, its limits and its description (D204)

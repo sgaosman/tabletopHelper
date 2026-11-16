@@ -1,6 +1,7 @@
 package com.tabletophelper.encounter;
 
 import com.tabletophelper.IntegrationTest;
+import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.monster.MonsterTemplates;
@@ -36,11 +37,15 @@ class DamageOptionsIT extends IntegrationTest {
     private static final String DEFINITIONS = "data/monster-actions/monster-action-definitions.json";
 
     @Autowired private MonsterRepository monsterRepository;
+    @Autowired private EncounterParticipantRepository participantRepository;
 
     private RegisteredUser dm;
     private UUID encounterId;
     private String dracohydra;
     private String guard;
+    private String giant;
+    private String lazav;
+    private String stormTarget;
 
     @BeforeEach
     void setUpTable() throws IOException {
@@ -52,7 +57,19 @@ class DamageOptionsIT extends IntegrationTest {
                 .damageResistances("[\"fire\"]").build();
         guard = idOf(addParticipant(dm.accessToken(), encounterId, Map.of("participantType", "MONSTER",
                 "monsterId", monsterRepository.save(target).getId(), "displayName", "Guard")), "Guard");
-        start(dracohydra, guard);
+        // The hand-built save actions the rider pass gave options (D207): Tempest Call (BGG) and Lazav's legendary
+        // Shifting Nightmare (GGR), against a lightning-resistant target with Dexterity 20 (+5)
+        giant = addFromDefinitions("Storm Giant Tempest Caller", "BGG", "Huge", "Giant", 230, 16, Map.of());
+        lazav = addFromDefinitions("Lazav", "GGR", "Medium", "Humanoid", 199, 17, Map.of());
+        EncounterParticipant shapeshifter = participantRepository.findById(UUID.fromString(lazav)).orElseThrow();
+        shapeshifter.setResourcePoolsCurrent(new ArrayList<>(List.of(new ResourcePoolEntry("monster:legendary-actions",
+                "Legendary Actions", "MONSTER", "Lazav", 3, "3", 3, "turn", null, null, "FREE", "zap", null))));
+        participantRepository.save(shapeshifter);
+        Monster storm = monster("Storm Target", "IT", "Medium", "Humanoid", 120, 12).dexterity(20)
+                .damageResistances("[\"lightning\"]").build();
+        stormTarget = idOf(addParticipant(dm.accessToken(), encounterId, Map.of("participantType", "MONSTER",
+                "monsterId", monsterRepository.save(storm).getId(), "displayName", "Storm Target")), "Storm Target");
+        start(dracohydra, guard, giant, lazav, stormTarget);
     }
 
     @Test
@@ -97,6 +114,36 @@ class DamageOptionsIT extends IntegrationTest {
         assertThat(descriptions(dmLog())).noneMatch(line -> line.startsWith("Dracohydra uses"));
     }
 
+    @Test
+    @DisplayName("Tempest Call with lightning against a lightning-resistant target that saves: 8d8 + 7 of 39, halved "
+            + "to 19 and halved again to 9 (BGG)")
+    void tempestCallResistedOnSuccess() {
+        dice.script(4, 4, 4, 4, 4, 4, 4, 4, 16);
+        expect(HttpStatus.OK, single(giant, "Tempest Call (Requires Storm Rune)", "ACTION", "lightning"));
+        assertThat(participant(dmView(), stormTarget).get("hpCurrent").asInt()).isEqualTo(111);
+        assertThat(descriptions(dmLog())).anyMatch(line -> line.startsWith("Storm Giant Tempest Caller uses Tempest "
+                + "Call (Requires Storm Rune) (lightning)."));
+        assertThat(dice.remaining()).isZero();
+        ResponseEntity<String> wrong = single(giant, "Tempest Call (Requires Storm Rune)", "ACTION", "fire");
+        assertThat(wrong.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(wrong.getBody()).contains("fire isn't a damage type Tempest Call (Requires Storm Rune) can deal: "
+                + "cold, lightning, thunder");
+    }
+
+    @Test
+    @DisplayName("Lazav's legendary Shifting Nightmare takes its damage type through the same endpoint: nothing on a "
+            + "success, and its 3 legendary actions spent (GGR)")
+    void shiftingNightmareNoDamageOnSuccess() {
+        dice.script(8, 8, 8, 8, 16);
+        expect(HttpStatus.OK, single(lazav, "Shifting Nightmare", "LEGENDARY", "necrotic"));
+        assertThat(participant(dmView(), stormTarget).get("hpCurrent").asInt()).isEqualTo(120);
+        assertThat(descriptions(dmLog())).anyMatch(line -> line.startsWith("Lazav uses Shifting Nightmare "
+                + "(necrotic)."));
+        assertThat(dice.remaining()).isZero();
+        ResponseEntity<String> spent = single(lazav, "Shifting Nightmare", "LEGENDARY", "necrotic");
+        assertThat(spent.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
 
     private ResponseEntity<String> multiattack(String... types) {
@@ -106,6 +153,12 @@ class DamageOptionsIT extends IntegrationTest {
         request.put("componentDamageTypes", Arrays.asList(types));
         return exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/monster-action", request,
                 dm.accessToken());
+    }
+
+    private ResponseEntity<String> single(String monster, String action, String source, String damageType) {
+        return exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/monster-action",
+                Map.of("monsterParticipantId", monster, "actionName", action, "actionSource", source,
+                        "targetParticipantIds", List.of(stormTarget), "damageType", damageType), dm.accessToken());
     }
 
     private void start(String... order) {
@@ -129,21 +182,29 @@ class DamageOptionsIT extends IntegrationTest {
 
     // The dracohydra with the action templates of the bundled definitions and the heads the DM chose
     private String addDracohydra(int heads) throws IOException {
+        return addFromDefinitions("Dracohydra", "FTD", "Huge", "Dragon", 157, 16, Map.of("heads", heads));
+    }
+
+    // A monster with the action templates of the bundled definitions
+    private String addFromDefinitions(String name, String source, String size, String type, int hp, int ac,
+                                      Map<String, Object> extra) throws IOException {
         JsonNode definitions;
         try (InputStream in = new ClassPathResource(DEFINITIONS).getInputStream()) {
             definitions = JacksonDefaults.mapper().readTree(in);
         }
         for (JsonNode definition : definitions) {
-            if ("Dracohydra".equals(definition.path("monsterName").asString(""))
-                    && "FTD".equals(definition.path("source").asString(""))) {
-                Monster monster = monster("Dracohydra", "FTD", "Huge", "Dragon", 157, 16).build();
+            if (name.equals(definition.path("monsterName").asString(""))
+                    && source.equals(definition.path("source").asString(""))) {
+                Monster monster = monster(name, source, size, type, hp, ac).build();
                 monster.setActionTemplates(MonsterTemplates.of(definition));
                 Monster saved = monsterRepository.save(monster);
-                return idOf(addParticipant(dm.accessToken(), encounterId, Map.of("participantType", "MONSTER",
-                        "monsterId", saved.getId(), "displayName", "Dracohydra", "heads", heads)), "Dracohydra");
+                Map<String, Object> request = new HashMap<>(Map.of("participantType", "MONSTER",
+                        "monsterId", saved.getId(), "displayName", name));
+                request.putAll(extra);
+                return idOf(addParticipant(dm.accessToken(), encounterId, request), name);
             }
         }
-        throw new AssertionError("The dracohydra has no definition");
+        throw new AssertionError(name + " has no definition");
     }
 
     private JsonNode dmView() {

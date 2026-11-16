@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.dto.MonsterActionRequest;
 import com.tabletophelper.encounter.dto.MonsterActionResponse;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -141,6 +143,90 @@ class DamageOptionsTest {
             assertTrue(refused(new MonsterActionRequest(dracohydra.getId(), "Bite", "ACTION",
                     List.of(tiefling.getId()), null, null, null, null, null, null, List.of("fire"))).getMessage()
                     .startsWith("Only a multiattack takes a damage type for each attack"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Hand-built save actions the rider pass gave options (D207): the Storm Giant Tempest Caller's Tempest "
+            + "Call (BGG) and Lazav's legendary Shifting Nightmare (GGR), their damage at its stat-block average")
+    class HandBuiltSaves {
+
+        private static final String TEMPEST_CALL = "Tempest Call (Requires Storm Rune)";
+        private static final String GIANT = """
+                {"actions": [
+                   {"name": "%s", "deliveryMethod": "SAVING_THROW", "saveAbility": "DEX", "saveDC": 21,
+                    "halfOnSave": true, "targetType": "AOE_SPHERE", "aoeSize": 60,
+                    "effects": [{"effectType": "DAMAGE", "damageDice": "43", "damageType": "option", "flatDamage": true}],
+                    "damageOptions": ["cold", "lightning", "thunder"]}]}""".formatted(TEMPEST_CALL);
+        private static final String LAZAV = """
+                {"legendaryActions": [
+                   {"name": "Shifting Nightmare", "cost": 3, "deliveryMethod": "SAVING_THROW", "saveDC": 21,
+                    "saveAbility": "DEX", "halfOnSave": false,
+                    "effects": [{"effectType": "DAMAGE", "damageDice": "18", "damageType": "option", "flatDamage": true}],
+                    "damageOptions": ["acid", "cold", "fire", "lightning", "necrotic"]}]}""";
+
+        private EncounterParticipant giant;
+        private EncounterParticipant lazav;
+
+        @BeforeEach
+        void setUpSaves() {
+            // Dexterity 20 (+5): a 16 makes the DC 21 save
+            tiefling.getCharacter().setDexterity(20);
+            tiefling.getCharacter().setDamageResistances(List.of("fire", "lightning"));
+            giant = f.monster("Storm Giant Tempest Caller", 230, 16);
+            giant.getMonster().setActionTemplates(MonsterTemplates.parse(GIANT));
+            lazav = f.monster("Lazav", 199, 17);
+            lazav.getMonster().setActionTemplates(MonsterTemplates.parse(LAZAV));
+            lazav.setResourcePoolsCurrent(legendaryActions());
+        }
+
+        private static List<ResourcePoolEntry> legendaryActions() {
+            return new ArrayList<>(List.of(new ResourcePoolEntry("monster:legendary-actions", "Legendary Actions",
+                    "MONSTER", "Lazav", 3, "3", 3, "turn", null, null, "FREE", "zap", null)));
+        }
+
+        private MonsterActionResponse use(EncounterParticipant monster, String action, String source,
+                                          String damageType, int... rolls) {
+            return act(new MonsterActionRequest(monster.getId(), action, source, List.of(tiefling.getId()), null,
+                    null, null, null, null, damageType, null), rolls);
+        }
+
+        @Test
+        @DisplayName("A lightning Tempest Call the tiefling saves against is halved to 21, then halved again by its "
+                + "lightning resistance to 10")
+        void tempestCallResistedOnSuccess() {
+            use(giant, TEMPEST_CALL, "ACTION", "lightning", 16);
+            assertEquals(50, tiefling.getHpCurrent());
+            assertTrue(logged("Storm Giant Tempest Caller uses " + TEMPEST_CALL + " (lightning)"),
+                    f.descriptions()::toString);
+        }
+
+        @Test
+        @DisplayName("A thunder Tempest Call it fails against deals the whole 43")
+        void tempestCallFailed() {
+            use(giant, TEMPEST_CALL, "ACTION", "thunder", 1);
+            assertEquals(17, tiefling.getHpCurrent());
+        }
+
+        @Test
+        @DisplayName("Fire isn't among Tempest Call's options: a 400 naming them")
+        void tempestCallWrongType() {
+            assertEquals("fire isn't a damage type " + TEMPEST_CALL + " can deal: cold, lightning, thunder",
+                    refused(new MonsterActionRequest(giant.getId(), TEMPEST_CALL, "ACTION",
+                            List.of(tiefling.getId()), null, null, null, null, null, "fire", null)).getMessage());
+        }
+
+        @Test
+        @DisplayName("Lazav's legendary Shifting Nightmare deals nothing on a success, the whole 18 necrotic on a "
+                + "failure, and spends its 3 legendary actions")
+        void shiftingNightmare() {
+            use(lazav, "Shifting Nightmare", "LEGENDARY", "necrotic", 16);
+            assertEquals(60, tiefling.getHpCurrent(), "no damage on a successful save");
+            assertEquals(0, lazav.getResourcePoolsCurrent().getFirst().currentUses());
+            lazav.setResourcePoolsCurrent(legendaryActions());
+            use(lazav, "Shifting Nightmare", "LEGENDARY", "necrotic", 1);
+            assertEquals(42, tiefling.getHpCurrent());
+            assertTrue(logged("Lazav uses Shifting Nightmare (necrotic)"), f.descriptions()::toString);
         }
     }
 

@@ -60,7 +60,7 @@ class DamageOptionsDataTest {
     }
 
     @Test
-    @DisplayName("Twenty-two actions on twenty-one monsters let the monster choose the damage type, each with a part "
+    @DisplayName("Twenty-eight actions on twenty-four monsters let the monster choose the damage type, each with a part "
             + "of type \"option\", and no other action has one")
     void optionActions() {
         Map<String, List<String>> found = new TreeMap<>();
@@ -114,6 +114,14 @@ class DamageOptionsDataTest {
         expected.put("Tomb Tapper (IDRotF): Sledgehammer", List.of("bludgeoning", "force"));
         expected.put("Windfall (VEoR): Chromatic Rapier", dragon);
         expected.put("Xan Moonblade (MaBJoV): Moonblade", List.of("cold", "fire"));
+        // Hand-built save actions the rider pass corrects: one type, or none, for the type chosen
+        expected.put("Aspect of Tiamat (FTD): Chromatic Flames", dragon);
+        expected.put("Aspect of Tiamat (FTD): Chromatic Flare", dragon);
+        expected.put("Lazav (GGR): Shifting Nightmare", List.of("acid", "cold", "fire", "lightning", "necrotic"));
+        expected.put("Prismari Pledgemage (SCC): Showstopper (1/Day)", List.of("fire", "cold"));
+        expected.put("Storm Giant Tempest Caller (BGG): Tempest Call (Requires Storm Rune)",
+                List.of("cold", "lightning", "thunder"));
+        expected.put("Windfall (VEoR): Dragon's Flare", dragon);
         assertEquals(expected, found);
     }
 
@@ -149,6 +157,51 @@ class DamageOptionsDataTest {
                 List.of(UUID.randomUUID()), MonsterEffects.Overrides.NONE);
         assertTrue(plan.automated(), plan::manualReason);
         assertEquals("poison", plan.steps().getFirst().effect().damage().getFirst().type());
+    }
+
+    private static JsonNode action(String monster, String source, String list, String name) {
+        JsonNode definition = definitions.stream()
+                .filter(d -> monster.equals(d.path("monsterName").asString())
+                        && source.equals(d.path("source").asString()))
+                .findFirst().orElseThrow();
+        for (JsonNode action : definition.path(list)) {
+            if (name.equals(action.path("name").asString())) {
+                return action;
+            }
+        }
+        throw new AssertionError(monster + " has no " + name);
+    }
+
+    @Test
+    @DisplayName("The hand-built save actions keep their dice and save, with halfOnSave as their stat blocks give it: "
+            + "half on a success but for Lazav's Shifting Nightmare, which deals nothing on one")
+    void handBuiltSaves() {
+        record Expected(String monster, String source, String list, String name, String dice, int dc,
+                        boolean half) { }
+        List<Expected> all = List.of(
+                new Expected("Aspect of Tiamat", "FTD", "actions", "Chromatic Flames", "11d12", 27, true),
+                new Expected("Aspect of Tiamat", "FTD", "mythicActions", "Chromatic Flare", "6d12", 27, true),
+                new Expected("Lazav", "GGR", "legendaryActions", "Shifting Nightmare", "4d8", 21, false),
+                new Expected("Prismari Pledgemage", "SCC", "actions", "Showstopper (1/Day)", "8d6", 13, true),
+                new Expected("Storm Giant Tempest Caller", "BGG", "actions", "Tempest Call (Requires Storm Rune)",
+                        "8d8 + 7", 21, true),
+                new Expected("Windfall", "VEoR", "legendaryActions", "Dragon's Flare", "4d12", 23, true));
+        for (Expected e : all) {
+            JsonNode action = action(e.monster(), e.source(), e.list(), e.name());
+            String what = e.monster() + ": " + e.name();
+            assertEquals("SAVING_THROW", action.path("deliveryMethod").asString(), what);
+            assertEquals(e.dc(), action.path("saveDC").asInt(), what);
+            assertEquals(e.half(), action.path("halfOnSave").asBoolean(), what);
+            JsonNode damage = action.path("effects").get(0);
+            assertEquals(e.dice(), damage.path("damageDice").asString(), what);
+            assertEquals("option", damage.path("damageType").asString(), what);
+            assertTrue(action.path("dmNote").isMissingNode() || action.path("dmNote").isNull(), what);
+        }
+        assertEquals("WIS", action("Prismari Pledgemage", "SCC", "actions", "Showstopper (1/Day)")
+                .path("saveAbility").asString());
+        // The halfOnSave the hand-built data had is kept for a later run to restore
+        assertFalse(action("Windfall", "VEoR", "legendaryActions", "Dragon's Flare")
+                .path("_riderActionReplaced").path("halfOnSave").asBoolean(true));
     }
 
     @Test

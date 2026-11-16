@@ -19764,17 +19764,41 @@
         "deliveryMethod": "SAVING_THROW",
         "saveAbility": "DEX",
         "saveDC": 27,
-        "halfOnSave": false,
+        "halfOnSave": true,
         "targetType": "AOE_CONE",
         "aoeSize": 300,
         "effects": [
           {
             "effectType": "DAMAGE",
             "damageDice": "11d12",
-            "damageType": "acid"
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
-        "automatable": true
+        "automatable": true,
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "11d12",
+              "damageType": "acid"
+            }
+          }
+        ],
+        "damageOptions": [
+          "acid",
+          "cold",
+          "fire",
+          "lightning",
+          "poison"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ],
+        "_riderActionReplaced": {
+          "halfOnSave": false
+        }
       }
     ],
     "legendaryActions": [
@@ -19827,18 +19851,42 @@
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 27,
         "saveAbility": "DEX",
-        "halfOnSave": false,
+        "halfOnSave": true,
         "targetType": "AOE_SPHERE",
         "aoeSize": 60,
         "effects": [
           {
             "effectType": "DAMAGE",
             "damageDice": "6d12",
-            "damageType": "acid"
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
         "automatable": true,
-        "isMythic": true
+        "isMythic": true,
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "6d12",
+              "damageType": "acid"
+            }
+          }
+        ],
+        "damageOptions": [
+          "acid",
+          "cold",
+          "fire",
+          "lightning",
+          "poison"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ],
+        "_riderActionReplaced": {
+          "halfOnSave": false
+        }
       }
     ],
     "traits": [
@@ -116382,10 +116430,31 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "4d8",
-            "damageType": "acid"
+            "damageType": "option",
+            "_rider": "added"
           }
         ],
-        "automatable": true
+        "automatable": true,
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "4d8",
+              "damageType": "acid"
+            }
+          }
+        ],
+        "damageOptions": [
+          "acid",
+          "cold",
+          "fire",
+          "lightning",
+          "necrotic"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ]
       }
     ],
     "traits": [
@@ -147558,7 +147627,8 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "8d6",
-            "damageType": "cold"
+            "damageType": "option",
+            "_rider": "added"
           },
           {
             "effectType": "CONDITION",
@@ -147569,6 +147639,23 @@
             "saveToEndAbility": "WIS",
             "saveToEndDC": 13
           }
+        ],
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "8d6",
+              "damageType": "cold"
+            }
+          }
+        ],
+        "damageOptions": [
+          "fire",
+          "cold"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
         ]
       }
     ],
@@ -172746,8 +172833,27 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "8d8 + 7",
-            "damageType": null
+            "damageType": "option",
+            "_rider": "added"
           }
+        ],
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "8d8 + 7",
+              "damageType": null
+            }
+          }
+        ],
+        "damageOptions": [
+          "cold",
+          "lightning",
+          "thunder"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
         ]
       }
     ],
@@ -198385,16 +198491,40 @@
         "deliveryMethod": "SAVING_THROW",
         "saveAbility": "DEX",
         "saveDC": 23,
-        "halfOnSave": false,
+        "halfOnSave": true,
         "targetType": "AOE_SPHERE",
         "aoeSize": 30,
         "effects": [
           {
             "effectType": "DAMAGE",
             "damageDice": "4d12",
-            "damageType": null
+            "damageType": "option",
+            "_rider": "added"
           }
-        ]
+        ],
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "4d12",
+              "damageType": null
+            }
+          }
+        ],
+        "damageOptions": [
+          "acid",
+          "cold",
+          "fire",
+          "lightning",
+          "poison"
+        ],
+        "_riderActionKeys": [
+          "damageOptions"
+        ],
+        "_riderActionReplaced": {
+          "halfOnSave": false
+        }
       },
       {
         "name": "Cast a Spell",
