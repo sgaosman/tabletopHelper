@@ -42,29 +42,10 @@ final class RaceSpells {
      * @throws ConflictException when the race's spells can't be read (D155)
      */
     static List<Change> changes(ObjectMapper objectMapper, PlayerCharacter character) {
-        Race race = character.getRaceRef();
-        if (race == null || race.getAdditionalSpells() == null || race.getAdditionalSpells().isBlank()) {
-            return List.of();
-        }
-        JsonNode fixed;
-        try {
-            fixed = objectMapper.readTree(race.getAdditionalSpells()).path("fixedSpells");
-        } catch (JacksonException e) {
-            throw new ConflictException("The spells of the race " + race.getName() + " can't be read");
-        }
-        int level = character.getLevel() != null ? character.getLevel() : 1;
-        String source = "race:" + race.getName();
         List<KnownSpell> known = CharacterUpdates.orEmpty(character.getSpellsKnown());
         List<Change> changes = new ArrayList<>();
-        for (JsonNode spell : fixed) {
-            String name = spell.path("name").asString("").trim();
-            int unlocks = spell.path("unlocksAtLevel").asInt(1);
-            if (name.isEmpty() || unlocks > level) continue;
-            boolean atWill = spell.path("atWill").asBoolean(false);
-            int uses = spell.path("usesPerLongRest").asInt(0);
-            KnownSpell wanted = new KnownSpell(null, name, spell.path("level").asInt(0), source, null, null,
-                    atWill ? Boolean.TRUE : null, uses > 0 ? uses : null, unlocks > 1 ? unlocks : null,
-                    uses > 0 && spell.path("usesResetOn").isString() ? spell.path("usesResetOn").asString() : null);
+        for (KnownSpell wanted : available(objectMapper, character)) {
+            String name = wanted.name();
             KnownSpell held = known.stream()
                     .filter(entry -> entry.source() != null && entry.source().startsWith("race:")
                             && entry.name() != null && key(entry.name()).equals(key(name)))
@@ -80,6 +61,40 @@ final class RaceSpells {
             }
         }
         return changes;
+    }
+
+    /**
+     * The race's fixed spells available at the character's level, each as the sheet should hold it, with the race's
+     * source and how the data says it is cast; none for a character without a race or race spells. Creation takes a
+     * request's race spells from these (D232).
+     *
+     * @throws ConflictException when the race's spells can't be read (D155)
+     */
+    static List<KnownSpell> available(ObjectMapper objectMapper, PlayerCharacter character) {
+        Race race = character.getRaceRef();
+        if (race == null || race.getAdditionalSpells() == null || race.getAdditionalSpells().isBlank()) {
+            return List.of();
+        }
+        JsonNode fixed;
+        try {
+            fixed = objectMapper.readTree(race.getAdditionalSpells()).path("fixedSpells");
+        } catch (JacksonException e) {
+            throw new ConflictException("The spells of the race " + race.getName() + " can't be read");
+        }
+        int level = character.getLevel() != null ? character.getLevel() : 1;
+        String source = "race:" + race.getName();
+        List<KnownSpell> available = new ArrayList<>();
+        for (JsonNode spell : fixed) {
+            String name = spell.path("name").asString("").trim();
+            int unlocks = spell.path("unlocksAtLevel").asInt(1);
+            if (name.isEmpty() || unlocks > level) continue;
+            boolean atWill = spell.path("atWill").asBoolean(false);
+            int uses = spell.path("usesPerLongRest").asInt(0);
+            available.add(new KnownSpell(null, name, spell.path("level").asInt(0), source, null, null,
+                    atWill ? Boolean.TRUE : null, uses > 0 ? uses : null, unlocks > 1 ? unlocks : null,
+                    uses > 0 && spell.path("usesResetOn").isString() ? spell.path("usesResetOn").asString() : null));
+        }
+        return available;
     }
 
     /** Applies the changes to the sheet; the caller saves the character. */

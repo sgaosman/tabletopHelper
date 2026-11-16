@@ -235,9 +235,15 @@ class SubclassAndRaceSpellsTest {
         @Test
         @DisplayName("A spell the ranger knows already isn't learned again, so levelling down leaves it")
         void knownAlready() {
-            PlayerCharacter pc = create(f.human, ranger, 3, request -> {
+            // A VGM firbolg's disguise self, once a short or long rest (VGM p.107); creation takes it from the race
+            Race firbolg = Race.builder().id(UUID.randomUUID()).name("Firbolg").speed("{\"walk\": 30}")
+                    .additionalSpells("{\"fixedSpells\":[{\"name\":\"Disguise Self\",\"level\":1,"
+                            + "\"unlocksAtLevel\":1,\"usesPerLongRest\":1,\"usesResetOn\":\"shortRest\"}]}")
+                    .build();
+            lenient().when(f.raceRepository.findById(firbolg.getId())).thenReturn(Optional.of(firbolg));
+            PlayerCharacter pc = create(firbolg, ranger, 3, request -> {
                 request.setSubclassId(gloomStalker.getId());
-                request.setSpellsKnown(List.of(new KnownSpell(null, "Disguise Self", 1, "race:Human", null, null,
+                request.setSpellsKnown(List.of(new KnownSpell(null, "Disguise Self", 1, "race:Firbolg", null, null,
                         null, 1, null)));
             });
 
@@ -343,8 +349,9 @@ class SubclassAndRaceSpellsTest {
         @Test
         @DisplayName("A Hexblood whose hex was loaded at will casts it once a long rest after the recompute (VRGR p.18)")
         void hexOnceALongRest() {
-            PlayerCharacter pc = create(hexblood, f.fighter, 1, request -> request.setSpellsKnown(List.of(
-                    new KnownSpell(null, "Hex", 0, "race:Hexblood", null, null, true, null, 1))));
+            // As the race loader gave it before D231; creation now takes it as the race data has it (D232)
+            PlayerCharacter pc = create(hexblood, f.fighter, 1, request -> {});
+            pc.setSpellsKnown(List.of(new KnownSpell(null, "Hex", 0, "race:Hexblood", null, null, true, null, 1)));
 
             assertThat(f.service.outdatedRaceSpells(pc)).singleElement().satisfies(change -> {
                 assertThat(change.spell()).isEqualTo("Hex");

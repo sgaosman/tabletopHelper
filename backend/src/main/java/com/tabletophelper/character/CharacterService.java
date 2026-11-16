@@ -67,6 +67,7 @@ public class CharacterService {
     private final LiveEncounters liveEncounters;
     private final InventoryChecks inventoryChecks;
     private final PendingChoiceService pendingChoices;
+    private final CharacterSpellService characterSpells;
     private final ClassTables classTables;
 
     // ── Creating ─────────────────────────────────────────────────
@@ -211,6 +212,16 @@ public class CharacterService {
         }
 
         List<Feature> features = LevelUpCalculator.classFeatures(progression);
+        // What the request may give is checked against the race, classes and background, or worked out from them
+        // (D232): a crafted request gets no saving throw, resistance or skill they don't give
+        List<CharacterClass> creationClasses = isMulticlass ? multiclassRefs
+                : classRef != null ? List.of(classRef) : List.of();
+        List<String> savingThrows = CreationChecks.savingThrows(objectMapper,
+                creationClasses.isEmpty() ? null : creationClasses.getFirst());
+        List<String> resistances = CreationChecks.damageResistances(objectMapper, raceRef,
+                request.getDraconicAncestry(), request.getDamageResistances());
+        List<String> skills = CreationChecks.skillProficiencies(objectMapper, raceRef, creationClasses, backgroundRef,
+                request.getSkillProficiencies());
 
         PlayerCharacter character = PlayerCharacter.builder()
                 .user(user)
@@ -234,15 +245,15 @@ public class CharacterService {
                 .intelligence(request.getIntelligence())
                 .wisdom(request.getWisdom())
                 .charisma(request.getCharisma())
-                .savingThrowProficiencies(request.getSavingThrowProficiencies())
-                .skillProficiencies(request.getSkillProficiencies())
+                .savingThrowProficiencies(savingThrows)
+                .skillProficiencies(skills)
                 .skillExpertises(request.getSkillExpertises())
                 .armorProficiencies(request.getArmorProficiencies())
                 .weaponProficiencies(request.getWeaponProficiencies())
                 .toolProficiencies(request.getToolProficiencies())
                 .languageProficiencies(request.getLanguageProficiencies())
                 .features(features)
-                .damageResistances(request.getDamageResistances())
+                .damageResistances(resistances)
                 .spellsKnown(request.getSpellsKnown())
                 .spellcastingAbility(chosenSpellcastingAbility(request.getSpellcastingAbility()))
                 .equipment(request.getEquipment() != null ? inventoryChecks.checked(request.getEquipment()) : null)
@@ -253,6 +264,9 @@ public class CharacterService {
 
         requireMulticlassPrerequisites(character, multiclassRefs);
         recordCreationHpGains(character);
+        // The request's spells: class spells on the class's list, of levels it casts and within its numbers, and race
+        // spells as the race data gives them (D232)
+        characterSpells.checkCreationSpells(character);
         pendingChoices.owedAtCreation(character, request);
         // The race's choice, or else the first casting class's, so a feat taken later that chooses its own ability
         // doesn't replace the class's (D159)

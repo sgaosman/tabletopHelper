@@ -107,13 +107,13 @@ class CharacterFixture {
     final FeatEligibility featEligibility = new FeatEligibility(characterStats, featRepository,
             characterRepository, accessPolicy);
     final CharacterSpellService spells = new CharacterSpellService(commands, characterStats, spellRepository,
-            objectMapper);
+            objectMapper, classTables);
     final PendingChoiceService choices = new PendingChoiceService(commands, characterStats, spells,
             featEffectResolver, featEligibility, classRepository, subclassRepository, featRepository, optionalFeatureRepository,
             objectMapper, classTables);
     final CharacterService service = new CharacterService(characterRepository, userService, campaignRepository,
             raceRepository, classRepository, subclassRepository, backgroundRepository, mapper, objectMapper,
-            accessPolicy, characterStats, commands, liveEncounters, inventoryChecks, choices, classTables);
+            accessPolicy, characterStats, commands, liveEncounters, inventoryChecks, choices, spells, classTables);
     final CharacterSheetService sheet = new CharacterSheetService(commands, campaignRepository, accessPolicy,
             inventoryChecks, resourcePoolService);
     final RestService rests = new RestService(commands, resourcePoolService, rng, characterRepository,
@@ -134,12 +134,16 @@ class CharacterFixture {
             .multiclassRequirements("[{\"ability\":\"STR\",\"minimum\":13,\"operator\":\"OR\"},"
                     + "{\"ability\":\"DEX\",\"minimum\":13,\"operator\":\"OR\"}]")
             .multiclassProficiencies("{\"armor\":[\"Light\",\"Medium\",\"Shield\"],\"weapons\":[\"Simple\",\"Martial\"]}")
+            .savingThrowProficiencies("[\"STR\",\"CON\"]")
+            .skillChoices("{\"count\":2,\"from\":[\"Acrobatics\", \"Animal Handling\", \"Athletics\", \"History\", \"Insight\", \"Intimidation\", \"Perception\", \"Survival\"]}")
             .build();
     final CharacterClass wizard = CharacterClass.builder().id(UUID.randomUUID()).name("Wizard").hitDice(6)
             .subclassLevel(2).isSpellcaster(true).isPactMagic(false).spellcastingAbility("INT")
             .features("[{\"level\":1,\"name\":\"Arcane Recovery\",\"description\":\"Recover spell slots\"},"
                     + "{\"level\":2,\"name\":\"Arcane Tradition\",\"description\":\"Choose a tradition\"}]")
             .multiclassRequirements("[{\"ability\":\"INT\",\"minimum\":13}]")
+            .savingThrowProficiencies("[\"INT\",\"WIS\"]")
+            .skillChoices("{\"count\":2,\"from\":[\"Arcana\", \"History\", \"Insight\", \"Investigation\", \"Medicine\", \"Religion\"]}")
             .build();
     final CharacterClass paladin = CharacterClass.builder().id(UUID.randomUUID()).name("Paladin").hitDice(10)
             .subclassLevel(3).isSpellcaster(true).isPactMagic(false).spellcastingAbility("CHA")
@@ -147,6 +151,8 @@ class CharacterFixture {
                     + "{\"level\":2,\"name\":\"Divine Smite\",\"description\":\"Smite on a hit\"}]")
             .multiclassRequirements("[{\"ability\":\"STR\",\"minimum\":13},{\"ability\":\"CHA\",\"minimum\":13}]")
             .multiclassProficiencies("{\"armor\":[\"Light\",\"Medium\",\"Shield\"],\"weapons\":[\"Simple\",\"Martial\"]}")
+            .savingThrowProficiencies("[\"WIS\",\"CHA\"]")
+            .skillChoices("{\"count\":2,\"from\":[\"Athletics\", \"Insight\", \"Intimidation\", \"Medicine\", \"Persuasion\", \"Religion\"]}")
             .build();
     final CharacterClass rogue = CharacterClass.builder().id(UUID.randomUUID()).name("Rogue").hitDice(8)
             .subclassLevel(3).isSpellcaster(false).isPactMagic(false)
@@ -154,23 +160,33 @@ class CharacterFixture {
             .multiclassRequirements("[{\"ability\":\"DEX\",\"minimum\":13}]")
             .multiclassProficiencies("{\"armor\":[\"Light\"],\"tools\":[\"thieves' tools\"],"
                     + "\"skills\":{\"from\":[\"Stealth\"],\"count\":1}}")
+            .savingThrowProficiencies("[\"DEX\",\"INT\"]")
+            .skillChoices("{\"count\":4,\"from\":[\"Acrobatics\", \"Athletics\", \"Deception\", \"Insight\", \"Intimidation\", \"Investigation\", \"Perception\", \"Performance\", \"Persuasion\", \"Sleight of Hand\", \"Stealth\"]}")
             .build();
     final CharacterClass barbarian = CharacterClass.builder().id(UUID.randomUUID()).name("Barbarian").hitDice(12)
             .subclassLevel(3).isSpellcaster(false).isPactMagic(false)
             .features("[{\"level\":20,\"name\":\"Primal Champion\",\"description\":\"STR and CON up by 4\"}]")
             .multiclassRequirements("[{\"ability\":\"STR\",\"minimum\":13}]")
+            .savingThrowProficiencies("[\"STR\",\"CON\"]")
+            .skillChoices("{\"count\":2,\"from\":[\"Animal Handling\", \"Athletics\", \"Intimidation\", \"Nature\", \"Perception\", \"Survival\"]}")
             .build();
     final CharacterClass cleric = CharacterClass.builder().id(UUID.randomUUID()).name("Cleric").hitDice(8)
             .subclassLevel(1).isSpellcaster(true).isPactMagic(false).spellcastingAbility("WIS")
             .multiclassRequirements("[{\"ability\":\"WIS\",\"minimum\":13}]")
+            .savingThrowProficiencies("[\"WIS\",\"CHA\"]")
+            .skillChoices("{\"count\":2,\"from\":[\"History\", \"Insight\", \"Medicine\", \"Persuasion\", \"Religion\"]}")
             .build();
     final CharacterClass warlock = CharacterClass.builder().id(UUID.randomUUID()).name("Warlock").hitDice(8)
             .subclassLevel(1).isSpellcaster(true).isPactMagic(true).spellcastingAbility("CHA")
             .multiclassRequirements("[{\"ability\":\"CHA\",\"minimum\":13}]")
+            .savingThrowProficiencies("[\"WIS\",\"CHA\"]")
+            .skillChoices("{\"count\":2,\"from\":[\"Arcana\", \"Deception\", \"History\", \"Intimidation\", \"Investigation\", \"Nature\", \"Religion\"]}")
             .build();
     final CharacterClass sorcerer = CharacterClass.builder().id(UUID.randomUUID()).name("Sorcerer").hitDice(6)
             .subclassLevel(1).isSpellcaster(true).isPactMagic(false).spellcastingAbility("CHA")
             .multiclassRequirements("[{\"ability\":\"CHA\",\"minimum\":13}]")
+            .savingThrowProficiencies("[\"CON\",\"CHA\"]")
+            .skillChoices("{\"count\":2,\"from\":[\"Arcana\", \"Deception\", \"Insight\", \"Intimidation\", \"Persuasion\", \"Religion\"]}")
             .build();
 
     final Subclass champion = Subclass.builder().id(UUID.randomUUID()).name("Champion").characterClass(fighter)

@@ -103,6 +103,19 @@ public abstract class IntegrationTest {
                 .build()).getId();
     }
 
+    /**
+     * A race with Hellish Rebuke among its fixed spells, cast once a long rest from 1st level, as the races loader
+     * stores additionalSpells, and resistance to fire: creation takes race spells and resistances only from the race
+     * data (D232).
+     */
+    protected UUID insertRaceWithHellishRebuke(String name) {
+        return raceRepository.save(Race.builder()
+                .name(name).source("PHB").speed("{\"walk\":30}").resistances("[\"fire\"]")
+                .additionalSpells("{\"fixedSpells\":[{\"name\":\"Hellish Rebuke\",\"level\":1,"
+                        + "\"usesPerLongRest\":1}]}")
+                .build()).getId();
+    }
+
     protected UUID insertClass(String name, int hitDice) {
         return characterClassRepository.save(CharacterClass.builder()
                 .name(name).source("PHB").hitDice(hitDice)

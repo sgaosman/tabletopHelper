@@ -4681,3 +4681,27 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D178, D186, D208, D223, D230
 
 **Tests:** `SubclassAndRaceSpellsTest`, `RaceLoaderIT`, and cases in `CharacterClassLoaderTest`, `CharacterClassLoaderIT`, `PendingChoicesIT`, `FlywayMigrationIT`, `RecomputeCharactersJobTest` and the frontend choice, spells-tab and wizard tests; on its branch 4,876 backend unit, 593 integration and 1,328 frontend tests passed; merged with D230, 4,924, 593 and 1,329.
+
+---
+
+## D232: Character Creation Checks Its Rules Fields
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration)
+
+**Context:** [[#D221]] left open that character creation stored saving-throw proficiencies, expertise, damage resistances, skills and known spells as the request gave them, so a crafted request could make a character proficient in every save, resistant to every damage type or knowing any spell; [[#D158]] gives resistances beyond race, features and feats only through DM Adjustments. Built during the user's overnight run of 2026-11-16; the calls are the lead's, recorded for review.
+
+**Decision:**
+- **Saving throws are worked out:** the first class's (PHB p.164), whatever the request sends. The wizard sends exactly those; race and background feats are Pending Choices ([[#D159]]), so no feat adds a save at creation, and a subclass's later grant is added as before.
+- **Resistances must come from the race:** its own, one per choice it offers, and a dragonborn's ancestry type ([[#D208]]); anything else is refused with a 400 pointing to DM Adjustments.
+- **Expertise must fit:** in skills the character is proficient in, no more than its levels give (Rogue 1 and 6, Bard 3 and 10; PHB p.96, p.54); what isn't picked stays a Pending Choice.
+- **Skills must fill a slot:** the race's, the first class's list, each later class's multiclassing pick, the background's, with [[#D226]]'s replacement for a duplicate background skill.
+- **Spells must fit**, through the checks level-up already uses: a class spell must be on one of the character's casting classes' lists at a level it can cast, within its cantrips known, spells known, spellbook (6 + 2 a level, PHB p.114) or prepared count, its level taken from the spell data; a race spell must be one the race gives at that level ([[#D231]]); any other source is refused, the server granting those itself.
+
+**Not checked at creation:** ability scores (any 1–30), racial ability bonuses, armour, weapon, tool and language proficiencies, the race's spellcasting ability; a known caster may take any spell up to its highest castable level rather than level by level. Skill names are stored in PHB casing, and duplicates once.
+
+**Key files:** new `CreationChecks.java`, `CharacterService.java`, `CharacterSpellService.java`, `PendingChoiceService.java`, `RaceSpells.java`
+
+**Related:** D158, D159, D208, D221, D226, D231
+
+**Tests:** `CreationChecksTest`, `CreationRequestTest` (wizard-built requests accepted, crafted ones refused) and `CreationChecksIT`, with older tests adjusted to send what the rules give; 4,952 backend unit and 596 integration tests pass.

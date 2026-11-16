@@ -77,6 +77,7 @@ class PendingChoicesIT extends IntegrationTest {
                 .speed("{\"walk\":30}").raceChoices("{\"feats\": 1, \"skills\": [{\"any\": 1}]}").build()).getId();
         CharacterClass fighter = characterClassRepository.save(CharacterClass.builder().name("Fighter").source("PHB")
                 .hitDice(10).subclassLevel(3).isSpellcaster(false).isPactMagic(false)
+                .savingThrowProficiencies("[\"STR\",\"CON\"]")
                 .features("[{\"level\":1,\"name\":\"Fighting Style\",\"description\":\"Choose a style\"},"
                         + "{\"level\":1,\"name\":\"Second Wind\",\"description\":\"Heal\"},"
                         + "{\"level\":2,\"name\":\"Action Surge\",\"description\":\"Act again\"},"
@@ -590,16 +591,19 @@ class PendingChoicesIT extends IntegrationTest {
                         + "{\"count\":1,\"saves\":[\"INT\",\"CHA\"]}}]}")
                 .build()).getId();
 
-        JsonNode lacking = create(Map.of("level", 7, "subclassId", samuraiId,
-                "savingThrowProficiencies", List.of("STR", "CON")));
+        JsonNode lacking = create(Map.of("level", 7, "subclassId", samuraiId));
         assertThat(lacking.get("savingThrowProficiencies").toString()).isEqualTo("[\"STR\",\"CON\",\"WIS\"]");
         assertThat(lacking.get("levelHistory").get(6).get("proficienciesGained").toString())
                 .isEqualTo("{\"saves\":[\"WIS\"]}");
         JsonNode down = levelDown(lacking.get("id").asString());
         assertThat(down.get("savingThrowProficiencies").toString()).isEqualTo("[\"STR\",\"CON\"]");
 
-        JsonNode holding = create(Map.of("level", 7, "subclassId", samuraiId,
-                "savingThrowProficiencies", List.of("STR", "CON", "WIS")));
+        // Wisdom saves from elsewhere, as a Resilient feat's: creation gives only the first class's (D232)
+        JsonNode sixth = create(Map.of("level", 6, "subclassId", samuraiId));
+        jdbcTemplate.update("UPDATE player_characters SET saving_throw_proficiencies = '[\"STR\",\"CON\",\"WIS\"]'"
+                + "::jsonb WHERE id = ?", UUID.fromString(sixth.get("id").asString()));
+        levelUp(sixth.get("id").asString(), fighterId);
+        JsonNode holding = get(sixth.get("id").asString());
         JsonNode other = choice(holding, "PROFICIENCY", 7);
         assertThat(other.get("proficiencyOptions").toString()).isEqualTo("{\"saves\":[\"INT\",\"CHA\"]}");
         JsonNode made = applied(holding.get("id").asString(), Map.of("choiceId", other.get("id").asString(),

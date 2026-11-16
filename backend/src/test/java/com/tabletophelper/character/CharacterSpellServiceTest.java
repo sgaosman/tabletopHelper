@@ -260,7 +260,7 @@ class CharacterSpellServiceTest {
 
         private final CharacterStats stats = mock(CharacterStats.class);
         private final CharacterSpellService service = new CharacterSpellService(f.commands, stats,
-                f.spellRepository, f.objectMapper);
+                f.spellRepository, f.objectMapper, f.classTables);
 
         private PendingChoice cantrips(int classLevel, String spellList) {
             return new PendingChoice(UUID.randomUUID(), PendingChoice.Type.CANTRIPS, PendingChoice.Source.LEVEL_UP,

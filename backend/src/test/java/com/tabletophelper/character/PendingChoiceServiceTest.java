@@ -100,6 +100,9 @@ class PendingChoiceServiceTest {
         spell("Chill Touch", 0, "Sorcerer", "Warlock", "Wizard");
         spell("Minor Illusion", 0, "Bard", "Sorcerer", "Warlock", "Wizard");
         spell("Wish", 9);
+        spell("Light", 0, "Bard", "Cleric", "Sorcerer", "Wizard");
+        spell("Sleep", 1, "Bard", "Sorcerer", "Wizard");
+        spell("Burning Hands", 1, "Sorcerer", "Wizard");
         lenient().when(f.spellRepository.findByNameIgnoreCase(anyString()))
                 .thenAnswer(inv -> Optional.ofNullable(spells.get(inv.<String>getArgument(0).toLowerCase(Locale.ROOT))));
         for (Feat feat : List.of(lucky, alert, tough, elementalAdept)) {
@@ -231,7 +234,7 @@ class PendingChoiceServiceTest {
                     .containsExactly("2 SPELLS", "3 METAMAGIC×2", "3 SPELLS", "4 ASI", "4 CANTRIPS", "4 SPELLS", "5 SPELLS");
 
             List<KnownSpell> all = new ArrayList<>(levelOne);
-            for (String name : List.of("Misty Step", "Fireball", "Hex", "Cure Wounds")) {
+            for (String name : List.of("Misty Step", "Fireball", "Shield", "Sleep")) {
                 all.add(classSpell(name, 1, "Sorcerer"));
             }
             PlayerCharacter given = create(f.sorcerer, 5, request -> request.setSpellsKnown(all));
@@ -241,14 +244,19 @@ class PendingChoiceServiceTest {
         @Test
         @DisplayName("Expertise the request gives is recorded on the levels that give it, oldest first, and the rest is pending")
         void expertiseGivenIsRecorded() {
-            PlayerCharacter rogue = create(f.rogue, 6, request -> request.setSkillExpertises(
-                    List.of("Stealth", "Perception")));
+            PlayerCharacter rogue = create(f.rogue, 6, request -> {
+                request.setSkillProficiencies(List.of("Stealth", "Perception"));
+                request.setSkillExpertises(List.of("Stealth", "Perception"));
+            });
 
             assertThat(rogue.getLevelHistory().getFirst().choices().expertise()).containsExactly("Stealth", "Perception");
             assertThat(described(rogue.getPendingChoices()).stream().filter(c -> c.contains("EXPERTISE")))
                     .containsExactly("6 EXPERTISE×2");
 
-            PlayerCharacter partly = create(f.rogue, 1, request -> request.setSkillExpertises(List.of("Stealth")));
+            PlayerCharacter partly = create(f.rogue, 1, request -> {
+                request.setSkillProficiencies(List.of("Stealth"));
+                request.setSkillExpertises(List.of("Stealth"));
+            });
             assertThat(partly.getPendingChoices()).singleElement().satisfies(c -> {
                 assertThat(c.type()).isEqualTo(Type.EXPERTISE);
                 assertThat(c.count()).isEqualTo(1);
@@ -1566,8 +1574,18 @@ class PendingChoiceServiceTest {
                         + "\"Survival\"]}")
                 .build();
 
+        // Backgrounds that give a skill the subclass gives too, as creation takes skills only from the race, classes
+        // and background (D232)
+        private final Background courtier = Background.builder().id(UUID.randomUUID()).name("Courtier")
+                .skillProficiencies("[\"Insight\",\"Persuasion\"]").build();
+        private final Background outlander = Background.builder().id(UUID.randomUUID()).name("Outlander")
+                .skillProficiencies("[\"Athletics\",\"Survival\"]").build();
+
         @BeforeEach
         void knowTheSubclasses() {
+            for (Background background : List.of(courtier, outlander)) {
+                lenient().when(f.backgroundRepository.findById(background.getId())).thenReturn(Optional.of(background));
+            }
             for (Subclass subclass : List.of(samurai, purpleDragonKnight, scout)) {
                 lenient().when(f.subclassRepository.findById(subclass.getId())).thenReturn(Optional.of(subclass));
             }
@@ -1580,7 +1598,6 @@ class PendingChoiceServiceTest {
         private PlayerCharacter fighter(Subclass subclass, int level, Consumer<CharacterCreateRequest> adjust) {
             return create(f.fighter, level, request -> {
                 request.setSubclassId(subclass.getId());
-                request.setSavingThrowProficiencies(List.of("STR", "CON"));
                 adjust.accept(request);
             });
         }
@@ -1605,10 +1622,12 @@ class PendingChoiceServiceTest {
 
         @Test
         @DisplayName("A Samurai with Wisdom saving throws already, by any spelling, owes Intelligence or Charisma at "
-                + "Fighter 7 instead; created there or given the subclass on the sheet past it")
+                + "Fighter 7 instead; levelled there or given the subclass on the sheet past it")
         void samuraiOtherwise() {
-            PlayerCharacter pc = fighter(samurai, 7, request -> request.setSavingThrowProficiencies(
-                    List.of("STR", "CON", "Wisdom")));
+            // Wisdom saves from elsewhere, as a Resilient feat's; creation gives only the first class's (D232)
+            PlayerCharacter pc = fighter(samurai, 6, request -> { });
+            pc.setSavingThrowProficiencies(List.of("STR", "CON", "Wisdom"));
+            f.levelUp(pc, f.fighter);
 
             PendingChoice choice = f.pending(pc, Type.PROFICIENCY);
             assertThat(choice.characterLevel()).isEqualTo(7);
@@ -1622,8 +1641,7 @@ class PendingChoiceServiceTest {
             f.levelDown(pc);
             assertThat(pc.getSavingThrowProficiencies()).containsExactly("STR", "CON", "Wisdom");
 
-            PlayerCharacter chosen = create(f.fighter, 8, request -> request.setSavingThrowProficiencies(
-                    List.of("STR", "CON")));
+            PlayerCharacter chosen = create(f.fighter, 8, request -> { });
             f.choose(chosen, f.pending(chosen, Type.SUBCLASS), request -> request.setSubclassId(samurai.getId()));
             assertThat(chosen.getSavingThrowProficiencies()).containsExactly("STR", "CON", "WIS");
             assertThat(chosen.getLevelHistory().get(6).proficienciesGained().saves()).containsExactly("WIS");
@@ -1643,15 +1661,17 @@ class PendingChoiceServiceTest {
             assertThat(lacking.getSkillProficiencies()).containsExactly("Athletics");
             assertThat(lacking.getSkillExpertises()).isEmpty();
 
-            PlayerCharacter held = fighter(purpleDragonKnight, 7, request -> request.setSkillProficiencies(
-                    List.of("persuasion")));
-            assertThat(held.getSkillExpertises()).containsExactly("persuasion");
+            PlayerCharacter held = fighter(purpleDragonKnight, 7, request -> {
+                request.setBackgroundId(courtier.getId());
+                request.setSkillProficiencies(List.of("persuasion"));
+            });
+            assertThat(held.getSkillExpertises()).containsExactly("Persuasion");
             PendingChoice other = f.pending(held, Type.PROFICIENCY);
             assertThat(other.characterLevel()).isEqualTo(7);
             assertThat(other.expertise()).isNull();
             f.choose(held, other, request -> request.setProficiencies(List.of("Insight")));
-            assertThat(held.getSkillProficiencies()).containsExactly("persuasion", "Insight");
-            assertThat(held.getSkillExpertises()).containsExactly("persuasion");
+            assertThat(held.getSkillProficiencies()).containsExactly("Persuasion", "Insight");
+            assertThat(held.getSkillExpertises()).containsExactly("Persuasion");
         }
 
         @Test
@@ -1660,6 +1680,7 @@ class PendingChoiceServiceTest {
         void scoutExpertise() {
             PlayerCharacter pc = create(f.rogue, 3, request -> {
                 request.setSubclassId(scout.getId());
+                request.setBackgroundId(outlander.getId());
                 request.setSkillProficiencies(List.of("Survival", "Stealth"));
             });
 
@@ -1699,8 +1720,9 @@ class PendingChoiceServiceTest {
             PlayerCharacter below = fighter(samurai, 6, request -> { });
             assertThat(f.choices.missingSubclassProficiencies(below)).as("Fighter 7 isn't reached").isEmpty();
 
-            PlayerCharacter held = fighter(samurai, 7, request -> request.setSavingThrowProficiencies(
-                    List.of("STR", "CON", "WIS")));
+            PlayerCharacter held = fighter(samurai, 7, request -> { });
+            held.setLevelHistory(held.getLevelHistory().stream()
+                    .map(level -> level.withProficienciesGained(null)).toList());
             held.setPendingChoices(List.of());
             assertThat(f.choices.missingSubclassProficiencies(held)).isEmpty();
             List<PendingChoice> missed = f.choices.missedChoices(held);
@@ -1790,8 +1812,9 @@ class PendingChoiceServiceTest {
         @Test
         @DisplayName("A cantrip known already can't be chosen, and with one option left only it is taken")
         void knownAlready() {
-            PlayerCharacter pc = create(f.fighter, 3, request -> request.setSpellsKnown(List.of(
-                    new KnownSpell(null, "Druidcraft", 0, "race:Firbolg", null, null, true, null, null))));
+            PlayerCharacter pc = create(f.fighter, 3, request -> {});
+            pc.setSpellsKnown(List.of(new KnownSpell(null, "Druidcraft", 0, "race:Firbolg", null, null, true, null,
+                    null)));
             f.choose(pc, f.pending(pc, Type.SUBCLASS), request -> request.setSubclassId(arcaneArcher.getId()));
             PendingChoice choice = f.pending(pc, Type.SUBCLASS_CANTRIP);
 
@@ -2362,7 +2385,8 @@ class PendingChoiceServiceTest {
         @Test
         @DisplayName("Only a new class owes the skill, and none when every skill offered is held already")
         void onlyANewClassAndOnlyWhenLacking() {
-            PlayerCharacter rogue = create(f.fighter, 1, request -> request.setSkillProficiencies(List.of("Stealth")));
+            PlayerCharacter rogue = create(f.fighter, 1, request -> {});
+            rogue.setSkillProficiencies(List.of("Stealth"));
             f.levelUp(rogue, f.rogue);
             assertThat(rogue.getPendingChoices()).noneMatch(c -> c.type() == Type.PROFICIENCY);
 

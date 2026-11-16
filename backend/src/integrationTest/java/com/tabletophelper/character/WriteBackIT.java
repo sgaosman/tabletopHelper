@@ -75,7 +75,7 @@ class WriteBackIT extends IntegrationTest {
         campaignId = UUID.fromString(campaign.get("id").asString());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
                 Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
-        raceId = insertRace("Human");
+        raceId = insertRaceWithHellishRebuke("Tiefling");
         fighterId = insertClass("Fighter", 10);
         wizardId = insertCaster("Wizard", 6, "INT", false);
         goblin = monsterRepository.save(Monster.builder().name("Goblin").type("Humanoid").challengeRating("1/4")

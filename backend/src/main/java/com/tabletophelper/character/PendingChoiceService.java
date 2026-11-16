@@ -1759,11 +1759,27 @@ public class PendingChoiceService {
     // ── What creation chose ──────────────────────────────────────
 
     // The EXPERTISE choices less the skills the request gave Expertise, recorded on the levels they cover, oldest
-    // first; a skill beyond what the levels give stays on the sheet unrecorded, as the creation request's
-    // proficiencies aren't checked until R8
+    // first. Each skill must be one of the character's skill proficiencies, and the request can't give more than the
+    // levels' EXPERTISE choices count, as a Rogue's 2 at 1st and 6th level and a Bard's at 3rd and 10th (PHB p.96,
+    // p.54; D232): what isn't chosen stays a Pending Choice
     private static List<PendingChoice> expertiseCovered(PlayerCharacter character, List<PendingChoice> owed,
                                                         List<String> given) {
         List<String> skills = new ArrayList<>(distinct(orEmpty(given)));
+        List<String> proficient = orEmpty(character.getSkillProficiencies());
+        for (int i = 0; i < skills.size(); i++) {
+            String skill = skills.get(i);
+            String proficiency = proficient.stream().filter(p -> p != null && p.trim().equalsIgnoreCase(skill))
+                    .findFirst()
+                    .orElseThrow(() -> new ValidationException(character.getName() + " isn't proficient in " + skill
+                            + ", so can't have Expertise in it"));
+            skills.set(i, proficiency);
+        }
+        int owedCount = owed.stream().filter(c -> c.type() == Type.EXPERTISE).mapToInt(PendingChoice::count).sum();
+        if (skills.size() > owedCount) {
+            throw new ValidationException("A character created at level " + character.getLevel() + " with these "
+                    + "classes has Expertise in " + owedCount + " skill" + (owedCount == 1 ? "" : "s") + ", not "
+                    + skills.size());
+        }
         List<PendingChoice> left = new ArrayList<>();
         for (PendingChoice choice : owed) {
             if (choice.type() != Type.EXPERTISE || skills.isEmpty()) {

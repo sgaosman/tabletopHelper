@@ -207,8 +207,8 @@ class DmAdjustmentIT extends IntegrationTest {
     @Test
     @DisplayName("A DEFENCE adjustment reaches the character's participant in a live encounter at once, and one it already has counts once")
     void defencesInLiveEncounters() {
-        String tiefling = create(Map.of("name", "Zariel", "classId", fighterId, "level", 3, "campaignId", campaignId,
-                "damageResistances", List.of("fire")));
+        String tiefling = create(Map.of("name", "Zariel", "raceId", insertRaceWithHellishRebuke("Tiefling"),
+                "classId", fighterId, "level", 3, "campaignId", campaignId, "damageResistances", List.of("fire")));
         UUID encounterId = createEncounter(dm.accessToken(), campaignId);
         for (String characterId : List.of(aria, tiefling)) {
             addParticipant(dm.accessToken(), encounterId,

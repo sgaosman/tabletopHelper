@@ -71,7 +71,7 @@ class CharacterCommandsIT extends IntegrationTest {
         campaignId = UUID.fromString(campaign.get("id").asString());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
                 Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
-        raceId = insertRace("Tiefling");
+        raceId = insertRaceWithHellishRebuke("Tiefling");
         fighterId = insertClass("Fighter", 10);
         warlockId = insertCaster("Warlock", 8, "CHA", true);
         wizardId = insertCaster("Wizard", 6, "INT", false);

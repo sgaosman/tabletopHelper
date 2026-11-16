@@ -63,6 +63,8 @@ public class CharacterCreateRequest {
     // speed (the race's), spell slots, spell save DC and attack bonus, and Hit Dice are the server's to work out
     // (D158, D167), so a request can't set them
 
+    // Checked against the race, classes and background (D232): the saving throws are the first class's whatever
+    // this says (PHB p.164); a skill, Expertise, resistance or spell they don't give is a 400
     private List<String> savingThrowProficiencies;
     private List<String> skillProficiencies;
     private List<String> skillExpertises;

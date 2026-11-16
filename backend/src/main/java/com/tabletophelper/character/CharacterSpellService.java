@@ -9,12 +9,15 @@ import com.tabletophelper.character.dto.ClassSpellcasting;
 import com.tabletophelper.character.dto.PreparedSpellsRequest;
 import com.tabletophelper.character.dto.SpellbookRequest;
 import com.tabletophelper.character.internal.CharacterStats;
+import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.character.state.PendingChoice;
 import com.tabletophelper.character.state.SpellsLearned;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.rules.character.ClassProgression;
+import com.tabletophelper.rules.character.ClassTables;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +56,7 @@ public class CharacterSpellService {
     private final CharacterStats characterStats;
     private final SpellRepository spellRepository;
     private final ObjectMapper objectMapper;
+    private final ClassTables classTables;
 
     /**
      * Sets which of a prepared caster's spells are prepared: those the request names, from the class's list, or for a
@@ -154,6 +158,114 @@ public class CharacterSpellService {
             }
             character.setSpellsKnown(known);
         });
+    }
+
+    // ── Creation (D232) ──────────────────────────────────────────
+
+    /**
+     * Checks the spells a create request gives the character, before its Pending Choices are counted, and keeps them
+     * as the data has them (D232; the security review D221 found them copied unchecked):
+     * <ul>
+     *   <li>a class spell (source "class:" and the class, or none for the first class) must exist, be on the list of
+     *       one of the character's casting classes (or its subclass's additions), as a SPELLS choice checks, and be a
+     *       cantrip or of a level the class casts at its level (PHB p.164). Its level comes from the spell data, never
+     *       the request, and it casts with slots: no at-will use or uses of its own</li>
+     *   <li>each class keeps within its numbers at its level: its cantrips known; a known caster's spells known; a
+     *       wizard's spellbook, 6 spells at 1st level and 2 a level after (PHB p.114), and the spells it prepares; a
+     *       cleric's, druid's or paladin's spells prepared (its level, or half for a paladin, plus its ability modifier)</li>
+     *   <li>a race spell (source "race:") must be one of the race's fixed spells available at the character's level,
+     *       and takes the race data's casting (RaceSpells, D231)</li>
+     * </ul>
+     * Any other source, a subclass's, a feat's or a Mystic Arcanum's, is the server's to grant, never the request's.
+     *
+     * @throws ValidationException naming the spell and why it can't be taken
+     */
+    void checkCreationSpells(PlayerCharacter character) {
+        List<KnownSpell> requested = character.getSpellsKnown();
+        if (requested == null || requested.isEmpty()) return;
+        List<ClassSpellcasting> castings = characterStats.spellcasting(character);
+        List<ClassEntry> entries = orEmpty(character.getMulticlassEntries());
+        String firstClass = entries.isEmpty() ? character.getCharacterClass() : entries.getFirst().className();
+        List<KnownSpell> raceSpells = RaceSpells.available(objectMapper, character);
+
+        List<KnownSpell> checked = new ArrayList<>();
+        Map<String, List<KnownSpell>> byClass = new LinkedHashMap<>();
+        for (KnownSpell entry : requested) {
+            if (entry == null || entry.name() == null || entry.name().isBlank()) {
+                throw new ValidationException("Each spell needs a name");
+            }
+            String source = entry.source() != null && !entry.source().isBlank() ? entry.source().trim()
+                    : "class:" + firstClass;
+            if (source.startsWith("race:")) {
+                KnownSpell raceSpell = raceSpells.stream()
+                        .filter(spell -> key(spell.name()).equals(key(entry.name())))
+                        .findFirst()
+                        .orElseThrow(() -> new ValidationException(entry.name().trim() + " isn't one of the "
+                                + (character.getRaceRef() != null ? character.getRaceRef().getName() + "'s" : "race's")
+                                + " spells at level " + character.getLevel()));
+                if (checked.contains(raceSpell)) {
+                    throw new ValidationException(raceSpell.name() + " is listed twice");
+                }
+                checked.add(raceSpell);
+                continue;
+            }
+            if (!source.startsWith("class:")) {
+                throw new ValidationException(entry.name().trim() + " comes from " + source + ", but a character is "
+                        + "created with only its classes' and race's spells: the rest are granted on the sheet");
+            }
+            String className = source.substring("class:".length()).trim();
+            ClassSpellcasting casting = castings.stream()
+                    .filter(c -> c.className().equalsIgnoreCase(className))
+                    .findFirst()
+                    .orElseThrow(() -> new ValidationException(character.getName() + " casts no " + className
+                            + " spells at creation, so can't know " + entry.name().trim()));
+            Spell spell = classSpell(casting, entry.name());
+            if (spell.getLevel() > 0) requireCastable(casting, spell.getName(), spell.getLevel());
+            List<KnownSpell> ofClass = byClass.computeIfAbsent(casting.className(), c -> new ArrayList<>());
+            if (ofClass.stream().anyMatch(known -> key(known.name()).equals(key(spell.getName())))) {
+                throw new ValidationException(spell.getName() + " is listed twice for the " + casting.className());
+            }
+            boolean prepares = casting.preparedSpells() != null && spell.getLevel() > 0;
+            KnownSpell kept = classEntry(casting, spell, prepares ? entry.prepared() : null);
+            ofClass.add(kept);
+            checked.add(kept);
+        }
+        byClass.forEach((className, spells) -> requireCreationNumbers(castings.stream()
+                .filter(c -> c.className().equals(className)).findFirst().orElseThrow(), spells));
+        character.setSpellsKnown(checked);
+    }
+
+    // A class's cantrips and spells at creation, within its numbers at its class level
+    private void requireCreationNumbers(ClassSpellcasting casting, List<KnownSpell> spells) {
+        long cantrips = spells.stream().filter(s -> s.level() == 0).count();
+        if (cantrips > casting.cantripsKnown()) {
+            throw new ValidationException(classAtLevel(casting) + " knows " + casting.cantripsKnown()
+                    + " cantrips, not " + cantrips);
+        }
+        long levelled = spells.size() - cantrips;
+        long prepared = spells.stream().filter(s -> s.level() > 0 && Boolean.TRUE.equals(s.prepared())).count();
+        if (WIZARD.equals(casting.className())) {
+            int spellbook = 0;
+            for (int level = 1; level <= casting.classLevel(); level++) {
+                spellbook += ClassProgression.spellbookSpells(classTables, WIZARD, level);
+            }
+            if (levelled > spellbook) {
+                throw new ValidationException(classAtLevel(casting) + " has " + spellbook
+                        + " spells in its spellbook, not " + levelled);
+            }
+            if (casting.preparedSpells() != null && prepared > casting.preparedSpells()) {
+                throw new ValidationException(classAtLevel(casting) + " prepares " + casting.preparedSpells()
+                        + " spells, not " + prepared);
+            }
+        } else if (casting.spellsKnown() != null) {
+            if (levelled > casting.spellsKnown()) {
+                throw new ValidationException(classAtLevel(casting) + " knows " + casting.spellsKnown()
+                        + " spells, not " + levelled);
+            }
+        } else if (casting.preparedSpells() != null && levelled > casting.preparedSpells()) {
+            throw new ValidationException(classAtLevel(casting) + " prepares " + casting.preparedSpells()
+                    + " spells, not " + levelled);
+        }
     }
 
     // ── Pending Choices (D159) ───────────────────────────────────

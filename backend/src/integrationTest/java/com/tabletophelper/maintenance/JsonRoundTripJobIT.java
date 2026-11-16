@@ -48,7 +48,7 @@ class JsonRoundTripJobIT extends IntegrationTest {
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
                 Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         characterId = UUID.fromString(expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters",
-                Map.of("name", "Bram", "raceId", insertRace("Tiefling"), "classId", insertCaster("Warlock", 8, "CHA", true),
+                Map.of("name", "Bram", "raceId", insertRaceWithHellishRebuke("Tiefling"), "classId", insertCaster("Warlock", 8, "CHA", true),
                         "strength", 10, "dexterity", 14, "constitution", 12, "intelligence", 10, "wisdom", 10,
                         "charisma", 16, "spellsKnown", List.of(Map.of("name", "Hellish Rebuke", "level", 1,
                                 "source", "race:Tiefling", "usesPerLongRest", 1))),

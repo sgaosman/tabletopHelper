@@ -24,6 +24,7 @@ import com.tabletophelper.character.state.SpellsLearned;
 import com.tabletophelper.character.state.SubclassChosen;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.identity.internal.UserRepository;
+import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
 import org.junit.jupiter.api.BeforeEach;
@@ -302,9 +303,14 @@ class CharacterJsonMappingIT extends IntegrationTest {
     @DisplayName("The API takes and returns the records as JSON, and a JSON field sent as a string gets 400")
     void apiCarriesJson() {
         RegisteredUser player = register("bram");
-        UUID classId = insertCaster("Wizard", 6, "INT", false);
+        // The skills come from the race and the class (D232)
+        UUID classId = characterClassRepository.save(CharacterClass.builder().name("Wizard").source("PHB")
+                .hitDice(6).subclassLevel(2).isSpellcaster(true).isPactMagic(false).spellcastingAbility("INT")
+                .skillChoices("{\"count\":2,\"from\":[\"Arcana\",\"History\",\"Athletics\"]}").build()).getId();
+        UUID elfId = raceRepository.save(Race.builder().name("Elf").source("PHB").speed("{\"walk\":30}")
+                .proficiencies("{\"skills\":[\"Perception\"]}").build()).getId();
         Map<String, Object> create = new LinkedHashMap<>(Map.of(
-                "name", "Bram", "raceId", insertRace("Elf"), "classId", classId,
+                "name", "Bram", "raceId", elfId, "classId", classId,
                 "strength", 16, "dexterity", 14, "constitution", 12,
                 "intelligence", 10, "wisdom", 10, "charisma", 10));
         create.put("skillProficiencies", List.of("Athletics", "Perception"));
@@ -374,7 +380,7 @@ class CharacterJsonMappingIT extends IntegrationTest {
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
                 Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         UUID characterId = UUID.fromString(expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters",
-                Map.of("name", "Bram", "raceId", insertRace("Tiefling"), "classId", insertCaster("Warlock", 8, "CHA", true),
+                Map.of("name", "Bram", "raceId", insertRaceWithHellishRebuke("Tiefling"), "classId", insertCaster("Warlock", 8, "CHA", true),
                         "strength", 10, "dexterity", 14, "constitution", 12, "intelligence", 10, "wisdom", 10,
                         "charisma", 16, "spellsKnown", List.of(Map.of("name", "Hellish Rebuke", "level", 1,
                                 "source", "race:Tiefling", "usesPerLongRest", 1))),
