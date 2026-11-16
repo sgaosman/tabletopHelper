@@ -891,5 +891,196 @@ class CharacterStatsTest {
             assertThat(derived.warnings()).containsExactly(
                     "has Chain Mail equipped too; only the first armour and shield in the inventory count");
         }
+
+        private final Item breastplate = Item.builder().id(UUID.randomUUID()).name("Breastplate").source("PHB")
+                .armourCategory(Item.ArmourCategory.MEDIUM).armourClassBase(14).build();
+
+        private Feature feat(String name) {
+            return new Feature(name, "A feat", "Feat");
+        }
+
+        @Test
+        @DisplayName("Medium Armor Master lets medium armour add +3 of DEX (PHB p.168, D230): a Breastplate with DEX 16 is 14 + 3 = 17, without the feat 14 + 2 = 16")
+        void mediumArmorMaster() {
+            when(itemRepository.findById(breastplate.getId())).thenReturn(Optional.of(breastplate));
+            PlayerCharacter pc = armoured(equipped(breastplate));
+            pc.setDexterity(16);
+
+            assertThat(stats.derive(pc).armourClass()).isEqualTo(16);
+            pc.setFeatures(List.of(feat("Medium Armor Master")));
+            assertThat(stats.derive(pc).armourClass()).isEqualTo(17);
+            assertThat(stats.armourClassBreakdown(pc).parts()).containsExactly(
+                    new ArmourClassBreakdown.Part("Breastplate", 14), new ArmourClassBreakdown.Part("DEX (max 3)", 3));
+            // DEX 14 adds its +2 either way
+            pc.setDexterity(14);
+            assertThat(stats.derive(pc).armourClass()).isEqualTo(16);
+        }
+
+        @Test
+        @DisplayName("Dragon Hide gives 13 + DEX unarmoured, a shield allowed (XGE p.74, D230): 15 with DEX 14, 17 with a shield; armour replaces it")
+        void dragonHide() {
+            PlayerCharacter pc = armoured();
+            pc.setFeatures(List.of(feat("Dragon Hide")));
+
+            assertThat(stats.derive(pc).armourClass()).isEqualTo(15);
+            assertThat(stats.armourClassBreakdown(pc).parts()).first()
+                    .isEqualTo(new ArmourClassBreakdown.Part("Dragon Hide", 13));
+            pc.setEquipment(List.of(equipped(shield)));
+            assertThat(stats.derive(pc).armourClass()).isEqualTo(17);
+            pc.setEquipment(List.of(equipped(studdedLeather)));
+            assertThat(stats.derive(pc).armourClass()).isEqualTo(14);
+        }
+
+        @Test
+        @DisplayName("A Tortle can't wear body armour (TTP p.4, D230): Chain Mail equipped leaves its natural 17, warned of and without the heavy armour speed penalty, and a shield still adds 2")
+        void tortle() {
+            PlayerCharacter pc = armoured(equipped(chainMail), equipped(shield));
+            pc.setRaceRef(Race.builder().id(UUID.randomUUID()).name("Tortle").speed("{\"walk\": 30}")
+                    .effects("{\"unarmouredAcBase\": 17, \"noBodyArmour\": 1}").build());
+
+            DerivedStats derived = stats.derive(pc);
+
+            assertThat(derived.armourClass()).isEqualTo(19);
+            assertThat(derived.speed()).isEqualTo(30);
+            ArmourClassBreakdown breakdown = stats.armourClassBreakdown(pc);
+            assertThat(breakdown.parts()).containsExactly(new ArmourClassBreakdown.Part("Tortle natural armour", 17),
+                    new ArmourClassBreakdown.Part("Shield", 2));
+            assertThat(breakdown.total()).isEqualTo(19);
+            assertThat(breakdown.warnings()).containsExactly("Tortle can't wear Chain Mail; its natural armour counts");
+        }
+    }
+
+    @Nested
+    @DisplayName("Class speed, initiative and passive Perception (D230)")
+    class ClassFeatures {
+
+        private final CharacterClass monk = caster("Monk", 8, null, false);
+        private final CharacterClass bard = caster("Bard", 8, "CHA", false);
+        private final Item chainMail = Item.builder().id(UUID.randomUUID()).name("Chain Mail").source("PHB")
+                .armourCategory(Item.ArmourCategory.HEAVY).armourClassBase(16).strengthRequirement(13).build();
+        private final Item hide = Item.builder().id(UUID.randomUUID()).name("Hide Armor").source("PHB")
+                .armourCategory(Item.ArmourCategory.MEDIUM).armourClassBase(12).build();
+        private final Item shield = Item.builder().id(UUID.randomUUID()).name("Shield").source("PHB")
+                .armourCategory(Item.ArmourCategory.SHIELD).armourClassBase(2).build();
+
+        @BeforeEach
+        void knowTheClassesAndArmour() {
+            for (CharacterClass c : List.of(monk, bard)) {
+                lenient().when(classRepository.findById(c.getId())).thenReturn(Optional.of(c));
+            }
+            for (Item item : List.of(chainMail, hide, shield)) {
+                lenient().when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+            }
+        }
+
+        private InventoryItem equipped(Item item) {
+            return new InventoryItem(item.getName(), 1, null, item.getId(), true, null);
+        }
+
+        private PlayerCharacter champion(int fighterLevel) {
+            PlayerCharacter pc = character(fighter, fighterLevel);
+            pc.setMulticlassEntries(List.of(new ClassEntry(fighter.getId(), "Fighter", UUID.randomUUID(), "Champion",
+                    fighterLevel)));
+            return pc;
+        }
+
+        @Test
+        @DisplayName("Fast Movement: a Barbarian 5 moves 40 feet, in medium armour too, but not in heavy armour, and a Barbarian 4 30 (PHB p.49)")
+        void fastMovement() {
+            PlayerCharacter pc = character(barbarian, 5);
+            pc.setStrength(13);
+            assertThat(stats.derive(pc).speed()).isEqualTo(40);
+            assertThat(stats.derive(character(barbarian, 4)).speed()).isEqualTo(30);
+
+            pc.setEquipment(List.of(equipped(hide)));
+            assertThat(stats.derive(pc).speed()).isEqualTo(40);
+            pc.setEquipment(List.of(equipped(chainMail)));
+            assertThat(stats.derive(pc).speed()).isEqualTo(30);
+        }
+
+        @Test
+        @DisplayName("Unarmored Movement by Monk level (PHB p.78): +0 at 1, +10 at 2, +15 at 6, +20 at 10, +25 at 14, +30 at 18; none with armour or a shield")
+        void unarmoredMovement() {
+            assertThat(stats.derive(character(monk, 1)).speed()).isEqualTo(30);
+            assertThat(stats.derive(character(monk, 2)).speed()).isEqualTo(40);
+            assertThat(stats.derive(character(monk, 5)).speed()).isEqualTo(40);
+            assertThat(stats.derive(character(monk, 6)).speed()).isEqualTo(45);
+            assertThat(stats.derive(character(monk, 10)).speed()).isEqualTo(50);
+            assertThat(stats.derive(character(monk, 14)).speed()).isEqualTo(55);
+            assertThat(stats.derive(character(monk, 18)).speed()).isEqualTo(60);
+
+            PlayerCharacter shielded = character(monk, 6);
+            shielded.setEquipment(List.of(equipped(shield)));
+            assertThat(stats.derive(shielded).speed()).isEqualTo(30);
+            PlayerCharacter armoured = character(monk, 6);
+            armoured.setEquipment(List.of(equipped(hide)));
+            assertThat(stats.derive(armoured).speed()).isEqualTo(30);
+        }
+
+        @Test
+        @DisplayName("A Barbarian 5 / Monk 2 has both, by class level: 30 + 10 + 10 = 50 unarmoured, and Fast Movement alone with a shield")
+        void bothFeatures() {
+            PlayerCharacter pc = character(barbarian, 5, monk, 2);
+            assertThat(stats.derive(pc).speed()).isEqualTo(50);
+            pc.setEquipment(List.of(equipped(shield)));
+            assertThat(stats.derive(pc).speed()).isEqualTo(40);
+        }
+
+        @Test
+        @DisplayName("Jack of All Trades adds half the proficiency bonus, rounded down, to initiative from Bard 2 (PHB p.54): a Bard 2 +2 + 1, a Bard 1 +2, a Bard 5 +2 + 1")
+        void jackOfAllTradesInitiative() {
+            assertThat(stats.derive(character(bard, 1)).initiativeBonus()).isEqualTo(2);
+            assertThat(stats.derive(character(bard, 2)).initiativeBonus()).isEqualTo(3);
+            assertThat(stats.derive(character(bard, 5)).initiativeBonus()).isEqualTo(3);
+            // A Fighter 3 / Bard 2 is 5th level: proficiency +3, half of it 1
+            assertThat(stats.derive(character(fighter, 3, bard, 2)).initiativeBonus()).isEqualTo(3);
+        }
+
+        @Test
+        @DisplayName("Remarkable Athlete adds half the proficiency bonus, rounded up, to initiative from Champion 7 (PHB p.72): +2 + 2 at 7th, nothing at 6th or for another fighter")
+        void remarkableAthleteInitiative() {
+            assertThat(stats.derive(champion(7)).initiativeBonus()).isEqualTo(4);
+            assertThat(stats.derive(champion(6)).initiativeBonus()).isEqualTo(2);
+            assertThat(stats.derive(character(fighter, 7)).initiativeBonus()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("Jack of All Trades and Remarkable Athlete don't stack: a Champion 7 / Bard 2, 9th level with +4, takes the higher, 2")
+        void halfProficienciesDontStack() {
+            PlayerCharacter pc = character(fighter, 7, bard, 2);
+            pc.setMulticlassEntries(List.of(new ClassEntry(fighter.getId(), "Fighter", UUID.randomUUID(), "Champion", 7),
+                    new ClassEntry(bard.getId(), "Bard", null, null, 2)));
+
+            assertThat(stats.derive(pc).initiativeBonus()).isEqualTo(2 + 2);
+        }
+
+        @Test
+        @DisplayName("Passive Perception: 10 + WIS 1, + proficiency 2 with Perception, + 4 with Expertise, + 5 with Observant (PHB p.175, p.168)")
+        void passivePerception() {
+            PlayerCharacter pc = character(fighter, 1);
+            assertThat(stats.passivePerception(pc)).isEqualTo(11);
+
+            pc.setSkillProficiencies(List.of("perception"));
+            assertThat(stats.passivePerception(pc)).isEqualTo(13);
+
+            pc.setSkillExpertises(List.of("Perception"));
+            assertThat(stats.passivePerception(pc)).isEqualTo(15);
+
+            pc.setDmAdjustments(List.of(new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.FEAT, "Observant", null,
+                    null, UUID.randomUUID(), new AppliedFeatEffects(null, null, null, null, null, null, null, null,
+                    null, null, null, null, 5, 5, null, null, "Observant"), "A boon", UUID.randomUUID(),
+                    Instant.parse("2026-11-03T10:00:00Z"), null, null)));
+            assertThat(stats.passivePerception(pc)).isEqualTo(20);
+        }
+
+        @Test
+        @DisplayName("Jack of All Trades counts for a Bard's passive Perception without proficiency, Remarkable Athlete never does")
+        void passivePerceptionHalfProficiency() {
+            assertThat(stats.passivePerception(character(bard, 2))).isEqualTo(12);
+            PlayerCharacter proficient = character(bard, 2);
+            proficient.setSkillProficiencies(List.of("Perception"));
+            assertThat(stats.passivePerception(proficient)).isEqualTo(13);
+            assertThat(stats.passivePerception(champion(7))).isEqualTo(11);
+        }
     }
 }

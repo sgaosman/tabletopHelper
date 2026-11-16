@@ -129,7 +129,8 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
       {/* Proficiency & Other */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard label="Proficiency" value={formatMod(char.proficiencyBonus)} />
-        <StatCard label="Passive Perception" value={String(10 + abilityMod(char.wisdom) + (skillProfs.some(s => s.toLowerCase() === 'perception') ? char.proficiencyBonus : 0))} />
+        {/* The server works it out: Expertise, Jack of All Trades and Observant included (D230) */}
+        <StatCard label="Passive Perception" value={String(char.passivePerception)} />
         <StatCard label="Hit Dice" value={hitDice || `${char.level}d?`} sub={hitDice ? 'remaining' : undefined} />
         <StatCard label="XP" value={String(char.experiencePoints)} />
       </div>

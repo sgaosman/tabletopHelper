@@ -5,6 +5,7 @@ import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.monster.Monster;
+import com.tabletophelper.reference.Race;
 import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.rules.combat.ActionEconomy;
 import com.tabletophelper.rules.combat.ChannelDivinity;
@@ -54,8 +55,8 @@ public final class TurnEconomies {
     }
 
     /**
-     * The participant's speeds in feet by kind, walking first: a player character's walking speed from its sheet,
-     * a monster's speeds from its stat block (a speed with a condition, such as "(hover)", by its number), and a
+     * The participant's speeds in feet by kind, walking first: a player character's walking speed from its sheet and
+     * its race's other speeds (D230), a monster's speeds from its stat block (a speed with a condition, such as "(hover)", by its number), and a
      * druid's in beast form the beast's. Exhaustion halves every one of them from level 2, rounding down, and makes
      * them 0 from level 5 (PHB p.291, D183); a druid's exhaustion carries into its beast form, and a summoned creature
      * has its own.
@@ -108,11 +109,51 @@ public final class TurnEconomies {
             if (character.getSpeed() != null) {
                 speeds.put(WALK, character.getSpeed());
             }
+            speeds.putAll(raceSpeeds(character, objectMapper));
             return speeds;
         }
         // A summoned spirit moves only as its form allows, such as the Land Bestial Spirit's climb (TCE p.109)
         String variant = participant.getSummon() != null ? participant.getSummon().variant() : null;
         return speed(participant.getMonster(), objectMapper, variant);
+    }
+
+    // The movement kinds a race's speed can give besides walking
+    private static final List<String> OTHER_SPEEDS = List.of("burrow", "climb", "fly", "swim");
+
+    /*
+     * A player character's racial speeds besides walking (D230), from its race's speed as the loader keeps it: a number
+     * of feet, as an Aarakocra's fly 50 (EEPC p.5), or true for a speed equal to the walking speed, as the Monsters of
+     * the Multiverse Tabaxi's climb, which is then the sheet's walking speed with everything that changes it. A
+     * numbered speed stays as the race gives it, so Fast Movement and Unarmored Movement raise only the walking speed
+     * (PHB p.49, p.78). Empty for none, or a race speed that can't be read.
+     */
+    private static Map<String, Integer> raceSpeeds(PlayerCharacter character, ObjectMapper objectMapper) {
+        Map<String, Integer> speeds = new LinkedHashMap<>();
+        Race race = character.getRaceRef();
+        if (race == null || race.getSpeed() == null || race.getSpeed().isBlank()) {
+            return speeds;
+        }
+        JsonNode stats;
+        try {
+            stats = objectMapper.readTree(race.getSpeed());
+        } catch (JacksonException e) {
+            log.warn("Race {} has a speed that can't be read", race.getId());
+            return speeds;
+        }
+        if (!stats.isObject()) {
+            return speeds;
+        }
+        for (String kind : OTHER_SPEEDS) {
+            JsonNode value = stats.get(kind);
+            if (value == null) continue;
+            if (value.isBoolean() && value.asBoolean(false) && character.getSpeed() != null) {
+                speeds.put(kind, character.getSpeed());
+            } else {
+                Integer feet = feet(value);
+                if (feet != null && feet > 0) speeds.put(kind, feet);
+            }
+        }
+        return speeds;
     }
 
     /** As {@link #speed(Monster, ObjectMapper, String)} with no form. */

@@ -813,6 +813,57 @@ class ResourcePoolServiceTest {
         assertEquals(1, findPool(pools, PALADIN_CD).maxUses());
     }
 
+    private static final FeatResourceEntry MARTIAL_ADEPT = new FeatResourceEntry("Martial Adept",
+            "Superiority Die (d6)", 1, 1, "shortRest");
+
+    // A Fighter at this level with Martial Adept from 4th level, a Battle Master when asked, with the sheet's pools
+    private PlayerCharacter martialAdept(int fighterLevel, boolean battleMaster, ResourcePoolEntry... onSheet) {
+        UUID fighterId = UUID.randomUUID();
+        UUID battleMasterId = UUID.randomUUID();
+        ClassFeaturePool dice = ClassFeaturePool.builder().minLevel(3).poolDefinition(ResourcePoolDefinition.builder()
+                .poolId(ResourcePoolService.SUPERIORITY_DICE_POOL).displayName("Superiority Dice").sourceType("CLASS")
+                .maxUsesFormula("4").resetOn("shortRest").metadata("{\"die\": \"d8\"}").build()).build();
+        if (battleMaster) when(classFeaturePoolRepository.findByClassIdAndLevelAndSubclass(fighterId, fighterLevel,
+                battleMasterId)).thenReturn(List.of(dice));
+        return PlayerCharacter.builder().level(fighterLevel)
+                .multiclassEntries(List.of(new ClassEntry(fighterId, "Fighter", battleMaster ? battleMasterId : null,
+                        battleMaster ? "Battle Master" : null, fighterLevel)))
+                .levelHistory(List.of(featLevel(4, MARTIAL_ADEPT)))
+                .resourcePools(List.of(onSheet))
+                .build();
+    }
+
+    @Test
+    @DisplayName("Martial Adept alone is a feat pool of one superiority die, back on a short rest (PHB p.168, D230)")
+    void martialAdeptAlone() {
+        List<ResourcePoolEntry> pools = reconcile(martialAdept(4, false));
+
+        assertEquals(List.of(ResourcePoolEntry.feat("Martial Adept", "Superiority Die (d6)", 1, "shortRest")), pools);
+    }
+
+    @Test
+    @DisplayName("A Battle Master's Martial Adept die is added to its superiority dice: one pool of 5, the uses spent from either staying spent (PHB p.168, D230)")
+    void martialAdeptAddsToBattleMasterDice() {
+        List<ResourcePoolEntry> fresh = reconcile(martialAdept(4, true));
+        assertEquals(List.of(ResourcePoolService.SUPERIORITY_DICE_POOL),
+                fresh.stream().map(ResourcePoolEntry::poolId).toList());
+        assertEquals(5, fresh.getFirst().maxUses());
+        assertEquals(5, fresh.getFirst().currentUses());
+        assertEquals(Map.of("die", "d8"), fresh.getFirst().metadata());
+
+        // A sheet from before the merge, with a die spent from each pool
+        ResourcePoolEntry oldDice = new ResourcePoolEntry(ResourcePoolService.SUPERIORITY_DICE_POOL,
+                "Superiority Dice", "CLASS", null, 4, "4", 3, "shortRest", null, null, "FREE", null, Map.of());
+        ResourcePoolEntry oldFeat = ResourcePoolEntry.feat("Martial Adept", "Superiority Die (d6)", 1, "shortRest")
+                .withCurrentUses(0);
+        List<ResourcePoolEntry> merged = reconcile(martialAdept(4, true, oldDice, oldFeat));
+        assertEquals(1, merged.size());
+        assertEquals(3, merged.getFirst().currentUses());
+
+        // And once merged, the spent die stays spent through the next sync
+        assertEquals(3, reconcile(martialAdept(4, true, merged.getFirst())).getFirst().currentUses());
+    }
+
     private List<ResourcePoolEntry> reconcile(PlayerCharacter character) {
         return service.reconciledPools(character, service.buildCharacterContext(character));
     }

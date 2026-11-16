@@ -2795,6 +2795,8 @@ export interface components {
             name: string;
             notes?: string | null;
             ownerDisplayName: string;
+            /** Format: int32 */
+            passivePerception: number;
             pendingChoices: components["schemas"]["PendingChoice"][];
             personalityTraits?: string | null;
             portraitUrl?: string | null;

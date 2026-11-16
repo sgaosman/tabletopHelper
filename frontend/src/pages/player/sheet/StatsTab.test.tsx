@@ -23,6 +23,13 @@ describe('StatsTab', () => {
     expect(screen.getByText('Passive Perception')).toBeInTheDocument();
   });
 
+  it("shows the server's passive Perception, Expertise and Observant included, not one worked out from WIS (D230)", () => {
+    // WIS 12 (+1) and proficiency +3 would make 14 in the browser; the server's 23 counts Expertise and Observant
+    render(<StatsTab {...defaultProps} char={{ ...char, passivePerception: 23 }} skillExpertises={['perception']} />);
+    const card = screen.getByText('Passive Perception').parentElement!;
+    expect(within(card).getByText('23')).toBeInTheDocument();
+  });
+
   it('shows expertise star icon', () => {
     render(<StatsTab {...defaultProps} skillExpertises={['athletics']} />);
     expect(screen.getByText('Proficient')).toBeInTheDocument();

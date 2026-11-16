@@ -29,7 +29,9 @@ import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ProficiencyBonus;
 import com.tabletophelper.rules.SpellSlotCalculator;
+import com.tabletophelper.rules.character.AbilityChecks;
 import com.tabletophelper.rules.character.AbilityScores;
+import com.tabletophelper.rules.character.ClassMovement;
 import com.tabletophelper.rules.character.ArmourClass;
 import com.tabletophelper.rules.character.ClassProgression;
 import com.tabletophelper.rules.character.ClassTables;
@@ -74,7 +76,12 @@ import java.util.function.Function;
  * {@code unarmouredAcDex} and {@code unarmouredAcCon} 1 when it adds that modifier, and
  * {@code unarmouredAcWithArmour} 1 when it may stand in for worn armour giving less), plus a race's flat
  * {@code acBonus}, such as the Warforged's. Heavy armour without the Strength it needs takes 10 feet off the speed,
- * unless the race's {@code heavyArmourSpeedExempt} is 1, as a dwarf's is.
+ * unless the race's {@code heavyArmourSpeedExempt} is 1, as a dwarf's is. Medium Armor Master raises medium armour's
+ * DEX cap to +3 (PHB p.168), Dragon Hide adds 13 + DEX to the unarmoured formulas (XGE p.74), and a race whose
+ * {@code noBodyArmour} is 1, the Tortle, gains nothing from body armour, only from a shield (TTP p.4, MPMM, D230).
+ * <p>
+ * Speed adds Fast Movement and Unarmored Movement by the Barbarian and Monk levels (PHB p.49, p.78), and initiative,
+ * a Dexterity check, Jack of All Trades' or Remarkable Athlete's half proficiency (PHB p.54, p.72, D230).
  */
 @Component
 @RequiredArgsConstructor
@@ -82,6 +89,13 @@ public class CharacterStats {
 
     static final String BARBARIAN = "Barbarian";
     static final String MONK = "Monk";
+    static final String BARD = "Bard";
+    static final String FIGHTER = "Fighter";
+    static final String CHAMPION = "Champion";
+    // The feats that change the AC (D230): medium armour's DEX cap of +3 (PHB p.168), and 13 + DEX unarmoured (XGE p.74)
+    static final String MEDIUM_ARMOR_MASTER = "Medium Armor Master";
+    static final String DRAGON_HIDE = "Dragon Hide";
+    static final String PERCEPTION = "Perception";
 
     // The effects that add hit points for every level: a race's for every character level, a subclass's for every
     // level in its class
@@ -96,6 +110,8 @@ public class CharacterStats {
     static final String UNARMOURED_AC_WITH_ARMOUR = "unarmouredAcWithArmour";
     static final String AC_BONUS = "acBonus";
     static final String HEAVY_ARMOUR_SPEED_EXEMPT = "heavyArmourSpeedExempt";
+    // A race that can't wear body armour, only a shield, as the Tortle (TTP p.4, MPMM): 1 for yes (D230)
+    static final String NO_BODY_ARMOUR = "noBodyArmour";
     static final String DM_ADJUSTMENTS_PART = "DM adjustments";
 
     private static final int PRIMAL_CHAMPION_LEVEL = 20;
@@ -123,10 +139,11 @@ public class CharacterStats {
 
     /**
      * The armour worked out: the AC and its parts, what heavy armour takes off the speed, what the armour costs the
-     * character, and the further armour equipped that doesn't count.
+     * character, the further armour equipped that doesn't count, and what counts as worn: body armour, whether it is
+     * heavy, and a shield, which Fast Movement and Unarmored Movement ask (D230).
      */
     private record WornArmour(ArmourClass.Result result, int speedPenalty, List<String> warnings,
-                              List<String> ignored) {
+                              List<String> ignored, boolean bodyArmour, boolean heavy, boolean shield) {
     }
 
     // ── Deriving ─────────────────────────────────────────────────
@@ -158,11 +175,15 @@ public class CharacterStats {
                 proficiencyBonus,
                 hitPointMaximum(character, orEmpty(character.getLevelHistory()), classes,
                         DmAdjustments.total(character, Stat.HP_MAX)),
+                // Initiative is a Dexterity check made without proficiency, so Jack of All Trades or Remarkable Athlete
+                // adds to it (D230)
                 Ability.modifier(scores.get(Ability.DEX)) + featBonus(character, AppliedFeatEffects::initiativeBonus)
+                        + halfProficiency(classes, Ability.DEX, false, proficiencyBonus)
                         + DmAdjustments.total(character, Stat.INITIATIVE),
                 // A speed taken below 0 stops there
                 Math.max(0, raceSpeed(character.getRaceRef()) + featBonus(character, AppliedFeatEffects::speedBonus)
-                        - armour.speedPenalty() + DmAdjustments.total(character, Stat.SPEED)),
+                        + classMovement(classes, armour) - armour.speedPenalty()
+                        + DmAdjustments.total(character, Stat.SPEED)),
                 armour.result().total(),
                 scores,
                 abilityScoreMaximums(classes),
@@ -225,6 +246,26 @@ public class CharacterStats {
         }
         return new ArmourClassBreakdown(armour.result().total() + adjustments, parts, armour.warnings(),
                 equippedArmour.armourEntries(character.getEquipment()));
+    }
+
+    /**
+     * The character's passive Wisdom (Perception) (PHB p.175, D230): 10 + the WIS modifier with the DM's adjustments +
+     * double the proficiency bonus with Expertise in Perception, the bonus with proficiency, or else Jack of All Trades'
+     * half (PHB p.54), + the feats' passive Perception bonuses, such as Observant's +5 (PHB p.168). Remarkable Athlete
+     * doesn't apply, Perception being a Wisdom check.
+     */
+    public int passivePerception(PlayerCharacter character) {
+        int proficiencyBonus = ProficiencyBonus.forLevel(level(character));
+        boolean proficient = hasSkill(character.getSkillProficiencies(), PERCEPTION);
+        boolean expertise = hasSkill(character.getSkillExpertises(), PERCEPTION);
+        int half = halfProficiency(classes(character), Ability.WIS, proficient || expertise, proficiencyBonus);
+        return AbilityChecks.passive(Ability.modifier(DmAdjustments.abilityScore(character, Ability.WIS)),
+                AbilityChecks.skillBonus(proficient, expertise, proficiencyBonus, half),
+                featBonus(character, AppliedFeatEffects::passivePerceptionBonus));
+    }
+
+    private static boolean hasSkill(List<String> skills, String skill) {
+        return orEmpty(skills).stream().anyMatch(s -> s != null && s.trim().equalsIgnoreCase(skill));
     }
 
     /** What each of the character's classes casts with, in the order the classes were taken. */
@@ -412,6 +453,32 @@ public class CharacterStats {
         return total;
     }
 
+    // Jack of All Trades' or Remarkable Athlete's half proficiency on a check of the ability, by the Bard and Champion
+    // levels, not the character level (PHB p.54, p.72, D230)
+    private static int halfProficiency(List<ClassLevel> classes, Ability ability, boolean proficient,
+                                       int proficiencyBonus) {
+        return AbilityChecks.halfProficiency(ability, proficient, classLevel(classes, BARD),
+                championLevel(classes), proficiencyBonus);
+    }
+
+    // Fast Movement and Unarmored Movement, by the Barbarian and Monk levels, each with what it asks of the armour worn
+    // (PHB p.49, p.78, D230); both apply to a character who has both and meets both
+    private static int classMovement(List<ClassLevel> classes, WornArmour armour) {
+        return ClassMovement.fastMovement(classLevel(classes, BARBARIAN), armour.heavy())
+                + ClassMovement.unarmoredMovement(classLevel(classes, MONK), armour.bodyArmour(), armour.shield());
+    }
+
+    private static int classLevel(List<ClassLevel> classes, String className) {
+        return classes.stream().filter(c -> className.equals(c.name())).mapToInt(c -> c.entry().level()).max()
+                .orElse(0);
+    }
+
+    private static int championLevel(List<ClassLevel> classes) {
+        return classes.stream()
+                .filter(c -> FIGHTER.equals(c.name()) && CHAMPION.equalsIgnoreCase(c.entry().subclassName()))
+                .mapToInt(c -> c.entry().level()).max().orElse(0);
+    }
+
     // The race's walking speed, such as {"walk": 30} or 30; 30 for a race that records none
     private int raceSpeed(Race race) {
         if (race == null || race.getSpeed() == null || race.getSpeed().isBlank()) {
@@ -431,9 +498,21 @@ public class CharacterStats {
 
     // The AC from what the character wears, or its best unarmoured formula, and what the armour costs it
     private WornArmour armour(PlayerCharacter character, List<ClassLevel> classes, Map<Ability, Integer> scores) {
-        EquippedArmour.Worn worn = equippedArmour.of(character);
+        EquippedArmour.Worn equipped = equippedArmour.of(character);
         Map<Ability, Integer> modifiers = new EnumMap<>(Ability.class);
         scores.forEach((ability, score) -> modifiers.put(ability, Ability.modifier(score)));
+        Race race = character.getRaceRef();
+        List<String> warnings = new ArrayList<>();
+        // A race that can't wear body armour, as the Tortle, gains nothing from the armour equipped: its natural armour
+        // counts, with a shield still allowed (TTP p.4, MPMM, D230)
+        Item refused = equipped.armour();
+        EquippedArmour.Worn worn = equipped;
+        if (refused != null && race != null
+                && effect(race.getEffects(), NO_BODY_ARMOUR, "race " + race.getName()) == 1) {
+            warnings.add(race.getName() + " can't wear " + refused.getName() + "; its natural armour counts");
+            worn = new EquippedArmour.Worn(null, equipped.shield(), equipped.ignored(),
+                    equipped.notProficient().stream().filter(item -> item != refused).toList());
+        }
 
         ArmourClass.Armour armour = worn.armour() != null ? new ArmourClass.Armour(worn.armour().getName(),
                 category(worn.armour()), orZero(worn.armour().getArmourClassBase()), orZero(worn.armour().getBonusAc()))
@@ -462,7 +541,10 @@ public class CharacterStats {
             unarmoured(subclass.getEffects(), subclass.getName(), "subclass " + subclass.getName())
                     .ifPresent(formulas::add);
         }
-        Race race = character.getRaceRef();
+        // Dragon Hide's 13 + DEX, as Draconic Resilience's (XGE p.74, D230)
+        if (DmAdjustments.hasFeat(character, DRAGON_HIDE)) {
+            formulas.add(ArmourClass.dragonHide());
+        }
         List<ArmourClass.Bonus> bonuses = new ArrayList<>();
         boolean speedExempt = false;
         if (race != null) {
@@ -479,9 +561,11 @@ public class CharacterStats {
                 .stream().filter(Objects::nonNull).map(Feature::name).toList())
                 .contains(AttackFeatures.FightingStyle.DEFENSE);
         ArmourClass.defense(defense, armour).ifPresent(bonuses::add);
-        ArmourClass.Result result = ArmourClass.of(armour, shield, modifiers, formulas, bonuses);
+        // Medium Armor Master lets medium armour add up to +3 of the DEX modifier (PHB p.168, D230)
+        int mediumDexCap = DmAdjustments.hasFeat(character, MEDIUM_ARMOR_MASTER)
+                ? ArmourClass.MEDIUM_ARMOR_MASTER_DEX_CAP : ArmourClass.MEDIUM_DEX_CAP;
+        ArmourClass.Result result = ArmourClass.of(armour, shield, modifiers, formulas, bonuses, mediumDexCap);
 
-        List<String> warnings = new ArrayList<>();
         for (Item item : worn.notProficient()) {
             warnings.add("Not proficient with " + item.getName()
                     + ": disadvantage on STR and DEX rolls, and can't cast spells");
@@ -491,7 +575,8 @@ public class CharacterStats {
         if (speedPenalty > 0) {
             warnings.add(worn.armour().getName() + " needs STR " + requirement + ": speed -" + speedPenalty + " ft");
         }
-        return new WornArmour(result, speedPenalty, warnings, worn.ignored());
+        return new WornArmour(result, speedPenalty, warnings, worn.ignored(), armour != null,
+                armour != null && armour.category() == ArmourClass.Category.HEAVY, shield != null);
     }
 
     // The unarmoured formula a race's or subclass's effects give, such as {"unarmouredAcBase": 13, "unarmouredAcDex": 1}

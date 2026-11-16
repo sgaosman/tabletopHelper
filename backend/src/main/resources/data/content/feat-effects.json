@@ -5,5 +5,7 @@
   "Mobile": { "speedBonus": 10 },
   "Squat Nimbleness": { "speedBonus": 5 },
   "Lucky": { "resource": { "name": "Luck Points", "maxUses": 3, "resetOn": "longRest" } },
+  "Martial Adept": { "resource": { "name": "Superiority Die (d6)", "maxUses": 1, "resetOn": "shortRest" } },
+  "Metamagic Adept": { "resource": { "name": "Sorcery Points (Metamagic only)", "maxUses": 2, "resetOn": "longRest" } },
   "Elemental Adept": { "repeatable": true }
 }

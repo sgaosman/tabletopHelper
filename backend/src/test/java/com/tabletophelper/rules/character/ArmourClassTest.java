@@ -86,6 +86,29 @@ class ArmourClassTest {
         }
 
         @Test
+        @DisplayName("Medium Armor Master raises the cap to +3 (PHB p.168, D230): Half Plate 15 + DEX (max 3) 3 = 18 with DEX +4")
+        void mediumArmorMaster() {
+            ArmourClass.Result result = ArmourClass.of(new Armour("Half Plate Armor", Category.MEDIUM, 15, 0), null,
+                    modifiers(4, 0, 0), List.of(), List.of(), ArmourClass.MEDIUM_ARMOR_MASTER_DEX_CAP);
+
+            assertThat(result.parts()).containsExactly(new Part("Half Plate Armor", 15), new Part("DEX (max 3)", 3));
+            assertThat(result.total()).isEqualTo(18);
+            // Light armour has no cap either way
+            assertThat(ArmourClass.of(new Armour("Leather Armor", Category.LIGHT, 11, 0), null, modifiers(4, 0, 0),
+                    List.of(), List.of(), ArmourClass.MEDIUM_ARMOR_MASTER_DEX_CAP).total()).isEqualTo(15);
+        }
+
+        @Test
+        @DisplayName("Dragon Hide is 13 + DEX unarmoured with a shield allowed (XGE p.74, D230): 13 + 3 + 2 = 18")
+        void dragonHide() {
+            ArmourClass.Result result = worn(null, SHIELD, modifiers(3, 0, 0), List.of(ArmourClass.dragonHide()));
+
+            assertThat(result.parts()).containsExactly(new Part("Dragon Hide", 13), new Part("DEX", 3),
+                    new Part("Shield", 2));
+            assertThat(result.total()).isEqualTo(18);
+        }
+
+        @Test
         @DisplayName("Heavy armour's breakdown is the armour alone: Chain Mail 16")
         void heavyBreakdown() {
             assertThat(worn(new Armour("Chain Mail", Category.HEAVY, 16, 0), null, modifiers(2, 0, 0), List.of())

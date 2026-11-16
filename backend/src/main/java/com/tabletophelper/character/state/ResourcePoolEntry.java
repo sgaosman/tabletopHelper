@@ -25,7 +25,9 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param maxUsesFormula   raw expression string for reference
  * @param currentUses      mutable remaining uses
  * @param resetOn          shortRest, longRest, turn, dawn, never, or none for a pool no rest restores (D210)
- * @param resetAmount      expression for partial recovery; null = full reset
+ * @param resetAmount      expression for the uses the pool's own rest leaves it with, reading {@code currentUses} and
+ *                         {@code maxUses}; null = full reset. A long rest honours it only for a long-rest pool, such
+ *                         as Power Surge's "1" (XGE p.60, D230), and fills a short-rest pool whatever it says
  * @param resetCheck       probabilistic recharge expression, e.g. "1d6>=5"
  * @param spendActionType  ACTION, BONUS_ACTION, REACTION, FREE, REPLACE_ATTACK
  * @param icon             lucide-react icon name

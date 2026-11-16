@@ -404,22 +404,33 @@ public class RestService {
 
     // Every pool comes back in full, innate and feat uses included (D127, D158, D165), but a magic item's charges come
     // back by its own rule, its dice of them or none for one that never recharges (D210); so do the spent charges an
-    // inventory entry records for an item without a pool, as one unattuned
+    // inventory entry records for an item without a pool, as one unattuned. A long-rest pool with a reset amount is set
+    // to that amount instead, as the War Wizard's Power Surge resets to one whatever it held (XGE p.60, D230); a
+    // short-rest pool's reset amount is for short rests only, and a long rest still fills it
     private void resetAllPools(PlayerCharacter character) {
         List<ResourcePoolEntry> pools = orEmpty(character.getResourcePools());
         Map<String, Integer> context = resourcePoolService.buildCharacterContext(character);
-        List<ResourcePoolEntry> items = pools.stream().filter(RestService::magicItem).toList();
-        Map<String, ResourcePoolEntry> rechargedItems = new LinkedHashMap<>();
-        if (!items.isEmpty()) {
-            resourcePoolService.resetPools(items, "longRest", context).pools()
-                    .forEach(pool -> rechargedItems.put(pool.poolId(), pool));
+        List<ResourcePoolEntry> byRule = pools.stream().filter(RestService::resetsByRule).toList();
+        Map<String, ResourcePoolEntry> reset = new LinkedHashMap<>();
+        if (!byRule.isEmpty()) {
+            resourcePoolService.resetPools(byRule, "longRest", context).pools()
+                    .forEach(pool -> reset.put(pool.poolId(), pool));
         }
         character.setResourcePools(new ArrayList<>(pools.stream()
-                .map(pool -> magicItem(pool) ? rechargedItems.getOrDefault(pool.poolId(), pool)
+                .map(pool -> resetsByRule(pool) ? reset.getOrDefault(pool.poolId(), pool)
                         : pool.withCurrentUses(pool.maxUses()))
                 .toList()));
         character.setEquipment(resourcePoolService.afterLongRest(character, context));
     }
+
+    // A pool a long rest resets by its own rule rather than filling: a magic item's, or a long-rest pool with a reset
+    // amount (D210, D230)
+    private static boolean resetsByRule(ResourcePoolEntry pool) {
+        return magicItem(pool) || pool != null && LONG_REST.equals(pool.resetOn()) && pool.resetAmount() != null
+                && !pool.resetAmount().isBlank();
+    }
+
+    private static final String LONG_REST = "longRest";
 
     private static boolean magicItem(ResourcePoolEntry pool) {
         return pool != null && "MAGIC_ITEM".equals(pool.sourceType());

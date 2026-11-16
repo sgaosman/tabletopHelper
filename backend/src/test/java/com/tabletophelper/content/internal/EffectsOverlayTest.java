@@ -108,8 +108,8 @@ class EffectsOverlayTest {
                         "Loxodon|GGR {\"unarmouredAcBase\":12,\"unarmouredAcCon\":1,\"unarmouredAcWithArmour\":1}",
                         "Autognome|AAG {\"unarmouredAcBase\":13,\"unarmouredAcDex\":1}",
                         "Thri-kreen|AAG {\"unarmouredAcBase\":13,\"unarmouredAcDex\":1}",
-                        "Tortle|TTP {\"unarmouredAcBase\":17}",
-                        "Tortle|MPMM {\"unarmouredAcBase\":17}",
+                        "Tortle|TTP {\"unarmouredAcBase\":17,\"noBodyArmour\":1}",
+                        "Tortle|MPMM {\"unarmouredAcBase\":17,\"noBodyArmour\":1}",
                         "Warforged|ERLW {\"acBonus\":1}");
     }
 }

@@ -4629,3 +4629,28 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D171, D213
 
 **Tests:** builder, session page, campaign page, axios refresh, login and register cases, and `EncounterLifecycleIT.quantityIsOneToTwenty`; 4,858 backend unit, 586 integration and 1,322 frontend tests pass.
+
+---
+
+## D230: Derived Stat Gaps from the Overnight Data Audit
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration)
+
+**Context:** an audit of the character effect data during the user's overnight run of 2026-11-16 found every number in the class tables, feat effects, race and subclass overlays and pool definitions right, and the gaps below in the rules that work out a sheet's derived stats. The calls are the lead's, recorded for review.
+
+**Decision:**
+- **Speed:** Fast Movement adds 10 feet from Barbarian 5 unless the character wears heavy armour (PHB p.49), and Unarmored Movement 10/15/20/25/30 feet at Monk 2/6/10/14/18 without armour or a shield (PHB p.78), by class level; a multiclass with both conditions met gets both (`rules/character/ClassMovement`).
+- **Other speeds in combat:** a player character now brings its race's fly, swim, climb and burrow speeds into combat, where only walking speed came before. A numbered speed stays as the race gives it; one "equal to your walking speed" follows the sheet's walking speed, class bonuses included.
+- **Initiative:** Jack of All Trades (Bard 2+, half proficiency rounded down, PHB p.54) and Remarkable Athlete (Champion 7+, half rounded up, PHB p.72) count, the higher if both (`rules/character/AbilityChecks`).
+- **Armour Class:** Medium Armor Master raises medium armour's Dexterity cap to +3 (PHB p.168); Dragon Hide gives 13 + Dexterity unarmoured, with a shield (XGE p.74); a tortle, which can't wear armour, ignores worn body armour with a warning (a shield still counts, and heavy armour's speed penalty doesn't apply). The AC preview and the sheet share one calculation.
+- **Passive Perception** is worked out on the server and shown on the sheet: Expertise doubles the proficiency bonus, Jack of All Trades counts for a bard without proficiency, and Observant's +5 (PHB p.168), recorded but never read, now counts.
+- **Feat pools:** Martial Adept's superiority die (short rest; added to a Battle Master's existing dice, at their size) and Metamagic Adept's 2 sorcery points for Metamagic (long rest) now exist. **Power Surge** (XGE p.60) comes back to one on a long rest, not to its maximum, through the pool definitions' existing `resetAmount`.
+
+**Not changed:** a character who took Martial Adept or Metamagic Adept before this has no pool until the feat is applied again; a tortle with unproficient armour equipped still takes its penalties in combat; Medium Armor Master's stealth benefit isn't modelled.
+
+**Key files:** `CharacterStats.java`, `ClassMovement.java`, `AbilityChecks.java`, `ArmourClass.java`, `TurnEconomies.java`, `RaceLoader.java`, `race-effects.json`, `feat-effects.json`, `resource-pools.json`, `RestService.java`, `CharacterResponse`, `StatsTab.tsx`, `openapi.json`
+
+**Related:** D167, D208, D222
+
+**Tests:** `ClassMovementTest`, `AbilityChecksTest`, and cases in `CharacterStatsTest`, `ArmourClassTest`, `TurnEconomiesTest`, `ResourcePoolServiceTest`, `RestServiceTest`, `EffectsOverlayTest` and `StatsTab`; on its branch, and merged with D229, 4,906 backend unit, 586 integration and 1,323 frontend tests passed.
