@@ -24,6 +24,7 @@ import type {
   FormOptions,
   ObjectInteractionRequest,
   ProtectionRequest,
+  DismissReactionRequest,
   SpellOption,
   StandardActionRequest,
   StunningStrikeRequest,
@@ -72,6 +73,11 @@ export const combatApi = {
   // The Protection fighting style's reaction, logged for the DM to apply (PHB p.72, M17)
   protection(encounterId: string, request: ProtectionRequest) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/protection`, request);
+  },
+
+  // Lets a reaction offer pass without taking it (D216)
+  dismissReaction(encounterId: string, request: DismissReactionRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/dismiss-reaction`, request);
   },
 
   // The weapons the participant can attack with, and the numbers for each (D164)

@@ -144,6 +144,9 @@ class CombatFixture {
     final SpellcastingService spellcasting = new SpellcastingService(access, accessPolicy, casterSpells, spellCaster,
             spellEffects, effectApplier, economy, manualModifiers, combatLog, encounterRepository, encounterService,
             characterService, stats, metamagicCasting, summoner, formSpells, spellCounters, defensiveSpells, itemSpells);
+    // Reaction offers (D216), wired only by tests that call offerReactions
+    final ReactionOffers reactionOffers = new ReactionOffers(casterSpells, stats);
+    final ReactionAnswers reactionAnswers = new ReactionAnswers(commandRecorder, undoService, combatLog);
     final FontOfMagicService fontOfMagic = new FontOfMagicService(access, economy, combatLog, encounterRepository,
             encounterService);
     final MonsterHitEffects monsterHitEffects = new MonsterHitEffects(effectApplier, stats, combatLog, dice, summoner);
@@ -466,6 +469,13 @@ class CombatFixture {
         return commands.stream()
                 .filter(command -> command.getUndoneAt() == null && !command.isBarrier() && command.getSequence() > sequence)
                 .sorted(Comparator.comparing(CombatCommand::getSequence).reversed());
+    }
+
+    /** Offers reactions after hits, damage and casts, and lets Shield take a hit back, as the app does (D216). */
+    void offerReactions() {
+        effectApplier.setReactionOffers(reactionOffers);
+        spellcasting.setReactionOffers(reactionOffers);
+        spellcasting.setReactionAnswers(reactionAnswers);
     }
 
     /** Records the start of the encounter, the barrier undo can't go past. */

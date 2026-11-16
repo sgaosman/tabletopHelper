@@ -27,6 +27,7 @@ import ConditionForm from '../../components/encounter/ConditionForm';
 import ConcentrationForm from '../../components/encounter/ConcentrationForm';
 import StandardActionMenu from '../../components/encounter/StandardActionMenu';
 import ReactionMenu from '../../components/encounter/ReactionMenu';
+import ReactionPrompt from '../../components/encounter/ReactionPrompt';
 import HitFollowUps from '../../components/encounter/HitFollowUps';
 import InspirationControls from '../../components/encounter/InspirationControls';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
@@ -448,6 +449,12 @@ function PlayerSessionView() {
             actionMode={actionMode}
             onClose={closeAction}
           />
+        )}
+
+        {/* The reactions the player's creatures are offered after the newest command (D216) */}
+        {isActive && (
+          <ReactionPrompt offers={(encounter.reactionOffers ?? []).filter(offer =>
+            participantsById.get(offer.reactorId)?.controlledByUserId === user?.userId)} />
         )}
 
         {/* Initiative list, in the order the server computes */}

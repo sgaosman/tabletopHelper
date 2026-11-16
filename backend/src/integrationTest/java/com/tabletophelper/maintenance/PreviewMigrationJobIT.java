@@ -1287,22 +1287,23 @@ class PreviewMigrationJobIT extends IntegrationTest {
         return rows;
     }
 
-    // V36's preview went once the entities mapped V38's items_used (D210); its apply test stays below
+    // V36's preview went once the entities mapped V38's items_used (D210), and V38's once they mapped V39's
+    // reaction_offers (D216); V36's apply test stays below
 
     @Test
-    @DisplayName("Previews V38 on a database at V37: every participant loads with no items used, and nothing is written (D210)")
-    void previewsV38() {
+    @DisplayName("Previews V39 on a database at V38: every encounter loads with no reaction offers, and nothing is written (D216)")
+    void previewsV39() {
         v36Rows();
         Flyway.configure().dataSource(dataSource).schemas(V36_SCHEMA).locations("classpath:db/migration")
-                .target("37").load().migrate();
-        DataSource v38 = schemaDataSource(V36_SCHEMA);
+                .target("38").load().migrate();
+        DataSource v39 = schemaDataSource(V36_SCHEMA);
 
-        MaintenanceReport report = new PreviewMigrationJob(v38, new JdbcTemplate(v38), entityManagerFactory,
-                objectMapper, "38").run(false);
+        MaintenanceReport report = new PreviewMigrationJob(v39, new JdbcTemplate(v39), entityManagerFactory,
+                objectMapper, "39").run(false);
 
         assertThat(report.warnings()).isEmpty();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
-                + "AND column_name = 'items_used'", Integer.class, V36_SCHEMA)).isZero();
+                + "AND column_name = 'reaction_offers'", Integer.class, V36_SCHEMA)).isZero();
     }
 
     @Test

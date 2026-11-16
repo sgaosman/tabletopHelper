@@ -159,6 +159,15 @@ public class EffectApplier {
         this.spellRepository = spellRepository;
     }
 
+    // The reactions offered to a creature an attack hits or damage reaches (D216); set by Spring, and absent in unit tests
+    // that build this by hand without it, which then offer none
+    private ReactionOffers reactionOffers;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setReactionOffers(ReactionOffers reactionOffers) {
+        this.reactionOffers = reactionOffers;
+    }
+
     // The spell templates' rules, for what a one-shot weapon rider does after its hit (D199); set by Spring, and absent
     // in unit tests that build this by hand without it, which then follow up no rider
     private SpellEffects spellEffects;
@@ -482,6 +491,7 @@ public class EffectApplier {
                             ConcentrationCheck hitCheck, SpellEffects.CastRules rules) {
         EncounterParticipant target = CombatAccess.participant(encounter, outcome.targetId());
         Vitals before = vitals(target);
+        ReactionOffers.Before reactorBefore = reactionOffers != null ? ReactionOffers.Before.of(target) : null;
         Integer shownClass = CreatureStats.armourClass(target);
         int armourClass = shownClass != null ? shownClass : 0;
 
@@ -579,6 +589,14 @@ public class EffectApplier {
         // Whether the damage took it from above 0 hit points to 0, for what a monster's hit does then (D204)
         boolean droppedToZero = before.lifeState() == LifeState.ALIVE && taken.form() == null
                 && healingChange.vitals().lifeState() != LifeState.ALIVE;
+        // The reactions the hit or the damage offers the target (D216)
+        if (reactionOffers != null) {
+            boolean hit = effect.delivery() instanceof Effect.Attack
+                    && (outcome.outcome() == Outcome.HIT || outcome.outcome() == Outcome.CRITICAL);
+            reactionOffers.afterHarm(encounter, use.actor(), use.actorName(), target, hit,
+                    outcome.outcome() == Outcome.CRITICAL, outcome.total(), shownClass, reactorBefore, dealt,
+                    damage.takenTypes());
+        }
         return new Applied(target, outcome, dealt, damage.firstType(), healed, added, offered, remaining,
                 description, saved != null ? saved.getId() : null, check, droppedToZero);
     }
@@ -670,6 +688,7 @@ public class EffectApplier {
         Set<Defence> defences = stats.defences(target, type);
         int total = DamageRules.applyDefences(amount, defences);
         String warded = deathWard(encounter, target, total);
+        ReactionOffers.Before reactorBefore = reactionOffers != null ? ReactionOffers.Before.of(target) : null;
         Taken taken = takeDamage(target, warded != null ? wardedDamage(target) : total, false);
         Vitals before = taken.before();
         VitalsChange change = taken.change();
@@ -683,6 +702,11 @@ public class EffectApplier {
         afterDamage(encounter, target, before, change, total, null);
         // A swallowed creature's damage to its swallower, entered by hand, counts too (D204)
         countInside(actor, target, total);
+        // The reactions the damage offers the target (D216)
+        if (reactionOffers != null) {
+            reactionOffers.afterHarm(encounter, actor, actorName, target, false, false, null, null, reactorBefore,
+                    total, type != null ? List.of(type) : List.of());
+        }
         endLinked(encounter);
     }
 
@@ -4169,6 +4193,12 @@ public class EffectApplier {
 
         String firstType() {
             return parts.isEmpty() ? null : parts.getFirst().type();
+        }
+
+        // The types of the damage that got through, each once
+        List<String> takenTypes() {
+            return parts.stream().filter(part -> part.amount() > 0 && part.type() != null)
+                    .map(DefendedPart::type).distinct().toList();
         }
     }
 

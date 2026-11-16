@@ -170,6 +170,12 @@ public class SpellcastingService {
                 ? spellCounters.countered(encounter, targets) : null;
         String counterNote = countered == null ? null : spellCounters.counter(encounter, caster, countered,
                 casting.castLevel(), own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()), userId);
+        // Shield cast in answer to a hit takes the hit back when it now misses (PHB p.275, D216), also before its own
+        // cost is spent
+        if (reactionAnswers != null && request.getReactionOfferId() != null
+                && ReactionOffers.SHIELD.equalsIgnoreCase(casting.spellName())) {
+            reactionAnswers.shield(encounter, caster, request.getReactionOfferId(), userId);
+        }
         economy.charge(encounter, caster,
                 Charge.spell(cost, kind, EncounterTurns.isCurrentTurn(encounter, caster.getId())), tooLong, userId,
                 new ActionEconomyKeeper.Command(CombatActionType.SPELL_CAST,
@@ -214,6 +220,11 @@ public class SpellcastingService {
         // Mirror Image's three duplicates (PHB p.260) and Sanctuary's save DC (PHB p.272) (D196)
         defensiveSpells.afterCast(caster, casting.spellName(), targets, saveDc(own, request.getOverrideSpellSaveDC()));
         effectApplier.endOnAttackOrCast(encounter, caster, ending, "it casts a spell");
+        // Creatures on the other side that can counter it are offered Counterspell (PHB p.228, D216)
+        if (reactionOffers != null) {
+            reactionOffers.afterCast(encounter, caster, casting.spellName(),
+                    Math.max(casting.castLevel(), casting.spellLevel()), metamagic.has(Metamagic.Option.SUBTLE));
+        }
         return response(encounter, result, payment.castLevel(), payment.source());
     }
 
@@ -255,6 +266,21 @@ public class SpellcastingService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     void setAttackService(AttackService attackService) {
         this.attackService = attackService;
+    }
+
+    // The reactions a cast offers (Counterspell) and what Shield cast in answer to a hit does to it (D216); set by
+    // Spring, and absent in unit tests that build this by hand without them, which then offer and take back nothing
+    private ReactionOffers reactionOffers;
+    private ReactionAnswers reactionAnswers;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setReactionOffers(ReactionOffers reactionOffers) {
+        this.reactionOffers = reactionOffers;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setReactionAnswers(ReactionAnswers reactionAnswers) {
+        this.reactionAnswers = reactionAnswers;
     }
 
     /*
@@ -338,6 +364,11 @@ public class SpellcastingService {
     // Why the caster can't cast spells at all, or null: it rages (PHB p.48), or wears armour or a shield without
     // proficiency (PHB p.144), or it is in Wild Shape, where concentration on a spell it cast before continues (PHB p.67)
     private String castingBan(EncounterParticipant caster) {
+        return castingBan(caster, stats);
+    }
+
+    /** Why the caster can't cast spells at all, or null; see {@link #castingBan(EncounterParticipant)}. */
+    static String castingBan(EncounterParticipant caster, CreatureStats stats) {
         Optional<WildShapeForm> form = WildShapeForm.of(caster);
         if (form.filter(WildShapeForm::wildShape).isPresent()) {
             return caster.getDisplayName() + " can't cast spells in Wild Shape";

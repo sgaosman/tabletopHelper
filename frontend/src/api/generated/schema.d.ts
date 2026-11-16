@@ -852,6 +852,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/dismiss-reaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["dismissReaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/divine-smite": {
         parameters: {
             query?: never;
@@ -2563,6 +2579,8 @@ export interface components {
             overrideSpellAttackBonus?: number | null;
             /** Format: int32 */
             overrideSpellSaveDC?: number | null;
+            /** Format: uuid */
+            reactionOfferId?: string | null;
             /** Format: int32 */
             slotLevel: number;
             spellConsents?: {
@@ -3087,6 +3105,10 @@ export interface components {
             halfOnSave: boolean;
             type?: string | null;
         };
+        DismissReactionRequest: {
+            /** Format: uuid */
+            offerId: string;
+        };
         DismissSummonsRequest: {
             participantIds: string[];
         };
@@ -3164,6 +3186,7 @@ export interface components {
             monstersInLair: string[];
             name: string;
             participants: components["schemas"]["ParticipantResponse"][];
+            reactionOffers: components["schemas"]["ReactionOffer"][];
             /** Format: int32 */
             roundNumber: number;
             sessionCode?: string | null;
@@ -4064,6 +4087,49 @@ export interface components {
             display?: string | null;
             name?: string | null;
             subrace?: string | null;
+        };
+        ReactionOffer: {
+            /** Format: int32 */
+            armourClass?: number | null;
+            /** Format: int32 */
+            attackTotal?: number | null;
+            /** Format: uuid */
+            commandId?: string | null;
+            critical: boolean;
+            /** Format: int32 */
+            damageTaken?: number | null;
+            damageTypes?: string[] | null;
+            /** Format: uuid */
+            id: string;
+            options: components["schemas"]["ReactionOption"][];
+            /** Format: uuid */
+            reactorId: string;
+            reactorName: string;
+            /** Format: int32 */
+            spellLevel?: number | null;
+            spellName?: string | null;
+            /** @enum {string} */
+            trigger: "ATTACK_HIT" | "DAMAGE" | "SPELL_CAST";
+            /** Format: uuid */
+            triggerActorId?: string | null;
+            triggerActorName?: string | null;
+        };
+        ReactionOption: {
+            actionName?: string | null;
+            /** Format: int32 */
+            amount?: number | null;
+            castOption?: string | null;
+            /** @enum {string} */
+            kind: "SPELL" | "POOL" | "MONSTER_REACTION";
+            name: string;
+            note?: string | null;
+            poolId?: string | null;
+            resolves: boolean;
+            slotLevels?: number[] | null;
+            spellName?: string | null;
+            /** @enum {string|null} */
+            spellSource?: "SLOT" | "PACT_SLOT" | "INNATE" | "MYSTIC_ARCANUM" | "NONE" | "ITEM" | "SCROLL" | null;
+            targetIds?: string[] | null;
         };
         RegisterRequest: {
             displayName?: string | null;
@@ -6134,6 +6200,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["DeftStrikeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    dismissReaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DismissReactionRequest"];
             };
         };
         responses: {

@@ -68,6 +68,27 @@ describe('Player EncounterSessionPage', () => {
     expect(await screen.findByText('Live')).toBeInTheDocument();
   });
 
+  // Reaction prompts (D216): only the offers of the player's own creatures show here
+  it("shows the reactions offered to the player's own creature, and not another player's", async () => {
+    const offer = (id: string, reactorId: string, reactorName: string) => ({
+      id, reactorId, reactorName, trigger: 'ATTACK_HIT' as const, triggerActorId: 'part-goblin',
+      triggerActorName: 'Test Goblin', attackTotal: 15, armourClass: 12, critical: false,
+      options: [{ kind: 'SPELL' as const, name: 'Shield', spellName: 'Shield', spellSource: 'SLOT' as const,
+        slotLevels: [1], targetIds: [reactorId], resolves: true }],
+    });
+    server.use(
+      http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+        participants: [legolas(), gimli(), goblin()],
+        reactionOffers: [offer('offer-gimli', 'part-gimli', 'Gimli'), offer('offer-legolas', 'part-legolas', 'Legolas')],
+      }))),
+    );
+    renderPage();
+
+    const prompts = await screen.findByRole('region', { name: 'Reaction prompts' });
+    expect(within(prompts).getByRole('listitem', { name: 'Gimli can react' })).toBeInTheDocument();
+    expect(within(prompts).queryByRole('listitem', { name: 'Legolas can react' })).not.toBeInTheDocument();
+  });
+
   // The row's left edge carries the colour, as on the DM's page (R8 D)
   it('shows each player character in its class colour, and a monster in the monster colour', async () => {
     server.use(

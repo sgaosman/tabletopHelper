@@ -491,6 +491,8 @@ export function useEncounterAction() {
       // A Kensei monk's Deft Strike after a hit with a kensei weapon (XGE p.34)
       deftStrike: change(combatApi.deftStrike),
       protection: change(combatApi.protection),
+      // Lets a reaction offer pass (D216)
+      dismissReaction: change(combatApi.dismissReaction),
       // A held Bardic Inspiration die used by its holder (M17)
       bardicInspiration: change(combatApi.bardicInspiration),
       // Summoning (D182): the DM's creatures for a summoning, a companion placed with no slot, a dismissal, and the

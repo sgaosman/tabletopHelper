@@ -107,7 +107,25 @@ public final class EncounterViews {
                 .currentTurnIndex(current)
                 .monstersInLair(visibleInLair)
                 .undo(null)
+                .reactionOffers(offersForPlayers(dmView, visible))
                 .build();
+    }
+
+    /*
+     * The reaction offers players see (D216): those of the creatures on their side they can see, as monsters' reactions
+     * are the DM's. A creature hidden from them that triggered one is named "A hidden creature", and an option aimed at
+     * it goes, since a player can't target it (D157).
+     */
+    private static List<com.tabletophelper.encounter.state.ReactionOffer> offersForPlayers(EncounterResponse dmView,
+                                                                                          Set<UUID> visible) {
+        Map<UUID, ParticipantResponse> byId = new HashMap<>();
+        dmView.getParticipants().forEach(p -> byId.put(p.getId(), p));
+        return Optional.ofNullable(dmView.getReactionOffers()).orElse(List.of()).stream()
+                .filter(offer -> visible.contains(offer.reactorId()))
+                .filter(offer -> byId.containsKey(offer.reactorId()) && !numbersHidden(byId.get(offer.reactorId())))
+                .map(offer -> offer.forPlayers(offer.triggerActorId() != null
+                        && !visible.contains(offer.triggerActorId())))
+                .toList();
     }
 
     /**

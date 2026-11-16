@@ -822,6 +822,8 @@ public class EncounterService {
                 .showExactMonsterHp(Boolean.TRUE.equals(campaign.getShowExactMonsterHp()))
                 .allowPlayerManualModifiers(!Boolean.FALSE.equals(campaign.getAllowPlayerManualModifiers()))
                 .undo(commandRecorder.undoInfo(encounter).orElse(null))
+                .reactionOffers(encounter.getStatus() == EncounterStatus.ACTIVE && encounter.getReactionOffers() != null
+                        ? List.copyOf(encounter.getReactionOffers()) : List.of())
                 .build();
     }
 

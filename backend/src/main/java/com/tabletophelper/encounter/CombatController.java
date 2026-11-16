@@ -58,6 +58,7 @@ public class CombatController {
     private final UndoService undoService;
     private final EncounterService encounterService;
     private final SpellConsentService spellConsentService;
+    private final com.tabletophelper.encounter.internal.ReactionOfferService reactionOfferService;
 
     // A weapon attack the server works out, or an attack entered by hand, which is a Manual Modifier (D164)
     @PostMapping("/attack")
@@ -116,6 +117,17 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = bardicInspirationService.use(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // Lets a reaction offer pass without taking it (D216): the reacting creature's controller or the DM
+    @PostMapping("/dismiss-reaction")
+    public ResponseEntity<EncounterResponse> dismissReaction(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody com.tabletophelper.encounter.dto.DismissReactionRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = reactionOfferService.dismiss(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 

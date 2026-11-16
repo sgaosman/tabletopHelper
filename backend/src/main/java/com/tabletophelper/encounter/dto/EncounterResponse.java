@@ -100,6 +100,11 @@ public class EncounterResponse {
     // the last barrier, and always null in the Player View
     private UndoInfo undo;
 
+    // The reactions creatures may take in answer to the newest combat command (D216); empty unless the encounter is
+    // Active. The Player View keeps only those of creatures on the players' side
+    @Schema(requiredMode = REQUIRED)
+    private List<com.tabletophelper.encounter.state.ReactionOffer> reactionOffers;
+
     @Data
     @Builder(toBuilder = true)
     public static class ParticipantResponse {
