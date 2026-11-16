@@ -40,6 +40,7 @@ class FeatureEffectsIT extends IntegrationTest {
     @Autowired private ResourcePoolDefinitionRepository poolDefinitionRepository;
     @Autowired private ClassFeaturePoolRepository classFeaturePoolRepository;
     @Autowired private MonsterRepository monsterRepository;
+    @Autowired private EncounterParticipantRepository participantRepository;
 
     private RegisteredUser dm;
     private RegisteredUser player;
@@ -157,6 +158,32 @@ class FeatureEffectsIT extends IntegrationTest {
         assertThat(tooMuch.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         ResponseEntity<String> badOption = usePool(ariaId, LAY_ON_HANDS, Map.of("uses", 5, "option", "smite"));
         assertThat(badOption.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    @DisplayName("Lay on Hands can't reach Grog inside Otiluke's Resilient Sphere: a 409 that spends nothing; Aria "
+            + "still heals herself (PHB p.264, D185)")
+    void layOnHandsIntoAResilientSphere() {
+        EncounterParticipant grog = participantRepository.findById(UUID.fromString(grogId)).orElseThrow();
+        grog.setHpCurrent(grog.getHpCurrent() - 10);
+        grog.setActiveConditions(new ArrayList<>(List.of(
+                com.tabletophelper.encounter.state.ConditionEntry.manual("enclosed", null, 1))));
+        participantRepository.save(grog);
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/damage",
+                Map.of("targetId", ariaId, "amount", 5), dm.accessToken()));
+        nextTurn();
+        int hurt = participant(dmView(), grogId).get("hpCurrent").asInt();
+
+        ResponseEntity<String> refused = usePool(ariaId, LAY_ON_HANDS, Map.of("uses", 5, "targetIds",
+                List.of(grogId)));
+        assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(refused.getBody()).contains("Grog is enclosed");
+        JsonNode unchanged = dmView();
+        assertThat(participant(unchanged, grogId).get("hpCurrent").asInt()).isEqualTo(hurt);
+        assertThat(pool(participant(unchanged, ariaId), LAY_ON_HANDS).get("currentUses").asInt()).isEqualTo(15);
+
+        JsonNode healed = expect(HttpStatus.OK, usePool(ariaId, LAY_ON_HANDS, Map.of("uses", 5)));
+        assertThat(pool(participant(healed, ariaId), LAY_ON_HANDS).get("currentUses").asInt()).isEqualTo(10);
     }
 
     // ── Helpers ──────────────────────────────────────────────────

@@ -39,9 +39,12 @@ import java.util.UUID;
  * @param summon               what ties it to the spell that summoned it, with its caster's latest command (D182); null
  *                             for a creature nobody summoned, and in a snapshot taken before V34
  * @param exhaustionLevel      its exhaustion level (D183); null in a snapshot taken before V35, which leaves it as it is
- * @param controlledByUserId   for a summoned creature, the user who acts for it, which Summon Greater Demon's demon
- *                             (XGE p.166) and Conjure Elemental's elemental (PHB p.225) lose when they break free; null
- *                             for one the DM runs, for anyone else and in an earlier snapshot, which leave it as it is
+ * @param controlledByUserId   the user who acts for it: a summoned creature's caster's player until it breaks free
+ *                             (XGE p.166, PHB p.225, D182), and whoever controls the caster of a Dominate spell or a
+ *                             ghost's Possession (D187, D204); null for one the DM runs
+ * @param controllerKept       true in every snapshot that records the controller of any creature; null in one taken
+ *                             before, which recorded it only for a summoned creature that one of the players controlled
+ *                             and leaves anyone else's as it is
  */
 public record ParticipantCombatState(
         UUID id,
@@ -61,7 +64,21 @@ public record ParticipantCombatState(
         @JsonInclude(JsonInclude.Include.NON_NULL) Boolean dismissed,
         @JsonInclude(JsonInclude.Include.NON_NULL) SummonLink summon,
         @JsonInclude(JsonInclude.Include.NON_NULL) Integer exhaustionLevel,
-        @JsonInclude(JsonInclude.Include.NON_NULL) UUID controlledByUserId) {
+        @JsonInclude(JsonInclude.Include.NON_NULL) UUID controlledByUserId,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean controllerKept) {
+
+    /** A state as snapshots recorded it while only a summoned creature's controller was kept. */
+    public ParticipantCombatState(UUID id, Integer hpCurrent, Integer hpTemp, LifeState lifeState,
+                                  Integer deathSaveSuccesses, Integer deathSaveFailures, Boolean deathSaveDue,
+                                  List<ConditionEntry> activeConditions, ConcentrationInstance concentration,
+                                  List<SpellEffectEntry> activeEffects, Map<String, SpellSlot> spellSlotsCurrent,
+                                  List<ResourcePoolEntry> resourcePoolsCurrent, TurnEconomy turnEconomy,
+                                  String lastLairActionUsed, Boolean dismissed, SummonLink summon,
+                                  Integer exhaustionLevel, UUID controlledByUserId) {
+        this(id, hpCurrent, hpTemp, lifeState, deathSaveSuccesses, deathSaveFailures, deathSaveDue, activeConditions,
+                concentration, activeEffects, spellSlotsCurrent, resourcePoolsCurrent, turnEconomy, lastLairActionUsed,
+                dismissed, summon, exhaustionLevel, controlledByUserId, null);
+    }
 
     /** A state as snapshots recorded it before a summoned creature's controller was kept. */
     public ParticipantCombatState(UUID id, Integer hpCurrent, Integer hpTemp, LifeState lifeState,
@@ -120,7 +137,8 @@ public record ParticipantCombatState(
                 Boolean.TRUE.equals(participant.getDismissed()),
                 participant.getSummon(),
                 participant.getExhaustionLevel() != null ? participant.getExhaustionLevel() : 0,
-                participant.getSummon() != null ? participant.getControlledByUserId() : null);
+                participant.getControlledByUserId(),
+                true);
     }
 
     /** Puts the state back on the participant, with lists and maps of its own that later commands may change. */
@@ -150,8 +168,9 @@ public record ParticipantCombatState(
         if (exhaustionLevel != null) {
             participant.setExhaustionLevel(exhaustionLevel);
         }
-        // A summoned creature that broke free of its caster goes back to the caster's player (D182)
-        if (summon != null && controlledByUserId != null) {
+        // Whoever controlled it then acts for it again: a dominated or possessed creature's own controller (D187,
+        // D204), a summoned creature that broke free its caster's player (D182), or the DM
+        if (Boolean.TRUE.equals(controllerKept) || (summon != null && controlledByUserId != null)) {
             participant.setControlledByUserId(controlledByUserId);
         }
     }

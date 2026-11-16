@@ -76,6 +76,30 @@ class CommandRecorderTest {
     }
 
     @Test
+    @DisplayName("A command that hands a creature nobody summoned to a player keeps who controlled it, the DM's null "
+            + "included (D187, D204)")
+    void keepsTheController() {
+        UUID player = UUID.randomUUID();
+        f.inTransaction(() -> {
+            f.commandRecorder.record(f.encounter, f.dmUserId);
+            goblin.setControlledByUserId(player);
+            return null;
+        });
+
+        ParticipantCombatState before = lastCommand().getBeforeState().participants().getFirst();
+        assertEquals(goblin.getId(), before.id());
+        assertNull(before.controlledByUserId());
+        assertTrue(before.controllerKept());
+
+        f.inTransaction(() -> {
+            f.commandRecorder.record(f.encounter, f.dmUserId);
+            goblin.setControlledByUserId(null);
+            return null;
+        });
+        assertEquals(player, lastCommand().getBeforeState().participants().getFirst().controlledByUserId());
+    }
+
+    @Test
     @DisplayName("A command that moves the turn keeps the encounter's turn as it was")
     void keepsTheTurn() {
         f.turnOf(goblin);

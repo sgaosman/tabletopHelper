@@ -475,6 +475,34 @@ class FeatureEffectsTest {
         }
 
         @Test
+        @DisplayName("Lay on Hands can't reach a creature in Otiluke's Resilient Sphere, nor one swallowed by a "
+                + "creature, and a paladin inside the sphere reaches only itself: 409s that spend nothing (D185, D204)")
+        void totalCover() {
+            vex.setHpCurrent(10);
+            aria.setHpCurrent(30);
+            vex.setActiveConditions(new ArrayList<>(List.of(ConditionEntry.manual("enclosed", null, 1))));
+            ConflictException sphere = assertThrows(ConflictException.class,
+                    () -> useOn(aria, LAY_ON_HANDS, 5, null, vex.getId()));
+            assertTrue(sphere.getMessage().startsWith("Vex is enclosed"), sphere.getMessage());
+
+            vex.setActiveConditions(new ArrayList<>(List.of(ConditionEntry.manual("swallowed", null, 1,
+                    goblin.getId()))));
+            ConflictException swallowed = assertThrows(ConflictException.class,
+                    () -> useOn(aria, LAY_ON_HANDS, 5, null, vex.getId()));
+            assertTrue(swallowed.getMessage().startsWith("Vex is swallowed"), swallowed.getMessage());
+
+            vex.setActiveConditions(new ArrayList<>());
+            aria.setActiveConditions(new ArrayList<>(List.of(ConditionEntry.manual("enclosed", null, 1))));
+            assertThrows(ConflictException.class, () -> useOn(aria, LAY_ON_HANDS, 5, null, vex.getId()));
+            assertEquals(10, vex.getHpCurrent());
+            assertEquals(25, usesLeft(aria, LAY_ON_HANDS));
+            assertEquals(0, aria.getTurnEconomy() == null ? 0 : aria.getTurnEconomy().actionsUsed());
+
+            use(aria, LAY_ON_HANDS, 5, null);
+            assertEquals(35, aria.getHpCurrent());
+        }
+
+        @Test
         @DisplayName("More points than the pool holds is a 409, and undead, constructs and the dead can't be touched")
         void refusals() {
             assertThrows(ConflictException.class, () -> useOn(aria, LAY_ON_HANDS, 26, null, vex.getId()));

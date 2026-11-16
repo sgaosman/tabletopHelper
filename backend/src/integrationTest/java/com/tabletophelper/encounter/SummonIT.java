@@ -177,6 +177,80 @@ class SummonIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("Conjure Animals counterspelled takes the wolves away; undoing the Counterspell brings them back as they "
+            + "were, owned by Aria's effect, and undoing again takes back the cast itself (D182, D196)")
+    void conjureAnimals_counterspelled_andUndone() {
+        shippedCounterspell();
+        Monster goblin = monsterRepository.findAll().stream().filter(m -> m.getName().equals("Goblin")).findFirst()
+                .orElseThrow();
+        goblin.setActionTemplates(MonsterTemplates.parse("""
+                {"spellcasting": {"innateSpells": true, "ability": "INT", "saveDC": 13,
+                 "atWillSpells": ["counterspell"]}}"""));
+        monsterRepository.save(goblin);
+        start();
+        dice.script(9);
+        castSummon("Conjure Animals", 3, Map.of("optionId", "8xCR1/4",
+                "creatures", List.of(Map.of("monsterId", wolf.getId(), "count", 8))), HttpStatus.OK);
+        JsonNode summoned = dmState();
+        List<String> wolfIds = companions(summoned).stream().map(w -> w.get("id").asString()).toList();
+        assertThat(wolfIds).hasSize(8);
+        JsonNode effect = participant(summoned, breaId).get("activeEffects").get(0);
+
+        // At 3rd level against a 3rd-level spell, the counter needs no check (PHB p.228)
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/cast-spell?actorId=" + goblinId, Map.of("spellName", "Counterspell", "slotLevel", 0,
+                "targetIds", List.of(breaId)), dm.accessToken()));
+        JsonNode countered = dmState();
+        assertThat(companions(countered)).isEmpty();
+        assertThat(participant(countered, breaId).get("activeEffects")).isEmpty();
+        assertThat(participant(countered, breaId).get("spellSlotsCurrent").get("3").get("used").asInt()).isEqualTo(1);
+
+        undoNewest();
+        JsonNode restored = dmState();
+        List<JsonNode> wolves = companions(restored);
+        assertThat(wolves).extracting(w -> w.get("id").asString()).containsExactlyInAnyOrderElementsOf(wolfIds);
+        assertThat(wolves).allSatisfy(w -> {
+            assertThat(w.get("initiative").asInt()).isEqualTo(11);
+            assertThat(w.get("hpCurrent").asInt()).isEqualTo(11);
+            assertThat(w.get("summonedByParticipantId").asString()).isEqualTo(breaId);
+        });
+        assertThat(restored.get("turnOrder").findValuesAsString("participantId")).containsAll(wolfIds);
+        JsonNode restoredEffect = participant(restored, breaId).get("activeEffects").get(0);
+        assertThat(restoredEffect.get("id")).isEqualTo(effect.get("id"));
+        assertThat(restoredEffect.get("summonedParticipantIds")).isEqualTo(effect.get("summonedParticipantIds"));
+        assertThat(participant(restored, breaId).get("concentrationSpell").asString()).isEqualTo("Conjure Animals");
+
+        undoNewest();
+        JsonNode undone = dmState();
+        assertThat(companions(undone)).isEmpty();
+        assertThat(participant(undone, breaId).get("spellSlotsCurrent").get("3").get("used").asInt()).isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM encounter_participants WHERE "
+                + "participant_type = 'COMPANION'", Integer.class)).isZero();
+    }
+
+    private void undoNewest() {
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/undo",
+                Map.of("expectedCommandId", dmState().get("undo").get("commandId").asString()), dm.accessToken()));
+    }
+
+    // Counterspell with its template as the game data ships it
+    private void shippedCounterspell() {
+        try (java.io.InputStream in = getClass().getResourceAsStream(
+                "/data/spell-effects/spell-effect-definitions.json")) {
+            for (JsonNode definition : objectMapper.readTree(in)) {
+                if ("Counterspell".equals(definition.path("spellName").asString(null))) {
+                    spellRepository.save(Spell.builder().name("Counterspell").level(3).source("PHB")
+                            .castingTime("1 reaction").effectTemplate(SpellTemplate.of(definition)).build());
+                    return;
+                }
+            }
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+        throw new AssertionError("Counterspell has no shipped template");
+    }
+
+    @Test
     @DisplayName("A wrong count is a 400 that spends nothing")
     void conjureAnimals_wrongCount() {
         start();

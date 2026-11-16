@@ -402,11 +402,12 @@ public class RaceFeatureEffects {
                 .toList()));
     }
 
-    // The user's pool the plan is for, by its effect: the first such pool it has
+    // The user's pool the plan is for: the one it names, or for a plan naming none the first pool of its effect
     private static ResourcePoolEntry pool(EncounterParticipant user, FeatureEffects.Plan plan) {
         List<ResourcePoolEntry> pools = user.getResourcePoolsCurrent() != null ? user.getResourcePoolsCurrent()
                 : List.of();
-        return pools.stream().filter(p -> p != null && plan.effect().equals(FeatureEffects.effectOf(p)))
+        return pools.stream().filter(p -> p != null && (plan.poolId() != null ? plan.poolId().equals(p.poolId())
+                        : plan.effect().equals(FeatureEffects.effectOf(p))))
                 .findFirst().orElse(null);
     }
 

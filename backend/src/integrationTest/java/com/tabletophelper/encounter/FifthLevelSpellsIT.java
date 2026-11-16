@@ -196,6 +196,27 @@ class FifthLevelSpellsIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("Undoing Dominate Person gives the bandit back to the DM: control is part of the state undo restores "
+            + "(D176, D187)")
+    void dominatePerson_undone() {
+        String bandit = monster("Bandit", "humanoid", 30, builder -> builder.wisdom(10));
+        start();
+        dice.script(3);
+        cast("Dominate Person", 5, List.of(bandit), null);
+        assertThat(participant(dmState(), bandit).get("controlledByUserId").asString())
+                .isEqualTo(player.id().toString());
+
+        String newest = dmState().get("undo").get("commandId").asString();
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/undo",
+                Map.of("expectedCommandId", newest), dm.accessToken()));
+
+        JsonNode freed = participant(dmState(), bandit).get("controlledByUserId");
+        assertThat(freed == null || freed.isNull()).isTrue();
+        assertThat(condition(bandit, "charmed")).isNull();
+        assertThat(participant(dmState(), ariaId).get("activeEffects")).isEmpty();
+    }
+
+    @Test
     @DisplayName("Enervation: a failed save deals 4d8 and Aria regains half; her action drains again; a successful "
             + "first save ends the spell")
     void enervation() {

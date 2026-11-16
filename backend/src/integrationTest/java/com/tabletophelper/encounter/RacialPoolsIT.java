@@ -44,6 +44,7 @@ class RacialPoolsIT extends IntegrationTest {
     @Autowired private ResourcePoolDefinitionRepository poolDefinitionRepository;
     @Autowired private RaceFeaturePoolRepository raceFeaturePoolRepository;
     @Autowired private MonsterRepository monsterRepository;
+    @Autowired private EncounterParticipantRepository participantRepository;
 
     private RegisteredUser dm;
     private RegisteredUser player;
@@ -120,6 +121,32 @@ class RacialPoolsIT extends IntegrationTest {
         assertThat(dragonborn.get("pendingChoices").toString()).doesNotContain("DRACONIC_ANCESTRY");
 
         assertThat(pool(sheet(grosh), ENDURANCE).get("resetOn").asString()).isEqualTo("longRest");
+    }
+
+    @Test
+    @DisplayName("A swallowed dragonborn's Breath Weapon reaches only the creature that swallowed it: at the creatures "
+            + "outside it is a 409 that spends nothing (D204)")
+    void breathWeaponFromInsideASwallower() {
+        EncounterParticipant dragonborn = participantRepository.findById(UUID.fromString(krivId)).orElseThrow();
+        dragonborn.setActiveConditions(new ArrayList<>(List.of(com.tabletophelper.encounter.state.ConditionEntry
+                .manual("swallowed", null, 1, UUID.fromString(orcId)))));
+        participantRepository.save(dragonborn);
+
+        ResponseEntity<String> outside = exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/use-pool", Map.of("participantId", krivId, "poolId", BREATH,
+                "targetIds", List.of(goblinId)), player.accessToken());
+        assertThat(outside.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(outside.getBody()).contains("Kriv is swallowed");
+        JsonNode unspent = participant(dmView(), krivId);
+        assertThat(pool(unspent, BREATH).get("currentUses").asInt()).isEqualTo(1);
+        assertThat(unspent.get("turnEconomy").get("actionsUsed").asInt()).isZero();
+
+        // The orc that holds it: 3d6 of 4, 5, 6 and a failed save
+        dice.script(4, 5, 6, 5);
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/use-pool",
+                Map.of("participantId", krivId, "poolId", BREATH, "targetIds", List.of(orcId)),
+                player.accessToken()));
+        assertThat(participant(dmView(), orcId).get("hpCurrent").asInt()).isEqualTo(40 - 15);
     }
 
     @Test
