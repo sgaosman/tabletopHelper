@@ -12723,6 +12723,16 @@
             "items": {
               "$ref": "#/components/schemas/HitDieSpent"
             }
+          },
+          "naturalRecovery": {
+            "maxItems": 10,
+            "minItems": 0,
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
           }
         }
       },

@@ -45,11 +45,28 @@ public final class CurrentHitPoints {
     }
 
     /**
-     * The hit points a character has once its maximum changes (D167): a higher maximum raises them by as much, a lower
-     * one caps them, and a dead character stays at 0 whatever its maximum does, since only the DM's revival brings it
-     * back (D166). A character with no maximum yet, one being created, keeps what it has, within the new maximum.
+     * The hit points a character has once its maximum changes: a higher maximum raises them by as much, and a lower one
+     * takes as much off them, never below 0 (D222, replacing D167's rule that a lower maximum only capped them), so a
+     * level gained and then removed leaves a damaged character's hit points as they were. A character the drop leaves
+     * at 0 is only at 0 hit points: the sheet keeps no dying state, and it never dies of it. A dead character stays at 0
+     * whatever its maximum does, since only the DM's revival brings it back (D166). A character with no maximum yet,
+     * one being created, keeps what it has, within the new maximum.
      */
     public static int afterMaximum(int current, Integer oldMaximum, int newMaximum, boolean dead) {
+        if (dead) {
+            return 0;
+        }
+        int changed = oldMaximum != null ? current + newMaximum - oldMaximum : current;
+        return Math.max(0, Math.min(changed, newMaximum));
+    }
+
+    /**
+     * The hit points a character has once the recompute-characters job repairs a stored maximum the rules disagree
+     * with: a higher maximum raises them by as much, and a lower one only caps them, since the stored maximum was
+     * never one the character had to lose hit points from (D222 keeps D167's rule for repairs). A dead character stays
+     * at 0, and one with no maximum keeps what it has, within the new one.
+     */
+    public static int afterRepairedMaximum(int current, Integer oldMaximum, int newMaximum, boolean dead) {
         if (dead) {
             return 0;
         }

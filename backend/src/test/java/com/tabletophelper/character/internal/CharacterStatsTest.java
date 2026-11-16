@@ -650,7 +650,8 @@ class CharacterStatsTest {
         }
 
         @Test
-        @DisplayName("A higher maximum raises current hit points by as much, and a lower one caps them (D167)")
+        @DisplayName("A higher maximum raises current hit points by as much, and a lower one takes as much off them, "
+                + "never below 0 (D222)")
         void currentHitPointsFollowTheMaximum() {
             PlayerCharacter raised = character(fighter, 3);
             raised.setHpMax(20);
@@ -667,8 +668,9 @@ class CharacterStatsTest {
             stats.apply(hurt);
 
             assertThat(raised.getHpCurrent()).isEqualTo(18);
-            assertThat(lowered.getHpCurrent()).isEqualTo(28);
-            assertThat(hurt.getHpCurrent()).isEqualTo(5);
+            // The maximum falls from 40 to 28: 12 off each
+            assertThat(lowered.getHpCurrent()).isEqualTo(23);
+            assertThat(hurt.getHpCurrent()).isZero();
         }
 
         @Test

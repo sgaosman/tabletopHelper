@@ -5,14 +5,19 @@ import com.tabletophelper.character.dto.ShortRestRequest;
 import com.tabletophelper.character.dto.ShortRestRequest.HitDieSpent;
 import com.tabletophelper.character.dto.ShortRestResponse;
 import com.tabletophelper.character.dto.ShortRestResponse.HitDieRoll;
+import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
+import com.tabletophelper.reference.CharacterClass;
+import com.tabletophelper.reference.ClassFeaturePool;
 import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.Item;
 import com.tabletophelper.reference.FeatEffects;
+import com.tabletophelper.reference.ResourcePoolDefinition;
+import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.ValidationException;
@@ -31,6 +36,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -323,6 +330,111 @@ class RestServiceTest {
                     .isInstanceOf(ForbiddenException.class)
                     .hasMessage("You do not own this character");
             verify(f.characterRepository, never()).lockById(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("Natural Recovery (PHB p.68, D222)")
+    class NaturalRecovery {
+
+        private final CharacterClass druid = CharacterClass.builder().id(UUID.randomUUID()).name("Druid").hitDice(8)
+                .subclassLevel(2).isSpellcaster(true).isPactMagic(false).spellcastingAbility("WIS")
+                .multiclassRequirements("[{\"ability\":\"WIS\",\"minimum\":13}]")
+                .build();
+        private final Subclass land = Subclass.builder().id(UUID.randomUUID()).name("Circle of the Land")
+                .characterClass(druid).features("[]").build();
+        private final ResourcePoolDefinition naturalRecovery = ResourcePoolDefinition.builder()
+                .poolId(RestService.NATURAL_RECOVERY).displayName("Natural Recovery").sourceType("CLASS")
+                .maxUsesFormula("1").resetOn("longRest").build();
+
+        // STR 10, DEX 14, CON 14, INT 14, WIS 16, CHA 10
+        private static final int[] CASTER = {10, 14, 14, 14, 16, 10};
+
+        /** A druid of these levels, with a wizard's after when given, in the Circle of the Land. */
+        private PlayerCharacter landDruid(int druidLevel, int wizardLevel) {
+            when(f.classRepository.findById(druid.getId())).thenReturn(Optional.of(druid));
+            when(f.subclassRepository.findById(land.getId())).thenReturn(Optional.of(land));
+            when(f.featurePoolRepository.findByClassIdAndLevelAndSubclass(eq(druid.getId()), anyInt(),
+                    eq(land.getId()))).thenReturn(List.of(ClassFeaturePool.builder().characterClass(druid)
+                    .subclass(land).minLevel(2).poolDefinition(naturalRecovery).build()));
+            PlayerCharacter pc = wizardLevel > 0 ? f.create(f.human, CASTER, druid, druidLevel, f.wizard, wizardLevel)
+                    : f.create(f.human, CASTER, druid, druidLevel);
+            pc.setMulticlassEntries(pc.getMulticlassEntries().stream()
+                    .map(entry -> druid.getId().equals(entry.classId())
+                            ? new ClassEntry(entry.classId(), entry.className(), land.getId(), land.getName(),
+                            entry.level())
+                            : entry)
+                    .toList());
+            return pc;
+        }
+
+        private static ShortRestRequest natural(Integer... levels) {
+            return new ShortRestRequest(List.of(), null, Arrays.asList(levels));
+        }
+
+        @Test
+        @DisplayName("Natural Recovery brings back expended slots adding up to half the druid level, rounded up, and "
+                + "spends its use until a long rest")
+        void recoversSlots() {
+            PlayerCharacter pc = landDruid(5, 0);
+            spendEverySlot(pc);
+
+            CharacterResponse response = f.rests.shortRest(pc.getId(), natural(2, 1), f.userId).character();
+
+            assertThat(response.getSpellSlots()).containsEntry("1", new SpellSlot(4, 3))
+                    .containsEntry("2", new SpellSlot(3, 2)).containsEntry("3", new SpellSlot(2, 2));
+            assertThat(response.getResourcePools()).filteredOn(p -> p.poolId().equals(RestService.NATURAL_RECOVERY))
+                    .extracting(ResourcePoolEntry::currentUses).containsExactly(0);
+            assertThatThrownBy(() -> f.rests.shortRest(pc.getId(), natural(1), f.userId))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Aria has used Natural Recovery since their last long rest");
+
+            f.rests.longRest(pc.getId(), f.userId);
+            spendEverySlot(pc);
+            assertThat(f.rests.shortRest(pc.getId(), natural(3), f.userId).character().getSpellSlots())
+                    .containsEntry("3", new SpellSlot(2, 1));
+        }
+
+        @Test
+        @DisplayName("Natural Recovery refuses too many levels, a 6th-level slot and a character without the Circle "
+                + "of the Land, changing nothing")
+        void refusals() {
+            PlayerCharacter pc = landDruid(5, 0);
+            spendEverySlot(pc);
+            assertThatThrownBy(() -> f.rests.shortRest(pc.getId(), natural(3, 1), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Natural Recovery recovers slots whose levels add up to 3 at most (half of druid "
+                            + "level 5, rounded up), not 4");
+            assertThatThrownBy(() -> f.rests.shortRest(pc.getId(), natural(6), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Natural Recovery recovers slots of 1st to 5th level, not 6");
+            assertThat(f.stored(pc.getId()).getSpellSlots().get("1")).isEqualTo(new SpellSlot(4, 4));
+
+            PlayerCharacter wizard = f.create(f.human, CON_14, f.wizard, 5);
+            spendEverySlot(wizard);
+            assertThatThrownBy(() -> f.rests.shortRest(wizard.getId(), natural(1), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Natural Recovery is a Circle of the Land druid's feature");
+        }
+
+        @Test
+        @DisplayName("A wizard and Circle of the Land druid can use both on one rest, but never recover one slot twice")
+        void bothOnOneRest() {
+            PlayerCharacter pc = landDruid(3, 2);
+            Map<String, SpellSlot> slots = new LinkedHashMap<>(pc.getSpellSlots());
+            slots.put("1", new SpellSlot(4, 1));
+            slots.put("2", new SpellSlot(3, 2));
+            pc.setSpellSlots(slots);
+
+            assertThatThrownBy(() -> f.rests.shortRest(pc.getId(), new ShortRestRequest(List.of(), List.of(1),
+                    List.of(1)), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Only 0 level 1 spell slots are expended, not 1");
+
+            CharacterResponse response = f.rests.shortRest(pc.getId(), new ShortRestRequest(List.of(), List.of(1),
+                    List.of(2)), f.userId).character();
+            assertThat(response.getSpellSlots()).containsEntry("1", new SpellSlot(4, 0))
+                    .containsEntry("2", new SpellSlot(3, 1));
         }
     }
 

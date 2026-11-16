@@ -4229,6 +4229,7 @@ export interface components {
         ShortRestRequest: {
             arcaneRecovery?: number[] | null;
             hitDice?: components["schemas"]["HitDieSpent"][] | null;
+            naturalRecovery?: number[] | null;
         };
         ShortRestResponse: {
             character: components["schemas"]["CharacterResponse"];

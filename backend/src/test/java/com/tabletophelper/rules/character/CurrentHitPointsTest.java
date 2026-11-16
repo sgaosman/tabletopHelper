@@ -63,10 +63,14 @@ class CurrentHitPointsTest {
             // A higher maximum raises them by as much
             "40, 65, 71, false, 46",
             "65, 65, 71, false, 71",
-            // A lower one caps them, and they stay where they are when it is still above them
+            // A lower one takes as much off them (D222), never below 0
             "65, 65, 60, false, 60",
-            "40, 65, 60, false, 40",
+            "40, 65, 60, false, 35",
             "40, 65, 65, false, 40",
+            "17, 37, 30, false, 10",
+            "7, 37, 30, false, 0",
+            "3, 37, 30, false, 0",
+            "0, 37, 30, false, 0",
             // A dead character stays at 0 whatever the maximum does
             "0, 65, 71, true, 0",
             "0, 65, 60, true, 0",
@@ -74,9 +78,23 @@ class CurrentHitPointsTest {
             "12, none, 10, false, 10",
             "8, none, 10, false, 8",
     })
-    @DisplayName("A new maximum raises hit points by as much as it rises, caps them when it falls, and leaves the dead at 0")
+    @DisplayName("A new maximum raises hit points by as much as it rises, lowers them by as much as it falls, and leaves the dead at 0")
     void afterMaximum(int current, Integer oldMaximum, int newMaximum, boolean dead, int currentAfter) {
         assertEquals(currentAfter, CurrentHitPoints.afterMaximum(current, oldMaximum, newMaximum, dead));
+    }
+
+    @ParameterizedTest(name = "{0}/{1}, the maximum repaired to {2}, dead {3}: {4}")
+    @CsvSource(nullValues = "none", value = {
+            "40, 65, 71, false, 46",
+            "65, 65, 60, false, 60",
+            "40, 65, 60, false, 40",
+            "11, 30, 11, false, 11",
+            "0, 65, 71, true, 0",
+            "12, none, 10, false, 10",
+    })
+    @DisplayName("A repaired maximum raises hit points by as much as it rises and only caps them when it falls (D222)")
+    void afterRepairedMaximum(int current, Integer oldMaximum, int newMaximum, boolean dead, int currentAfter) {
+        assertEquals(currentAfter, CurrentHitPoints.afterRepairedMaximum(current, oldMaximum, newMaximum, dead));
     }
 
     @Test

@@ -5,7 +5,7 @@ import type { EncounterParticipant, ResourcePoolEntry, TurnEconomy } from '../ty
 import {
   arcaneRecoveryBudget, arcaneRecoveryLevels, channelOptions, CLERIC_CHANNEL_DIVINITY, deftStrikeDie, featureMarker, followableHit,
   guidedStrikeBlock, heldInspiration, kiLeft, KI_POOL, monkStrikeBlock, poolEffect, recoverableSlots, smiteDice,
-  smiteSlots, sneakAttackUsed,
+  slotsAfterRecovery, smiteSlots, sneakAttackUsed,
 } from './classFeatures';
 
 const FRESH: TurnEconomy = {
@@ -144,6 +144,15 @@ describe('classFeatures: Channel Divinity, Bardic Inspiration and Arcane Recover
     expect(recoverableSlots({ 1: { max: 4, used: 2 }, 2: { max: 3, used: 0 }, 6: { max: 1, used: 1 },
       pact_1: { max: 1, used: 1 } })).toEqual({ 1: 2 });
     expect(arcaneRecoveryLevels({ 2: 1, 1: 2 })).toEqual([1, 1, 2]);
+  });
+
+  it('shows Natural Recovery the slots Arcane Recovery chose as no longer expended (D222)', () => {
+    const slots = { 1: { max: 4, used: 2 }, 2: { max: 3, used: 1 }, 3: { max: 2, used: 2 } };
+
+    expect(slotsAfterRecovery(slots, { 1: 1, 2: 1 })).toEqual(
+      { 1: { max: 4, used: 1 }, 2: { max: 3, used: 0 }, 3: { max: 2, used: 2 } });
+    expect(slotsAfterRecovery(slots, {})).toEqual(slots);
+    expect(slotsAfterRecovery(null, { 1: 1 })).toEqual({});
   });
 });
 

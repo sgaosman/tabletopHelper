@@ -2,6 +2,7 @@ package com.tabletophelper.character;
 
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.LevelUpResponse;
+import com.tabletophelper.character.dto.ShortRestRequest;
 import com.tabletophelper.character.state.AbilityBonus;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.AppliedFeatEffects;
@@ -306,6 +307,170 @@ class LevelProgressionTest {
             f.levelDown(pc);
 
             assertThat(snapshot(pc)).usingRecursiveComparison().isEqualTo(before);
+        }
+
+        @Test
+        @DisplayName("A hurt character's hit points come back as they were: a lower maximum takes as much off them (D222)")
+        void hurtCharacterRoundTrip() {
+            PlayerCharacter pc = fighter(3);
+            pc.setHpCurrent(10);
+
+            f.levelUp(pc, f.fighter);
+            assertThat(pc.getHpCurrent()).isEqualTo(17);
+            f.levelDown(pc);
+
+            assertThat(pc.getHpMax()).isEqualTo(25);
+            assertThat(pc.getHpCurrent()).isEqualTo(10);
+        }
+
+        @Test
+        @DisplayName("A character at 0 hit points gains the difference and loses it again, and stays alive (D222)")
+        void characterAtZeroRoundTrip() {
+            PlayerCharacter pc = fighter(3);
+            pc.setHpCurrent(0);
+
+            f.levelUp(pc, f.fighter);
+            assertThat(pc.getHpCurrent()).isEqualTo(7);
+            f.levelDown(pc);
+
+            assertThat(pc.getHpCurrent()).isZero();
+            assertThat(pc.isDead()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Levelling down a character with fewer hit points than the level gave leaves it at 0, not dead (D222)")
+        void levelDownStopsAtZero() {
+            PlayerCharacter pc = fighter(3);
+            pc.setHpCurrent(3);
+
+            f.levelDown(pc);
+
+            assertThat(pc.getHpMax()).isEqualTo(18);
+            assertThat(pc.getHpCurrent()).isZero();
+            assertThat(pc.isDead()).isFalse();
+        }
+
+        @Test
+        @DisplayName("A level removed and gained back leaves a spent pool spent (D222)")
+        void spentPoolStaysSpent() {
+            PlayerCharacter pc = fighter(2);
+            spendPool(pc, "class:fighter-action-surge");
+
+            f.levelDown(pc);
+            assertThat(pc.getResourcePools()).isEmpty();
+            f.levelUp(pc, f.fighter);
+
+            assertThat(pc.getResourcePools()).extracting(ResourcePoolEntry::poolId, ResourcePoolEntry::currentUses)
+                    .containsExactly(tuple("class:fighter-action-surge", 0));
+            assertThat(pc.getLevelDownUses()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("A wizard's spent slots, those of a slot level the level-down removed included, come back spent "
+                + "with the level, and the whole sheet is as it was (D222)")
+        void spentSlotsStaySpent() {
+            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.wizard, 3);
+            pc.setSpellSlots(Map.of("1", new SpellSlot(4, 4), "2", new SpellSlot(2, 2)));
+            pc.setHitDice(Map.of("Wizard", new HitDicePool(6, 3, 0)));
+            pc.setHpCurrent(5);
+            PlayerCharacter before = snapshot(pc);
+
+            f.levelDown(pc);
+            assertThat(pc.getSpellSlots()).isEqualTo(Map.of("1", new SpellSlot(3, 3)));
+            f.levelUp(pc, f.wizard);
+
+            assertThat(pc.getSpellSlots()).isEqualTo(Map.of("1", new SpellSlot(4, 4), "2", new SpellSlot(2, 2)));
+            assertThat(snapshot(pc)).usingRecursiveComparison().isEqualTo(before);
+        }
+
+        @Test
+        @DisplayName("A warlock's spent pact slots come back spent, and a short rest in between restores them (D222)")
+        void spentPactSlotsStaySpent() {
+            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.warlock, 2);
+            pc.setSpellSlots(Map.of("pact_1", new SpellSlot(2, 2)));
+
+            f.levelDown(pc);
+            assertThat(pc.getSpellSlots()).isEqualTo(Map.of("pact_1", new SpellSlot(1, 1)));
+            f.levelUp(pc, f.warlock);
+            assertThat(pc.getSpellSlots()).isEqualTo(Map.of("pact_1", new SpellSlot(2, 2)));
+
+            f.levelDown(pc);
+            f.rests.shortRest(pc.getId(), new ShortRestRequest(List.of()), f.userId);
+            f.levelUp(pc, f.warlock);
+            assertThat(pc.getSpellSlots()).isEqualTo(Map.of("pact_1", new SpellSlot(2, 0)));
+        }
+
+        @Test
+        @DisplayName("A multiclass dip's spent Hit Die comes back spent with the class (D222)")
+        void spentDipHitDieStaysSpent() {
+            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.fighter, 3, f.wizard, 1);
+            pc.setHitDice(Map.of("Fighter", new HitDicePool(10, 3, 3), "Wizard", new HitDicePool(6, 1, 0)));
+
+            f.levelDown(pc);
+            assertThat(pc.getHitDice()).isEqualTo(Map.of("Fighter", new HitDicePool(10, 3, 3)));
+            f.levelUp(pc, f.wizard);
+
+            assertThat(pc.getHitDice()).containsEntry("Wizard", new HitDicePool(6, 1, 0))
+                    .containsEntry("Fighter", new HitDicePool(10, 3, 3));
+        }
+
+        @Test
+        @DisplayName("Two levels removed and gained back keep what each took away spent (D222)")
+        void twoLevelsDownAndUp() {
+            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.wizard, 3);
+            pc.setSpellSlots(Map.of("1", new SpellSlot(4, 4), "2", new SpellSlot(2, 1)));
+
+            f.levelDown(pc);
+            f.levelDown(pc);
+            assertThat(pc.getSpellSlots()).isEqualTo(Map.of("1", new SpellSlot(2, 2)));
+            f.levelUp(pc, f.wizard);
+            assertThat(pc.getSpellSlots()).isEqualTo(Map.of("1", new SpellSlot(3, 3)));
+            f.levelUp(pc, f.wizard);
+
+            assertThat(pc.getSpellSlots()).isEqualTo(Map.of("1", new SpellSlot(4, 4), "2", new SpellSlot(2, 1)));
+        }
+
+        @Test
+        @DisplayName("A long rest between the level-down and the level-up restores everything, so the level comes back "
+                + "fresh (D222)")
+        void longRestInBetween() {
+            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.wizard, 3);
+            pc.setSpellSlots(Map.of("1", new SpellSlot(4, 4), "2", new SpellSlot(2, 2)));
+
+            f.levelDown(pc);
+            f.rests.longRest(pc.getId(), f.userId);
+            f.levelUp(pc, f.wizard);
+
+            assertThat(pc.getSpellSlots()).isEqualTo(Map.of("1", new SpellSlot(4, 0), "2", new SpellSlot(2, 0)));
+            assertThat(pc.getLevelDownUses()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("A short rest between restores the short-rest pools only: the wizard's slots stay spent (D222)")
+        void shortRestInBetween() {
+            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.fighter, 2, f.wizard, 2);
+            spendPool(pc, "class:fighter-action-surge");
+            pc.setSpellSlots(Map.of("1", new SpellSlot(3, 3)));
+            pc.setHitDice(Map.of("Fighter", new HitDicePool(10, 2, 0), "Wizard", new HitDicePool(6, 2, 2)));
+
+            f.levelDown(pc);
+            f.levelDown(pc);
+            f.levelDown(pc);
+            f.rests.shortRest(pc.getId(), new ShortRestRequest(List.of()), f.userId);
+            f.levelUp(pc, f.fighter);
+            f.levelUp(pc, f.wizard);
+            f.levelUp(pc, f.wizard);
+
+            assertThat(pc.getResourcePools()).extracting(ResourcePoolEntry::poolId, ResourcePoolEntry::currentUses)
+                    .containsExactly(tuple("class:fighter-action-surge", 1));
+            assertThat(pc.getSpellSlots()).isEqualTo(Map.of("1", new SpellSlot(3, 3)));
+            assertThat(pc.getHitDice()).containsEntry("Fighter", new HitDicePool(10, 2, 0));
+        }
+
+        private void spendPool(PlayerCharacter pc, String poolId) {
+            pc.setResourcePools(pc.getResourcePools().stream()
+                    .map(pool -> pool.poolId().equals(poolId) ? pool.withCurrentUses(0) : pool)
+                    .toList());
         }
 
         // The sheet's state as levelling changes it

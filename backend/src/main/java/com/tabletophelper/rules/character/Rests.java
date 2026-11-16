@@ -6,8 +6,8 @@ import java.util.Optional;
 import java.util.TreeMap;
 
 /**
- * Healing on a short rest (PHB p.186), and the wizard's Arcane Recovery on one (PHB p.115); what a long rest restores
- * of the Hit Dice is {@link HitDice}'s.
+ * Healing on a short rest (PHB p.186), and the wizard's Arcane Recovery (PHB p.115) and the Circle of the Land druid's
+ * Natural Recovery (PHB p.68) on one; what a long rest restores of the Hit Dice is {@link HitDice}'s.
  */
 public final class Rests {
 
@@ -45,8 +45,47 @@ public final class Rests {
      */
     public static Optional<String> arcaneRecoveryRefusal(int wizardLevel, List<Integer> slotLevels,
                                                          Map<Integer, Integer> expended) {
-        if (wizardLevel < 1) {
-            return Optional.of("Arcane Recovery is a wizard's feature");
+        return slotRecoveryRefusal(SlotRecovery.ARCANE_RECOVERY, wizardLevel, slotLevels, expended);
+    }
+
+    /**
+     * A feature that recovers expended spell slots as its user finishes a short rest, once until a long rest: the
+     * wizard's Arcane Recovery (PHB p.115) and the Circle of the Land druid's Natural Recovery (PHB p.68), which follow
+     * the same rule with the wizard's or the druid's level (D222).
+     */
+    public enum SlotRecovery {
+        ARCANE_RECOVERY("Arcane Recovery", "wizard", "a wizard's"),
+        NATURAL_RECOVERY("Natural Recovery", "druid", "a Circle of the Land druid's");
+
+        private final String featureName;
+        private final String className;
+        private final String whose;
+
+        SlotRecovery(String featureName, String className, String whose) {
+            this.featureName = featureName;
+            this.className = className;
+            this.whose = whose;
+        }
+
+        /** The feature's name, as "Natural Recovery". */
+        public String featureName() {
+            return featureName;
+        }
+    }
+
+    /**
+     * Why the feature can't recover these slots, or empty: the slots chosen must be expended, of 1st to 5th level, with
+     * levels adding up to no more than half the class level, rounded up (PHB p.115 for Arcane Recovery with the wizard
+     * level, p.68 for Natural Recovery with the druid level, D222). A class level below 1 means the character lacks
+     * the feature.
+     *
+     * @param slotLevels one level for each slot to recover, such as [2, 1]
+     * @param expended   how many slots of each level are expended
+     */
+    public static Optional<String> slotRecoveryRefusal(SlotRecovery feature, int classLevel, List<Integer> slotLevels,
+                                                       Map<Integer, Integer> expended) {
+        if (classLevel < 1) {
+            return Optional.of(feature.featureName + " is " + feature.whose + " feature");
         }
         if (slotLevels.isEmpty()) {
             return Optional.of("Choose at least one expended spell slot to recover");
@@ -55,15 +94,15 @@ public final class Rests {
         int total = 0;
         for (Integer level : slotLevels) {
             if (level == null || level < 1 || level > ARCANE_RECOVERY_HIGHEST_SLOT) {
-                return Optional.of("Arcane Recovery recovers slots of 1st to 5th level, not " + level);
+                return Optional.of(feature.featureName + " recovers slots of 1st to 5th level, not " + level);
             }
             wanted.merge(level, 1, Integer::sum);
             total += level;
         }
-        int most = arcaneRecoveryLevels(wizardLevel);
+        int most = arcaneRecoveryLevels(classLevel);
         if (total > most) {
-            return Optional.of("Arcane Recovery recovers slots whose levels add up to " + most + " at most (half of "
-                    + "wizard level " + wizardLevel + ", rounded up), not " + total);
+            return Optional.of(feature.featureName + " recovers slots whose levels add up to " + most + " at most "
+                    + "(half of " + feature.className + " level " + classLevel + ", rounded up), not " + total);
         }
         for (Map.Entry<Integer, Integer> entry : wanted.entrySet()) {
             int spent = expended.getOrDefault(entry.getKey(), 0);

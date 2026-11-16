@@ -379,6 +379,8 @@ public class CharacterService {
         int oldHpMax = character.getHpMax();
         DerivedStats stats = characterStats.apply(character);
         CharacterUpdates.recordHpGained(character, stats.hpMax() - oldHpMax);
+        // A level gained back after a level-down spends again what the level-down took away spent (D222)
+        LevelDownSpending.restoreGained(character, newCharLevel);
         character = characterRepository.save(character);
 
         return LevelUpResponse.builder()
@@ -459,7 +461,7 @@ public class CharacterService {
     /**
      * Removes the last level: its history entry goes, only what it recorded is reversed (its features, choices,
      * proficiencies and ability increases), the choices it still owed go (D159), and the Derived Stats and pools are
-     * worked out again, capping current hit points and spent Hit Dice (D167).
+     * worked out again: current hit points lose what the maximum lost (D222), and spent Hit Dice, slots and pool uses the level took away are kept to come back with it (D222).
      */
     @Transactional
     public CharacterResponse levelDown(UUID characterId, UUID userId) {
@@ -471,6 +473,7 @@ public class CharacterService {
         List<LevelHistoryEntry> history = copy(character.getLevelHistory());
         if (history.isEmpty())
             throw new ConflictException("No level history to revert");
+        LevelDownSpending.Before before = LevelDownSpending.Before.of(character);
         LevelHistoryEntry lastEntry = history.removeLast();
         // Before reversing, so that a spellcasting ability the level's feat set passes to a feat still applied (D159)
         character.setLevelHistory(history);
@@ -498,7 +501,12 @@ public class CharacterService {
             pendingChoices.classSpellcastingAbilityRemoved(character);
         }
 
-        character.setLevel(character.getLevel() - 1);
+        int removedLevel = character.getLevel();
+        character.setLevel(removedLevel - 1);
+        // The pool uses, slots and Hit Dice the level takes away spent are kept, to spend again if the level comes
+        // back, so levelling down and up again refills nothing (D222)
+        characterStats.apply(character);
+        LevelDownSpending.recordRemoved(character, removedLevel, before);
         return characterCommands.finish(character);
     }
 

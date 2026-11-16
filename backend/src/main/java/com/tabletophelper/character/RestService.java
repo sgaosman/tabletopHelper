@@ -16,6 +16,7 @@ import com.tabletophelper.rules.Rng;
 import com.tabletophelper.rules.character.CurrentHitPoints;
 import com.tabletophelper.rules.character.HitDice;
 import com.tabletophelper.rules.character.Rests;
+import com.tabletophelper.rules.character.Rests.SlotRecovery;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +41,9 @@ import static com.tabletophelper.character.CharacterUpdates.orEmpty;
  *       what each rolled. The pools that reset on a short rest come back, and so do a warlock's pact slots
  *       (PHB p.107). A wizard may use Arcane Recovery as it finishes (PHB p.115): expended spell slots of 5th level or
  *       lower whose levels add up to half its wizard level, rounded up, once a day, which its
- *       {@value #ARCANE_RECOVERY} pool counts until its next long rest.</li>
+ *       {@value #ARCANE_RECOVERY} pool counts until its next long rest. A Circle of the Land druid's Natural Recovery
+ *       (PHB p.68) follows the same rule with its druid level, once until a long rest, which its
+ *       {@value #NATURAL_RECOVERY} pool counts (D222); both on one rest never recover the same slot twice.</li>
  *   <li>A long rest needs at least 1 hit point. It restores every hit point and clears temporary hit points, brings
  *       back spent Hit Dice up to half the character's total, at least one, the largest first, and restores every
  *       spell slot and every pool, and ends the spell slots a sorcerer created with Flexible Casting (PHB p.101).</li>
@@ -56,7 +59,11 @@ public class RestService {
     /** The pool that counts Arcane Recovery's one use a day (M17). */
     public static final String ARCANE_RECOVERY = "class:wizard-arcane-recovery";
 
+    /** The pool that counts a Circle of the Land druid's Natural Recovery, once until a long rest (PHB p.68, D222). */
+    public static final String NATURAL_RECOVERY = "subclass:land-natural-recovery";
+
     private static final String WIZARD = "Wizard";
+    private static final String DRUID = "Druid";
 
     private final CharacterCommands characterCommands;
     private final ResourcePoolService resourcePoolService;
@@ -79,18 +86,25 @@ public class RestService {
                 "take a short rest");
         CharacterCommands.requireAlive(character, "take a short rest");
         List<HitDieSpent> dice = request != null && request.hitDice() != null ? request.hitDice() : List.of();
-        List<Integer> recovered = request != null && request.arcaneRecovery() != null ? request.arcaneRecovery()
+        List<Integer> arcane = request != null && request.arcaneRecovery() != null ? request.arcaneRecovery()
                 : List.of();
-        // Arcane Recovery is checked before anything changes, so a refused rest changes nothing
-        if (!recovered.isEmpty()) {
-            requireArcaneRecovery(character, recovered);
+        List<Integer> natural = request != null && request.naturalRecovery() != null ? request.naturalRecovery()
+                : List.of();
+        // Arcane Recovery and Natural Recovery are checked before anything changes, so a refused rest changes nothing
+        if (!arcane.isEmpty() || !natural.isEmpty()) {
+            requireSlotRecovery(character, arcane, natural);
         }
         List<HitDieRoll> rolls = spendHitDice(character, dice);
         resetPactSlots(character);
         resetShortRestPools(character);
-        if (!recovered.isEmpty()) {
-            arcaneRecovery(character, recovered);
+        if (!arcane.isEmpty()) {
+            recoverSlots(character, arcane, ARCANE_RECOVERY);
         }
+        if (!natural.isEmpty()) {
+            recoverSlots(character, natural, NATURAL_RECOVERY);
+        }
+        // The short-rest pools and pact slots a level-down kept spent are restored now too (D222)
+        LevelDownSpending.afterShortRest(character);
         return new ShortRestResponse(characterCommands.finish(character), rolls);
     }
 
@@ -116,6 +130,8 @@ public class RestService {
         recoverHitDice(character);
         resetAllSlots(character);
         resetAllPools(character);
+        // Everything a level-down kept spent is restored too (D222)
+        LevelDownSpending.afterLongRest(character);
         return characterCommands.finish(character);
     }
 
@@ -192,11 +208,55 @@ public class RestService {
         character.setHitDice(hitDice);
     }
 
-    // ── Arcane Recovery ──────────────────────────────────────────
+    // ── Arcane Recovery and Natural Recovery ─────────────────────
 
-    // The character's pools are brought up to date first, so a wizard made before Arcane Recovery had a pool has one
-    private void requireArcaneRecovery(PlayerCharacter character, List<Integer> slotLevels) {
-        int wizardLevel = wizardLevel(character);
+    // Arcane Recovery's slots are checked first and Natural Recovery's against the slots still expended after them, so
+    // a wizard and Circle of the Land druid can use both on one rest but never recover one slot twice (D222). The
+    // character's pools are brought up to date before the uses are checked, so a wizard made before Arcane Recovery
+    // had a pool has one, and a Circle of the Land druid made before Natural Recovery's pool has it
+    private void requireSlotRecovery(PlayerCharacter character, List<Integer> arcane, List<Integer> natural) {
+        Map<Integer, Integer> expended = expendedSlots(character);
+        if (!arcane.isEmpty()) {
+            Rests.slotRecoveryRefusal(SlotRecovery.ARCANE_RECOVERY, classLevel(character, WIZARD), arcane, expended)
+                    .ifPresent(reason -> {
+                        throw new ValidationException(reason);
+                    });
+            arcane.forEach(level -> expended.merge(level, -1, Integer::sum));
+        }
+        character.setResourcePools(resourcePoolService.reconciledPools(character,
+                resourcePoolService.buildCharacterContext(character)));
+        if (!arcane.isEmpty()) {
+            requireUse(character, ARCANE_RECOVERY, SlotRecovery.ARCANE_RECOVERY);
+        }
+        if (!natural.isEmpty()) {
+            // Only a Circle of the Land druid from 2nd level has the pool, so without it the druid level counts as 0
+            boolean hasPool = pool(character, NATURAL_RECOVERY) != null;
+            Rests.slotRecoveryRefusal(SlotRecovery.NATURAL_RECOVERY, hasPool ? classLevel(character, DRUID) : 0,
+                    natural, expended).ifPresent(reason -> {
+                        throw new ValidationException(reason);
+                    });
+            requireUse(character, NATURAL_RECOVERY, SlotRecovery.NATURAL_RECOVERY);
+        }
+    }
+
+    // A feature used since the last long rest is a 409; a wizard without the Arcane Recovery pool may still use it
+    private static void requireUse(PlayerCharacter character, String poolId, SlotRecovery feature) {
+        ResourcePoolEntry pool = pool(character, poolId);
+        if (pool != null && !pool.unlimited() && pool.currentUses() < 1) {
+            throw new ConflictException(character.getName() + " has used " + feature.featureName()
+                    + " since their last long rest");
+        }
+    }
+
+    private static ResourcePoolEntry pool(PlayerCharacter character, String poolId) {
+        return orEmpty(character.getResourcePools()).stream()
+                .filter(entry -> poolId.equals(entry.poolId()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    // How many slots of each level are expended, pact slots aside
+    private static Map<Integer, Integer> expendedSlots(PlayerCharacter character) {
         Map<Integer, Integer> expended = new LinkedHashMap<>();
         orEmptyMap(character.getSpellSlots()).forEach((key, slot) -> {
             if (slot != null && !key.startsWith(PACT_SLOT) && slot.used() > 0) {
@@ -207,43 +267,32 @@ public class RestService {
                 }
             }
         });
-        Rests.arcaneRecoveryRefusal(wizardLevel, slotLevels, expended).ifPresent(reason -> {
-            throw new ValidationException(reason);
-        });
-        character.setResourcePools(resourcePoolService.reconciledPools(character,
-                resourcePoolService.buildCharacterContext(character)));
-        ResourcePoolEntry pool = orEmpty(character.getResourcePools()).stream()
-                .filter(entry -> ARCANE_RECOVERY.equals(entry.poolId()))
-                .findFirst()
-                .orElse(null);
-        if (pool != null && !pool.unlimited() && pool.currentUses() < 1) {
-            throw new ConflictException(character.getName() + " has used Arcane Recovery since their last long rest");
-        }
+        return expended;
     }
 
-    // Each slot named is no longer expended, and the day's use is spent
-    private static void arcaneRecovery(PlayerCharacter character, List<Integer> slotLevels) {
+    // Each slot named is no longer expended, and the feature's use until the next long rest is spent
+    private static void recoverSlots(PlayerCharacter character, List<Integer> slotLevels, String poolId) {
         Map<String, SpellSlot> slots = new LinkedHashMap<>(orEmptyMap(character.getSpellSlots()));
         for (Integer level : slotLevels) {
             String key = String.valueOf(level);
             slots.put(key, slots.get(key).restore());
         }
         character.setSpellSlots(slots);
-        if (orEmpty(character.getResourcePools()).stream().anyMatch(p -> ARCANE_RECOVERY.equals(p.poolId()))) {
+        if (pool(character, poolId) != null) {
             character.setResourcePools(new ArrayList<>(ResourcePoolService.spend(character.getResourcePools(),
-                    ARCANE_RECOVERY, 1, character.getName())));
+                    poolId, 1, character.getName())));
         }
     }
 
-    private static int wizardLevel(PlayerCharacter character) {
+    private static int classLevel(PlayerCharacter character, String className) {
         List<ClassEntry> entries = orEmpty(character.getMulticlassEntries());
         if (!entries.isEmpty()) {
             return entries.stream()
-                    .filter(entry -> entry != null && WIZARD.equalsIgnoreCase(entry.className()))
+                    .filter(entry -> entry != null && className.equalsIgnoreCase(entry.className()))
                     .mapToInt(ClassEntry::level)
                     .sum();
         }
-        return WIZARD.equalsIgnoreCase(character.getCharacterClass()) && character.getLevel() != null
+        return className.equalsIgnoreCase(character.getCharacterClass()) && character.getLevel() != null
                 ? character.getLevel() : 0;
     }
 

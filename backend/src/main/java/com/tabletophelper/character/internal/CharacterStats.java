@@ -181,7 +181,8 @@ public class CharacterStats {
     /**
      * Derives the stats and writes the stored copies: the proficiency bonus, hit point maximum, initiative, speed,
      * spell slots, Hit Dice, main spell DC and attack bonus, and the resource pools. A higher hit point maximum raises
-     * current hit points by as much; a lower one caps them (D167). A dead character stays at 0 hit points whatever its
+     * current hit points by as much; a lower one takes as much off them, never below 0 (D222, replacing D167's cap
+     * only), so a level gained and removed leaves current hit points as they were. A dead character stays at 0 hit points whatever its
      * maximum does, since only the DM's revival brings it back (D166).
      */
     public DerivedStats apply(PlayerCharacter character) {

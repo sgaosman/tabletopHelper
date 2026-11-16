@@ -9,6 +9,7 @@ import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.LevelDownUses;
 import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.character.state.PendingChoice;
 import com.tabletophelper.character.state.ResourcePoolEntry;
@@ -269,6 +270,12 @@ public class PlayerCharacter {
     @Column(name = "pending_choices", columnDefinition = "jsonb", nullable = false)
     @Builder.Default
     private List<PendingChoice> pendingChoices = List.of();
+
+    // What each level-down took away spent, to spend again when the level comes back (D222, V40)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "level_down_uses", columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private List<LevelDownUses> levelDownUses = List.of();
 
     @Column(name = "is_active")
     @Builder.Default

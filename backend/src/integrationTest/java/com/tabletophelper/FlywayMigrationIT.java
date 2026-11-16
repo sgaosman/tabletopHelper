@@ -45,14 +45,23 @@ class FlywayMigrationIT extends IntegrationTest {
     private EntityManagerFactory entityManagerFactory;
 
     @Test
-    @DisplayName("Flyway applied V0–V6 and V8–V39 to the empty database; V7 was never used")
+    @DisplayName("Flyway applied V0–V6 and V8–V40 to the empty database; V7 was never used")
     void appliedVersionsMatchMigrationFiles() {
         List<String> versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
 
         assertThat(versions).containsExactly("0", "1", "2", "3", "4", "5", "6", "8", "9", "10", "11", "12", "13", "14", "15",
                 "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33",
-                "34", "35", "36", "37", "38", "39");
+                "34", "35", "36", "37", "38", "39", "40");
+    }
+
+    @Test
+    @DisplayName("V40 adds player_characters.level_down_uses, JSONB, not null, empty by default (D222)")
+    void levelDownUsesColumn() {
+        assertThat(jdbcTemplate.queryForMap("SELECT data_type, is_nullable, column_default FROM information_schema.columns "
+                + "WHERE table_name = 'player_characters' AND column_name = 'level_down_uses'"))
+                .containsEntry("data_type", "jsonb").containsEntry("is_nullable", "NO")
+                .hasEntrySatisfying("column_default", value -> assertThat(value.toString()).startsWith("'[]'"));
     }
 
     @Test
