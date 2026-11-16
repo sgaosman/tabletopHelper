@@ -435,6 +435,29 @@ class EncounterServiceTest {
     }
 
     @Test
+    @DisplayName("Starting an encounter locks its player characters, after the encounter's row and before reading "
+            + "their sheets, and no monster (D228)")
+    void startEncounter_locksPlayerCharacters() {
+        EncounterParticipant fighter = fighting("Fighter", ParticipantType.PLAYER, 18, 10, 0);
+        EncounterParticipant goblin = fighting("Goblin", ParticipantType.MONSTER, 12, 14, 1);
+        Encounter encounter = encounterIn(EncounterStatus.PREPARING, fighter, goblin);
+        when(encounterRepository.findBySessionCode(anyString())).thenReturn(Optional.empty());
+        PlayerCharacter sheet = fighter.getCharacter();
+        // The sheet as the lock leaves it: what the start copies
+        when(writeBackService.lockForEncounter(List.of(sheet.getId()))).thenAnswer(invocation -> {
+            sheet.setHpCurrent(7);
+            return List.of(sheet);
+        });
+
+        encounterService.startEncounter(encounter.getId(), dmUserId);
+
+        var order = inOrder(encounterRepository, writeBackService);
+        order.verify(encounterRepository).lockById(encounter.getId());
+        order.verify(writeBackService).lockForEncounter(List.of(sheet.getId()));
+        assertEquals(7, fighter.getHpCurrent());
+    }
+
+    @Test
     @DisplayName("Starting an encounter copies each PC again from its sheet as it stands, keeping the initiative the DM set (D166)")
     void startEncounter_copiesPlayerCharactersAgain() {
         EncounterParticipant fighter = fighting("Fighter", ParticipantType.PLAYER, 18, 10, 0);

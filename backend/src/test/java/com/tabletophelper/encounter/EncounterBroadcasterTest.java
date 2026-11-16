@@ -53,6 +53,7 @@ class EncounterBroadcasterTest {
     @Mock private EncounterService encounterService;
 
     private EncounterBroadcaster broadcaster;
+    private final RecordingTransactionManager transactionManager = new RecordingTransactionManager();
 
     private final UUID encounterId = UUID.randomUUID();
     private final UUID ariaId = UUID.randomUUID();
@@ -62,7 +63,7 @@ class EncounterBroadcasterTest {
     @BeforeEach
     void setUp() {
         broadcaster = new EncounterBroadcaster(messagingTemplate, new CombatLogReader(combatLogRepository, combatCommandRepository),
-                encounterRepository, encounterService);
+                encounterRepository, encounterService, transactionManager);
         lenient().when(combatLogRepository.findByEncounterIdOrderByCreatedAtAsc(encounterId)).thenReturn(List.of(
                 logEntry("Aria hits Goblin", ariaId, goblinId),
                 logEntry("Bugbear hits Aria", bugbearId, ariaId)));
@@ -284,6 +285,38 @@ class EncounterBroadcasterTest {
         assertSame(after, lastDmState);
     }
 
+    @Test
+    @DisplayName("A change's broadcast queued behind another for the same encounter opens its reads' transaction, and "
+            + "so takes a connection, only once it holds the stripe (D228)")
+    void queuedBroadcastTakesNoConnectionWhileWaiting() throws Exception {
+        stubCommittedEncounter(false);
+        CountDownLatch joinRead = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        Thread join = new Thread(() -> broadcaster.publishOnJoin(encounterId, () -> {
+            joinRead.countDown();
+            await(release);
+            return dmView(false);
+        }));
+        join.start();
+        assertTrue(joinRead.await(5, TimeUnit.SECONDS));
+        assertEquals(1, transactionManager.begun.size());
+
+        Thread change = new Thread(() -> broadcaster.encounterChanged(new EncounterChanged(encounterId)));
+        change.start();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (change.getState() != Thread.State.BLOCKED && System.nanoTime() < deadline) {
+            Thread.onSpinWait();
+        }
+        assertEquals(Thread.State.BLOCKED, change.getState());
+        assertEquals(1, transactionManager.begun.size());
+
+        release.countDown();
+        join.join(5000);
+        change.join(5000);
+        assertEquals(2, transactionManager.begun.size());
+        verify(messagingTemplate, times(8)).convertAndSend(anyString(), any(Object.class));
+    }
+
     private static void await(CountDownLatch latch) {
         try {
             assertTrue(latch.await(5, TimeUnit.SECONDS));
@@ -321,7 +354,6 @@ class EncounterBroadcasterTest {
     @Nested
     class InTransactions {
 
-        private final RecordingTransactionManager transactionManager = new RecordingTransactionManager();
         private AnnotationConfigApplicationContext context;
         private TransactionTemplate transaction;
 
@@ -378,21 +410,38 @@ class EncounterBroadcasterTest {
         }
 
         @Test
-        @DisplayName("Reloads the committed state in a read-only transaction of its own")
+        @DisplayName("Reloads the committed state in a read-only REPEATABLE READ transaction of its own, the encounter "
+                + "and its log in the same one (D228)")
         void reloadsInItsOwnReadOnlyTransaction() {
             List<Boolean> readOnlyDuringReload = new ArrayList<>();
+            List<Integer> isolationDuringReads = new ArrayList<>();
+            Encounter committed = Encounter.builder().id(encounterId).build();
             when(encounterRepository.findById(encounterId)).thenAnswer(invocation -> {
                 readOnlyDuringReload.add(TransactionSynchronizationManager.isCurrentTransactionReadOnly());
-                return Optional.empty();
+                isolationDuringReads.add(TransactionSynchronizationManager.getCurrentTransactionIsolationLevel());
+                return Optional.of(committed);
             });
+            when(encounterService.toResponse(committed)).thenReturn(dmView(false));
+            when(combatLogRepository.findByEncounterIdOrderByCreatedAtAsc(encounterId)).thenAnswer(invocation -> {
+                isolationDuringReads.add(TransactionSynchronizationManager.getCurrentTransactionIsolationLevel());
+                return List.of();
+            });
+            List<Integer> commitsAtEachSend = new ArrayList<>();
+            doAnswer(invocation -> commitsAtEachSend.add(transactionManager.commits.get()))
+                    .when(messagingTemplate).convertAndSend(anyString(), any(Object.class));
 
             transaction.executeWithoutResult(status -> context.publishEvent(new EncounterChanged(encounterId)));
 
             assertEquals(List.of(true), readOnlyDuringReload);
+            assertEquals(List.of(TransactionDefinition.ISOLATION_REPEATABLE_READ,
+                    TransactionDefinition.ISOLATION_REPEATABLE_READ), isolationDuringReads);
             assertEquals(2, transactionManager.begun.size());
             TransactionDefinition reload = transactionManager.begun.get(1);
             assertEquals(TransactionDefinition.PROPAGATION_REQUIRES_NEW, reload.getPropagationBehavior());
+            assertEquals(TransactionDefinition.ISOLATION_REPEATABLE_READ, reload.getIsolationLevel());
             assertTrue(reload.isReadOnly());
+            // The messages go once the reads' transaction has ended, as well as the command's
+            assertEquals(List.of(2, 2, 2, 2), commitsAtEachSend);
         }
     }
 
@@ -404,7 +453,8 @@ class EncounterBroadcasterTest {
     /** Begins, commits and rolls back nothing, and records each transaction it is asked to begin. */
     private static final class RecordingTransactionManager extends AbstractPlatformTransactionManager {
 
-        private final List<TransactionDefinition> begun = new ArrayList<>();
+        private final List<TransactionDefinition> begun = java.util.Collections.synchronizedList(new ArrayList<>());
+        private final java.util.concurrent.atomic.AtomicInteger commits = new java.util.concurrent.atomic.AtomicInteger();
 
         @Override
         protected Object doGetTransaction() {
@@ -418,6 +468,7 @@ class EncounterBroadcasterTest {
 
         @Override
         protected void doCommit(DefaultTransactionStatus status) {
+            commits.incrementAndGet();
         }
 
         @Override

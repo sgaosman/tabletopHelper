@@ -18,6 +18,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Write-back's side in the encounter module (D166): each player character's participant, what it joined with and what
@@ -42,6 +43,23 @@ class EncounterResults {
         CombatResults results = of(encounter, participants);
         if (!results.characters().isEmpty()) {
             eventPublisher.publishEvent(results);
+        }
+    }
+
+    /**
+     * Locks the player characters of the encounter's participants, in ID order after the encounter's row (D228), so
+     * the start reads each sheet only once no rest, level or Write-back on it can still be committing. Call it before
+     * anything in the transaction reads the sheets. Only the IDs are read here, which leaves each lazy character
+     * unloaded until its row is locked.
+     */
+    void lockCharacters(Encounter encounter) {
+        List<UUID> characterIds = encounter.getParticipants().stream()
+                .filter(participant -> participant.getParticipantType() == ParticipantType.PLAYER
+                        && participant.getCharacter() != null)
+                .map(participant -> participant.getCharacter().getId())
+                .toList();
+        if (!characterIds.isEmpty()) {
+            writeBackService.lockForEncounter(characterIds);
         }
     }
 

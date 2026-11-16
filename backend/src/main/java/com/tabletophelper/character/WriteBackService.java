@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,6 +88,18 @@ public class WriteBackService {
                     after.hitPoints().current(), before.hitPoints().temporary(), after.hitPoints().temporary(),
                     after.dead() && !before.dead() ? ", now dead" : "");
         }
+    }
+
+    /**
+     * Locks the characters an encounter is about to start with (D228), as Write-back locks them: in ID order with the
+     * five-second wait, after the encounter's row, which the starting command already holds. A rest or a level taken
+     * while the encounter is still Preparing then either commits before the start reads the sheets, or waits and finds
+     * the encounter under way; and a Write-back from another encounter that marks a character dead commits first, so
+     * the start sees the death. Character commands never lock an encounter, so the order can't deadlock.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public List<PlayerCharacter> lockForEncounter(Collection<UUID> characterIds) {
+        return characterCommands.beginWriteBack(characterIds);
     }
 
     /**

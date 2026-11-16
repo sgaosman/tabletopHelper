@@ -115,11 +115,11 @@ public class CommandRecorder {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void beforeCommit(boolean readOnly) {
-                ReactionOffers.settle(encounter, recording);
-                recording.settle();
+                // The command's response has usually settled it already (D228); settling again changes nothing, and
+                // covers a command that answers without the encounter's state
+                recording.finish();
                 if (recording.isEmpty()) {
                     commands.delete(recording.command);
-                    recording.counterspellOffersBack();
                 }
             }
 
@@ -128,6 +128,17 @@ public class CommandRecorder {
                 TransactionSynchronizationManager.unbindResourceIfPossible(RESOURCE_KEY);
             }
         });
+    }
+
+    /**
+     * Settles the command the transaction is recording on the encounter, as its commit would (D228): its Shield offers
+     * kept only while the hit is all it did to the wizard, what it changed and what sums it up, and, for a command that
+     * changed nothing, the Counterspell offers it set aside. A response built after this shows the offers and undo as
+     * they are stored. Outside a recording of the encounter it does nothing, and settling twice changes nothing more.
+     */
+    public static void settle(Encounter encounter) {
+        current().filter(r -> r.encounter == encounter || Objects.equals(r.encounter.getId(), encounter.getId()))
+                .ifPresent(Recording::finish);
     }
 
     /**
@@ -304,7 +315,17 @@ public class CommandRecorder {
             return objectMapper.valueToTree(one).equals(objectMapper.valueToTree(other));
         }
 
-        // A command that changed nothing doesn't follow the spell a Counterspell offer answers, so the offer stands
+        // Everything the command's end settles (D228), which runs twice: as its response is built and before it commits
+        private void finish() {
+            ReactionOffers.settle(encounter, this);
+            settle();
+            if (isEmpty()) {
+                counterspellOffersBack();
+            }
+        }
+
+        // A command that changed nothing doesn't follow the spell a Counterspell offer answers, so the offer stands;
+        // one already back isn't added twice
         private void counterspellOffersBack() {
             List<ReactionOffer> offers = new ArrayList<>(encounter.getReactionOffers() != null
                     ? encounter.getReactionOffers() : List.of());

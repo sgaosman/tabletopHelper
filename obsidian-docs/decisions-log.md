@@ -4554,3 +4554,27 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D158, D223
 
 **Tests:** reducer, selector, step, wizard-page, sheet and accessibility cases, including a new `BackgroundStep.test.tsx`; the Fighter/Wizard request snapshot now carries its replacement skill. 1,305 frontend tests pass.
+
+---
+
+## D228: Concurrency Fixes from the Overnight Review
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration)
+
+**Context:** a concurrency review during the user's overnight run of 2026-11-16 found no lost update: every encounter command takes the encounter's row lock first and holds it to the end of its transaction, undo checks the command it expects, reaction offers change only under that lock, Write-back locks characters in ID order after the encounter, and broadcasts go out only after commit and in order. It confirmed the smaller races and costs below. The calls are the lead's, recorded for review.
+
+**Decision:**
+- **Start locks the characters.** An encounter's Start copied each player character's sheet without that character's lock, so a long rest or level-up checking "not in an encounter under way" could commit just after the copy, while the encounter went Active: the rest happened inside the fight, which [[#D166]] refuses, and encounter A's End marking a character dead could race B's Start. Start now locks the player characters in ID order right after the encounter row, as Write-back does ([[#D218]]), so a rest either commits first and is what the fight copies, or waits and then gets the usual 409. Character commands never lock an encounter, so the order can't deadlock.
+- **Responses carry the settled offers.** A command's response was built before the commit step that settles reaction offers ([[#D216]]'s Shield take-back option, Counterspell offers put back for a command that changed nothing), so a client that kept the response, as one does with the socket down, could show an option the server didn't store. The settle step now runs when the response is built, and again before commit, where it changes nothing more.
+- **A broadcast reads one snapshot.** The encounter, its participants and its log are read in one read-only, repeatable-read transaction, so a commit landing between them can't produce a frame mixing two states.
+- **Fewer connections per broadcast.** The broadcast's read transaction opens only once it holds its encounter's stripe, so broadcasts queued behind one another hold one connection each, not two. Publishing from another thread was rejected: the HTTP response could then overtake the WebSocket message, which the frontend relies on not happening.
+- **Batch fetching:** Hibernate fetches lazy associations in batches of 32, and a participant's spell-consent trait is worked out once per response, cutting the per-participant queries every command made. Response content is unchanged.
+
+**Not changed:** a monster's lair-action check still re-reads its templates once per response, and every broadcast sends the whole combat log to both views.
+
+**Key files:** `EncounterService.java`, `EncounterResults.java`, `WriteBackService.java`, `CommandRecorder.java`, `EncounterBroadcaster.java`, `application.yml`
+
+**Related:** D166, D171, D216, D218
+
+**Tests:** `WriteBackIT` (a start waiting on a rest and copying its HP, a rest queued behind a start refused), `ReactionPromptsIT` (responses' offers and undo match what's stored), `EncounterServiceTest` lock order, `EncounterBroadcasterTest` isolation and stripe order; 4,812 backend unit and 585 integration tests pass.

@@ -410,6 +410,65 @@ class WriteBackIT extends IntegrationTest {
         assertThat(sheet(aria).get("hpCurrent").asInt()).isEqualTo(24);
     }
 
+    @Test
+    @DisplayName("The start locks each character's row after the encounter's and waits for a character command that "
+            + "holds one, then starts with what that command committed (D228)")
+    void startWaitsForACharacterCommand() throws Exception {
+        UUID encounter = encounterWith(aria);
+        command(aria, "/hp", Map.of("kind", "DAMAGE", "amount", 8), HttpStatus.OK);
+        rollInitiative(encounter);
+
+        // A rest holding Aria's row, which heals her to 28 as it commits
+        CompletableFuture<ResponseEntity<String>> starting;
+        Connection rest = lockRow("player_characters", aria);
+        try (PreparedStatement heal = rest.prepareStatement(
+                "UPDATE player_characters SET hp_current = 28, version = version + 1 WHERE id = ?")) {
+            heal.setObject(1, UUID.fromString(aria));
+            heal.executeUpdate();
+            starting = CompletableFuture.supplyAsync(() -> exchange(HttpMethod.POST, "/api/encounters/" + encounter
+                    + "/start", null, dm.accessToken()), requests);
+            awaitRequestsWaitingForLock(1);
+            assertThat(isLocked("encounters", encounter.toString())).isTrue();
+            rest.commit();
+        } finally {
+            release(rest);
+        }
+
+        expect(HttpStatus.OK, starting.get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertThat(participant(encounter, participants(encounter).get(aria)).get("hpCurrent").asInt()).isEqualTo(28);
+    }
+
+    @Test
+    @DisplayName("A long rest that waits for the start's lock on the character finds the encounter under way and is "
+            + "refused, so it never happens mid-encounter (D166, D228)")
+    void restWaitingForTheStartIsRefused() throws Exception {
+        UUID encounter = encounterWith(aria, bram);
+        List<String> byId = List.of(aria, bram).stream().sorted(Comparator.naturalOrder()).toList();
+        String first = byId.get(0);
+        String second = byId.get(1);
+        rollInitiative(encounter);
+
+        // Holding the second character's row, the start has the encounter's and the first character's when it waits
+        CompletableFuture<ResponseEntity<String>> starting;
+        CompletableFuture<ResponseEntity<String>> resting;
+        Connection lock = lockRow("player_characters", second);
+        try {
+            starting = CompletableFuture.supplyAsync(() -> exchange(HttpMethod.POST, "/api/encounters/" + encounter
+                    + "/start", null, dm.accessToken()), requests);
+            awaitRequestsWaitingForLock(1);
+            assertThat(isLocked("player_characters", first)).isTrue();
+            // The first character's rest queues behind the start
+            resting = CompletableFuture.supplyAsync(() -> command(first, "/long-rest", null), requests);
+            awaitRequestsWaitingForLock(2);
+        } finally {
+            release(lock);
+        }
+
+        expect(HttpStatus.OK, starting.get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertThat(error(resting.get(TIMEOUT_SECONDS, TimeUnit.SECONDS), HttpStatus.CONFLICT))
+                .contains("is in an encounter that is under way");
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
 
     private String create(Map<String, Object> details) {
@@ -429,6 +488,11 @@ class WriteBackIT extends IntegrationTest {
                     Map.of("participantType", "PLAYER", "characterId", character, "displayName", "PC"));
         }
         return encounter;
+    }
+
+    private void rollInitiative(UUID encounter) {
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounter + "/initiatives/roll", null,
+                dm.accessToken()));
     }
 
     // Starts the encounter and gives each character's participant ID

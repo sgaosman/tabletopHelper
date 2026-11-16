@@ -180,6 +180,42 @@ class ReactionPromptsIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("A command that changes nothing keeps the Counterspell offer, and its own response shows the offer as "
+            + "stored (D228)")
+    void unchangedCommandResponseKeepsCounterspellOffer() {
+        nextTurn();
+        dice.script(15, 5);
+        JsonNode cast = expect(HttpStatus.OK, castSpell(coraId, Map.of("spellName", "Fire Bolt", "slotLevel", 0,
+                "targetIds", List.of(archmageId)), dm.accessToken()));
+        JsonNode offer = onlyOffer(dmView());
+        assertThat(cast.get("encounterState").get("reactionOffers")).isEqualTo(dmView().get("reactionOffers"));
+
+        // No monster was in its lair, and none is now: the command changes nothing
+        JsonNode unchanged = expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/lair-status", Map.of("monsterIds", List.of()), dm.accessToken()));
+
+        JsonNode stored = dmView().get("reactionOffers");
+        assertThat(onlyOffer(dmView()).get("id")).isEqualTo(offer.get("id"));
+        assertThat(unchanged.get("reactionOffers")).isEqualTo(stored);
+        assertThat(unchanged.get("undo")).isEqualTo(dmView().get("undo"));
+    }
+
+    @Test
+    @DisplayName("A Multiattack's response shows its Shield offer as stored, settled once the bite has done more to "
+            + "Aria (D228)")
+    void multiattackResponseShowsSettledOffer() {
+        dice.script(10, 10);
+        JsonNode response = expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/monster-action", Map.of("monsterParticipantId", goblinId, "actionName", "Multiattack",
+                "actionSource", "ACTION", "targetParticipantIds", List.of(coraId)), dm.accessToken()));
+
+        JsonNode stored = dmView().get("reactionOffers");
+        assertThat(stored).hasSize(1);
+        assertThat(response.get("encounterState").get("reactionOffers")).isEqualTo(stored);
+        assertThat(response.get("encounterState").get("undo")).isEqualTo(dmView().get("undo"));
+    }
+
+    @Test
     @DisplayName("An offer lasts past other commands until the turn changes")
     void lastsUntilTheTurnChanges() {
         dice.script(11, 3);

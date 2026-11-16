@@ -7,6 +7,9 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        # Loads lazy associations (a participant's character or monster) and collections in batches of up to 32
+        # rather than one statement each, as building an encounter's response touches every participant's (D228)
+        default_batch_fetch_size: 32
 
   # Spring Boot 4 moved server.error.* to spring.web.error.*
   web:
