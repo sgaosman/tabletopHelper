@@ -52,6 +52,7 @@ export default function RaceStep({ races, state, dispatch }: RaceStepProps) {
           return (
             <button
               key={race.id}
+              aria-pressed={selectedRace?.id === race.id}
               onClick={() => dispatch({ type: 'selectRace', race: selectedRace?.id === race.id ? null : race })}
               className={`p-4 border text-left transition-colors ${
                 selectedRace?.id === race.id
@@ -89,6 +90,7 @@ export default function RaceStep({ races, state, dispatch }: RaceStepProps) {
                   {req.options.map(option => (
                     <button
                       key={option}
+                      aria-pressed={(raceChoiceSelections[req.key] ?? []).includes(option)}
                       onClick={() => dispatch({ type: 'toggleRaceChoice', key: req.key, value: option, count: req.count })}
                       className={`px-3 py-1.5 font-heading text-[11px] font-semibold tracking-[0.02em] transition-colors border ${
                         (raceChoiceSelections[req.key] ?? []).includes(option)
@@ -128,12 +130,14 @@ export default function RaceStep({ races, state, dispatch }: RaceStepProps) {
                 <span className="font-body text-[15px] font-semibold text-cls-druid w-24 shrink-0">
                   Apply {formatMod(assignment.bonus)} to:
                 </span>
-                <div className="flex gap-1.5">
+                {/* Six to a row within ~290px, so a 375px phone doesn't scroll sideways (D226) */}
+                <div className="grid grid-cols-6 gap-1 w-full max-w-[290px]">
                   {ABILITIES.map(ability => (
                     <button
                       key={ability}
+                      aria-pressed={assignment.ability === ability}
                       onClick={() => dispatch({ type: 'assignBonus', row: i, ability })}
-                      className={`px-3 py-1.5 font-heading text-[11px] font-semibold tracking-[0.02em] transition-colors border ${
+                      className={`min-w-0 px-1 py-1.5 text-center font-heading text-[11px] font-semibold tracking-[0.02em] transition-colors border ${
                         assignment.ability === ability
                           ? 'bg-ink text-card border-ink'
                           : 'bg-page text-muted border-rule hover:border-muted'

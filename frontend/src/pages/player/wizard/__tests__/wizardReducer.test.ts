@@ -279,8 +279,80 @@ describe('wizardReducer: skills and Expertise', () => {
   it('toggles Expertise up to its number', () => {
     const pick = (skill: string): WizardAction => ({ type: 'toggleExpertise', skill, max: 2 });
 
-    expect(reduce(initialWizardState, pick('Stealth'), pick('Insight'), pick('Deception'), pick('Stealth')).selectedExpertise)
+    const skilled = { ...initialWizardState, selectedClassSkills: ['Stealth', 'Insight', 'Deception'] };
+
+    expect(reduce(skilled, pick('Stealth'), pick('Insight'), pick('Deception'), pick('Stealth')).selectedExpertise)
       .toEqual(['Insight']);
+  });
+
+  it('drops Expertise in a class skill toggled off (D226)', () => {
+    const state = reduce(withClass(rogue),
+      { type: 'toggleClassSkill', skill: 'Stealth', max: 4 }, { type: 'toggleClassSkill', skill: 'Insight', max: 4 },
+      { type: 'toggleExpertise', skill: 'Stealth', max: 2 }, { type: 'toggleExpertise', skill: 'Insight', max: 2 },
+      { type: 'toggleClassSkill', skill: 'Stealth', max: 4 });
+
+    expect(state.selectedExpertise).toEqual(['Insight']);
+  });
+
+  it("drops Expertise in a background's skill when the background changes (D226)", () => {
+    const state = reduce(withClass(rogue), { type: 'selectBackground', background: soldier },
+      { type: 'toggleExpertise', skill: 'Athletics', max: 2 });
+    expect(state.selectedExpertise).toEqual(['Athletics']);
+
+    expect(reduce(state, { type: 'selectBackground', background: sage }).selectedExpertise).toEqual([]);
+  });
+
+  it("drops Expertise in a race's chosen skill when the race changes (D226)", () => {
+    const state = reduce(withClass(rogue), { type: 'selectRace', race: variantHuman },
+      { type: 'toggleRaceChoice', key: 'skill_1', value: 'Arcana', count: 1 },
+      { type: 'toggleExpertise', skill: 'Arcana', max: 2 });
+    expect(state.selectedExpertise).toEqual(['Arcana']);
+
+    expect(reduce(state, { type: 'selectRace', race: human }).selectedExpertise).toEqual([]);
+  });
+
+  it("drops a class skill the race comes to give, so it isn't lost (D226)", () => {
+    const state = reduce(withClass(rogue), { type: 'toggleClassSkill', skill: 'Insight', max: 4 },
+      { type: 'toggleClassSkill', skill: 'Stealth', max: 4 }, { type: 'selectRace', race: variantHuman },
+      { type: 'toggleRaceChoice', key: 'skill_1', value: 'Stealth', count: 1 });
+
+    expect(state.selectedClassSkills).toEqual(['Insight']);
+  });
+});
+
+describe('wizardReducer: background skills already held (PHB p.125, D226)', () => {
+  const athleteFighter = () => reduce(withClass(fighter), { type: 'toggleClassSkill', skill: 'Athletics', max: 2 },
+    { type: 'toggleClassSkill', skill: 'Perception', max: 2 }, { type: 'selectBackground', background: soldier });
+
+  it('keeps the skill chosen in place of a conflicting one', () => {
+    const state = reduce(athleteFighter(), { type: 'setBgSkillReplacement', skill: 'Athletics', replacement: 'Stealth' });
+
+    expect(state.bgSkillReplacements).toEqual({ Athletics: 'Stealth' });
+  });
+
+  it('drops the replacement once the class no longer gives the skill', () => {
+    const state = reduce(athleteFighter(), { type: 'setBgSkillReplacement', skill: 'Athletics', replacement: 'Stealth' },
+      { type: 'toggleClassSkill', skill: 'Athletics', max: 2 });
+
+    expect(state.bgSkillReplacements).toEqual({});
+  });
+
+  it('drops a replacement the race comes to give, and clears them with a new background', () => {
+    const withReplacement = reduce(athleteFighter(), { type: 'setBgSkillReplacement', skill: 'Athletics', replacement: 'Arcana' });
+    const taken = reduce(withReplacement, { type: 'selectRace', race: variantHuman },
+      { type: 'toggleRaceChoice', key: 'skill_1', value: 'Arcana', count: 1 });
+    expect(taken.bgSkillReplacements).toEqual({});
+
+    expect(reduce(withReplacement, { type: 'selectBackground', background: sage }).bgSkillReplacements).toEqual({});
+  });
+
+  it("drops a background's chosen skill the race or a class comes to give", () => {
+    const anySkill = background('bg-any', 'Wanderer', { skillProficiencies: '[{"any":1}]' });
+    const state = reduce(withClass(fighter), { type: 'selectBackground', background: anySkill },
+      { type: 'toggleBgProfChoice', key: 'skill_choose_0', value: 'Survival', count: 1 },
+      { type: 'toggleClassSkill', skill: 'Survival', max: 2 });
+
+    expect(state.bgProfChoices.skill_choose_0).toEqual([]);
   });
 });
 
@@ -344,11 +416,17 @@ describe('wizardReducer: restoring a draft', () => {
     const state = reduce(initialWizardState, { type: 'restoreDraft', draft, refs });
 
     expect(state).toMatchObject({
-      name: 'Pip', alignment: 'Chaotic Good', step: 4, abilityMethod: 'standard', scores: draft.scores,
+      // The class's choices start again, so the wizard opens on the Class step rather than the saved one (D226)
+      name: 'Pip', alignment: 'Chaotic Good', step: 3, abilityMethod: 'standard', scores: draft.scores,
       standardAssignments: draft.standardAssignments, level: 2,
       selectedRace: highElf, bonusAssignments: [{ bonus: 2, ability: 'dexterity' }, { bonus: 1, ability: 'intelligence' }],
       selectedClass: wizard, classEntries: [], selectedBackground: sage,
     });
+  });
+
+  it('opens on the saved step when no step before it is incomplete (D226)', () => {
+    expect(reduce(initialWizardState, { type: 'restoreDraft', draft: { name: 'Pip', step: 1 }, refs }).step).toBe(1);
+    expect(reduce(initialWizardState, { type: 'restoreDraft', draft: { step: 2 }, refs }).step).toBe(0);
   });
 
   it("keeps what the draft doesn't have, and skips a race, class or background no longer listed", () => {

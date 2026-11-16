@@ -7,8 +7,7 @@ import { checkMulticlassEligibility } from './types';
 import type { WizardAction, WizardState } from './wizardReducer';
 import {
   classSkillChoices as skillChoicesOf, expertiseCount as expertiseCountOf, finalScores as finalScoresOf,
-  multiclassSkillChoices, raceSkills as raceSkillsOf, resolvedBgProfs as bgProfsOf,
-  resolvedRaceChoices as raceChoicesOf,
+  heldSkills, multiclassSkillChoices, multiclassSkillsRequired, multiclassSkillsTaken, raceSkills as raceSkillsOf,
 } from './selectors';
 
 export interface ClassStepProps {
@@ -24,14 +23,12 @@ export interface ClassStepProps {
 export default function ClassStep({ classes, state, dispatch, onSelectClass, onAddMulticlass }: ClassStepProps) {
   const {
     selectedClass, classEntries, level, multiclassExpanded, selectedClassSkills, mcSkillSelections,
-    selectedExpertise, selectedRace,
+    selectedExpertise,
   } = state;
   const finalScores = finalScoresOf(state);
   const classSkillChoices = skillChoicesOf(state);
   const raceSkills = raceSkillsOf(state);
   const mcSkillChoicesMap = multiclassSkillChoices(state);
-  const resolvedBgProfs = bgProfsOf(state);
-  const resolvedRaceChoices = raceChoicesOf(state);
   const expertiseCount = expertiseCountOf(state);
   return (
     <div className="space-y-4">
@@ -45,6 +42,7 @@ export default function ClassStep({ classes, state, dispatch, onSelectClass, onA
           return (
             <button
               key={cls.id}
+              aria-pressed={isSelected}
               onClick={() => onSelectClass(isSelected ? null : cls)}
               className={`p-4 border text-left transition-colors ${
                 isSelected
@@ -97,6 +95,7 @@ export default function ClassStep({ classes, state, dispatch, onSelectClass, onA
                   return (
                     <button
                       key={cls.id}
+                      aria-pressed={isAdded}
                       onClick={() => {
                         if (isAdded) {
                           dispatch({ type: 'removeMulticlass', classId: cls.id });
@@ -197,6 +196,7 @@ export default function ClassStep({ classes, state, dispatch, onSelectClass, onA
               {entry.subclasses.map(sc => (
                 <button
                   key={sc.id}
+                  aria-pressed={entry.subclass?.id === sc.id}
                   onClick={() => dispatch({ type: 'setSubclass', classId: entry.cls.id, subclass: entry.subclass?.id === sc.id ? null : sc })}
                   className={`p-3 border text-left transition-colors ${
                     entry.subclass?.id === sc.id
@@ -248,6 +248,7 @@ export default function ClassStep({ classes, state, dispatch, onSelectClass, onA
               return (
                 <button
                   key={skill}
+                  aria-pressed={isSelected}
                   onClick={() => {
                     if (alreadyFromRace) return;
                     dispatch({ type: 'toggleClassSkill', skill, max: classSkillChoices.count });
@@ -281,11 +282,9 @@ export default function ClassStep({ classes, state, dispatch, onSelectClass, onA
         const entry = classEntries.find(e => e.cls.id === clsId);
         if (!entry) return null;
         const selected = mcSkillSelections[clsId] ?? [];
-        const allTaken = new Set([
-          ...raceSkills,
-          ...selectedClassSkills.map(s => s.toLowerCase()),
-          ...Object.entries(mcSkillSelections).filter(([k]) => k !== clsId).flatMap(([, v]) => v.map(s => s.toLowerCase())),
-        ]);
+        const allTaken = multiclassSkillsTaken(state, clsId);
+        // The multiclass's skill is required to go on (PHB p.164, D226)
+        const required = multiclassSkillsRequired(state, clsId);
         return (
           <div key={clsId} className="mt-4 bg-card border border-rule p-4">
             <div className="flex items-center justify-between mb-1">
@@ -303,6 +302,7 @@ export default function ClassStep({ classes, state, dispatch, onSelectClass, onA
                 return (
                   <button
                     key={skill}
+                    aria-pressed={isSelected}
                     onClick={() => {
                       if (alreadyTaken) return;
                       dispatch({ type: 'toggleMulticlassSkill', classId: clsId, skill, max: choices.count });
@@ -322,11 +322,14 @@ export default function ClassStep({ classes, state, dispatch, onSelectClass, onA
                 );
               })}
             </div>
+            {selected.length < required && (
+              <p className="font-body text-[13px] font-semibold text-hp-wounded mt-3">Select {required - selected.length} more skill{required - selected.length > 1 ? 's' : ''} to continue</p>
+            )}
           </div>
         );
       })}
 
-      {/* Expertise picker */}
+      {/* Expertise picker: only skills the character is proficient in (PHB p.96, D226) */}
       {expertiseCount > 0 && (
         <div className="mt-4 bg-card border border-rule p-4">
           <div className="flex items-center justify-between mb-1">
@@ -337,14 +340,14 @@ export default function ClassStep({ classes, state, dispatch, onSelectClass, onA
             Choose {expertiseCount} skill{expertiseCount > 1 ? 's' : ''} to gain expertise in (double proficiency bonus).
           </p>
           <div className="flex gap-1.5 flex-wrap">
-            {[...selectedClassSkills, ...resolvedBgProfs.skills, ...(safeJsonParse<{ skills?: string[] }>(selectedRace?.proficiencies, {}).skills ?? []), ...resolvedRaceChoices.skills, ...Object.values(mcSkillSelections).flat()]
-              .filter((s, i, a) => a.indexOf(s) === i)
+            {heldSkills(state)
               .map(skill => {
                 const isSelected = selectedExpertise.includes(skill);
                 const disabled = !isSelected && selectedExpertise.length >= expertiseCount;
                 return (
                   <button
                     key={skill}
+                    aria-pressed={isSelected}
                     onClick={() => dispatch({ type: 'toggleExpertise', skill, max: expertiseCount })}
                     disabled={disabled}
                     className={`px-3 py-1.5 font-heading text-[11px] font-semibold tracking-[0.02em] transition-colors border ${

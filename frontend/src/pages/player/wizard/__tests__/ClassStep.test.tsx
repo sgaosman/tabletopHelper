@@ -48,6 +48,42 @@ function renderStep(overrides: Partial<WizardState> = {}) {
   );
 }
 
+describe('ClassStep multiclass skills and toggle state (D226)', () => {
+  const rogue = mockClassRef({
+    id: 'cls-rogue', name: 'Rogue',
+    multiclassProficiencies: JSON.stringify({ armor: ['Light'], skills: { from: ['Deception', 'Stealth'], count: 1 } }),
+  });
+
+  it("asks for a multiclass's skill until it is chosen (PHB p.164), and marks the chosen class pressed", () => {
+    renderStep({
+      level: 2,
+      classEntries: [
+        { cls: fighter, level: 1, subclass: null, subclasses: [] }, { cls: rogue, level: 1, subclass: null, subclasses: [] },
+      ],
+    });
+
+    expect(screen.getByRole('heading', { name: 'Rogue Multiclass Skills' })).toBeInTheDocument();
+    expect(screen.getByText('Select 1 more skill to continue')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Stealth' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: /^Fighter/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^Paladin/ })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('offers Expertise only in skills the character holds', () => {
+    const rogueFirst = mockClassRef({
+      id: 'cls-rogue', name: 'Rogue', skillChoices: JSON.stringify({ count: 2, from: ['Stealth', 'Insight', 'Deception'] }),
+    });
+    renderStep({
+      selectedClass: rogueFirst, classEntries: [{ cls: rogueFirst, level: 1, subclass: null, subclasses: [] }],
+      selectedClassSkills: ['Stealth'], selectedExpertise: ['Stealth'],
+    });
+
+    const expertise = screen.getByRole('heading', { name: 'Expertise' }).closest('div')!.parentElement!;
+    expect(expertise.querySelectorAll('button')).toHaveLength(1);
+    expect(expertise.querySelector('button')).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
 describe('ClassStep', () => {
   it("says a 1st-level choice the steps don't ask for, such as a Fighter's Fighting Style, is made on the sheet (D159)", () => {
     renderStep();

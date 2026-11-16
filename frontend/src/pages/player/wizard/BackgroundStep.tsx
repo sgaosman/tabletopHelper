@@ -7,7 +7,8 @@ import { formatProfEntry, formatProficiencies, hasChooseSet } from './types';
 import type { WizardAction, WizardState } from './wizardReducer';
 import {
   bgChoiceReqs as choiceReqs, bgChoicesComplete as choicesComplete, bgFeatNames as featNames,
-  bgSkillConflicts as skillConflicts, filteredBackgrounds as filterBackgrounds,
+  bgReplacementOptions, bgSkillConflicts as skillConflicts, filteredBackgrounds as filterBackgrounds,
+  skillsBeforeBackground,
 } from './selectors';
 
 export interface BackgroundStepProps {
@@ -22,6 +23,8 @@ export default function BackgroundStep({ backgrounds, state, dispatch }: Backgro
   const bgChoiceReqs = choiceReqs(selectedBackground);
   const bgChoicesComplete = choicesComplete(state);
   const bgSkillConflicts = skillConflicts(state);
+  // A skill the race or a class already gives isn't offered among the background's skills (D226)
+  const heldBefore = skillsBeforeBackground(state);
   // The feats the background grants, one of which the character takes on its sheet after creation (D159)
   const bgFeatNames = featNames(selectedBackground);
   return (
@@ -46,6 +49,7 @@ export default function BackgroundStep({ backgrounds, state, dispatch }: Backgro
           return (
             <button
               key={bg.id}
+              aria-pressed={selectedBackground?.id === bg.id}
               onClick={() => dispatch({ type: 'selectBackground', background: selectedBackground?.id === bg.id ? null : bg })}
               className={`p-4 border text-left transition-colors ${
                 selectedBackground?.id === bg.id
@@ -81,9 +85,13 @@ export default function BackgroundStep({ backgrounds, state, dispatch }: Backgro
                     {req.label}: choose {req.count} from the options below
                   </p>
                   <div className="flex gap-1.5 flex-wrap">
-                    {req.from.map(option => (
+                    {req.from
+                      .filter(option => !req.key.startsWith('skill_') || !heldBefore.has(option.toLowerCase())
+                        || (bgProfChoices[req.key] ?? []).includes(option))
+                      .map(option => (
                       <button
                         key={option}
+                        aria-pressed={(bgProfChoices[req.key] ?? []).includes(option)}
                         onClick={() => dispatch({ type: 'toggleBgProfChoice', key: req.key, value: option, count: req.count })}
                         className={`px-3 py-1.5 font-heading text-[11px] font-semibold tracking-[0.02em] transition-colors border ${
                           (bgProfChoices[req.key] ?? []).includes(option)
@@ -106,6 +114,7 @@ export default function BackgroundStep({ backgrounds, state, dispatch }: Backgro
                     {req.sets.map((set, i) => (
                       <button
                         key={i}
+                        aria-pressed={bgSetChoices[req.key] === i}
                         onClick={() => dispatch({ type: 'toggleBgSetChoice', key: req.key, index: i })}
                         className={`px-3 py-2 border font-body text-[13px] font-semibold text-left transition-colors ${
                           bgSetChoices[req.key] === i
@@ -126,13 +135,41 @@ export default function BackgroundStep({ backgrounds, state, dispatch }: Backgro
           )}
         </div>
       )}
+      {/* A background skill the character already has is swapped for any other skill (PHB p.125, D226) */}
       {selectedBackground && bgSkillConflicts.length > 0 && (
-        <div className="bg-buff-bg border border-buff-border p-4 mt-4">
-          <h3 className="font-heading text-[15px] font-semibold text-hp-wounded">Skill Proficiency Overlap</h3>
-          <p className="font-body text-[13px] font-semibold text-muted mt-1">
-            The following background skill{bgSkillConflicts.length > 1 ? 's are' : ' is'} already granted by your race or class: <span className="font-semibold text-buff">{bgSkillConflicts.join(', ')}</span>.
-            Per PHB rules, you may choose a different skill proficiency instead. You can adjust this from the character sheet after creation.
-          </p>
+        <div className="bg-buff-bg border border-buff-border p-4 mt-4 space-y-4">
+          <div>
+            <h3 className="font-heading text-[15px] font-semibold text-hp-wounded">Skill Proficiency Overlap</h3>
+            <p className="font-body text-[13px] font-semibold text-muted mt-1">
+              The following background skill{bgSkillConflicts.length > 1 ? 's are' : ' is'} already granted by your race or class: <span className="font-semibold text-buff">{bgSkillConflicts.join(', ')}</span>.
+              Per the PHB, choose a different skill proficiency in place of {bgSkillConflicts.length > 1 ? 'each' : 'it'}.
+            </p>
+          </div>
+          {bgSkillConflicts.map(conflict => {
+            const chosen = state.bgSkillReplacements[conflict];
+            return (
+              <div key={conflict} role="group" aria-label={`Replacement for ${conflict}`}>
+                <p className="font-body text-[13px] font-semibold text-muted mb-2">In place of {conflict}: choose 1</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {bgReplacementOptions(state, conflict).map(option => (
+                    <button
+                      key={option}
+                      aria-pressed={chosen === option}
+                      onClick={() => dispatch({ type: 'setBgSkillReplacement', skill: conflict, replacement: chosen === option ? null : option })}
+                      className={`px-3 py-1.5 font-heading text-[11px] font-semibold tracking-[0.02em] transition-colors border ${
+                        chosen === option ? 'bg-ink text-card border-ink' : 'bg-page text-muted border-rule hover:border-muted'
+                      }`}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {bgSkillConflicts.some(c => !state.bgSkillReplacements[c]) && (
+            <p className="font-body text-[13px] font-semibold text-hp-wounded">Choose a replacement skill to continue</p>
+          )}
         </div>
       )}
       {/* The feat is a Pending Choice, made on the sheet so its effects apply (D159) */}

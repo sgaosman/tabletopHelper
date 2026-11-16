@@ -469,7 +469,31 @@ describe('CharacterSheetPage', () => {
     await user.click(screen.getByTitle('Long Rest'));
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Long Rest' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Gimli needs at least 1 hit point to benefit from a long rest');
+    // In the open dialog, not behind it in the page's alert (D226)
+    const dialog = screen.getByRole('dialog');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Gimli needs at least 1 hit point to benefit from a long rest');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it("shows a refused hit point change's message inside its dialog (D226)", async () => {
+    server.use(
+      http.get('/api/characters/:id', () => HttpResponse.json(hurtFighter)),
+      http.post('/api/characters/:id/hp', () => HttpResponse.json(
+        { error: 'Gimli is in a live encounter' }, { status: 409 })),
+    );
+    renderSheet();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Damage' }));
+    const dialog = screen.getByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Amount'), '5');
+    await user.click(within(dialog).getByRole('button', { name: 'Take Damage' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Gimli is in a live encounter');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
   });
 
   it("shows the AC breakdown, and the server's message when it refuses a second armour (M13.5)", async () => {

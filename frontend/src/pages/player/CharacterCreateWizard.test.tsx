@@ -150,13 +150,14 @@ describe('CharacterCreateWizard drafts', () => {
 
   /**
    * Goes back to the Class step and on again, which the restored class must allow, then on through the Equipment step
-   * and creates the character.
+   * and creates the character. The draft's choices left nothing incomplete before the Background step, so it opens
+   * there (D226).
    */
   async function checkClassAndCreate(user: ReturnType<typeof userEvent.setup>) {
     expect(await screen.findByText('Choose a Background')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Acolyte/ })).toHaveClass('border-ink');
+    expect(screen.getByRole('button', { name: /^Acolyte/ })).toHaveAttribute('aria-pressed', 'true');
     await user.click(screen.getByRole('button', { name: /Previous/ }));
-    expect(screen.getByRole('button', { name: /^Fighter/ })).toHaveClass('border-ink');
+    expect(screen.getByRole('button', { name: /^Fighter/ })).toHaveAttribute('aria-pressed', 'true');
     await waitFor(() => expect(screen.getByRole('button', { name: /Next/ })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: /Next/ }));
     await user.click(screen.getByRole('button', { name: /Next/ }));
@@ -175,6 +176,37 @@ describe('CharacterCreateWizard drafts', () => {
 
     await checkClassAndCreate(user);
     expect(created).toEqual(RESTORED_REQUEST);
+  });
+
+  it("doesn't overwrite the stored draft while the Restore banner shows (D226)", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await screen.findByRole('button', { name: 'Restore' });
+
+    await user.type(screen.getByPlaceholderText('Enter character name'), 'Someone else');
+
+    expect(localStorage.getItem('characterWizardDraft')).toBe(SAVED_DRAFT);
+    await user.click(screen.getByRole('button', { name: 'Restore' }));
+    expect(await screen.findByText('Choose a Background')).toBeInTheDocument();
+  });
+
+  it("opens a restored draft on the first step whose choices the restore cleared (D226)", async () => {
+    // A Fighter that chooses two skills, which the draft doesn't keep
+    const fighter = { ...wizard, id: 'cls-fighter', name: 'Fighter', isSpellcaster: false, isPreparedCaster: false,
+      spellcastingAbility: null, skillChoices: JSON.stringify({ count: 2, from: ['Athletics', 'Survival', 'Perception'] }) };
+    server.use(
+      http.get('/api/reference/backgrounds', () => HttpResponse.json([acolyte])),
+      http.get('/api/reference/classes', () => HttpResponse.json([fighter])),
+    );
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.click(await screen.findByRole('button', { name: 'Restore' }));
+
+    expect(await screen.findByText('Choose a Class')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Fighter/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /Next/ })).toBeDisabled();
+    expect(screen.getByText('Select 2 more skills to continue')).toBeInTheDocument();
   });
 
   it('restores the race, class and background when Restore is pressed before their lists have loaded', async () => {

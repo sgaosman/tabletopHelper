@@ -101,7 +101,9 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
           {SKILLS.map(skill => {
             const mod = abilityMod(char[skill.ability]);
             const isProficient = skillProfs.some(s => s.toLowerCase() === skill.name.toLowerCase());
-            const isExpert = skillExpertises.some(s => s.toLowerCase() === skill.name.toLowerCase());
+            // Expertise doubles the proficiency bonus of a skill the character is proficient in (PHB p.96), so it
+            // counts only alongside proficiency (D226)
+            const isExpert = isProficient && skillExpertises.some(s => s.toLowerCase() === skill.name.toLowerCase());
             const bonus = mod + (isExpert ? char.proficiencyBonus * 2 : isProficient ? char.proficiencyBonus : 0);
             return (
               <div key={skill.name} className="flex items-center gap-2 py-0.5">

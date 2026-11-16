@@ -77,6 +77,30 @@ describe('LevelUpModal', () => {
     expect(queryClient.getQueryData(queryKeys.characters.detail('char-001'))).toEqual(response.character);
   });
 
+  it("can't be closed while the level is being added (D226)", async () => {
+    let release = () => {};
+    const held = new Promise<void>(resolve => { release = resolve; });
+    server.use(
+      http.post('/api/characters/:id/level-up', async () => {
+        await held;
+        return HttpResponse.json({ character: makeMockCharacter('char-001', 'Gimli', 'Fighter', 6), newFeatures: [] });
+      }),
+    );
+    const onClose = vi.fn();
+    render(<LevelUpModal character={character} onComplete={() => {}} onClose={onClose} />);
+    const user = userEvent.setup();
+    const confirm = screen.getByRole('button', { name: 'Level Up' });
+    await waitFor(() => expect(confirm).toBeEnabled());
+
+    await user.click(confirm);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled());
+    expect(screen.getByRole('button', { name: 'Close' })).toBeDisabled();
+    await user.keyboard('{Escape}');
+    expect(onClose).not.toHaveBeenCalled();
+    release();
+  });
+
   it('shows the server\'s message when the level-up is refused', async () => {
     server.use(
       http.post('/api/characters/:id/level-up', () =>

@@ -1,6 +1,10 @@
 import type { Background, CharacterClassRef, Race, Spell, Subclass } from '../../../types/reference';
 import { ABILITIES, safeJsonParse } from '../../../utils/dndRules';
 import type { AbilityScores, ClassEntry } from './types';
+import {
+  bgChoiceReqs, bgReplacementOptions, bgSkillConflicts, firstIncompleteStep, heldSkills, multiclassSkillsTaken,
+  raceSkills, skillsBeforeBackground,
+} from './selectors';
 
 export type AbilityMethod = 'standard' | 'pointbuy' | 'manual';
 
@@ -40,6 +44,11 @@ export interface WizardState {
   selectedBackground: Background | null;
   bgProfChoices: Record<string, string[]>;
   bgSetChoices: Record<string, number | null>;
+  /**
+   * The skill chosen in place of each background skill the race or a class already gives, by that skill
+   * (PHB p.125, D226).
+   */
+  bgSkillReplacements: Record<string, string>;
 
   /**
    * The starting equipment's choices (PHB p.143): the option chosen on each line that offers a choice, by
@@ -77,6 +86,8 @@ export interface WizardRefs {
   races: Race[];
   classes: CharacterClassRef[];
   backgrounds: Background[];
+  /** The draft class's subclasses, when they have loaded, so its entry is made with the draft */
+  subclasses?: Subclass[];
 }
 
 export const initialWizardState: WizardState = {
@@ -104,6 +115,7 @@ export const initialWizardState: WizardState = {
   selectedBackground: null,
   bgProfChoices: {},
   bgSetChoices: {},
+  bgSkillReplacements: {},
   equipmentOptions: {},
   equipmentPicks: {},
   startingGold: null,
@@ -137,6 +149,7 @@ export type WizardAction =
   | { type: 'selectBackground'; background: Background | null }
   | { type: 'toggleBgProfChoice'; key: string; value: string; count: number }
   | { type: 'toggleBgSetChoice'; key: string; index: number }
+  | { type: 'setBgSkillReplacement'; skill: string; replacement: string | null }
   | { type: 'chooseEquipmentOption'; key: string; option: string }
   | { type: 'pickEquipment'; key: string; index: number; count: number; itemId: string }
   | { type: 'setStartingGold'; gold: number | null }
@@ -216,12 +229,74 @@ function keepMulticlassSkills(selections: Record<string, string[]>, entries: Cla
   return kept.length === Object.keys(selections).length ? selections : Object.fromEntries(kept);
 }
 
+/** `next`, or `current` when they hold the same strings in the same order, so an unchanged list keeps its identity. */
+function sameOr(current: string[], next: string[]): string[] {
+  return current.length === next.length && current.every((v, i) => v === next[i]) ? current : next;
+}
+
+/**
+ * Keeps the skill choices consistent after any change (D226). A skill is held once: a class skill the race now
+ * gives is dropped, as is a multiclass's skill the race or another class gives and a background's chosen skill the
+ * race or a class gives. A background skill's replacement is dropped once that skill no longer conflicts or the
+ * replacement is held another way (PHB p.125), and Expertise goes with a skill no longer held (PHB p.96).
+ */
+export function reconcileSkills(state: WizardState): WizardState {
+  let s = state;
+  const race = raceSkills(s);
+  const classSkills = sameOr(s.selectedClassSkills, s.selectedClassSkills.filter(k => !race.has(k.toLowerCase())));
+  if (classSkills !== s.selectedClassSkills) s = { ...s, selectedClassSkills: classSkills };
+
+  let mcChanged = false;
+  const mc: Record<string, string[]> = {};
+  for (const [classId, skills] of Object.entries(s.mcSkillSelections)) {
+    const taken = multiclassSkillsTaken({ ...s, mcSkillSelections: mc }, classId);
+    mc[classId] = sameOr(skills, skills.filter(k => !taken.has(k.toLowerCase())));
+    if (mc[classId] !== skills) mcChanged = true;
+  }
+  if (mcChanged) s = { ...s, mcSkillSelections: mc };
+
+  const before = skillsBeforeBackground(s);
+  let bgChanged = false;
+  const bgProfChoices = { ...s.bgProfChoices };
+  for (const req of bgChoiceReqs(s.selectedBackground)) {
+    if (!req.key.startsWith('skill_') || req.type !== 'choose') continue;
+    const chosen = bgProfChoices[req.key] ?? [];
+    const kept = sameOr(chosen, chosen.filter(k => !before.has(k.toLowerCase())));
+    if (kept !== chosen) { bgProfChoices[req.key] = kept; bgChanged = true; }
+  }
+  if (bgChanged) s = { ...s, bgProfChoices };
+
+  const conflicts = bgSkillConflicts(s);
+  const replacements: Record<string, string> = {};
+  for (const conflict of conflicts) {
+    const chosen = s.bgSkillReplacements[conflict];
+    if (chosen && bgReplacementOptions({ ...s, bgSkillReplacements: replacements }, conflict).includes(chosen)) {
+      replacements[conflict] = chosen;
+    }
+  }
+  const previous = Object.entries(s.bgSkillReplacements);
+  if (previous.length !== Object.keys(replacements).length || previous.some(([k, v]) => replacements[k] !== v)) {
+    s = { ...s, bgSkillReplacements: replacements };
+  }
+
+  const held = new Set(heldSkills(s).map(k => k.toLowerCase()));
+  const expertise = sameOr(s.selectedExpertise, s.selectedExpertise.filter(k => held.has(k.toLowerCase())));
+  if (expertise !== s.selectedExpertise) s = { ...s, selectedExpertise: expertise };
+  return s;
+}
+
 /**
  * The wizard's state changes. Each action makes its own resets: a new race clears the race's choices and
  * re-seeds its bonuses, a new class clears its subclass, skills, Expertise and spells, a new background clears
  * the background's choices, each with its starting equipment's, and a new character level rebalances the class levels.
+ * After any change the skill choices are made consistent again (reconcileSkills, D226).
  */
 export function wizardReducer(state: WizardState, action: WizardAction): WizardState {
+  const next = applyAction(state, action);
+  return next === state ? state : reconcileSkills(next);
+}
+
+function applyAction(state: WizardState, action: WizardAction): WizardState {
   switch (action.type) {
     case 'setStep':
       return { ...state, step: action.step };
@@ -335,7 +410,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
       return { ...state, bgSearch: action.search };
     case 'selectBackground':
       return {
-        ...state, selectedBackground: action.background, bgProfChoices: {}, bgSetChoices: {},
+        ...state, selectedBackground: action.background, bgProfChoices: {}, bgSetChoices: {}, bgSkillReplacements: {},
         equipmentOptions: withoutOwner(state.equipmentOptions, 'background'),
         equipmentPicks: withoutOwner(state.equipmentPicks, 'background'),
       };
@@ -352,6 +427,11 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         ...state,
         bgSetChoices: { ...state.bgSetChoices, [action.key]: state.bgSetChoices[action.key] === action.index ? null : action.index },
       };
+    case 'setBgSkillReplacement': {
+      const rest = { ...state.bgSkillReplacements };
+      delete rest[action.skill];
+      return { ...state, bgSkillReplacements: action.replacement ? { ...rest, [action.skill]: action.replacement } : rest };
+    }
 
     case 'chooseEquipmentOption':
       return { ...state, equipmentOptions: { ...state.equipmentOptions, [action.key]: action.option } };
@@ -376,7 +456,9 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
 /**
  * Applies a saved draft over the state. Each field the draft has replaces the state's; the race, class and
  * background are looked up by ID and chosen as the player would choose them, with the same resets. A class still
- * needs its subclasses, through primaryClassLoaded.
+ * needs its subclasses, through primaryClassLoaded. Those resets clear the race's, class's and background's
+ * choices, which a draft doesn't keep, so the wizard opens on the saved step or the first step before it whose
+ * choices are now incomplete (D226).
  */
 function restoreDraft(state: WizardState, d: Partial<WizardDraft>, refs: WizardRefs): WizardState {
   let s = state;
@@ -391,7 +473,10 @@ function restoreDraft(state: WizardState, d: Partial<WizardDraft>, refs: WizardR
   if (race) s = wizardReducer(s, { type: 'selectRace', race });
   const cls = d.classId ? refs.classes.find(c => c.id === d.classId) : undefined;
   if (cls) s = wizardReducer(s, { type: 'selectClass', cls });
+  if (cls && refs.subclasses) s = wizardReducer(s, { type: 'primaryClassLoaded', cls, subclasses: refs.subclasses });
   const background = d.backgroundId ? refs.backgrounds.find(b => b.id === d.backgroundId) : undefined;
   if (background) s = wizardReducer(s, { type: 'selectBackground', background });
+  const incomplete = firstIncompleteStep(s);
+  if (incomplete != null && incomplete < s.step) s = { ...s, step: incomplete };
   return s;
 }

@@ -17,6 +17,19 @@ function renderStep(overrides: Partial<WizardState> = {}) {
   return render(<RaceStep races={[orc, halfElf]} state={state} dispatch={() => {}} />);
 }
 
+describe('RaceStep layout and state (D226)', () => {
+  it('lays the six ability buttons in a six-column grid that fits a phone, each saying whether it is chosen', () => {
+    renderStep({ selectedRace: orc, bonusAssignments: [{ bonus: 2, ability: 'strength' }] });
+
+    const str = screen.getByRole('button', { name: 'STR' });
+    expect(str).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'DEX' })).toHaveAttribute('aria-pressed', 'false');
+    expect(str.parentElement).toHaveClass('grid', 'grid-cols-6', 'max-w-[290px]');
+    expect(screen.getByRole('button', { name: /^Orc/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^Half-Elf/ })).toHaveAttribute('aria-pressed', 'false');
+  });
+});
+
 describe('RaceStep', () => {
   it("shows a race card's negative ability bonus with its own sign", () => {
     renderStep();

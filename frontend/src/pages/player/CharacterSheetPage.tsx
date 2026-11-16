@@ -265,7 +265,13 @@ export default function CharacterSheetPage() {
     });
   }
 
+  function openRestModal(kind: 'short' | 'long') {
+    setError('');
+    setRestModal(kind);
+  }
+
   function closeRestModal() {
+    setError('');
     setRestModal(null);
     setShortRestDice({});
     setShortRestRolls({});
@@ -298,14 +304,27 @@ export default function CharacterSheetPage() {
   async function handleLongRest() {
     if (!char) return;
     if (await runCommand(longRest.mutateAsync({ characterId: char.id }), 'Long rest taken')) {
-      setRestModal(null);
+      closeRestModal();
     }
   }
 
   function openHitPointDialog(change: HitPointChange) {
+    setError('');
     setHitPointAmount('');
     setHitPointDialog(change);
   }
+
+  function closeHitPointDialog() {
+    setError('');
+    setHitPointDialog(null);
+  }
+
+  // A command sent from the hit point or rest dialog shows its error in that dialog, where the player is looking,
+  // not in the page's alert behind it (D226)
+  const commandDialogOpen = hitPointDialog !== null || restModal !== null;
+  const dialogError = error && commandDialogOpen
+    ? <p role="alert" className="bg-debuff-bg border border-debuff text-debuff p-3 font-body text-[14px] font-semibold">{error}</p>
+    : null;
 
   const hitPointValue = wholeNumber(hitPointAmount);
   const hitPointAmountValid = hitPointValue !== undefined && !Number.isNaN(hitPointValue) && hitPointValue >= 1;
@@ -316,7 +335,7 @@ export default function CharacterSheetPage() {
     if (await runCommand(changeHitPoints.mutateAsync({
       characterId: char.id, change: { kind: hitPointDialog, amount: hitPointValue },
     }))) {
-      setHitPointDialog(null);
+      closeHitPointDialog();
     }
   }
 
@@ -409,11 +428,11 @@ export default function CharacterSheetPage() {
               <ChevronUp className="w-4 h-4" />
             </IconButton>
             <div className="w-px h-5 bg-rule mx-1" />
-            <IconButton label="Short Rest" onClick={() => setRestModal('short')} disabled={waitingForEncounter || dead}
+            <IconButton label="Short Rest" onClick={() => openRestModal('short')} disabled={waitingForEncounter || dead}
               className="p-2 text-cls-monk hover:bg-page-alt transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
               <Moon className="w-4 h-4" />
             </IconButton>
-            <IconButton label="Long Rest" onClick={() => setRestModal('long')} disabled={waitingForEncounter || dead}
+            <IconButton label="Long Rest" onClick={() => openRestModal('long')} disabled={waitingForEncounter || dead}
               className="p-2 text-cls-wizard hover:bg-page-alt transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
               <Sun className="w-4 h-4" />
             </IconButton>
@@ -545,7 +564,7 @@ export default function CharacterSheetPage() {
 
       {/* Error / Success */}
       <div className="max-w-5xl mx-auto px-4">
-        {error && <div role="alert" className="bg-debuff-bg border border-debuff text-debuff p-3 mt-4 font-body text-[15px] font-semibold">{error}</div>}
+        {error && !commandDialogOpen && <div role="alert" className="bg-debuff-bg border border-debuff text-debuff p-3 mt-4 font-body text-[15px] font-semibold">{error}</div>}
         {success && <div role="status" className="bg-buff-bg border border-buff text-buff p-3 mt-4 font-body text-[15px] font-semibold whitespace-pre-line">{success}</div>}
       </div>
 
@@ -627,11 +646,11 @@ export default function CharacterSheetPage() {
         <Modal
           title={HIT_POINT_DIALOGS[hitPointDialog].title}
           size="sm"
-          onClose={() => setHitPointDialog(null)}
+          onClose={closeHitPointDialog}
           dismissible={!changeHitPoints.isPending}
           footer={(
             <>
-              <Button variant="secondary" className="flex-1" onClick={() => setHitPointDialog(null)}
+              <Button variant="secondary" className="flex-1" onClick={closeHitPointDialog}
                 disabled={changeHitPoints.isPending}>Cancel</Button>
               <Button className="flex-1" onClick={handleHitPoints} disabled={!hitPointAmountValid}
                 loading={changeHitPoints.isPending}>{HIT_POINT_DIALOGS[hitPointDialog].action}</Button>
@@ -639,6 +658,7 @@ export default function CharacterSheetPage() {
           )}
         >
           <form onSubmit={e => { e.preventDefault(); void handleHitPoints(); }} className="space-y-2">
+            {dialogError}
             <Input label="Amount" type="number" inputMode="numeric" min={1} autoFocus value={hitPointAmount}
               onChange={e => setHitPointAmount(e.target.value)} />
             <p className="font-body text-[13px] text-faint">
@@ -670,6 +690,7 @@ export default function CharacterSheetPage() {
             </>
           )}
         >
+          {dialogError && <div className="mb-3">{dialogError}</div>}
           {restModal === 'short' ? (
             <div className="space-y-3">
               <p className="font-body text-[15px] font-semibold text-muted">

@@ -38,11 +38,29 @@ describe('AbilityScoresStep point buy', () => {
   it('keeps your point buy choices if you click Point Buy again', async () => {
     render(<Harness />);
     await userEvent.click(screen.getByRole('button', { name: 'Point Buy' }));
-    await userEvent.click(screen.getAllByRole('button', { name: '+' })[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'Raise Strength' }));
 
     await userEvent.click(screen.getByRole('button', { name: 'Point Buy' }));
 
     expect(screen.getByText('9', { exact: true })).toBeInTheDocument();
     expect(screen.getAllByText('8', { exact: true })).toHaveLength(5);
+  });
+});
+
+describe('AbilityScoresStep accessibility (D226)', () => {
+  it("ties each ability's label to its control and names the point-buy buttons", async () => {
+    render(<Harness />);
+    expect(screen.getByRole('combobox', { name: 'STR' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Standard Array' })).toHaveAttribute('aria-pressed', 'true');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Point Buy' }));
+    expect(screen.getByRole('button', { name: 'Point Buy' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Raise Dexterity' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Raise Dexterity' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Lower Dexterity' }));
+    expect(screen.getByRole('group', { name: 'DEX' })).toHaveTextContent('9');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Manual' }));
+    expect(screen.getByRole('spinbutton', { name: 'WIS' })).toHaveValue(8);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { Route, Routes } from 'react-router-dom';
@@ -675,6 +675,8 @@ describe('CharacterCreateWizard requests', { timeout: 20_000 }, () => {
     await clickAll(user, ['Athletics', 'Survival']);
     await next(user);
     await user.click(await screen.findByRole('button', { name: /^Soldier/ }));
+    // The Fighter already has the Soldier's Athletics, so another skill takes its place (PHB p.125, D226)
+    await user.click(within(screen.getByRole('group', { name: 'Replacement for Athletics' })).getByRole('button', { name: 'Stealth' }));
     await next(user);
     await next(user); // Starting equipment: none for this class and background
     // The first class casts no spells, so there is no Spells step
@@ -749,6 +751,7 @@ describe('CharacterCreateWizard requests', { timeout: 20_000 }, () => {
           "Athletics",
           "Survival",
           "Intimidation",
+          "Stealth",
         ],
         "strength": 16,
         "toolProficiencies": [

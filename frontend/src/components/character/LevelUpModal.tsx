@@ -45,9 +45,11 @@ export default function LevelUpModal({ character, onComplete, onClose }: Props) 
       title="Level Up"
       subtitle={<>Level {character.level} {'→'} Level {newCharLevel}</>}
       onClose={onClose}
+      // The dialog stays open while the level is being added, so the request can't be abandoned mid-way (D226)
+      dismissible={!levelUp.isPending}
       footer={(
         <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" onClick={onClose} disabled={levelUp.isPending}>Cancel</Button>
           <Button onClick={handleConfirm} loading={submitting} disabled={!selectedClassId || loading}>
             {submitting ? 'Leveling up...' : 'Level Up'}
           </Button>
