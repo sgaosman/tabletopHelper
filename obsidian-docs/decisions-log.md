@@ -4095,3 +4095,42 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D177, D182, D201, D203, D204, D206; roadmap M15
 
 **Tests:** 7 more in `SummonServiceTest` (grapples ending on each way out, a summon's own Hold Person ending with it, prone and a timed poison staying), 1 more in `EncounterServiceTest`, new `SummonCascadeIT` (2: Conjure Animals' giant constrictor snake grappling and restraining an ogre, freed when the druid loses concentration and when the DM dismisses the snake mid-spell); 3,479 backend unit, 541 integration and 1,208 frontend tests.
+
+
+## D208: Racial Resource Pools
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (migration V37; resource-pool content reload; backfill job owed)
+
+**Context:** roadmap M24.5b planned racial features with limited uses as resource pools, like class features ([[#D125]], [[#D178]]). An audit found it never built: only racial spells with their own uses were pools (`innate:<spell>`, [[#D165]]), no racial feature was automated anywhere, and no draconic ancestry was stored. Built during the user's overnight run of 2026-11-16, so the calls are the lead's, recorded for review.
+
+**Decision:**
+- **Data:** V37 adds `race_feature_pools` (race, minimum total level, pool; unique on race and pool, deleted with its race), loaded from a new `racePools` list in `resource-pools.json` naming each race row exactly, subraces one by one; the resource-pool loader moves to version 3. 27 RACE pool definitions, 39 links. Pool metadata gains `effect`, `tempHp` and `healing` formulas, `rider`, `note` and `regain`. MPMM versions are separate `-pb` pools whose uses equal the proficiency bonus and come back on a long rest.
+- **Attaching:** `ResourcePoolService.reconciledPools` adds the race's pools with sourceType RACE and the race as source name; a race change drops them through the existing orphan removal. The sheet and both encounter pages show them with no filter, and the reaction menu lists the reaction ones.
+- **Automated** (`RaceFeatureEffects`, with the ancestry table, breath dice and save DC in `rules/combat/RacialFeatures`):
+  - **Breath Weapon** (PHB Dragonborn, Draconblood and Ravenite, EGW): an action against creatures the player picks (no map), a Dexterity or Constitution save by ancestry at DC 8 + CON + proficiency, 2d6 rising to 3d6, 4d6 and 5d6 at total levels 6, 11 and 16, half on a success, through resistances and immunities.
+  - **Relentless Endurance** (Half-Orc, Orc of Ixalan, Minotaur of Amonkhet, MPMM Orc): fires by itself in `EffectApplier.takeDamage` when damage would drop the character to 0 hit points without killing it outright.
+  - **Stone's Endurance** (Goliath), **Healing Hands** (Aasimar), **Hidden Step** (Firbolg), **Hungry Jaws** (Lizardfolk), **Shifting** (Shifters and their four subraces, temporary hit points, a minute's "shifted" entry and Beasthide's extra 1d6), **Daunting Roar** (Leonin, deafened creatures unaffected) and **Necrotic Shroud** (Fallen Aasimar, the Charisma save and frightened).
+- **An entry and a note:** Radiant Soul and Radiant Consumption; the extra damage of all three Aasimar transformations is added by hand.
+- **Note only** (spend and log): Fey Step, Blessing of the Raven Queen, Fury of the Small, Saving Face, Grovel, Cower, and Beg, and Feline Agility.
+- **Draconic ancestry:** a new Pending Choice, `DRACONIC_ANCESTRY`, owed by any race with the Draconic Ancestry trait. The creation wizard asks for the dragon in place of the resistance and the server grants the matching resistance; otherwise the choice waits on the sheet (`DraconicAncestryModal`). `backfill-pending-choices` gives existing dragonborn the choice, offering the dragons whose damage type they already resist. A breath with no ancestry recorded lets the player name the dragon. The wizard no longer sends the text "choose: acid, cold, …" as a resistance.
+- **Skipped:** the Mark of Finding half-orc (its data replaces Relentless Endurance), FTD dragonborn (a different breath), MPMM Aasimar, Hobgoblin Fortune from the Many, Kobold Draconic Cry and Orc Adrenaline Rush (different effects), and races whose features are already innate spell pools.
+
+**Rules calls (the lead's, to confirm):**
+1. Relentless Endurance fires automatically; not when massive damage kills outright, after Death Ward, or before a Wild Shape form drops (it then applies to the damage carried over).
+2. Stone's Endurance takes the damage just taken from the player, since nothing records the last hit; the roll heals, capped at that damage.
+3. Hidden Step's invisibility ends on an attack or a spell, as Invisibility does, not on any damage or forced save.
+4. Feline Agility doesn't come back by itself (`resetOn: never`): a Regain option gives it back after a turn without moving, and a long rest restores it.
+5. Hungry Jaws' temporary hit points come only when the player reports the bite hit; the bite is rolled on the attack form.
+6. The Shifter subrace riders and the transformations' extra damage are notes; Beasthide's +1 AC is the DM's.
+7. MPMM's Fury of the Small also requires a larger creature.
+8. Draconblood and Ravenite dragonborn keep the Breath Weapon and resistance.
+9. Choosing an ancestry later adds its resistance but leaves an earlier different resistance in place.
+
+**Real database:** V37 applies on its next start and the resource-pool content reloads; sheets pick up race pools on their next character command or through `recompute-characters`; `backfill-pending-choices` (dry run first) gives existing dragonborn their ancestry choice.
+
+**Key files:** `db/migration/V37__race_feature_pools.sql`, `reference/RaceFeaturePool.java`, `data/content/resource-pools.json`, `content/internal/ResourcePoolLoader.java`, `resourcepool/ResourcePoolService.java`, `rules/combat/RacialFeatures.java`, `encounter/internal/RaceFeatureEffects.java`, `FeatureEffects.java`, `PoolUseService.java`, `EffectApplier.java`, `character/DraconicAncestries.java`, `PendingChoiceService.java`, `maintenance/BackfillPendingChoicesJob.java`, `components/character/DraconicAncestryModal.tsx`, `utils/draconicAncestry.ts`, `utils/classFeatures.ts`, `pages/player/wizard/selectors.ts`
+
+**Related:** D125, D165, D178, D201; roadmap M24.5b; glossary: Draconic Ancestry, Racial Pool
+
+**Tests:** new `RaceFeatureEffectsTest`, `RacialPoolsIT`, `DraconicAncestryModal.test.tsx` and `draconicAncestry.test.ts`, with additions to the loader, pool service, pool sizes, pending choice, Wild Shape, migration, content load and snapshot tests and the wizard selectors; 3,488 backend unit, 540 integration and 1,221 frontend tests on its branch. Checked in the browser on the rehearsal copy: V37 applied and 39 race links loaded; the wizard offered the ten dragons for a PHB dragonborn in place of the resistance; the new character had a 1/1 Breath Weapon pool and fire resistance; its breath at a guard and a red dragon wyrmling rolled DEX saves at DC 12, 4 fire (half) to the guard and 0 to the immune wyrmling, leaving 0/1.

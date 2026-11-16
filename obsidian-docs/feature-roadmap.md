@@ -882,13 +882,13 @@ A `resource_pools` JSONB column on `player_characters` and `resource_pools_curre
 
 ## Milestone 24.5b: Racial Resource Pools
 
-**Status (audit 2026-11-16):** not built. Only racial spells with their own uses are pools (`innate:<spell>`, sourceType RACE, D165); racial features such as Breath Weapon, Relentless Endurance or Fey Step have no pools yet.
+**Status (2026-11-16):** implemented as [[decisions-log#D208]] (V37 `race_feature_pools`, 27 racial pools, draconic ancestry as a Pending Choice); the roadmap's "Flyway V9" became V37.
 
 **Goal:** Extend the M24.5 resource pool system to cover racial features with limited uses (Dragonborn Breath Weapon, Firbolg Hidden Step, Eladrin Fey Step, etc.), bringing them into the same unified pool lifecycle as class features.
 
 **Backend tasks:**
-- [ ] Add `race_feature_pools` junction table (mirrors `class_feature_pools` but links to `races` table) — Flyway V9
-- [ ] Seed 8–12 racial resource pool definitions from M7 race-trait analysis data:
+- [x] Add `race_feature_pools` junction table (mirrors `class_feature_pools` but links to `races` table) — Flyway V9 — done (D208)
+- [x] Seed 8–12 racial resource pool definitions from M7 race-trait analysis data: — done (D208)
   - Dragonborn Breath Weapon (metallic/chromatic/gem variants use `metadata` for damage type/shape)
   - Firbolg Hidden Step and Firbolg Magic
   - Aasimar Healing Hands and Radiant Soul/Necrotic Shroud/Radiant Consumption
@@ -897,13 +897,13 @@ A `resource_pools` JSONB column on `player_characters` and `resource_pools_curre
   - Goliath Stone's Endurance
   - Aarakocra Gust of Wind
   - Genasi racial spells (if tracked as pools)
-- [ ] Extend `syncPoolsForCharacter()` to merge race-origin pools alongside class-origin pools (union of both junction tables)
-- [ ] Handle race reassignment: orphaned pools removed on race change, new race's pools added
-- [ ] Tests: racial pool seeding, sync with race present, race-swap cleanup
+- [x] Extend `syncPoolsForCharacter()` to merge race-origin pools alongside class-origin pools (union of both junction tables) — done (D208)
+- [x] Handle race reassignment: orphaned pools removed on race change, new race's pools added — done (D208)
+- [x] Tests: racial pool seeding, sync with race present, race-swap cleanup — done (D208)
 
 **Frontend tasks:**
-- [ ] ResourcePoolDisplay shows `sourceType="RACE"` pools alongside class pools on character sheet
-- [ ] Race pools surface on encounter participant cards
+- [x] ResourcePoolDisplay shows `sourceType="RACE"` pools alongside class pools on character sheet — done (D208)
+- [x] Race pools surface on encounter participant cards — done (D208)
 
 **Scope boundary:** Subrace variants (e.g., different dragonborn ancestries with different breath shapes) use `metadata` on the same `poolId` to store variant-specific config rather than separate pool definitions. Racial spellcasting (Drow innate spells, Tiefling Hellish Rebuke) stays in `spellsKnown` per existing precedent — limited-use spells are not pools.
 
