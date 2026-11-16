@@ -129,6 +129,25 @@ class CreatureStatsTest {
     }
 
     @Test
+    @DisplayName("A petrified creature resists every damage type, is immune to poison damage and can't be poisoned "
+            + "(PHB p.291, D224)")
+    void petrifiedDefences() {
+        EncounterParticipant fighter = f.player("Fighter", 30, 18);
+        fighter.getCharacter().setDamageResistances(List.of("fire"));
+        assertEquals(Set.of(), f.stats.defences(fighter, "slashing"));
+        assertFalse(f.stats.immuneToCondition(fighter, "poisoned"));
+
+        f.effectApplier.addCondition(f.encounter, fighter, "petrified", null);
+
+        assertEquals(Set.of(Defence.RESISTANCE), f.stats.defences(fighter, "slashing"));
+        assertEquals(Set.of(Defence.RESISTANCE), f.stats.defences(fighter, "fire"));
+        assertEquals(Set.of(Defence.RESISTANCE, Defence.IMMUNITY), f.stats.defences(fighter, "poison"));
+        assertTrue(f.stats.immuneToCondition(fighter, "poisoned"));
+        assertFalse(f.stats.immuneToCondition(fighter, "blinded"));
+        assertEquals(Set.of(), f.stats.defences(fighter, null));
+    }
+
+    @Test
     @DisplayName("A player character's defences come from its sheet, its race's, features' and feats' alike (D161)")
     void playerDefences() {
         EncounterParticipant tiefling = f.player("Tiefling", 30, 12);

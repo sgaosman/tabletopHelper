@@ -59,6 +59,19 @@ describe('ConditionForm', () => {
       expect(screen.queryByLabelText('Frightened of')).not.toBeInTheDocument();
     });
 
+    it('asks who the charmer is for charmed, and sends it (D224)', async () => {
+      const onSubmit = vi.fn().mockResolvedValue(undefined);
+      const user = userEvent.setup();
+      render(<ConditionForm onSubmit={onSubmit} sources={sources} />);
+
+      await user.selectOptions(screen.getByLabelText('Condition'), 'charmed');
+      expect(screen.queryByLabelText('Frightened of')).not.toBeInTheDocument();
+      await user.selectOptions(screen.getByLabelText('Charmed by'), 'Mage');
+      await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+      expect(onSubmit).toHaveBeenCalledWith('charmed', undefined, 'mage');
+    });
+
     it('sends no source for "No one in particular", nor for another condition chosen after', async () => {
       const onSubmit = vi.fn().mockResolvedValue(undefined);
       const user = userEvent.setup();

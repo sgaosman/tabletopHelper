@@ -31,6 +31,9 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param deftStrikeOffered     the attacker may follow it with Deft Strike: a Way of the Kensei monk of 6th level or
  *                              more, after a hit with a kensei weapon on its own turn (XGE p.34). Written only when true
  * @param deftStrikeUsed        Deft Strike has followed it. Written only when true
+ * @param leftoverAtZero        for a player character the hit found at 0 hit points or dropped there, the damage past 0,
+ *                              with that of what has followed it; the smite's damage joins it for massive damage and
+ *                              gives no death save failures of its own (PHB p.197, D224). Null otherwise
  */
 public record WeaponHit(
         @Schema(requiredMode = REQUIRED) String turn,
@@ -45,7 +48,17 @@ public record WeaponHit(
         @JsonInclude(JsonInclude.Include.NON_NULL) ConcentrationCheck concentrationCheck,
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean ranged,
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean deftStrikeOffered,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean deftStrikeUsed) {
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean deftStrikeUsed,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Integer leftoverAtZero) {
+
+    /** A hit as recorded before the damage past 0 hit points was (D224). */
+    public WeaponHit(String turn, UUID attackLogId, UUID targetId, String weapon, boolean critical,
+                     boolean divineSmiteOffered, boolean stunningStrikeOffered, boolean smitten,
+                     boolean stunningStrikeUsed, ConcentrationCheck concentrationCheck, boolean ranged,
+                     boolean deftStrikeOffered, boolean deftStrikeUsed) {
+        this(turn, attackLogId, targetId, weapon, critical, divineSmiteOffered, stunningStrikeOffered, smitten,
+                stunningStrikeUsed, concentrationCheck, ranged, deftStrikeOffered, deftStrikeUsed, null);
+    }
 
     /** A melee hit that Deft Strike doesn't follow, as recorded before Deft Strike was. */
     public WeaponHit(String turn, UUID attackLogId, UUID targetId, String weapon, boolean critical,
@@ -77,30 +90,40 @@ public record WeaponHit(
     public WeaponHit withTurn(String newTurn) {
         return new WeaponHit(newTurn, attackLogId, targetId, weapon, critical, divineSmiteOffered,
                 stunningStrikeOffered, smitten, stunningStrikeUsed, concentrationCheck, ranged, deftStrikeOffered,
-                deftStrikeUsed);
+                deftStrikeUsed, leftoverAtZero);
     }
 
     /** The same hit, with the concentration check its damage made the creature hit roll, or null for none. */
     public WeaponHit withConcentrationCheck(ConcentrationCheck check) {
         return new WeaponHit(turn, attackLogId, targetId, weapon, critical, divineSmiteOffered, stunningStrikeOffered,
-                smitten, stunningStrikeUsed, check, ranged, deftStrikeOffered, deftStrikeUsed);
+                smitten, stunningStrikeUsed, check, ranged, deftStrikeOffered, deftStrikeUsed, leftoverAtZero);
+    }
+
+    /**
+     * The same hit, with its damage past 0 hit points to a player character it found at 0 or dropped there, or null
+     * (D224).
+     */
+    public WeaponHit withLeftoverAtZero(Integer leftover) {
+        return new WeaponHit(turn, attackLogId, targetId, weapon, critical, divineSmiteOffered, stunningStrikeOffered,
+                smitten, stunningStrikeUsed, concentrationCheck, ranged, deftStrikeOffered, deftStrikeUsed, leftover);
     }
 
     /** The same hit, once Divine Smite has followed it. */
     public WeaponHit smite() {
         return new WeaponHit(turn, attackLogId, targetId, weapon, critical, divineSmiteOffered, stunningStrikeOffered,
-                true, stunningStrikeUsed, concentrationCheck, ranged, deftStrikeOffered, deftStrikeUsed);
+                true, stunningStrikeUsed, concentrationCheck, ranged, deftStrikeOffered, deftStrikeUsed, leftoverAtZero);
     }
 
     /** The same hit, once Stunning Strike has followed it. */
     public WeaponHit stunningStrike() {
         return new WeaponHit(turn, attackLogId, targetId, weapon, critical, divineSmiteOffered, stunningStrikeOffered,
-                smitten, true, concentrationCheck, ranged, deftStrikeOffered, deftStrikeUsed);
+                smitten, true, concentrationCheck, ranged, deftStrikeOffered, deftStrikeUsed, leftoverAtZero);
     }
 
     /** The same hit, once Deft Strike has followed it. */
     public WeaponHit deftStrike() {
         return new WeaponHit(turn, attackLogId, targetId, weapon, critical, divineSmiteOffered, stunningStrikeOffered,
-                smitten, stunningStrikeUsed, concentrationCheck, ranged, deftStrikeOffered, true);
+                smitten, stunningStrikeUsed, concentrationCheck, ranged, deftStrikeOffered, true,
+                leftoverAtZero);
     }
 }

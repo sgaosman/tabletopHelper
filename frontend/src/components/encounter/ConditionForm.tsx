@@ -8,7 +8,8 @@ import { FIELD_LABEL, FIELD_INPUT, SUBMIT_BUTTON } from './formStyles';
  * Adds a condition, for a number of rounds or until removed. `onSubmit` sends it; the form empties once it
  * succeeds, and choosing no condition sends nothing. A failure shows as a toast and keeps what was chosen. Given
  * `sources`, frightened also asks what the creature is frightened of (PHB p.290, D201), so its disadvantage applies only
- * while that creature is in sight; "No one in particular" sends none.
+ * while that creature is in sight; "No one in particular" sends none. Charmed asks who the charmer is (PHB p.290,
+ * D224), the creature the charmed one can't attack or target with harmful effects.
  */
 export default function ConditionForm({ onSubmit, sources = [] }: {
   onSubmit: (condition: string, durationRounds?: number, sourceParticipantId?: string) => Promise<unknown>;
@@ -20,7 +21,8 @@ export default function ConditionForm({ onSubmit, sources = [] }: {
   const [source, setSource] = useState('');
   const [loading, setLoading] = useState(false);
   const toast = useToast();
-  const asksSource = condition === 'frightened' && sources.length > 0;
+  const sourceLabel = condition === 'frightened' ? 'Frightened of' : condition === 'charmed' ? 'Charmed by' : null;
+  const asksSource = sourceLabel !== null && sources.length > 0;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -54,7 +56,7 @@ export default function ConditionForm({ onSubmit, sources = [] }: {
       </div>
       {asksSource && (
         <div className="flex-1 min-w-40">
-          <label htmlFor={`${id}-source`} className={FIELD_LABEL}>Frightened of</label>
+          <label htmlFor={`${id}-source`} className={FIELD_LABEL}>{sourceLabel}</label>
           <select id={`${id}-source`} value={source} onChange={e => setSource(e.target.value)} className={FIELD_INPUT}>
             <option value="">No one in particular</option>
             {sources.map(p => <option key={p.id} value={p.id}>{p.displayName}</option>)}

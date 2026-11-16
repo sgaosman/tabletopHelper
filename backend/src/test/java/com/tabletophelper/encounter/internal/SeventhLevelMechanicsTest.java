@@ -153,6 +153,22 @@ class SeventhLevelMechanicsTest {
         }
 
         @Test
+        @DisplayName("A concentrating creature Divine Word stuns loses its concentration (PHB p.203, p.292, D224)")
+        void divineWordStunEndsConcentration() {
+            f.spell("Divine Word", 7, """
+                    {"spellLevel": 7, "deliveryMethod": "SAVING_THROW", "saveAbility": "CHA",
+                     "hpThresholdEffects": [{"maxHp": 30, "conditionsInflicted": [{"condition": "stunned",
+                       "durationRounds": 600}]}]}""");
+            EncounterParticipant cleric = f.player("Cleric", 25, 12);
+            cleric.setConcentration(com.tabletophelper.encounter.state.ConcentrationInstance.start("Bless", 1, 1,
+                    10));
+            f.dice.script(2);
+            cast("Divine Word", 7, List.of(cleric), null);
+            assertTrue(CreatureStats.conditionNames(cleric).contains("stunned"));
+            assertNull(cleric.getConcentration());
+        }
+
+        @Test
         @DisplayName("Death Ward saves a creature Divine Word would kill outright, and ends (PHB p.230)")
         void deathWardStopsInstantDeath() {
             f.spell("Death Ward", 4, """

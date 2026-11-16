@@ -198,7 +198,7 @@ function ActionPanel({
                 onChange={consent => actions.setSpellConsent(selectedTarget.id, consent)} />
             </div>
           )}
-          {/* Frightened asks what the creature is frightened of (D201) */}
+          {/* Frightened asks what the creature is frightened of (D201), charmed who charmed it (D224) */}
           <ConditionForm
             sources={participants.filter(p => p.id !== selectedTarget.id)}
             onSubmit={(condition, duration, source) => actions.addCondition(selectedTarget.id, condition, duration, source)}

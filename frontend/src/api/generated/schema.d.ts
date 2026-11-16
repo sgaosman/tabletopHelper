@@ -4723,6 +4723,8 @@ export interface components {
             deftStrikeOffered?: boolean | null;
             deftStrikeUsed?: boolean | null;
             divineSmiteOffered: boolean;
+            /** Format: int32 */
+            leftoverAtZero?: number | null;
             ranged?: boolean | null;
             smitten: boolean;
             stunningStrikeOffered: boolean;

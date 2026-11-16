@@ -143,6 +143,11 @@ public class SpellcastingService {
         // before anything is spent
         CombatAccess.requireReachable(caster, targets);
         spellCaster.requireTargetTypes(casting.spellName(), targets);
+        // A charmed creature can't target its charmer with a harmful spell, one that deals damage, calls for a save or an
+        // attack roll, or gives an enemy conditions; a heal or a buff is fine (PHB p.290, D224, D198)
+        if (spellEffects.harmful(casting.spellName())) {
+            Charms.enforce(encounter, caster, targets, userId, combatLog, CombatActionType.SPELL_CAST);
+        }
         // An item's own save DC or a scroll's is the spell's own number, not a Manual Modifier (D210)
         SpellNumbers own = fromItem ? itemNumbers(caster, payment) : numbers(caster, payment.origin());
         List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(own.attackBonus(), own.saveDc(),

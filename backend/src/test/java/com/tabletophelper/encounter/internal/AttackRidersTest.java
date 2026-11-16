@@ -20,6 +20,7 @@ import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.WeaponHit;
 import com.tabletophelper.reference.Item;
 import com.tabletophelper.rules.combat.AttackFeatures;
+import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import org.junit.jupiter.api.BeforeEach;
@@ -551,6 +552,69 @@ class AttackRidersTest {
             assertTrue(f.entriesAbout(goblin).getLast().getDescription().startsWith(
                     "Aria uses Divine Smite (2d8 radiant; level 1 spell slot, 3/4 left) after the Unarmed Strike hit"));
             assertEquals("Aria has already smitten with that hit", twice.getMessage());
+        }
+
+        @Nested
+        @DisplayName("A player character at 0 hit points takes the smite as part of the hit's damage (PHB p.197, D224)")
+        class AtZero {
+
+            private EncounterParticipant bran;
+
+            @BeforeEach
+            void dyingTarget() {
+                // HP maximum 20
+                bran = f.player("Bran", 20, 10);
+            }
+
+            @Test
+            @DisplayName("A critical hit and a smite on a dying character are two death save failures, not three")
+            void criticalAndSmiteOnTheDying() {
+                f.effectApplier.damage(f.encounter, null, "DM", bran, 20, null);
+                assertEquals(LifeState.DYING, bran.getLifeState());
+
+                // Within 5 feet of an unconscious target: advantage, and the hit is critical (PHB p.292); 2d8 1 + 1,
+                // + 3 = 5. The critical 1st-level smite's 4d8 is 4
+                attack(aria, request(bran, "Longsword"), 15, 12, 1, 1);
+                assertEquals(2, bran.getDeathSaveFailures());
+                assertEquals(5, aria.getTurnEconomy().lastMeleeHit().leftoverAtZero());
+                smite(1, null, 1, 1, 1, 1);
+
+                assertEquals(LifeState.DYING, bran.getLifeState());
+                assertEquals(2, bran.getDeathSaveFailures());
+                assertEquals(9, aria.getTurnEconomy().lastMeleeHit().leftoverAtZero());
+            }
+
+            @Test
+            @DisplayName("A hit that drops a character to 0 with 8 left over, then a 14-damage smite: 22 reaches the "
+                    + "maximum of 20, so it dies of massive damage")
+            void smiteAddsToMassiveDamage() {
+                bran.setHpCurrent(3);
+
+                // 8 + 3 = 11 damage, 8 past 0
+                attack(aria, request(bran, "Longsword"), 15, 8);
+                assertEquals(LifeState.DYING, bran.getLifeState());
+                assertEquals(0, bran.getDeathSaveFailures());
+                assertEquals(8, aria.getTurnEconomy().lastMeleeHit().leftoverAtZero());
+                // A 2nd-level smite's 3d8: 4 + 5 + 5 = 14
+                smite(2, null, 4, 5, 5);
+
+                assertEquals(LifeState.DEAD, bran.getLifeState());
+                assertTrue(f.descriptions().stream().anyMatch(d -> d.contains("at least their hit point maximum")),
+                        f.descriptions().toString());
+            }
+
+            @Test
+            @DisplayName("A smite short of massive damage after the drop adds no death save failure")
+            void smiteShortOfMassiveDamage() {
+                bran.setHpCurrent(3);
+
+                attack(aria, request(bran, "Longsword"), 15, 8);
+                smite(1, null, 2, 3);
+
+                assertEquals(LifeState.DYING, bran.getLifeState());
+                assertEquals(0, bran.getDeathSaveFailures());
+                assertEquals(13, aria.getTurnEconomy().lastMeleeHit().leftoverAtZero());
+            }
         }
 
         @Nested

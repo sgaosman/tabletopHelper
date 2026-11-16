@@ -3532,6 +3532,7 @@ The plan's twelve questions were answered with its recommended answers when the 
 
 **Decision:** every 6th-level spell has a template, and:
 - **Evasion** (PHB p.79, p.96): Rogue 7 and Monk 7 (from class levels or a feature named Evasion), monsters with an Evasion trait, and an `EVASION` Ongoing Modifier (Fizban's Platinum Shield). On a DEX save against an effect that halves damage, a success takes none and a failure half; not while incapacitated, paralyzed, petrified, stunned or unconscious. It applies to every spell and monster save, not only 6th level.
+  - **Update (2026-11-16, [[#D224]]):** Evasion no longer turns off while the creature is incapacitated; that clause is the 2024 text, not the 2014 feature.
 - **Ongoing Modifier kinds** ([[#D184]]): `DAMAGE_IMMUNITY`, `EVASION`, `TRUESIGHT` (True Seeing cancels invisibility and Blur, [[#D161]]) and `SPELL_IMMUNITY`, which drives **Globe of Invulnerability**: a spell of the blocked level or lower (its base level, cantrips included; 5, plus 1 per slot above 6th) cast from outside does nothing to the creatures inside, its later uses and area triggers included, and the log says so; a caster under the same globe is inside.
 - **Template keys:** `damageFloor` (Harm can't drop a creature below 1 HP) and `hpMaxReducedByDamage` (Harm's failed save lowers the maximum by the damage actually taken, on its own 1-hour Spell Effect without concentration, with a reminder after Write-back; Aura of Life blocks it); `disintegrates` (a creature left at 0 HP dies through [[#D189]]'s kill-outright path; a druid reverting from Wild Shape isn't dusted); Heal's cures through [[#D187]]'s `removesConditions` (a spell without cast options ends every condition it lists); `immuneIfImmuneTo` and `succeedsIfImmuneTo` (charm-immune creatures are immune to Mass Suggestion and Otto's and succeed against Mental Prison); `saveDisadvantageTypes` (Sunbeam's undead and oozes); `fullDamageOnSave` (Mental Prison's 5d10, which with `endsOnInitialSave` then ends on a success); `blocksCasting` (Tenser's Transformation); `movable` (Fizban's shield); `actionSave` (Otto's creature uses its action for the WIS save, `POST /combat/action-save`, a success ending the effect); `conditionsByOption` unified with [[#D189]]'s, one key and one reader, taking either a condition name or a whole condition (Eyebite's asleep, panicked or sickened, chosen at the cast and on each later use).
 - **Flesh to Stone** uses [[#D187]]'s counted saves with `failureCondition: petrified`: three successes end restrained, three failures, not necessarily in a row, petrify until removed even if concentration breaks (p.243). This fixed a D187 bug: the normal cast path dropped `failureCondition`.
@@ -4454,3 +4455,28 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D158, D167, D221
 
 **Tests:** damaged-character, spent-pool, spent-slot, Hit Die, pact slot and rest-in-between round trips in `LevelProgressionTest` and `ProgressionIT`; Natural Recovery in `RestRulesTest`, `RestServiceTest` and `ArcaneRecoveryPicker.test.tsx`; the new pools in `PoolSizesGoldenTest` and `ContentLoadIT`. On its branch 4,748 backend unit, 576 integration and 1,270 frontend tests passed; merged with D221, 4,759, 580 and 1,270.
+
+---
+
+## D224: Combat Rules Fixes from the Overnight Review
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration)
+
+**Context:** a rules review of the combat core during the user's overnight run of 2026-11-16 found advantage and disadvantage, natural 1s and 20s, critical dice, the condition attack and save effects, damage defences, temporary HP, dropping to 0, death saves, exhaustion, concentration DCs, Magic and Legendary Resistance, initiative ties and turn timing right. It confirmed the defects below. The calls are the lead's, recorded for review.
+
+**Decision:**
+- **Lasting conditions follow up as added ones do.** `EffectApplier.addLastingCondition` added a condition without what `addCondition` does after it, so petrification (Flesh to Stone, Prismatic Spray's indigo ray, a cockatrice's, gorgon's or medusa's), the conditions a monster's hit gives at 0 HP and Divine Word's stun never ended concentration (PHB p.203, p.290–292), and unconsciousness from them didn't end Rage or Wild Shape. It now runs the same follow-ups (`afterConditions`, `endLinked`).
+- **Petrified resists all damage and is immune to poison** (PHB p.291): resistance to every damage type, untyped damage from spells and monster actions halved too, immunity to poison damage and to the poisoned condition **(choice: "immune to poison" read as both)**. Disease isn't modelled. The DM's untyped damage entered by hand stays the number typed, as it works like Set HP. Elemental Bane still removes the resistance.
+- **Divine Smite is part of the hit** (PHB p.197). Resolved as its own damage, a smite on a dying PC added its own death save failure, so a critical hit with a smite was three failures, and a hit dropping a PC to 0 compared massive damage without the smite. `WeaponHit` records the hit's damage past 0 HP (`leftoverAtZero`); a smite, and Deft Strike, which had the same flaw, add no failures to such a target and kill only when the combined damage past 0 reaches the HP maximum.
+- **Evasion works while incapacitated, correcting [[#D188]].** Turning Evasion off for an incapacitated creature is the 2024 text; the 2014 feature (PHB p.79, p.96) has no such clause, so a stunned rogue's automatic failure on a Fireball save deals half.
+- **War Caster** gives advantage on the Constitution save to keep concentration when damaged (PHB p.170), combined with other advantage and disadvantage as usual.
+- **Charmed can't harm its charmer** (PHB p.290). A charmed condition may name its charmer (`sourceParticipantId`, picked in the condition form's new "Charmed by", as [[#D201]]'s "Frightened of"). A player's attack, monster action or harmful spell ([[#D198]]'s test) aimed at the charmer is refused with a 409 before anything is spent; the DM's goes ahead with a warning in the log, which the players' log leaves out while the charmer is hidden. **(choice)** A spell with no template counts as harmful. A charm with no charmer named limits nothing; spells and monster actions record their caster.
+
+**Not changed:** surprise isn't modelled (the DM edits the turn economy).
+
+**Key files:** `EffectApplier.java`, `CreatureStats.java`, `DamageRules.java`, `HitFollowUpService.java`, `WeaponHit`, new `rules/combat/Charm.java` and `encounter/internal/Charms.java`, `AttackService.java`, `MonsterActionService.java`, `SpellcastingService.java`, `ConditionService.java`, `ConditionForm.tsx`, `openapi.json`
+
+**Related:** D188, D198, D201
+
+**Tests:** Divine Word and medusa concentration cases, petrified defences, smite and Deft Strike at 0 HP, Evasion while stunned, War Caster, six `CharmsTest` cases and a "Charmed by" form test. On its branch 4,777 backend unit, 580 integration and 1,270 frontend tests passed; merged with the form change, 4,777, 580 and 1,271.

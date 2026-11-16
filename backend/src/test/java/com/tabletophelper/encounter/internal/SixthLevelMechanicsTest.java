@@ -120,7 +120,7 @@ class SixthLevelMechanicsTest {
 
         @Test
         @DisplayName("Who has Evasion: a rogue or monk of 7th level, not 6th; a monster with the trait; a creature under "
-                + "Fizban's Platinum Shield; nobody while incapacitated")
+                + "Fizban's Platinum Shield; kept while incapacitated, as the 2014 text has no such clause (D224)")
         void whoEvades() {
             EncounterParticipant rogue = f.player("Rogue", 40, 14);
             rogue.getCharacter().setCharacterClass("Rogue");
@@ -143,7 +143,9 @@ class SixthLevelMechanicsTest {
             assertTrue(CreatureStats.evasion(ogre));
 
             f.effectApplier.addCondition(f.encounter, rogue, "stunned", null);
-            assertFalse(CreatureStats.evasion(rogue));
+            assertTrue(CreatureStats.evasion(rogue));
+            f.effectApplier.addCondition(f.encounter, rogue, "unconscious", null);
+            assertTrue(CreatureStats.evasion(rogue));
         }
 
         @Test

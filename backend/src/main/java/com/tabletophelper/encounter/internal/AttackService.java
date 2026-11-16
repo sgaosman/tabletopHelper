@@ -168,6 +168,8 @@ public class AttackService {
         // A controlled mount only Dashes, Disengages or Dodges (PHB p.198)
         if (actor != null) {
             ControlledMount.requireMountAction(encounter, actor, "attack", userId, combatLog);
+            // A charmed creature can't attack its charmer (PHB p.290, D224)
+            Charms.enforce(encounter, actor, List.of(target), userId, combatLog, CombatActionType.ATTACK);
         }
         String costNote = costNote(cost);
         if (actor != null) {
@@ -646,7 +648,8 @@ public class AttackService {
                     outcome == Outcome.CRITICAL, !attack.melee(),
                     FeatureEffects.classLevel(character, PALADIN) >= AttackFeatures.DIVINE_SMITE_LEVEL,
                     FeatureEffects.classLevel(character, MONK) >= AttackFeatures.STUNNING_STRIKE_LEVEL, deftStrike)
-                    .withConcentrationCheck(applied.concentrationCheck());
+                    .withConcentrationCheck(applied.concentrationCheck())
+                    .withLeftoverAtZero(applied.leftoverAtZero());
         }
         actor.setTurnEconomy(economy.withLastMeleeHit(followed));
     }
