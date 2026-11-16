@@ -4527,3 +4527,28 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D199, D207
 
 **Tests:** new `SpellDataFixesTest` and `SpellTemplateScalingTest`, an Etherealness case in `ReferenceControllerTargetingTest`, updated `ResourcePoolDisplay` titles; 4,810 backend unit, 581 integration and 1,278 frontend tests pass.
+
+---
+
+## D226: Character Wizard and Sheet Fixes from the Overnight Review
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (frontend only)
+
+**Context:** a review of the character creation wizard and the character sheet during the user's overnight run of 2026-11-16 found point buy, the standard array, ability modifiers, Half-Elf and Variant Human bonuses, level-1 spell counts and starting gold right, and confirmed the defects below. The calls are the lead's, recorded for review.
+
+**Decision:**
+- **A restored draft opens where it is incomplete.** Restoring re-selects race, class and background, which clears their dependent choices, then jumped to the saved step, so a player could restore on Review and create a character without racial bonuses, class skills or equipment (the server checks none of them). Restore now opens on the first step that isn't complete, and Create is disabled, naming the step and offering "Go to …", while any step is incomplete. The draft isn't autosaved while the Restore banner is showing.
+- **Expertise only in held skills.** Unticking a class skill or changing race, class or background left Expertise in a skill no longer held, which the sheet then doubled. The wizard drops such Expertise (and any skill another source now gives), and the sheet's Stats tab applies Expertise only to a proficient skill.
+- **A duplicate background skill is replaced** (PHB p.125). A background skill the character already has from race or class was only warned about, and lost; the warning's "adjust it from the character sheet" had nothing behind it. Each duplicate now gets a picker for any skill not held, required before going on, and held skills are left out of the background's own choices.
+- **Multiclass skills are required at creation** (PHB p.164): the Class step asks for each extra class's skill pick, fewer when the race and other classes already give the rest of its list.
+- **Dialog errors show in the dialog.** A refused hit point change or rest showed its error in the header behind the open dialog; it now shows inside it.
+- **Smaller fixes:** the racial bonus buttons fit a 375-pixel phone; ability score labels are tied to their inputs, point-buy buttons are named ("Raise Strength"), and selectable chips and cards carry `aria-pressed`; the level-up dialog can't be closed while its request is in flight.
+
+**Still open:** Rogue Expertise isn't required to leave the Class step, and thieves' tools aren't offered for it.
+
+**Key files:** `CharacterCreateWizard.tsx`, `wizardReducer.ts`, `selectors.ts`, `RaceStep.tsx`, `ClassStep.tsx`, `BackgroundStep.tsx`, `AbilityScoresStep.tsx`, `StatsTab.tsx`, `CharacterSheetPage.tsx`, `LevelUpModal.tsx`
+
+**Related:** D158, D223
+
+**Tests:** reducer, selector, step, wizard-page, sheet and accessibility cases, including a new `BackgroundStep.test.tsx`; the Fighter/Wizard request snapshot now carries its replacement skill. 1,305 frontend tests pass.

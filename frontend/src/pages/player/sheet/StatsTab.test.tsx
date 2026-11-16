@@ -29,6 +29,16 @@ describe('StatsTab', () => {
     expect(screen.getByText('Expertise')).toBeInTheDocument();
   });
 
+  it('applies Expertise only to a skill the character is proficient in (PHB p.96, D226)', () => {
+    // DEX 12 (+1), proficiency +3: Stealth listed as an Expertise without proficiency stays +1, not +7;
+    // Athletics, proficient with Expertise, is STR +2 + 6 = +8
+    render(<StatsTab {...defaultProps} skillExpertises={['stealth', 'athletics']} />);
+    const stealth = screen.getByText('Stealth').closest('div')!;
+    expect(within(stealth).getByText('+1')).toBeInTheDocument();
+    const athletics = screen.getByText('Athletics').closest('div')!;
+    expect(within(athletics).getByText('+8')).toBeInTheDocument();
+  });
+
   it('shows proficiency section when character has proficiencies', () => {
     render(<StatsTab {...defaultProps} />);
     expect(screen.getByText('Proficiencies')).toBeInTheDocument();

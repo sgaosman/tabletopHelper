@@ -272,10 +272,86 @@ export function resolvedBgProfs(state: WizardState): ResolvedBgProfs {
   return result;
 }
 
-/** The background's skills the race or the class already gives. */
+// ── Skills held (D226) ──
+
+const lower = (s: string) => s.toLowerCase();
+
+/** The multiclasses' skills, in class order, as chosen. */
+function multiclassSkillList(state: WizardState): string[] {
+  return state.classEntries.slice(1).flatMap(e => state.mcSkillSelections[e.cls.id] ?? []);
+}
+
+/** The skills the race and the classes give, lower-cased: everything held before the background's. */
+export function skillsBeforeBackground(state: WizardState): Set<string> {
+  return new Set([...raceSkills(state), ...state.selectedClassSkills.map(lower), ...multiclassSkillList(state).map(lower)]);
+}
+
+/** The skills a multiclass can't choose because the race, the first class or another multiclass gives them. */
+export function multiclassSkillsTaken(state: WizardState, classId: string): Set<string> {
+  return new Set([
+    ...raceSkills(state),
+    ...state.selectedClassSkills.map(lower),
+    ...Object.entries(state.mcSkillSelections).filter(([k]) => k !== classId).flatMap(([, v]) => v.map(lower)),
+  ]);
+}
+
+/**
+ * How many skills a multiclass must choose (PHB p.164): its count, or fewer when the race and the other classes
+ * already give the rest of its list (D226).
+ */
+export function multiclassSkillsRequired(state: WizardState, classId: string): number {
+  const choices = multiclassSkillChoices(state)[classId];
+  if (!choices) return 0;
+  const taken = multiclassSkillsTaken(state, classId);
+  return Math.min(choices.count, choices.from.filter(s => !taken.has(lower(s))).length);
+}
+
+export function multiclassSkillsComplete(state: WizardState): boolean {
+  return Object.keys(multiclassSkillChoices(state))
+    .every(id => (state.mcSkillSelections[id] ?? []).length >= multiclassSkillsRequired(state, id));
+}
+
+/**
+ * The background's skills the race or a class already gives. The PHB (p.125) lets the character choose a different
+ * skill for each, in the Background step (D226).
+ */
 export function bgSkillConflicts(state: WizardState): string[] {
-  const allTaken = new Set([...raceSkills(state), ...state.selectedClassSkills.map(s => s.toLowerCase())]);
-  return resolvedBgProfs(state).skills.filter(s => allTaken.has(s.toLowerCase()));
+  const before = skillsBeforeBackground(state);
+  return resolvedBgProfs(state).skills.filter(s => before.has(lower(s)));
+}
+
+/** The skill chosen in place of each conflicting background skill, for the conflicts there are now. */
+export function bgSkillReplacementList(state: WizardState): string[] {
+  return bgSkillConflicts(state).map(c => state.bgSkillReplacements[c]).filter((r): r is string => !!r);
+}
+
+/** The skills that can replace `conflict`: any skill not already held, its own replacement aside (PHB p.125). */
+export function bgReplacementOptions(state: WizardState, conflict: string): string[] {
+  const held = new Set([
+    ...skillsBeforeBackground(state),
+    ...resolvedBgProfs(state).skills.map(lower),
+    ...bgSkillConflicts(state).filter(c => c !== conflict).map(c => state.bgSkillReplacements[c]).filter(Boolean).map(lower),
+  ]);
+  return ALL_SKILLS.filter(s => !held.has(lower(s)));
+}
+
+/** Whether every conflicting background skill has a replacement that is still free. */
+export function bgReplacementsComplete(state: WizardState): boolean {
+  return bgSkillConflicts(state).every(c => {
+    const r = state.bgSkillReplacements[c];
+    return !!r && bgReplacementOptions(state, c).includes(r);
+  });
+}
+
+/** Every skill the character will be proficient in, once each: the race's, the classes', the background's. */
+export function heldSkills(state: WizardState): string[] {
+  const profs = safeJsonParse<{ skills?: string[] }>(state.selectedRace?.proficiencies, {});
+  const all = [
+    ...(profs.skills ?? []), ...resolvedRaceChoices(state).skills, ...state.selectedClassSkills,
+    ...resolvedBgProfs(state).skills, ...multiclassSkillList(state), ...bgSkillReplacementList(state),
+  ];
+  const seen = new Set<string>();
+  return all.filter(s => !seen.has(lower(s)) && !!seen.add(lower(s)));
 }
 
 // ── Lists ──
@@ -346,16 +422,29 @@ export function canAdvance(state: WizardState, kits: WizardKits = {}): boolean {
       if (firstLevelSubclass(state) && !state.classEntries[0].subclass) return false;
       const skills = classSkillChoices(state);
       if (skills.count > 0 && state.selectedClassSkills.length < skills.count) return false;
-      return true;
+      // A multiclass's skill (PHB p.164) is a 1st-level choice of that class, made here (D226)
+      return multiclassSkillsComplete(state);
     }
     case 'Ability Scores':
       if (state.abilityMethod === 'standard') return Object.values(state.standardAssignments).every(v => v !== null);
       if (state.abilityMethod === 'pointbuy') return pointBuyTotal(state.scores) <= 27;
       return true;
-    case 'Background': return state.selectedBackground !== null && bgChoicesComplete(state);
+    case 'Background': return state.selectedBackground !== null && bgChoicesComplete(state) && bgReplacementsComplete(state);
     case 'Equipment': return equipmentComplete(state, kits);
     default: return true;
   }
+}
+
+/**
+ * The first step, Review aside, whose choices are not complete, or null when every one is. Create waits for it, and
+ * a restored draft opens on it (D226).
+ */
+export function firstIncompleteStep(state: WizardState, kits: WizardKits = {}): number | null {
+  const steps = wizardSteps(state);
+  for (let i = 0; i < steps.length - 1; i++) {
+    if (!canAdvance({ ...state, step: i }, kits)) return i;
+  }
+  return null;
 }
 
 // ── The create request ──
@@ -415,7 +504,8 @@ export function buildCreateRequest(state: WizardState, kits?: WizardKits): Chara
     if (mcProfs.weapons) classWeapons.push(...mcProfs.weapons);
     if (mcProfs.tools) classTools.push(...mcProfs.tools);
   }
-  const allSkills = [...(raceProfs.skills ?? []), ...raceChoices.skills, ...state.selectedClassSkills, ...bgProfs.skills, ...Object.values(state.mcSkillSelections).flat()];
+  // A background skill already held is replaced by the skill chosen for it (PHB p.125, D226)
+  const allSkills = heldSkills(state);
   const allWeapons = [...(raceProfs.weapons ?? []), ...raceChoices.weapons, ...classWeapons];
   const allTools = [...(raceProfs.tools ?? []), ...raceChoices.tools, ...bgProfs.tools, ...classTools];
   const allLanguages = [...(raceProfs.languages ?? []), ...raceChoices.languages, ...bgProfs.languages];

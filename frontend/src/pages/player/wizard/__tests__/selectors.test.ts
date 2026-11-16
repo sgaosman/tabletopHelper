@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { initialWizardState, wizardReducer, type WizardAction, type WizardState } from '../wizardReducer';
 import {
-  bgChoiceReqs, bgChoicesComplete, bgFeatNames, bgSkillConflicts, buildCreateRequest, canAdvance, classSkillChoices,
+  bgChoiceReqs, bgChoicesComplete, bgFeatNames, bgReplacementOptions, bgReplacementsComplete, bgSkillConflicts,
+  buildCreateRequest, canAdvance, classSkillChoices, firstIncompleteStep, heldSkills, multiclassSkillsRequired,
   currentStepName, expertiseCount, filteredBackgrounds, filteredRaces, finalScores, firstLevelSubclass,
   hasMeaningfulData, isVanillaHuman, multiclassSkillChoices, pointBuyTotal, raceChoiceReqs, raceChoicesComplete,
   raceFeats, raceSkills, racialBonuses, resolvedBgProfs, resolvedRaceChoices, spellsKnown, toDraft, wizardSteps,
@@ -201,6 +202,30 @@ describe('background selectors', () => {
 
     expect(bgSkillConflicts(state)).toEqual(['Athletics']);
   });
+
+  it("names a multiclass's skill the background also gives (D226)", () => {
+    const state = reduce(withClass(fighter, 2), { type: 'addMulticlass', cls: rogue, subclasses: [] },
+      { type: 'toggleMulticlassSkill', classId: rogue.id, skill: 'Deception', max: 1 },
+      { type: 'selectBackground', background: background('bg-charlatan', 'Charlatan', { skillProficiencies: '["Deception","Sleight of Hand"]' }) });
+
+    expect(bgSkillConflicts(state)).toEqual(['Deception']);
+  });
+
+  it('offers any skill not already held in place of a conflicting one (PHB p.125, D226)', () => {
+    const state = reduce(withClass(fighter), { type: 'toggleClassSkill', skill: 'Athletics', max: 2 },
+      { type: 'toggleClassSkill', skill: 'Perception', max: 2 }, { type: 'selectBackground', background: soldier });
+    const options = bgReplacementOptions(state, 'Athletics');
+
+    expect(options).toHaveLength(15);
+    expect(options).not.toContain('Athletics');
+    expect(options).not.toContain('Perception');
+    expect(options).not.toContain('Intimidation');
+    expect(bgReplacementsComplete(state)).toBe(false);
+    const replaced = reduce(state, { type: 'setBgSkillReplacement', skill: 'Athletics', replacement: 'Stealth' });
+    expect(bgReplacementsComplete(replaced)).toBe(true);
+    expect(heldSkills(replaced)).toEqual(['Athletics', 'Perception', 'Intimidation', 'Stealth']);
+  });
+
 });
 
 describe('ability score selectors', () => {
@@ -273,10 +298,54 @@ describe('canAdvance', () => {
     expect(canAdvance(at({ ...unbalanced, selectedClassSkills: ['Stealth', 'Insight', 'Deception', 'Acrobatics'] }, 'Class'))).toBe(false);
   });
 
+  it("needs each multiclass's skill (PHB p.164, D226)", () => {
+    const state = reduce(withClass(fighter, 2), { type: 'toggleClassSkill', skill: 'Athletics', max: 2 },
+      { type: 'toggleClassSkill', skill: 'Survival', max: 2 }, { type: 'addMulticlass', cls: rogue, subclasses: [] });
+    expect(multiclassSkillsRequired(state, rogue.id)).toBe(1);
+    expect(canAdvance(at(state, 'Class'))).toBe(false);
+
+    const picked = reduce(state, { type: 'toggleMulticlassSkill', classId: rogue.id, skill: 'Stealth', max: 1 });
+    expect(canAdvance(at(picked, 'Class'))).toBe(true);
+  });
+
+  it("needs fewer multiclass skills when the race and the other classes already give the rest of its list", () => {
+    const stealthy = race('race-stealthy', 'Stealthy', { proficiencies: JSON.stringify({ skills: ['Stealth', 'Deception'] }) });
+    const state = reduce(withClass(fighter, 2), { type: 'selectRace', race: stealthy },
+      { type: 'toggleClassSkill', skill: 'Athletics', max: 2 }, { type: 'toggleClassSkill', skill: 'Survival', max: 2 },
+      { type: 'addMulticlass', cls: rogue, subclasses: [] });
+
+    expect(multiclassSkillsRequired(state, rogue.id)).toBe(0);
+    expect(canAdvance(at(state, 'Class'))).toBe(true);
+  });
+
+  it("needs a replacement for each background skill already held (PHB p.125, D226)", () => {
+    const state = reduce(withClass(fighter), { type: 'toggleClassSkill', skill: 'Athletics', max: 2 },
+      { type: 'selectBackground', background: soldier });
+    expect(canAdvance(at(state, 'Background'))).toBe(false);
+    const replaced = reduce(state, { type: 'setBgSkillReplacement', skill: 'Athletics', replacement: 'Arcana' });
+    expect(canAdvance(at(replaced, 'Background'))).toBe(true);
+  });
+
   it("needs a background with its choices made", () => {
     expect(canAdvance(at(initialWizardState, 'Background'))).toBe(false);
     expect(canAdvance(at(reduce(initialWizardState, { type: 'selectBackground', background: soldier }), 'Background'))).toBe(true);
     expect(canAdvance(at(reduce(initialWizardState, { type: 'selectBackground', background: sage }), 'Background'))).toBe(false);
+  });
+});
+
+describe('firstIncompleteStep (D226)', () => {
+  it('names the first step whose choices are incomplete, and none once all are made', () => {
+    const kits = { cls: { groups: [] }, background: { groups: [] } } as unknown as Parameters<typeof firstIncompleteStep>[1];
+    const named = { ...initialWizardState, name: 'Pip', standardAssignments: STANDARD };
+    expect(firstIncompleteStep(named, kits)).toBe(1);
+
+    const chosen = reduce(withClass(fighter, 1, named), { type: 'selectRace', race: highElf },
+      { type: 'toggleClassSkill', skill: 'Athletics', max: 2 }, { type: 'toggleClassSkill', skill: 'Survival', max: 2 });
+    expect(firstIncompleteStep(chosen, kits)).toBe(4);
+    const complete = reduce(chosen, { type: 'selectBackground', background: soldier });
+    expect(firstIncompleteStep(complete, kits)).toBe(4);
+    expect(firstIncompleteStep(reduce(complete, { type: 'setBgSkillReplacement', skill: 'Athletics', replacement: 'Arcana' }), kits))
+      .toBeNull();
   });
 });
 
@@ -359,11 +428,22 @@ describe('buildCreateRequest', () => {
       { type: 'selectRace', race: human }, { type: 'selectBackground', background: sage }))?.subclassId).toBeUndefined();
   });
 
+  it('sends the skill chosen in place of a background skill already held (PHB p.125, D226)', () => {
+    const state = reduce(cleric1(), { type: 'toggleClassSkill', skill: 'Medicine', max: 2 },
+      { type: 'setBgSkillReplacement', skill: 'Athletics', replacement: 'Stealth' });
+    expect(buildCreateRequest(state)?.skillProficiencies).toEqual(['Perception', 'Insight', 'Athletics', 'Intimidation']);
+
+    const clash = { ...state, selectedClassSkills: ['Insight', 'Athletics'] };
+    const replaced = reduce(clash, { type: 'setBgSkillReplacement', skill: 'Athletics', replacement: 'Stealth' });
+    expect(buildCreateRequest(replaced)?.skillProficiencies)
+      .toEqual(['Perception', 'Insight', 'Athletics', 'Intimidation', 'Stealth']);
+  });
+
   it("sends a rogue's Expertise and the race's chosen spellcasting ability", () => {
     const fairy = race('race-fairy', 'Fairy', { raceChoices: JSON.stringify({ spellAbility: ['INT', 'WIS', 'CHA'] }) });
     const state = reduce(withClass(rogue), { type: 'selectRace', race: fairy },
       { type: 'toggleRaceChoice', key: 'spellAbility', value: 'WIS', count: 1 },
-      { type: 'toggleExpertise', skill: 'Stealth', max: 2 }, { type: 'selectBackground', background: soldier });
+      { type: 'toggleClassSkill', skill: 'Stealth', max: 4 }, { type: 'toggleExpertise', skill: 'Stealth', max: 2 }, { type: 'selectBackground', background: soldier });
 
     expect(buildCreateRequest(state)).toMatchObject({ skillExpertises: ['Stealth'], spellcastingAbility: 'WIS' });
   });

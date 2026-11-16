@@ -10,7 +10,9 @@ import {
 } from '../../queries/reference';
 import type { CharacterClassRef } from '../../types/reference';
 import { initialWizardState, wizardReducer, type WizardDraft } from './wizard/wizardReducer';
-import { buildCreateRequest, canAdvance, currentStepName, hasMeaningfulData, toDraft, wizardSteps } from './wizard/selectors';
+import {
+  buildCreateRequest, canAdvance, currentStepName, firstIncompleteStep, hasMeaningfulData, toDraft, wizardSteps,
+} from './wizard/selectors';
 
 import BasicInfoStep from './wizard/BasicInfoStep';
 import RaceStep from './wizard/RaceStep';
@@ -86,10 +88,13 @@ export default function CharacterCreateWizard() {
     : stepName === 'Background' ? { query: backgroundsList, name: 'backgrounds' }
     : null;
   const meaningful = hasMeaningfulData(state);
+  // Create waits until every step's choices are made, a restored draft's among them (D226)
+  const incompleteStep = firstIncompleteStep(state, kits);
 
   // ── Draft persistence ──
 
-  const draftJson = meaningful ? JSON.stringify(toDraft(state)) : null;
+  // While the Restore banner shows, the stored draft is the one it offers, so nothing overwrites it (D226)
+  const draftJson = meaningful && !showDraftBanner ? JSON.stringify(toDraft(state)) : null;
   useEffect(() => {
     if (draftJson === null) return;
     try { localStorage.setItem(DRAFT_KEY, draftJson); } catch { /* the browser's storage is full; the draft is lost */ }
@@ -134,9 +139,10 @@ export default function CharacterCreateWizard() {
       orEmpty(queryClient.fetchQuery(classesQuery())),
       orEmpty(queryClient.fetchQuery(backgroundsQuery())),
     ]);
-    dispatch({ type: 'restoreDraft', draft, refs: { races: raceList, classes: classList, backgrounds: backgroundList } });
+    // The class's entry comes with the draft, so the step it opens on is judged with the class loaded (D226)
     const cls = classList.find(c => c.id === draft.classId);
-    if (cls) loadPrimaryClass(cls);
+    const subclasses = cls ? await queryClient.fetchQuery(subclassesQuery(cls.id)).catch(() => []) : undefined;
+    dispatch({ type: 'restoreDraft', draft, refs: { races: raceList, classes: classList, backgrounds: backgroundList, subclasses } });
   }
 
   function dismissDraft() {
@@ -240,11 +246,23 @@ export default function CharacterCreateWizard() {
               Next <ArrowRight className="w-4 h-4" />
             </button>
           ) : (
-            <button onClick={handleCreate} disabled={submitting} className="flex items-center gap-2 px-5 py-2 bg-buff text-card font-body text-[16px] font-semibold border border-buff hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            <button onClick={handleCreate} disabled={submitting || incompleteStep != null} className="flex items-center gap-2 px-5 py-2 bg-buff text-card font-body text-[16px] font-semibold border border-buff hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               {submitting ? 'Creating...' : 'Create Character'} <Check className="w-4 h-4" />
             </button>
           )}
         </div>
+        {step === steps.length - 1 && incompleteStep != null && (
+          <p role="status" className="mt-3 flex flex-wrap items-center justify-end gap-2 font-body text-[14px] font-semibold text-hp-wounded">
+            The {steps[incompleteStep]} step needs attention before the character can be created.
+            <button
+              type="button"
+              onClick={() => dispatch({ type: 'setStep', step: incompleteStep })}
+              className="underline underline-offset-2 hover:no-underline text-ink"
+            >
+              Go to {steps[incompleteStep]}
+            </button>
+          </p>
+        )}
       </main>
 
     </div>

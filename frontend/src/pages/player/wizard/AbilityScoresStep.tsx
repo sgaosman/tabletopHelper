@@ -1,5 +1,5 @@
 import { ABILITIES, abilityMod, formatMod, ABILITY_ABBR as ABILITY_LABELS } from '../../../utils/dndRules';
-import type { Dispatch } from 'react';
+import { useId, type Dispatch } from 'react';
 import { STANDARD_ARRAY } from './types';
 import type { WizardAction, WizardState } from './wizardReducer';
 import { pointBuyTotal as pointBuyCost, racialBonuses as bonusesOf } from './selectors';
@@ -9,8 +9,15 @@ export interface AbilityScoresStepProps {
   dispatch: Dispatch<WizardAction>;
 }
 
+/** "strength" as "Strength", for the controls' accessible names. */
+function abilityName(ability: string): string {
+  return ability.charAt(0).toUpperCase() + ability.slice(1);
+}
+
 export default function AbilityScoresStep({ state, dispatch }: AbilityScoresStepProps) {
   const { abilityMethod, scores, standardAssignments } = state;
+  // Ties each ability's label to its input or select (D226)
+  const idBase = useId();
   const racialBonuses = bonusesOf(state);
   const pointBuyTotal = pointBuyCost(scores);
   return (
@@ -21,6 +28,7 @@ export default function AbilityScoresStep({ state, dispatch }: AbilityScoresStep
         {(['standard', 'pointbuy', 'manual'] as const).map(m => (
           <button
             key={m}
+            aria-pressed={abilityMethod === m}
             // Point buy starts every score at 8; clicking it again while already in point buy keeps your choices
             onClick={() => dispatch({ type: 'setAbilityMethod', method: m })}
             className={`px-4 py-2 font-heading text-[13px] font-semibold tracking-[0.04em] transition-colors border ${
@@ -35,7 +43,7 @@ export default function AbilityScoresStep({ state, dispatch }: AbilityScoresStep
       {abilityMethod === 'standard' && (
         <div>
           <p className="font-body text-[15px] font-semibold text-muted mb-4">Assign each value to an ability: {STANDARD_ARRAY.join(', ')}</p>
-          <StandardArrayAssigner assignments={standardAssignments} onChange={assignments => dispatch({ type: 'setStandardAssignments', assignments })} racialBonuses={racialBonuses} />
+          <StandardArrayAssigner idBase={idBase} assignments={standardAssignments} onChange={assignments => dispatch({ type: 'setStandardAssignments', assignments })} racialBonuses={racialBonuses} />
         </div>
       )}
 
@@ -48,14 +56,16 @@ export default function AbilityScoresStep({ state, dispatch }: AbilityScoresStep
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {ABILITIES.map(a => (
               <div key={a} className="bg-card border border-rule p-4 text-center">
-                <label className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint block mb-2">{ABILITY_LABELS[a]}</label>
-                <div className="flex items-center justify-center gap-3">
+                <p id={`${idBase}-pb-${a}`} className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint block mb-2">{ABILITY_LABELS[a]}</p>
+                <div role="group" aria-labelledby={`${idBase}-pb-${a}`} className="flex items-center justify-center gap-3">
                   <button
+                    aria-label={`Lower ${abilityName(a)}`}
                     onClick={() => dispatch({ type: 'setScore', ability: a, value: Math.max(8, scores[a] - 1) })}
                     className="w-8 h-8 bg-page border border-rule text-muted hover:border-muted flex items-center justify-center font-heading text-[16px] font-bold"
                   >-</button>
                   <span className="font-heading text-[17px] font-bold text-ink w-8 text-center">{scores[a]}</span>
                   <button
+                    aria-label={`Raise ${abilityName(a)}`}
                     onClick={() => dispatch({ type: 'setScore', ability: a, value: Math.min(15, scores[a] + 1) })}
                     className="w-8 h-8 bg-page border border-rule text-muted hover:border-muted flex items-center justify-center font-heading text-[16px] font-bold"
                   >+</button>
@@ -76,8 +86,9 @@ export default function AbilityScoresStep({ state, dispatch }: AbilityScoresStep
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {ABILITIES.map(a => (
             <div key={a} className="bg-card border border-rule p-4 text-center">
-              <label className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint block mb-2">{ABILITY_LABELS[a]}</label>
+              <label htmlFor={`${idBase}-manual-${a}`} className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint block mb-2">{ABILITY_LABELS[a]}</label>
               <input
+                id={`${idBase}-manual-${a}`}
                 type="number"
                 min={1}
                 max={30}
@@ -100,10 +111,12 @@ export default function AbilityScoresStep({ state, dispatch }: AbilityScoresStep
 }
 
 function StandardArrayAssigner({
+  idBase,
   assignments,
   onChange,
   racialBonuses,
 }: {
+  idBase: string;
   assignments: Record<string, number | null>;
   onChange: (a: Record<string, number | null>) => void;
   racialBonuses: Record<string, number>;
@@ -119,8 +132,9 @@ function StandardArrayAssigner({
     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
       {ABILITIES.map(a => (
         <div key={a} className="bg-card border border-rule p-4 text-center">
-          <label className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint block mb-2">{ABILITY_LABELS[a]}</label>
+          <label htmlFor={`${idBase}-std-${a}`} className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint block mb-2">{ABILITY_LABELS[a]}</label>
           <select
+            id={`${idBase}-std-${a}`}
             value={assignments[a] ?? ''}
             onChange={e => {
               const val = e.target.value ? parseInt(e.target.value) : null;
