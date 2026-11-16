@@ -61,6 +61,34 @@ describe('AuthContext', () => {
     expect(localStorage.getItem('accessToken')).toBeNull();
   });
 
+  it('asks again while the server is restarting, and signs in once it answers (D229)', async () => {
+    let calls = 0;
+    server.use(http.post('/api/auth/refresh', () => {
+      calls += 1;
+      return calls === 1
+        ? HttpResponse.json({ error: 'Bad gateway' }, { status: 502 })
+        : HttpResponse.json({ userId: 'user-001', username: 'testuser', displayName: 'Test User', accessToken: 'later' });
+    }));
+
+    renderProvider();
+
+    expect(await screen.findByText('Status: authenticated', {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(calls).toBe(2);
+  });
+
+  it('signs out at once when the refresh is refused with a 401, without asking again', async () => {
+    let calls = 0;
+    server.use(http.post('/api/auth/refresh', () => {
+      calls += 1;
+      return HttpResponse.json({ error: 'Your session has ended.' }, { status: 401 });
+    }));
+
+    renderProvider();
+
+    expect(await screen.findByText('Status: anonymous')).toBeInTheDocument();
+    expect(calls).toBe(1);
+  });
+
   it('becomes anonymous when the browser has no refresh cookie', async () => {
     renderProvider();
 

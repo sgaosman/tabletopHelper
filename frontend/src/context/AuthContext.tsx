@@ -2,6 +2,7 @@ import { useReducer, useCallback, useEffect, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../api/authApi';
 import { clearAccessToken, refreshAccessToken, setAccessToken } from '../api/tokenStore';
+import { apiErrorStatus } from '../api/errors';
 import type { AuthStatus, AuthUser, LoginRequest, RegisterRequest, AuthResponse } from '../types/auth';
 import { AuthContext } from './authSession';
 
@@ -18,6 +19,12 @@ const initialState: SessionState = {
   status: 'loading',
   user: null,
 };
+
+/**
+ * The waits before asking the server again when a page load can't reach it or it answers 5xx (D229): a server
+ * restarting or a dropped connection isn't a signed-out visitor. A 401 signs out at once.
+ */
+const SESSION_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000];
 
 // Where tokens lived before D156; removed from any browser that still holds them
 const LEGACY_STORAGE_KEYS = ['accessToken', 'refreshToken', 'user'];
@@ -45,16 +52,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     LEGACY_STORAGE_KEYS.forEach(key => localStorage.removeItem(key));
 
     let cancelled = false;
-    refreshAccessToken()
-      .then(session => {
-        if (!cancelled) dispatch({ type: 'LOGIN_SUCCESS', payload: session });
-      })
-      .catch(() => {
-        // No cookie, or one the server no longer accepts: the visitor signs in again
-        if (!cancelled) dispatch({ type: 'LOGOUT' });
-      });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = (tries: number) => {
+      refreshAccessToken()
+        .then(session => {
+          if (!cancelled) dispatch({ type: 'LOGIN_SUCCESS', payload: session });
+        })
+        .catch(err => {
+          if (cancelled) return;
+          // A server that can't be reached or failed is asked again while the page shows it loading
+          const status = apiErrorStatus(err);
+          if ((status === undefined || status >= 500) && tries < SESSION_RETRY_DELAYS_MS.length) {
+            timer = setTimeout(() => attempt(tries + 1), SESSION_RETRY_DELAYS_MS[tries]);
+            return;
+          }
+          // No cookie, or one the server no longer accepts: the visitor signs in again
+          dispatch({ type: 'LOGOUT' });
+        });
+    };
+    attempt(0);
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
     };
   }, []);
 

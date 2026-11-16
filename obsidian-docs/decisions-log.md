@@ -4622,6 +4622,8 @@ The plan's twelve questions were answered with its recommended answers when the 
 - **Builder changes run in order.** Initiative saves sent one after another could answer out of order, an older answer overwriting a newer one and blanking an initiative. The builder's changes now go through one ordered queue (TanStack Query's mutation scope), so Start just waits for a save in flight.
 - **Smaller:** copying an invite code on the Campaigns page is awaited and says so when it fails; the builder fits a phone (stacked layout, the participant table scrolls sideways); the builder's, campaign page's and join page's fields have accessible names; login and registration show the network message when the server can't be reached.
 
+- **Update (browser retest, same night):** a page loaded while the server was restarting still went to the sign-in page: the check at load, separate from the token refresh fixed above, treated a 502 as signed out. It now asks again after 1, 2, 4 and 8 seconds while the page shows it loading when the server can't be reached or answers 5xx, and signs out at once only on a 401 (or once the retries run out).
+
 **Not done:** a link on the DM dashboard to sessions under way would need an endpoint listing a DM's running encounters.
 
 **Key files:** `EncounterBuilderPage.tsx`, `queries/encounters.ts`, `CampaignManagePage.tsx`, `api/axiosConfig.ts`, `JoinEncounterPage.tsx`, `LoginPage.tsx`, `RegisterPage.tsx`, `AddParticipantRequest.java`, `openapi.json`
