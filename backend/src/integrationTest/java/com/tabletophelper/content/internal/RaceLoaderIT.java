@@ -72,6 +72,26 @@ class RaceLoaderIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("D237: a Mark of Warding casts arcane lock from 3rd level, once a long rest, as Wards and Seals says "
+            + "(ERLW), though the data lists only alarm and mage armor")
+    void markOfWardingArcaneLock() {
+        load();
+
+        assertThat(fixedSpells("Mark of Warding Dwarf", "ERLW")).extracting(s -> tuple(s)).containsExactlyInAnyOrder(
+                tuple("Alarm", 1, false, 1, null), tuple("Mage Armor", 1, false, 1, null),
+                tuple("Arcane Lock", 2, false, 1, null));
+        Race race = raceRepository.findAll().stream()
+                .filter(r -> r.getName().equals("Mark of Warding Dwarf") && r.getSource().equals("ERLW"))
+                .findFirst().orElseThrow();
+        JsonNode arcaneLock = null;
+        for (JsonNode spell : objectMapper.readTree(race.getAdditionalSpells()).path("fixedSpells")) {
+            if (spell.path("name").asString().equals("Arcane Lock")) arcaneLock = spell;
+        }
+        assertThat(arcaneLock).isNotNull();
+        assertThat(arcaneLock.path("unlocksAtLevel").asInt()).isEqualTo(3);
+    }
+
+    @Test
     @DisplayName("Spells cast once between short or long rests are kept with that reset: the VGM firbolg's (VGM p.107), "
             + "the DMG eladrin's misty step (DMG p.286), the Mark of Handling's (ERLW p.42), and the Mark of "
             + "Scribing's comprehend languages beside its magic mouth once a long rest (ERLW p.47)")

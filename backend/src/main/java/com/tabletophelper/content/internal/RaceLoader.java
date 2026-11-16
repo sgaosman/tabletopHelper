@@ -98,10 +98,10 @@ public class RaceLoader implements ContentLoader {
 
     // Version 2 writes the effects overlay; version 3 (D231) casts a race's levelled spells once between rests unless
     // the data says at will, keeps the spells it names under a short-or-long rest with that reset, and names a known
-    // spell's level
+    // spell's level; version 4 (D237) adds the spells the trait text grants but the data leaves out
     @Override
     public int version() {
-        return 3;
+        return 4;
     }
 
     // A fixed spell's uses that come back on a short or long rest, as KnownSpell.usesResetOn writes it (D231)
@@ -115,6 +115,14 @@ public class RaceLoader implements ContentLoader {
             "Gnome (Deep)|DMG", Set.of("nondetection"),
             "Yuan-ti Pureblood|VGM", Set.of("animal friendship"),
             "Yuan-Ti|MPMM", Set.of("animal friendship"));
+
+    // The spells a race's trait text grants that its data leaves out, by the race's name and source and then the
+    // level each unlocks at, each cast once between long rests (D237). Mark of Warding's Wards and Seals: "Starting
+    // at 3rd level, you can also cast the arcane lock spell with it. Once you cast any of these spells with this
+    // trait, you can't cast that spell with it again until you finish a long rest" (ERLW); the 5etools data
+    // lists only alarm and mage armor
+    static final Map<String, Map<Integer, List<String>>> MISSING_FROM_DATA = Map.of(
+            "Mark of Warding|ERLW", Map.of(3, List.of("arcane lock")));
 
     // The innate spells' levels come from the spells table
     @Override
@@ -865,6 +873,9 @@ public class RaceLoader implements ContentLoader {
                 ObjectNode expanded = collectExpandedList(entry);
                 if (expanded != null) expandedList = expanded;
             }
+            MISSING_FROM_DATA.getOrDefault(node.path("name").asString("") + "|" + node.path("source").asString(""),
+                    Map.of()).forEach((unlocksAt, spells) -> spells.forEach(
+                            spell -> addFixedSpell(fixedSpells, spell, unlocksAt, false, 1, null)));
         }
 
         result.set("fixedSpells", fixedSpells);

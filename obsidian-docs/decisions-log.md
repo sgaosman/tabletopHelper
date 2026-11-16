@@ -4673,7 +4673,7 @@ The plan's twelve questions were answered with its recommended answers when the 
 - **Fixed subclass cantrips are granted:** Light Domain's *light*, Way of Shadow's *minor illusion*, Grave Domain's and Undying's *spare the dying*, the Celestial's *sacred flame* and *light*, Spores' *chill touch*, Stars' and College of Spirits' *guidance*, Swarmkeeper's *mage hand*, Drakewarden's *thaumaturgy* and Aberrant Mind's *mind sliver*, none counting against cantrips known; Arcana Domain owes two wizard cantrips and Death Domain one necromancy cantrip of any list (a new `school` on the choice).
 - **Subclass known spells are taught** at their class levels, as `subclass:<name>`, not counted against Spells Known and forgotten on level-down: the XGE and TCE ranger subclasses' magic, Aberrant Mind, Clockwork Soul, Lunar Sorcery and Shadow Magic's *darkness*. **(not done)** Aberrant Mind's and Clockwork Soul's swap on level-up; Circle of the Moon's at-will *alter self*.
 - **Order Domain** gains its Intimidation-or-Persuasion pick (TCE p.31).
-- **Racial spells:** a levelled racial spell is once per long rest unless its data says at will (the Hexblood's, the dragonmarks', the EEPC genasi's and the DMG deep gnome's were free at will; *nondetection* and the yuan-ti's *animal friendship* stay at will); spells that return on a short or long rest (Firbolg, Eladrin, Mark of Handling, Mark of Scribing) load with a short-rest reset (`KnownSpell.usesResetOn`). **(choice)** Racial innate spells with no use count (Mark of Healing, Detection and Finding, MPMM aarakocra and firbolg) become once per long rest; the MPMM races' proficiency-bonus uses are approximated as one.
+- **Racial spells:** a levelled racial spell is once per long rest unless its data says at will (the Hexblood's, the dragonmarks', the EEPC genasi's and the DMG deep gnome's were free at will; *nondetection* and the yuan-ti's *animal friendship* stay at will); spells that return on a short or long rest (Firbolg, Eladrin, Mark of Handling, Mark of Scribing) load with a short-rest reset (`KnownSpell.usesResetOn`). Racial innate spells with no use count in the data (Mark of Healing, Detection and Finding, MPMM aarakocra, firbolg and earth genasi) are once per long rest, as each trait's text says ("Once you cast either spell with this trait, you can't cast that spell with it again until you finish a long rest", ERLW's Healing Touch; checked against 2014.5e.tools, [[#D237]]). The only proficiency-bonus use among race spells is the MPMM earth genasi's *blade ward* as a bonus action, a cantrip, so it isn't counted.
 - **Spell names with a source suffix** ("summon elemental|tce") now match their spells.
 
 **Existing characters:** `recompute-characters` grants the new fixed cantrips and subclass spells, puts at-will racial spells to once per rest and adds missing racial spells, including those unlocked after creation (a tiefling's *hellish rebuke* from 3rd level); `backfill-pending-choices` owes the terrain, affinity, Arcana and Death Domain cantrip and Order Domain skill choices.
@@ -4793,3 +4793,24 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D229, D235
 
 **Tests:** `EncounterServiceTest`, new `EncounterControllerTest`, new `RunningEncountersIT` (own ACTIVE/PAUSED only, active first, another DM's left out, player gets `[]`, 401 without a token), new `DmDashboard.test.tsx`. With D235: 4,972 backend unit, 604 integration and 1,339 frontend tests pass. Checked on the rehearsal copy: the dashboard lists the QA DM's three active encounters and the link opens the DM session.
+
+---
+
+## D237: Racial Spell Counts Checked Against the Source Text; Mark of Warding's Arcane Lock
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration; race loader version 4)
+
+**Context:** [[#D231]] made racial spells the data lists with no use count once per long rest and recorded it as a judgement call. The user pointed out that the books state the count in the trait text, and set a rule: whenever the repo's files don't settle something, look up the wording online, preferably on 2014.5e.tools, rather than decide it.
+
+**Decision:**
+- **Every racial spell [[#D231]] limited was checked against its trait text** on 2014.5e.tools (and the local 5etools `entries`): Mark of Healing, Detection, Finding (half-orc and human), Warding, Hospitality and Making, Hexblood, MPMM firbolg, aarakocra and earth genasi read "Once you cast … with this trait, you can't cast that spell with it again until you finish a long rest"; EEPC air and earth genasi, Mark of Passage and Mark of Sentinel cast "once with this trait" and regain it on a long rest; the DMG deep gnome casts *nondetection* (self only) at will and the rest 1/day each. The code already matched every one; D231's text is corrected (no longer a "(choice)").
+- **Mark of Warding casts *arcane lock* from 3rd level, once a long rest.** Wards and Seals says "Starting at 3rd level, you can also cast the *arcane lock* spell with it", but the 5etools data (local and online) lists only *alarm* and *mage armor*, so no Mark of Warding got it. `RaceLoader.MISSING_FROM_DATA` adds spells the trait text grants that the data leaves out, by race name and source and unlock level; the loader goes to version 4 so content reloads on start.
+
+**Existing characters:** a Mark of Warding character of 3rd level or higher gains *arcane lock* through `recompute-characters` ([[#D231]]'s racial-spell top-up); a lower-level one gets it on reaching 3rd level (`RaceSpells`).
+
+**Key files:** `content/internal/RaceLoader.java`
+
+**Related:** D208, D231
+
+**Tests:** `RaceLoaderIT` (Mark of Warding Dwarf: alarm and mage armor at 1st, arcane lock at 3rd, each once a long rest); backend unit tests pass.
