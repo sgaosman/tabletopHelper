@@ -1564,6 +1564,7 @@
   },
   {
     "spellName": "Magic Stone",
+    "noCreatureTarget": true,
     "spellLevel": 0,
     "school": "Transmutation",
     "castingTime": "BONUS_ACTION",
@@ -3632,6 +3633,7 @@
   },
   {
     "spellName": "Catapult",
+    "noCreatureTarget": true,
     "spellLevel": 1,
     "school": "Transmutation",
     "castingTime": "ACTION",
@@ -6087,6 +6089,7 @@
   },
   {
     "spellName": "Identify",
+    "noCreatureTarget": true,
     "spellLevel": 1,
     "school": "Divination",
     "castingTime": "1_MINUTE",
@@ -8254,6 +8257,7 @@
   },
   {
     "spellName": "Arcane Lock",
+    "noCreatureTarget": true,
     "spellLevel": 2,
     "school": "Abjuration",
     "castingTime": "ACTION",
@@ -8827,6 +8831,7 @@
   },
   {
     "spellName": "Continual Flame",
+    "noCreatureTarget": true,
     "spellLevel": 2,
     "school": "Evocation",
     "castingTime": "ACTION",
@@ -9955,6 +9960,7 @@
   },
   {
     "spellName": "Gentle Repose",
+    "noCreatureTarget": true,
     "spellLevel": 2,
     "school": "Necromancy",
     "castingTime": "ACTION",
@@ -10201,6 +10207,7 @@
   },
   {
     "spellName": "Heat Metal",
+    "noCreatureTarget": true,
     "spellLevel": 2,
     "school": "Transmutation",
     "castingTime": "ACTION",
@@ -10353,6 +10360,7 @@
   },
   {
     "spellName": "Immovable Object",
+    "noCreatureTarget": true,
     "spellLevel": 2,
     "school": "Transmutation",
     "castingTime": "ACTION",
@@ -10593,6 +10601,7 @@
   },
   {
     "spellName": "Knock",
+    "noCreatureTarget": true,
     "spellLevel": 2,
     "school": "Transmutation",
     "castingTime": "ACTION",
@@ -10862,6 +10871,7 @@
   },
   {
     "spellName": "Magic Mouth",
+    "noCreatureTarget": true,
     "spellLevel": 2,
     "school": "Illusion",
     "castingTime": "1_MINUTE",
@@ -10912,6 +10922,7 @@
   },
   {
     "spellName": "Magic Weapon",
+    "noCreatureTarget": true,
     "spellLevel": 2,
     "school": "Transmutation",
     "castingTime": "BONUS_ACTION",
@@ -10982,6 +10993,7 @@
   },
   {
     "spellName": "Maximilian's Earthen Grasp",
+    "noCreatureTarget": true,
     "spellLevel": 2,
     "school": "Transmutation",
     "castingTime": "ACTION",
@@ -12533,6 +12545,7 @@
   },
   {
     "spellName": "Spiritual Weapon",
+    "noCreatureTarget": true,
     "spellLevel": 2,
     "school": "Evocation",
     "castingTime": "BONUS_ACTION",
@@ -13292,6 +13305,7 @@
   },
   {
     "spellName": "Animate Dead",
+    "noCreatureTarget": true,
     "spellLevel": 3,
     "school": "Necromancy",
     "castingTime": "1_MINUTE",
@@ -14377,6 +14391,7 @@
   },
   {
     "spellName": "Elemental Weapon",
+    "noCreatureTarget": true,
     "spellLevel": 3,
     "school": "Transmutation",
     "castingTime": "ACTION",
@@ -14832,6 +14847,7 @@
   },
   {
     "spellName": "Flame Arrows",
+    "noCreatureTarget": true,
     "spellLevel": 3,
     "school": "Transmutation",
     "castingTime": "ACTION",
@@ -16842,6 +16858,7 @@
   },
   {
     "spellName": "Speak with Dead",
+    "noCreatureTarget": true,
     "spellLevel": 3,
     "school": "Necromancy",
     "castingTime": "ACTION",
@@ -17491,6 +17508,7 @@
   },
   {
     "spellName": "Tiny Servant",
+    "noCreatureTarget": true,
     "spellLevel": 3,
     "school": "Transmutation",
     "castingTime": "1_MINUTE",
@@ -19369,6 +19387,7 @@
   },
   {
     "spellName": "Grasping Vine",
+    "noCreatureTarget": true,
     "spellLevel": 4,
     "school": "Conjuration",
     "castingTime": "BONUS_ACTION",
@@ -21262,6 +21281,7 @@
   },
   {
     "spellName": "Bigby's Hand",
+    "noCreatureTarget": true,
     "spellLevel": 5,
     "school": "Evocation",
     "castingTime": "ACTION",
@@ -22609,6 +22629,7 @@
   },
   {
     "spellName": "Holy Weapon",
+    "noCreatureTarget": true,
     "spellLevel": 5,
     "school": "Evocation",
     "castingTime": "BONUS_ACTION",
@@ -24376,6 +24397,7 @@
   },
   {
     "spellName": "Mordenkainen's Sword",
+    "noCreatureTarget": true,
     "spellLevel": 7,
     "school": "Evocation",
     "castingTime": "ACTION",

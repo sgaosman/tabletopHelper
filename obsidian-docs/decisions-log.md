@@ -4134,3 +4134,40 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D125, D165, D178, D201; roadmap M24.5b; glossary: Draconic Ancestry, Racial Pool
 
 **Tests:** new `RaceFeatureEffectsTest`, `RacialPoolsIT`, `DraconicAncestryModal.test.tsx` and `draconicAncestry.test.ts`, with additions to the loader, pool service, pool sizes, pending choice, Wild Shape, migration, content load and snapshot tests and the wizard selectors; 3,488 backend unit, 540 integration and 1,221 frontend tests on its branch. Checked in the browser on the rehearsal copy: V37 applied and 39 race links loaded; the wizard offered the ten dragons for a PHB dragonborn in place of the resistance; the new character had a 1/1 Breath Weapon pool and fire resistance; its breath at a guard and a red dragon wyrmling rolled DEX saves at DC 12, 4 fire (half) to the guard and 0 to the immune wyrmling, leaving 0/1.
+
+
+## D212: Metamagic Checked Against Every Spell
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration; spell loader version 2 re-imports the spells table)
+
+**Context:** roadmap M18's last open item, a full test of Metamagic against every implemented spell ([[#D179]]), was never done. During the user's overnight run of 2026-11-16 all 525 spell templates were checked against the eight PHB options (p.101–102), with eligibility compared to an answer worked out separately from the 5etools spell data; the calls are the lead's, recorded for review.
+
+**Decision (bugs fixed):**
+1. **Self-range areas:** `SpellLoader.parseRange` stored "Self (15-foot cone)" as "15 feet", so Burning Hands, Spirit Guardians, Lightning Bolt and Sword Burst took Distant and Booming Blade, Green-Flame Blade and Lightning Lure took Twinned. Ranges now read "Self (N-foot shape)" and both are refused. The spell loader moves to version 2; spell templates are kept.
+2. **Distant** read "affects only the caster" instead of the range; Dimension Door, Find Traps, Goodberry, Meld into Stone, Shillelagh and Swift Quiver now qualify.
+3. **Extended** accepted instantaneous spells whose effect lasts (Silvery Barbs, Synaptic Static); the spell's own duration now decides, and "Instantaneous or 1 hour" spells such as Shape Water still qualify.
+4. **Extended** cut a 7-day Contagion to 24 hours; it never shortens a spell now.
+5. **Twinned** allowed spells that target an object or something the spell creates; 22 templates gain `noCreatureTarget` (Heat Metal, Magic Weapon, Elemental Weapon, Holy Weapon, Flame Arrows, Knock, Arcane Lock, Continual Flame, Magic Mouth, Animate Dead, Gentle Repose, Speak with Dead, Tiny Servant, Catapult, Identify, Immovable Object, Magic Stone, Bigby's Hand, Spiritual Weapon, Mordenkainen's Sword, Grasping Vine, Maximilian's Earthen Grasp).
+6. **Careful and Heightened** now reach an attack spell's follow-up save, as [[#D179]] intended (Ice Knife's burst), and Plane Shift's follow-up Charisma save.
+7. **Prismatic Spray** takes Careful, Heightened and Empowered.
+8. **Chaos Bolt's** Empowered rerolls its low dice; it charged but rerolled nothing.
+9. **Magic Missile's** Empowered rerolls are shared across the darts in order; only the first dart's die was rerolled.
+10. **Green-Flame Blade** may take Empowered for its fire dice rolled on the cast.
+11. **Twinned Dispel Magic** dispels both targets instead of a 400; Booming Blade, Green-Flame Blade, Counterspell and Dispel Magic casts now log their Metamagic.
+
+**Rules calls (the lead's, to confirm):**
+- Booming Blade and Green-Flame Blade can't be twinned: their range is self.
+- Raise Dead, Reincarnate and Resurrection stay twinnable ("dead creature"); spells naming a corpse target an object.
+- Counterspell is twinnable by the rules, but the app counters only the last spell cast, so a twinned Counterspell is refused before anything is spent.
+- A twinnable spell that can also target an object stays twinnable (Enlarge/Reduce, Dispel Magic, Disintegrate, Levitate).
+- Chaos Bolt's damage type and leap read the dice after Empowered rerolls them.
+- Careful and Heightened count only saves the cast itself forces ([[#D199]]), so Heat Metal, Delayed Blast Fireball and Scrying stay ineligible.
+
+**Trade-offs and open items:** Empowered on Booming Blade or Green-Flame Blade only logs a note for the DM, because the weapon attack rolls the spell's dice with the weapon's. Empowered doesn't reach Ice Knife's burst. A 1-mile range displays as "1 miles". Golden counts now: Careful and Heightened 175, Empowered 132, Extended 344, Twinned 158, target-scaling spells 22.
+
+**Key files:** `content/internal/SpellLoader.java`, `rules/combat/Metamagic.java`, `encounter/internal/SpellEffects.java`, `SpellCaster.java`, `SpellcastingService.java`, `data/spell-effects/spell-effect-definitions.json`
+
+**Related:** D179, D196, D199; roadmap M18
+
+**Tests:** new `MetamagicSpellDataTest` (1,052 cases: every template against every option, with the deliberate departures listed and the hand-written tricky spells), `MetamagicResolutionTest` (12, with the shipped templates) and `SpellLoaderRangeTest` (9); updated `MetamagicEligibilityGoldenTest` and `MetamagicTest`; 4,553 backend unit, 541 integration and 1,208 frontend tests before the D208 merge; 4,586, 545 and 1,221 after it.

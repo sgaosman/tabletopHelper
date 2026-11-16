@@ -136,4 +136,27 @@ class MetamagicTest {
         assertEquals(0, Metamagic.empoweredDice(0));
         assertEquals(5, Metamagic.empoweredDice(5));
     }
+
+    @Test
+    @DisplayName("M18 pass: Extended never shortens a spell longer than 24 hours, nor takes an instantaneous one; Distant reads the range alone")
+    void m18Pass() {
+        // Contagion's 7 days stay 7 days rather than falling to the 24-hour cap
+        assertEquals(100800, Metamagic.extendedRounds(100800));
+        assertEquals(14400, Metamagic.extendedRounds(10000));
+        // Silvery Barbs: instantaneous, though its advantage lasts a minute
+        SpellFacts barbs = new SpellFacts(1, CastingTime.REACTION, false, false, 10, "Instantaneous", true, false, 1,
+                null, "60 feet", false, false);
+        assertTrue(Metamagic.ineligible(Option.EXTENDED, barbs, 1).isPresent());
+        SpellFacts shapeWater = new SpellFacts(0, CastingTime.ACTION, false, false, null,
+                "Instantaneous or 1 hour (depending on effect chosen)", false, false, null, null, "30 feet", false,
+                true);
+        assertTrue(Metamagic.ineligible(Option.EXTENDED, shapeWater, 0).isEmpty());
+        // Dimension Door affects only its caster, but its range is 500 feet
+        SpellFacts dimensionDoor = new SpellFacts(4, CastingTime.ACTION, false, false, null, "Instantaneous", false,
+                true, null, null, "500 feet", true, false);
+        assertTrue(Metamagic.ineligible(Option.DISTANT, dimensionDoor, 4).isEmpty());
+        SpellFacts burningHands = new SpellFacts(1, CastingTime.ACTION, true, true, null, "Instantaneous", false,
+                false, null, null, "Self (15-foot cone)", true, true);
+        assertTrue(Metamagic.ineligible(Option.DISTANT, burningHands, 1).isPresent());
+    }
 }

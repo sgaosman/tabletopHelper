@@ -187,13 +187,24 @@ public final class Metamagic {
         return Math.max(0, charismaModifier);
     }
 
-    /** A duration doubled by Extended Spell, to at most 24 hours (PHB p.102). */
+    /**
+     * A duration doubled by Extended Spell, to at most 24 hours (PHB p.102); one already longer than that, as
+     * Contagion's 7 days, stays as it is rather than shrinking to the cap.
+     */
     public static int extendedRounds(int rounds) {
-        return (int) Math.min(MAX_EXTENDED_ROUNDS, rounds * 2L);
+        return (int) Math.max(rounds, Math.min(MAX_EXTENDED_ROUNDS, rounds * 2L));
     }
 
-    /** Whether the spell lasts 1 minute or longer, which Extended Spell needs. */
+    /**
+     * Whether the spell lasts 1 minute or longer, which Extended Spell needs. The spell's own duration decides: an
+     * instantaneous spell whose effect lingers, as Silvery Barbs' advantage or Synaptic Static's penalty, has a
+     * duration of instantaneous, which can't be doubled; Shape Water's "Instantaneous or 1 hour" has an hour to double.
+     */
     public static boolean lastsAMinute(SpellFacts spell) {
+        if (spell.durationText() != null
+                && spell.durationText().trim().equalsIgnoreCase("instantaneous")) {
+            return false;
+        }
         if (spell.durationRounds() != null) {
             return spell.durationRounds() >= ONE_MINUTE;
         }
@@ -201,9 +212,10 @@ public final class Metamagic {
                 && LASTING.matcher(spell.durationText().toLowerCase(Locale.ROOT)).find();
     }
 
-    // A range of 5 feet or more, or touch; not self, sight, unlimited or special
+    // A range of 5 feet or more, or touch; not self, sight, unlimited or special. The range decides, not whom the
+    // spell affects: Dimension Door's 500 feet doubles, and Shillelagh's touch becomes 30 feet
     private static boolean distantRange(SpellFacts spell) {
-        if (spell.range() == null || spell.selfOnly()) {
+        if (spell.range() == null) {
             return false;
         }
         String range = spell.range().trim().toLowerCase(Locale.ROOT);

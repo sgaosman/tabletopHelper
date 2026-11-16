@@ -57,7 +57,7 @@ class MetamagicEligibilityGoldenTest {
     }
 
     @Test
-    @DisplayName("At each spell's own level: Careful and Heightened 122, Empowered 109 (Hex, Hunter's Mark, Absorb Elements and Elemental Weapon deal their dice through Ongoing Modifiers, D184), Extended 228, Quickened 270, Subtle 341, Twinned 138 (the 4th-level templates, D185); with the 5th level (D187) Careful and Heightened 143, Empowered 125, Extended 271, Quickened 311, Subtle 403, Twinned 156; with the 7th level (D189) Careful and Heightened 151, Empowered 130, Extended 287, Quickened 327, Subtle 431, Twinned 163; with the 6th level (D188) Careful and Heightened 167, Empowered 140, Extended 317, Quickened 359, Subtle 479, Twinned 172; with the 8th and 9th levels (D190) Careful and Heightened 187, Empowered 153, Extended 345, Quickened 395, Subtle 525, Twinned 186; then Careful and Heightened 186 and Empowered 152, Sanctuary having no save and Spirit Shroud dealing its dice through Ongoing Modifiers (D196), then Empowered 147 and Extended 346 with Zephyr Strike, Flame Arrows, Ashardalon's Stride, Shadow Blade, Web and Silvery Barbs (D197), then Empowered 146 with Branding Smite dealing its dice through Ongoing Modifiers, then, in D199, Careful and Heightened 174, Empowered 130 and Twinned 180 with the lasting area spells whose cast forces no save or rolls no damage, Magic Circle's save for teleporting left to the DM, and Bestow Curse, Crusader's Mantle, Dragon's Breath and Armor of Agathys dealing their dice through modifiers, a later use or a retaliation, and the smites and strikes becoming weapon riders whose saves come on the hit, with a range of self")
+    @DisplayName("At each spell's own level: Careful and Heightened 122, Empowered 109 (Hex, Hunter's Mark, Absorb Elements and Elemental Weapon deal their dice through Ongoing Modifiers, D184), Extended 228, Quickened 270, Subtle 341, Twinned 138 (the 4th-level templates, D185); with the 5th level (D187) Careful and Heightened 143, Empowered 125, Extended 271, Quickened 311, Subtle 403, Twinned 156; with the 7th level (D189) Careful and Heightened 151, Empowered 130, Extended 287, Quickened 327, Subtle 431, Twinned 163; with the 6th level (D188) Careful and Heightened 167, Empowered 140, Extended 317, Quickened 359, Subtle 479, Twinned 172; with the 8th and 9th levels (D190) Careful and Heightened 187, Empowered 153, Extended 345, Quickened 395, Subtle 525, Twinned 186; then Careful and Heightened 186 and Empowered 152, Sanctuary having no save and Spirit Shroud dealing its dice through Ongoing Modifiers (D196), then Empowered 147 and Extended 346 with Zephyr Strike, Flame Arrows, Ashardalon's Stride, Shadow Blade, Web and Silvery Barbs (D197), then Empowered 146 with Branding Smite dealing its dice through Ongoing Modifiers, then, in D199, Careful and Heightened 174, Empowered 130 and Twinned 180 with the lasting area spells whose cast forces no save or rolls no damage, Magic Circle's save for teleporting left to the DM, and Bestow Curse, Crusader's Mantle, Dragon's Breath and Armor of Agathys dealing their dice through modifiers, a later use or a retaliation, and the smites and strikes becoming weapon riders whose saves come on the hit, with a range of self; then, in the M18 pass, Careful and Heightened 175 with Plane Shift's follow-up save, Empowered 132 with Green-Flame Blade's and Prismatic Spray's dice, Extended 344 without the instantaneous Silvery Barbs and Synaptic Static, and Twinned 158 without the 22 spells whose one target is never a creature")
     void countsAtOwnLevel() {
         Map<Option, Integer> counts = new EnumMap<>(Option.class);
         FACTS.forEach((spell, facts) -> {
@@ -79,9 +79,12 @@ class MetamagicEligibilityGoldenTest {
         // Arrow), now weapon riders cast on their caster whose saves come on the hit, to 174; those casts dealing no
         // damage, and Bestow Curse's, Crusader's Mantle's, Dragon's Breath's, Armor of Agathys' and the riders'
         // dice leaving the cast take Empowered to 130; a spell with a range of self isn't twinned (PHB p.102), so
-        // Twinned goes to 180
-        assertEquals(Map.of(Option.CAREFUL, 174, Option.HEIGHTENED, 174, Option.EMPOWERED, 130, Option.EXTENDED, 346,
-                Option.QUICKENED, 395, Option.SUBTLE, 525, Option.TWINNED, 180), counts);
+        // Twinned goes to 180. The M18 Metamagic pass (MetamagicSpellDataTest): Plane Shift's follow-up Charisma save
+        // takes Careful and Heightened to 175; Green-Flame Blade's dice from 5th level and Prismatic Spray's 10d6 rays
+        // take Empowered to 132; Silvery Barbs and Synaptic Static, instantaneous, take Extended to 344; and the 22
+        // spells whose one target is an object or what they create (noCreatureTarget) take Twinned to 158
+        assertEquals(Map.of(Option.CAREFUL, 175, Option.HEIGHTENED, 175, Option.EMPOWERED, 132, Option.EXTENDED, 344,
+                Option.QUICKENED, 395, Option.SUBTLE, 525, Option.TWINNED, 158), counts);
     }
 
     @Test
@@ -92,8 +95,8 @@ class MetamagicEligibilityGoldenTest {
                 .peek(facts -> assertTrue(Metamagic.ineligible(Option.TWINNED, facts, facts.level() + 1).isPresent()))
                 .count();
         // Banishment, Charm Monster and Elemental Bane joined at 4th level (D185); Hold Monster and Temporal Shunt at
-        // 5th (D187); Etherealness at 7th (D189)
-        assertEquals(23, scaling);
+        // 5th (D187); Etherealness at 7th (D189); Tiny Servant, whose object isn't a creature, left in the M18 pass
+        assertEquals(22, scaling);
         assertTrue(eligible("Hold Person", Option.TWINNED, 2));
         assertFalse(eligible("Hold Person", Option.TWINNED, 3));
         assertTrue(eligible("Invisibility", Option.TWINNED, 2));

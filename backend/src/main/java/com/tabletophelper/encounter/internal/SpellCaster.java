@@ -273,13 +273,15 @@ public class SpellCaster {
                     darts.at(plan.spellLevel(), slotLevel), normal, metamagic.empoweredDice()));
         } else if (typeDice != null) {
             // A damage type from the dice, and a leap on a double, as Chaos Bolt's (XGE p.151, D199)
-            applied.addAll(typedBolts(encounter, caster, use, spellName, effect, rules, typeDice, normal, picked));
+            applied.addAll(typedBolts(encounter, caster, use, spellName, effect, rules, typeDice, normal, picked,
+                    metamagic.empoweredDice()));
         } else if (transfer > 0) {
             // The caster's own damage heals the targets, as Life Transference's (XGE p.160, D199)
             rollNote = transfer(encounter, caster, spellName, effect, transfer, normal, metamagic.empoweredDice());
         } else if (!seventh.rays().isEmpty()) {
             // A table each creature rolls on, as Prismatic Spray's d8 (PHB p.267, D189)
-            applied.addAll(rays(encounter, caster, applying, spellName, effect, seventh.rays(), normal, saveDc));
+            applied.addAll(rays(encounter, caster, applying, spellName, effect, seventh.rays(), normal, saveDc,
+                    metamagic));
         } else if (!normal.isEmpty() || maximised.isEmpty()) {
             // With no targets at all the spell still resolves, rolling its dice as before (D177)
             Effect resolving = effect;
@@ -365,7 +367,7 @@ public class SpellCaster {
         String fifthNote = afterCast(encounter, caster, spellName, option, use, instance, reached, applied,
                 affected, saveDc, castingAbility, attackBonus);
         String seventhNote = afterSeventh(encounter, caster, spellName, slotLevel, option, use, seventh, normal,
-                applied, saveDc, castingAbility, attackBonus, picked) + rollNote;
+                applied, saveDc, castingAbility, attackBonus, picked, metamagic) + rollNote;
         keepRider(caster, spellName, saveDc, picked);
         String highNote = afterHighLevelCast(encounter, caster, spellName, slotLevel, high, use, affected)
                 + givePool(encounter, caster, spellName, use);
@@ -637,7 +639,8 @@ public class SpellCaster {
      */
     private List<EffectApplier.Applied> rays(Encounter encounter, EncounterParticipant caster, EffectApplier.Use use,
                                              String spellName, Effect cast, List<SpellTemplate.Ray> table,
-                                             List<EncounterParticipant> creatures, int saveDc) {
+                                             List<EncounterParticipant> creatures, int saveDc,
+                                             MetamagicCasting.Plan metamagic) {
         if (!(cast.delivery() instanceof Effect.Save save)) {
             return List.of();
         }
@@ -716,8 +719,12 @@ public class SpellCaster {
                     ? new Effect.Save(Ability.parse(struck.getFirst().saveAbility()).orElse(save.ability()), save.dc(),
                     save.halfDamageOnSuccess()) : save;
             Effect each = new Effect(spellName, rowSave, damage, null, conditions, false, null, ends);
+            // Careful and Heightened Spell reach the one save, and Empowered Spell rerolls each creature's dice
+            // (PHB p.102)
+            List<Resolver.Target> against = stats.spellTargets(List.of(creature), each, caster).stream()
+                    .map(target -> withMetamagic(target, metamagic)).toList();
             List<EffectApplier.Applied> result = effectApplier.apply(encounter, use, each,
-                    resolver.resolve(each, CreatureStats.side(caster), stats.spellTargets(List.of(creature), each, caster)));
+                    resolver.resolve(each, CreatureStats.side(caster), against, metamagic.empoweredDice()));
             applied.addAll(result);
             boolean failed = result.stream().anyMatch(r -> r.outcome().outcome() == Outcome.SAVE_FAIL)
                     && creature.getLifeState() != LifeState.DEAD;
@@ -913,7 +920,8 @@ public class SpellCaster {
     private String afterSeventh(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
                                 String option, EffectApplier.Use use, SpellEffects.SeventhLevel seventh,
                                 List<EncounterParticipant> reached, List<EffectApplier.Applied> applied, int saveDc,
-                                String castingAbility, int attackBonus, List<EncounterParticipant> picked) {
+                                String castingAbility, int attackBonus, List<EncounterParticipant> picked,
+                                MetamagicCasting.Plan metamagic) {
         if (seventh.equals(SpellEffects.SeventhLevel.NONE)) {
             return "";
         }
@@ -989,7 +997,7 @@ public class SpellCaster {
                 }
             } else {
                 afterAttack(encounter, caster, spellName, slotLevel, use, applied, picked, castingAbility,
-                        attackBonus, saveDc);
+                        attackBonus, saveDc, metamagic);
             }
         }
         SpellTemplate.RaisesOnKill raises = seventh.raises();
@@ -1080,7 +1088,7 @@ public class SpellCaster {
      */
     void afterAttack(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
                      EffectApplier.Use use, List<EffectApplier.Applied> applied, List<EncounterParticipant> picked,
-                     String castingAbility, int attackBonus, int saveDc) {
+                     String castingAbility, int attackBonus, int saveDc, MetamagicCasting.Plan metamagic) {
         Optional<SpellEffects.FollowUp> found = spellEffects.followUp(spellName, slotLevel, caster, castingAbility,
                 attackBonus, saveDc);
         if (found.isEmpty()) {
@@ -1112,8 +1120,11 @@ public class SpellCaster {
             effectApplier.summary(encounter, use, names(living) + " makes a DC " + each.dc() + " "
                     + each.ability().name() + " save against " + spellName + ".");
         }
+        // Careful Spell's creatures succeed on the follow-up's save, and Heightened Spell's rolls it, its first against
+        // the spell, with disadvantage (PHB p.102, D179)
         effectApplier.apply(encounter, use, then, resolver.resolve(then, CreatureStats.side(caster),
-                stats.spellTargets(living, then, caster)));
+                stats.spellTargets(living, then, caster).stream().map(target -> withMetamagic(target, metamagic))
+                        .toList()));
     }
 
     /*
@@ -1122,7 +1133,9 @@ public class SpellCaster {
      * 5d4 on a critical hit (AcqInc p.75). The caster shares them among the targets as listed, a target named more than once
      * taking more, and the darts left over going round the targets in order. Each dart rolls its own damage and is its own
      * damage, so a concentrating creature makes a check for each (PHB p.203) (rules call: each dart rolls its own 1d4). A
-     * creature under Shield takes none from Magic Missile (PHB p.275). Empowered Spell rerolls the first dart's dice. For
+     * creature under Shield takes none from Magic Missile (PHB p.275). Empowered Spell's dice are shared among the darts in
+     * order, each dart taking as many as it has dice until they run out (rules call), so a +3 Charisma rerolls a low die
+     * on each of three Magic Missile darts rather than on the first alone (PHB p.102). For
      * Jim's darts, any attack roll of a natural 1 makes every dart miss and deal the backfire's damage to the caster
      * instead.
      */
@@ -1141,6 +1154,8 @@ public class SpellCaster {
                 .map(EncounterParticipant::getDisplayName).collect(Collectors.joining(", ")) + ".");
         List<Resolver.TargetOutcome> rolled = new ArrayList<>();
         List<EncounterParticipant> rolledAt = new ArrayList<>();
+        int dartDice = effect.damage().stream().mapToInt(part -> part.dice().count()).sum();
+        int empowering = empoweredDice;
         for (int i = 0; i < struck.size(); i++) {
             EncounterParticipant target = struck.get(i);
             if (blockedByShield(spellName, target)) {
@@ -1148,8 +1163,10 @@ public class SpellCaster {
                         + spellName + ".");
                 continue;
             }
+            int dartEmpowered = Math.min(empowering, dartDice);
+            empowering -= dartEmpowered;
             rolled.add(resolver.resolve(effect, CreatureStats.side(caster),
-                    stats.spellTargets(List.of(target), effect, caster), i == 0 ? empoweredDice : 0).getFirst());
+                    stats.spellTargets(List.of(target), effect, caster), dartEmpowered).getFirst());
             rolledAt.add(target);
         }
         SpellTemplate.Backfire backfire = spellEffects.backfireOnOne(spellName);
@@ -1198,7 +1215,7 @@ public class SpellCaster {
                                                    EffectApplier.Use use, String spellName, Effect effect,
                                                    SpellEffects.CastRules rules, SpellTemplate.TypeDice typeDice,
                                                    List<EncounterParticipant> targets,
-                                                   List<EncounterParticipant> picked) {
+                                                   List<EncounterParticipant> picked, int empoweredDice) {
         if (!(effect.delivery() instanceof Effect.Attack)) {
             return List.of();
         }
@@ -1219,23 +1236,36 @@ public class SpellCaster {
                 continue;
             }
             boolean critical = outcome.outcome() == Outcome.CRITICAL;
-            List<Integer> faces = new ArrayList<>();
+            // Each die rolled, those that give the type marked; Empowered Spell (PHB p.102) then rerolls up to its
+            // number of those below their average, worst first, and the type and the leap read the dice as they end
+            // (rules call: the rerolled d8s decide)
+            List<int[]> rolled = new ArrayList<>();
+            List<Integer> typing = new ArrayList<>();
             int total = 0;
             boolean typed = false;
             for (Effect.DamagePart part : effect.damage()) {
                 Dice dice = part.dice();
-                boolean typing = !typed && dice.sides() == typeDice.sides() && dice.count() >= typeDice.count();
-                typed |= typing;
+                boolean types = !typed && dice.sides() == typeDice.sides() && dice.count() >= typeDice.count();
+                typed |= types;
                 int count = critical ? dice.count() * 2 : dice.count();
                 for (int i = 0; i < count; i++) {
-                    int face = resolver.roll(dice.sides());
-                    if (typing && i < typeDice.count()) {
-                        faces.add(face);
+                    if (types && i < typeDice.count()) {
+                        typing.add(rolled.size());
                     }
-                    total += face;
+                    rolled.add(new int[] {dice.sides(), resolver.roll(dice.sides())});
                 }
                 total += dice.modifier();
             }
+            if (empoweredDice > 0) {
+                rolled.stream().filter(die -> die[1] < (die[0] + 1) / 2.0)
+                        .sorted(java.util.Comparator.comparingDouble(die -> die[1] - (die[0] + 1) / 2.0))
+                        .limit(empoweredDice)
+                        .forEach(die -> die[1] = resolver.roll(die[0]));
+            }
+            for (int[] die : rolled) {
+                total += die[1];
+            }
+            List<Integer> faces = typing.stream().map(index -> rolled.get(index)[1]).toList();
             String type = faces.isEmpty() ? null : typeDice.types().get(Math.min(faces.getFirst(),
                     typeDice.types().size()) - 1);
             Effect bolt = new Effect(spellName, new Effect.Automatic(),
@@ -1346,7 +1376,7 @@ public class SpellCaster {
             return "";
         }
         afterAttack(encounter, caster, spellName, 0, use, List.of(attack), picked, castingAbility, attackBonus,
-                saveDc);
+                saveDc, MetamagicCasting.Plan.NONE);
         if (spellEffects.lasting(spellName, 0).isEmpty() || attack.target().getLifeState() == LifeState.DEAD) {
             return "";
         }
@@ -2192,7 +2222,8 @@ public class SpellCaster {
             if (!table.isEmpty()) {
                 // The table rolled again, as Nathair's Mischief's at the start of each of its caster's turns (FTD
                 // p.21, D199)
-                applied.addAll(rays(encounter, caster, applying, spellName, effect, table, standing, saveDc));
+                applied.addAll(rays(encounter, caster, applying, spellName, effect, table, standing, saveDc,
+                        MetamagicCasting.Plan.NONE));
                 continue;
             }
             List<Resolver.Target> resolvedAgainst = stats.spellTargets(standing, effect, caster).stream()

@@ -652,7 +652,7 @@ Phase 3 — Multiclass at creation:
   - Other metamagic options as needed
 - [x] Font of Magic: convert sorcery points ↔ spell slots (exchanges between resource pool and spell slot systems)
 - [x] Validation: correct sorcery point cost, eligible spells for each metamagic
-- [ ] **Full testing against all currently implemented spells** to verify metamagic interactions — not recorded as done in D179 (audit 2026-11-16)
+- [x] **Full testing against all currently implemented spells** to verify metamagic interactions — done: 525 templates against the 8 options, 11 bugs fixed (D212)
 
 **Frontend tasks:**
 - [x] Metamagic toggle buttons when casting a spell (show eligible options)

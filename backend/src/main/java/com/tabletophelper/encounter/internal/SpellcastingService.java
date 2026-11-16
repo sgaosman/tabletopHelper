@@ -174,11 +174,13 @@ public class SpellcastingService {
         Set<UUID> ending = EffectApplier.endingOnAttackOrCast(caster);
         SpellCaster.CastResult result = SpellCounters.handles(casting.spellName())
                 ? counterCast(encounter, caster, casting, targets, own.ability(),
-                        attackBonus(own, request.getOverrideSpellAttackBonus()), costNote, counterNote)
+                        attackBonus(own, request.getOverrideSpellAttackBonus()), costNote + metamagic.note(),
+                        counterNote, metamagic.has(Metamagic.Option.TWINNED))
                 : spellEffects.weaponAttack(casting.spellName()) && attackService != null
                 ? bladeCast(encounter, caster, casting.spellName(), targets, option, own.ability(),
                         attackBonus(own, request.getOverrideSpellAttackBonus()),
-                        saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote)
+                        saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(),
+                        costNote + metamagic.note() + bladeEmpowered(metamagic))
                 : spellCaster.cast(encounter, caster, casting.spellName(), casting.castLevel(),
                 targets, own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
                 saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(),
@@ -271,10 +273,19 @@ public class SpellcastingService {
                 SpellCaster.outcomes(attacked, List.of(attack)));
     }
 
-    // Counterspell, whose counter is already resolved, or Dispel Magic on its one target (D196)
+    // Empowered Spell on a weapon-attack cantrip: the weapon attack rolls the spell's dice with the weapon's, so the DM
+    // rerolls the spell's (PHB p.102)
+    private static String bladeEmpowered(MetamagicCasting.Plan metamagic) {
+        return metamagic.empoweredDice() > 0 ? " (Empowered Spell: the DM rerolls up to " + metamagic.empoweredDice()
+                + " of the spell's damage dice)" : "";
+    }
+
+    // Counterspell, whose counter is already resolved, or Dispel Magic on its one target, or on two when Twinned Spell
+    // gives it a second (PHB p.102, D196)
     private SpellCaster.CastResult counterCast(Encounter encounter, EncounterParticipant caster,
                                                SpellSources.Payment casting, List<EncounterParticipant> targets,
-                                               String ability, int attackBonus, String costNote, String counterNote) {
+                                               String ability, int attackBonus, String costNote, String counterNote,
+                                               boolean twinned) {
         String spellName = casting.spellName();
         int level = casting.castLevel();
         EffectApplier.Use use = new EffectApplier.Use(caster, caster.getDisplayName(), CombatActionType.SPELL_CAST,
@@ -286,10 +297,12 @@ public class SpellcastingService {
         if (counterNote != null) {
             outcome = counterNote;
         } else {
-            if (targets.size() != 1) {
+            if (targets.size() != (twinned ? 2 : 1)) {
                 throw new ValidationException(spellName + " targets one creature");
             }
-            outcome = spellCounters.dispel(encounter, use, caster, targets.getFirst(), level, ability, attackBonus);
+            outcome = targets.stream()
+                    .map(target -> spellCounters.dispel(encounter, use, caster, target, level, ability, attackBonus))
+                    .collect(java.util.stream.Collectors.joining(" "));
         }
         return new SpellCaster.CastResult(spellName, 3, false, null, lead + " " + outcome, List.of());
     }

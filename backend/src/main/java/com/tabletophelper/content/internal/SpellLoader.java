@@ -37,7 +37,8 @@ public class SpellLoader implements ContentLoader {
 
     @Override
     public int version() {
-        return 1;
+        // 2: an area from the caster reads "Self (15-foot cone)", not "15 feet"
+        return 2;
     }
 
     @Override
@@ -229,7 +230,13 @@ public class SpellLoader implements ContentLoader {
         return number + " " + unit + (number > 1 ? "s" : "");
     }
 
-    private String parseRange(JsonNode rangeNode) {
+    /**
+     * The spell's range as the PHB words it: "60 feet", "Touch", "Self", or "Self (15-foot cone)" for an area that
+     * starts at the caster, which 5etools gives as a range of that shape (radius, cone, line, sphere, cube, hemisphere)
+     * rather than a point. Metamagic reads it: such a spell has a range of self, so Distant and Twinned Spell can't
+     * change it (PHB p.102).
+     */
+    static String parseRange(JsonNode rangeNode) {
         if (rangeNode == null) return null;
         String type = rangeNode.path("type").asString("");
         JsonNode distance = rangeNode.get("distance");
@@ -238,10 +245,11 @@ public class SpellLoader implements ContentLoader {
         if (distance == null) return type;
 
         String distType = distance.path("type").asString("");
+        if (!"point".equals(type) && distance.has("amount")) {
+            String unit = distType.startsWith("mile") ? "mile" : "foot";
+            return "Self (" + distance.path("amount").asInt(0) + "-" + unit + " " + type + ")";
+        }
         if ("self".equals(distType)) {
-            if (rangeNode.has("distance") && distance.has("amount")) {
-                return "Self (" + distance.path("amount").asInt(0) + "-foot " + type + ")";
-            }
             return "Self";
         }
         if ("touch".equals(distType)) return "Touch";

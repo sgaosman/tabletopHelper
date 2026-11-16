@@ -1242,9 +1242,17 @@ public class SpellEffects {
     static Metamagic.SpellFacts facts(SpellTemplate template, String castingTime, String range) {
         String time = template.json() != null && template.json().path("castingTime").isString()
                 ? template.json().path("castingTime").asString() : castingTime;
-        boolean forcesSave = template.saveAbility() != null && !template.saveAbility().isBlank();
-        // Empowered Spell rerolls the damage rolled when the spell is cast
-        boolean dealsDamage = template.firstDamageEffect().isPresent();
+        // A spell attack's follow-up save, as Plane Shift's Charisma save after its hit, is the spell's (D179); a
+        // weapon rider's, as a smite's, comes with a later weapon hit (D199)
+        boolean forcesSave = template.saveAbility() != null && !template.saveAbility().isBlank()
+                || "SPELL_ATTACK".equals(template.deliveryMethod()) && template.followUpSave() != null
+                && template.followUpSave().ability() != null;
+        // Empowered Spell rerolls the damage rolled when the spell is cast: a cantrip's dice that come only with the
+        // caster's level, as Green-Flame Blade's from 5th, and a ray table's, as Prismatic Spray's 10d6, count
+        boolean dealsDamage = template.firstDamageEffect().isPresent()
+                || template.effects().stream().anyMatch(part -> part.cantripScaling().values().stream()
+                        .anyMatch(dice -> dice != null && dice.contains("d")))
+                || template.rayTable().stream().anyMatch(ray -> ray.damageDice() != null);
         // A cast that resolves nothing, as Spike Growth's, or something of its own, as Hunger of Hadar's blindness,
         // forces a save and rolls damage only as that does (D199): what its area does later is no part of the cast
         SpellTemplate.CastEffect castEffect = template.castEffect();
@@ -1258,9 +1266,13 @@ public class SpellEffects {
             dealsDamage = castEffect.effect().damageDice() != null;
         }
         SpellTemplate.TargetScaling scaling = template.targetCountUpcastScaling();
+        // A spell whose one target is never a creature, as Heat Metal's metal object, Magic Weapon's weapon or Bigby's
+        // Hand's hand, isn't twinned (PHB p.102): the template's noCreatureTarget
+        boolean creatureTarget = template.json() == null || !template.json().path("noCreatureTarget").asBoolean(false);
         return new Metamagic.SpellFacts(template.level(), castingTime(time), forcesSave,
                 dealsDamage, template.durationRounds(), template.durationText(),
-                "SINGLE_TARGET".equals(template.targetType()), Boolean.TRUE.equals(template.selfOnly()),
+                creatureTarget && "SINGLE_TARGET".equals(template.targetType()),
+                Boolean.TRUE.equals(template.selfOnly()),
                 template.targetCount(), scaling != null ? scaling.additionalTargetsPerLevel() : null,
                 range, template.verbal(), template.somatic());
     }
