@@ -104,10 +104,33 @@ public class CharacterSheetService {
         PlayerCharacter character = characterCommands.beginOutsideEncounters(characterId, userId,
                 "change their inventory");
         List<InventoryItem> equipment = resourcePoolService.withChargesRecorded(
-                inventoryChecks.checked(request.equipment()), character.getResourcePools());
+                withStoredCharges(inventoryChecks.checked(request.equipment()), character.getEquipment()),
+                character.getResourcePools());
         character.setCurrency(InventoryChecks.checked(request.currency()));
         character.setEquipment(equipment);
         return characterCommands.finish(character);
+    }
+
+    /**
+     * The charges spent from an item's pool are the sheet's to record, never the client's (D218): each entry takes the
+     * count its stored entry holds (the same linked item, else the same name), whatever the request says, so a request
+     * built from an older copy of the inventory can't refill a wand that is unlinked or unattuned and then restored.
+     */
+    static List<InventoryItem> withStoredCharges(List<InventoryItem> entries, List<InventoryItem> stored) {
+        List<InventoryItem> kept = new ArrayList<>();
+        for (InventoryItem entry : entries) {
+            InventoryItem before = orEmpty(stored).stream()
+                    .filter(old -> old != null && old.itemId() != null && old.itemId().equals(entry.itemId()))
+                    .findFirst()
+                    .orElseGet(() -> orEmpty(stored).stream()
+                            .filter(old -> old != null && old.name() != null && old.name().equalsIgnoreCase(entry.name()))
+                            .findFirst()
+                            .orElse(null));
+            Integer spent = before != null ? before.chargesSpent() : null;
+            kept.add(new InventoryItem(entry.name(), entry.quantity(), entry.description(), entry.itemId(),
+                    entry.equipped(), entry.attuned(), entry.spell(), spent));
+        }
+        return kept;
     }
 
     // ── Hit points ───────────────────────────────────────────────

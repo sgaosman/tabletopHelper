@@ -771,4 +771,23 @@ class CharacterSheetServiceTest {
             assertThat(pool(response, "class:test-unlimited").unlimited()).isTrue();
         }
     }
+
+    @Test
+    @DisplayName("The charges spent from an item come from the stored entry, not the request, so an older copy can't refill a wand (D218)")
+    void storedChargesWin() {
+        UUID wand = UUID.randomUUID();
+        List<InventoryItem> stored = List.of(new InventoryItem("Wand of Magic Missiles", 1, null, null, false, false, null, 3));
+        // Relinking the wand from a copy taken before it was unlinked, which has no count, or a forged count of 0
+        List<InventoryItem> stale = List.of(new InventoryItem("Wand of Magic Missiles", 1, null, wand, false, false, null, null));
+        List<InventoryItem> forged = List.of(new InventoryItem("wand of magic missiles", 1, null, wand, false, false, null, 0));
+
+        assertThat(CharacterSheetService.withStoredCharges(stale, stored).get(0).chargesSpent()).isEqualTo(3);
+        assertThat(CharacterSheetService.withStoredCharges(forged, stored).get(0).chargesSpent()).isEqualTo(3);
+        // The same linked item is found first, and a new entry starts with none spent
+        List<InventoryItem> linked = List.of(new InventoryItem("Renamed wand", 1, null, wand, false, false, null, null));
+        List<InventoryItem> storedLinked = List.of(new InventoryItem("Wand of Magic Missiles", 1, null, wand, false, false, null, 5));
+        assertThat(CharacterSheetService.withStoredCharges(linked, storedLinked).get(0).chargesSpent()).isEqualTo(5);
+        assertThat(CharacterSheetService.withStoredCharges(List.of(new InventoryItem("Rope", 1, null, null, false, false, null, 4)), stored)
+                .get(0).chargesSpent()).isNull();
+    }
 }

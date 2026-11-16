@@ -4344,3 +4344,5 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D196, D210
 
 **Tests:** 11 new backend unit, 3 new integration (with `ItemUseIT` extended by a mage and a Counterspell scroll) and 3 new frontend tests; 4,666 backend unit, 565 integration and 1,247 frontend tests.
+
+**Update (2026-11-16, browser retest):** relinking a wand from a copy of the inventory taken before it was unlinked, or with a forged count, still refilled it, because the server took `chargesSpent` from the request. `CharacterSheetService.withStoredCharges` now takes each entry's count from the stored entry (the same linked item, else the same name), ignoring the request's; checked against the rehearsal copy (a 5/7 wand unlinked and relinked from a stale copy with a forged 0 stays 5/7), with `CharacterSheetServiceTest.storedChargesWin`; 4,692 backend unit and 571 integration tests.
