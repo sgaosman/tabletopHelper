@@ -162,6 +162,26 @@ class ChannelDivinityEffectsTest {
         f.attacks.rollAttack(f.encounterId(), request, attacker.getId(), f.dmUserId);
     }
 
+    @Test
+    @DisplayName("A Paladin 3 / Cleric 2's one Channel Divinity pool, the paladin's, spends for Turn Undead at the "
+            + "cleric's DC, as both classes' options share it (PHB p.164)")
+    void clericPaladinSharesOnePool() {
+        tam.getCharacter().setMulticlassEntries(List.of(
+                new ClassEntry(UUID.randomUUID(), "Paladin", UUID.randomUUID(), "Oath of Devotion", 3),
+                new ClassEntry(UUID.randomUUID(), "Cleric", UUID.randomUUID(), "Life Domain", 2)));
+        tam.getCharacter().setLevel(5);
+        tam.setResourcePoolsCurrent(pools(pool(PALADIN_CD, "Channel Divinity", "ACTION", 1, "channel-divinity")));
+        f.turnOf(tam);
+        EncounterParticipant ghoul = undead("Ghoul", "1", 10);
+        f.dice.script(3);
+
+        channel(tam, PALADIN_CD, "turn-undead", ghoul);
+
+        assertNotNull(entry(ghoul, ChannelDivinity.TURNED));
+        assertEquals(0, usesLeft(tam, PALADIN_CD));
+        assertTrue(descriptions(CombatActionType.POOL_USE).getFirst().contains("Turn Undead (WIS save DC 14)"));
+    }
+
     @Nested
     @DisplayName("Turn Undead and Destroy Undead (PHB p.59)")
     class TurnUndead {
@@ -426,6 +446,18 @@ class ChannelDivinityEffectsTest {
             assertTrue(descriptions(CombatActionType.ATTACK).getLast().contains("d20(5) + 3 + Guided Strike 10 = 18"));
             assertTrue(descriptions(CombatActionType.POOL_USE).getLast()
                     .startsWith("Tam uses Channel Divinity for Guided Strike"));
+        }
+
+        @Test
+        @DisplayName("A cleric-paladin whose one shared pool is the paladin's spends it for Guided Strike (PHB p.164)")
+        void guidedStrikeFromSharedPool() {
+            tam.setResourcePoolsCurrent(pools(pool(PALADIN_CD, "Channel Divinity", "ACTION", 1, "channel-divinity")));
+            AttackRollRequest request = rapierAt(goblin);
+            request.setGuidedStrike(true);
+
+            attack(tam, request, 5, 4);
+
+            assertEquals(0, usesLeft(tam, PALADIN_CD));
         }
 
         @Test

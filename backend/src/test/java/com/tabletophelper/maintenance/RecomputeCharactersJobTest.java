@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.Instant;
 import java.util.List;
@@ -43,8 +45,13 @@ class RecomputeCharactersJobTest {
     private static final ResourcePoolEntry RAGE = new ResourcePoolEntry("class:barbarian-rage", "Rage", "CLASS", null,
             3, "3", 2, "longRest", null, null, null, null, Map.of());
 
+    // Each character's transaction runs its work as it is; the job loads each character again by ID inside it
     private RecomputeCharactersJob job() {
-        return new RecomputeCharactersJob(characterRepository, characterService, featEligibility);
+        lenient().doAnswer(invocation -> characterRepository.findAll().stream()
+                        .filter(pc -> pc.getId().equals(invocation.getArgument(0))).findFirst())
+                .when(characterRepository).findById(any());
+        return new RecomputeCharactersJob(characterRepository, characterService, featEligibility,
+                TransactionOperations.withoutTransaction());
     }
 
     // A Barbarian 6 as stored: 65 hit points, +2 initiative, Rage only
@@ -161,6 +168,26 @@ class RecomputeCharactersJobTest {
         assertThat(report.changes()).singleElement().asString().contains("hit points: 40/65 → 46/71");
         verify(characterService, never()).recalculate(broken);
         verify(characterService).recalculate(hurt);
+    }
+
+    @Test
+    @DisplayName("A character whose write fails, in its own transaction, is skipped with a warning and left out of the "
+            + "changes, and the next character is still written")
+    void failedWriteSkipsOnlyThatCharacter() {
+        PlayerCharacter doomed = barbarian("Doomed");
+        doomed.setHpCurrent(40);
+        PlayerCharacter hurt = barbarian("Grog");
+        hurt.setHpCurrent(40);
+        when(characterRepository.findAll()).thenReturn(List.of(doomed, hurt));
+        when(characterService.derivedStats(any())).thenReturn(derived(71, 2, List.of(RAGE), List.of()));
+        when(characterRepository.save(doomed)).thenThrow(new DataIntegrityViolationException("check constraint"));
+
+        MaintenanceReport report = job().run(true);
+
+        assertThat(report.warnings()).containsExactly("Doomed (" + doomed.getId() + ", level 6 Barbarian, deleted): "
+                + "skipped, nothing written (DataIntegrityViolationException: check constraint)");
+        assertThat(report.changes()).singleElement().asString().startsWith("Grog");
+        verify(characterRepository).save(hurt);
     }
 
     @Test

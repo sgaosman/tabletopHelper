@@ -13,8 +13,12 @@ import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.rules.character.CurrentHitPoints;
 import com.tabletophelper.shared.ConflictException;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -50,7 +54,6 @@ import java.util.regex.Pattern;
  * {@code --maintenance.apply=true} writes.
  */
 @Component
-@RequiredArgsConstructor
 public class RecomputeCharactersJob implements MaintenanceJob {
 
     // An AC adjustment's reason that suggests the DM entered armour, or the Defense fighting style (M17), by hand before
@@ -61,6 +64,27 @@ public class RecomputeCharactersJob implements MaintenanceJob {
     private final CharacterRepository characterRepository;
     private final CharacterService characterService;
     private final FeatEligibility featEligibility;
+    private final TransactionOperations perCharacter;
+
+    @Autowired
+    public RecomputeCharactersJob(CharacterRepository characterRepository, CharacterService characterService,
+                                  FeatEligibility featEligibility, PlatformTransactionManager transactionManager) {
+        this(characterRepository, characterService, featEligibility, requiresNew(transactionManager));
+    }
+
+    RecomputeCharactersJob(CharacterRepository characterRepository, CharacterService characterService,
+                           FeatEligibility featEligibility, TransactionOperations perCharacter) {
+        this.characterRepository = characterRepository;
+        this.characterService = characterService;
+        this.featEligibility = featEligibility;
+        this.perCharacter = perCharacter;
+    }
+
+    private static TransactionTemplate requiresNew(PlatformTransactionManager transactionManager) {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return template;
+    }
 
     @Override
     public String name() {
@@ -75,83 +99,104 @@ public class RecomputeCharactersJob implements MaintenanceJob {
         characters.sort(Comparator.comparing((PlayerCharacter pc) -> String.valueOf(pc.getName()),
                 String.CASE_INSENSITIVE_ORDER).thenComparing(pc -> String.valueOf(pc.getId())));
 
-        for (PlayerCharacter pc : characters) {
-            String who = describe(pc);
-            DerivedStats derived;
+        for (PlayerCharacter listed : characters) {
+            // Each character in a transaction of its own, so a failure that dooms a transaction, such as the
+            // database's, rolls back only this character's changes; a dry run rolls back every one
+            List<String> found = new ArrayList<>();
+            List<String> noted = new ArrayList<>();
             try {
-                derived = characterService.derivedStats(pc);
+                perCharacter.executeWithoutResult(status -> {
+                    characterRepository.findById(listed.getId())
+                            .ifPresent(pc -> check(pc, apply, found, noted));
+                    if (!apply) status.setRollbackOnly();
+                });
             } catch (RuntimeException e) {
-                // Damaged data is a ConflictException, but any failure skips only this character
-                warnings.add(who + ": skipped (" + (e instanceof ConflictException ? ""
-                        : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
+                warnings.add(describe(listed) + ": skipped, nothing written (" + e.getClass().getSimpleName() + ": "
+                        + e.getMessage() + ")");
                 continue;
             }
-            derived.warnings().forEach(warning -> warnings.add(who + ": " + warning + "; left unchanged"));
-            featEligibility.heldFeatsUnmet(pc).forEach(feat -> warnings.add(who + ": has the feat " + feat
-                    + ", which it wouldn't qualify for now; kept"));
-            // The reason is the DM's own text, so the report names the adjustment by ID, as its log does (D158)
-            armourAdjustments(pc).forEach(adjustment -> warnings.add(who + ": has an AC adjustment of "
-                    + signed(adjustment.amount()) + " (" + adjustment.id() + ") whose reason names armour or the Defense "
-                    + "style, which the armour class now counts, so it may count twice; kept"));
-
-            List<String> diffs = new ArrayList<>();
-            Optional<CharacterService.MissingSpellcastingAbility> ability;
-            try {
-                ability = characterService.missingSpellcastingAbility(pc);
-            } catch (RuntimeException e) {
-                warnings.add(who + ": spellcasting ability skipped (" + (e instanceof ConflictException ? ""
-                        : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
-                ability = Optional.empty();
-            }
-            ability.ifPresent(found -> diffs.add(spellcastingAbility(found)));
-            List<PendingChoiceService.MissingSubclassProficiencies> proficiencies;
-            try {
-                proficiencies = characterService.missingSubclassProficiencies(pc);
-            } catch (RuntimeException e) {
-                warnings.add(who + ": subclass proficiencies skipped (" + (e instanceof ConflictException ? ""
-                        : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
-                proficiencies = List.of();
-            }
-            proficiencies.forEach(missing -> diffs.add(subclassProficiencies(missing)));
-            List<PendingChoiceService.MissingSubclassCantrip> cantrips;
-            try {
-                cantrips = characterService.missingSubclassCantrips(pc);
-            } catch (RuntimeException e) {
-                warnings.add(who + ": subclass cantrips skipped (" + (e instanceof ConflictException ? ""
-                        : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
-                cantrips = List.of();
-            }
-            cantrips.forEach(missing -> diffs.add(subclassCantrip(missing)));
-            List<CharacterService.OutdatedFeatureText> texts;
-            try {
-                texts = characterService.outdatedFeatureTexts(pc);
-            } catch (RuntimeException e) {
-                warnings.add(who + ": feature texts skipped (" + (e instanceof ConflictException ? ""
-                        : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
-                texts = List.of();
-            }
-            texts.forEach(text -> diffs.add(featureText(text)));
-            diffs.addAll(differences(pc, derived));
-            if (diffs.isEmpty()) continue;
-            changes.add(who + String.join("", diffs.stream().map(diff -> "\n      " + diff).toList()));
-            if (apply) {
-                if (ability.isPresent()) {
-                    characterService.storeMissingSpellcastingAbility(pc);
-                }
-                if (!proficiencies.isEmpty()) {
-                    characterService.storeMissingSubclassProficiencies(pc);
-                }
-                if (!cantrips.isEmpty()) {
-                    characterService.storeMissingSubclassCantrips(pc);
-                }
-                if (!texts.isEmpty()) {
-                    characterService.storeFeatureTexts(pc);
-                }
-                characterService.recalculate(pc);
-                characterRepository.save(pc);
-            }
+            changes.addAll(found);
+            warnings.addAll(noted);
         }
         return new MaintenanceReport(name(), apply, "characters", characters.size(), changes, warnings);
+    }
+
+    // Reports the character's changes and warnings, and with apply makes the changes
+    private void check(PlayerCharacter pc, boolean apply, List<String> changes, List<String> warnings) {
+        String who = describe(pc);
+        DerivedStats derived;
+        try {
+            derived = characterService.derivedStats(pc);
+        } catch (RuntimeException e) {
+            // Damaged data is a ConflictException, but any failure skips only this character
+            warnings.add(who + ": skipped (" + (e instanceof ConflictException ? ""
+                    : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
+            return;
+        }
+        derived.warnings().forEach(warning -> warnings.add(who + ": " + warning + "; left unchanged"));
+        featEligibility.heldFeatsUnmet(pc).forEach(feat -> warnings.add(who + ": has the feat " + feat
+                + ", which it wouldn't qualify for now; kept"));
+        // The reason is the DM's own text, so the report names the adjustment by ID, as its log does (D158)
+        armourAdjustments(pc).forEach(adjustment -> warnings.add(who + ": has an AC adjustment of "
+                + signed(adjustment.amount()) + " (" + adjustment.id() + ") whose reason names armour or the Defense "
+                + "style, which the armour class now counts, so it may count twice; kept"));
+
+        List<String> diffs = new ArrayList<>();
+        Optional<CharacterService.MissingSpellcastingAbility> ability;
+        try {
+            ability = characterService.missingSpellcastingAbility(pc);
+        } catch (RuntimeException e) {
+            warnings.add(who + ": spellcasting ability skipped (" + (e instanceof ConflictException ? ""
+                    : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
+            ability = Optional.empty();
+        }
+        ability.ifPresent(found -> diffs.add(spellcastingAbility(found)));
+        List<PendingChoiceService.MissingSubclassProficiencies> proficiencies;
+        try {
+            proficiencies = characterService.missingSubclassProficiencies(pc);
+        } catch (RuntimeException e) {
+            warnings.add(who + ": subclass proficiencies skipped (" + (e instanceof ConflictException ? ""
+                    : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
+            proficiencies = List.of();
+        }
+        proficiencies.forEach(missing -> diffs.add(subclassProficiencies(missing)));
+        List<PendingChoiceService.MissingSubclassCantrip> cantrips;
+        try {
+            cantrips = characterService.missingSubclassCantrips(pc);
+        } catch (RuntimeException e) {
+            warnings.add(who + ": subclass cantrips skipped (" + (e instanceof ConflictException ? ""
+                    : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
+            cantrips = List.of();
+        }
+        cantrips.forEach(missing -> diffs.add(subclassCantrip(missing)));
+        List<CharacterService.OutdatedFeatureText> texts;
+        try {
+            texts = characterService.outdatedFeatureTexts(pc);
+        } catch (RuntimeException e) {
+            warnings.add(who + ": feature texts skipped (" + (e instanceof ConflictException ? ""
+                    : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
+            texts = List.of();
+        }
+        texts.forEach(text -> diffs.add(featureText(text)));
+        diffs.addAll(differences(pc, derived));
+        if (diffs.isEmpty()) return;
+        changes.add(who + String.join("", diffs.stream().map(diff -> "\n      " + diff).toList()));
+        if (apply) {
+            if (ability.isPresent()) {
+                characterService.storeMissingSpellcastingAbility(pc);
+            }
+            if (!proficiencies.isEmpty()) {
+                characterService.storeMissingSubclassProficiencies(pc);
+            }
+            if (!cantrips.isEmpty()) {
+                characterService.storeMissingSubclassCantrips(pc);
+            }
+            if (!texts.isEmpty()) {
+                characterService.storeFeatureTexts(pc);
+            }
+            characterService.recalculate(pc);
+            characterRepository.save(pc);
+        }
     }
 
     private static String spellcastingAbility(CharacterService.MissingSpellcastingAbility found) {

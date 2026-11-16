@@ -735,7 +735,119 @@ class FeatEffectResolverTest {
         assertFalse(roundTripped.setsSpellcastingAbility());
     }
 
+    // --- 6.32 to 6.37 The ability and saving throw a feat lets the player choose ---
+
+    @Test
+    @DisplayName("6.32 A half-feat with a choice of ability refuses a missing ability with a 400 and changes nothing")
+    void halfFeatWithoutAbilityRefused() {
+        PlayerCharacter c = baseCharacter();
+        Feat athlete = buildFeat("Athlete", "[{\"choose\": {\"from\": [\"str\", \"dex\"], \"amount\": 1}}]", null, null);
+
+        ValidationException missing = assertThrows(ValidationException.class,
+                () -> resolver.applyFeat(c, athlete, new ApplyChoicesRequest.AsiChoice()));
+        assertThrows(ValidationException.class, () -> resolver.applyFeat(c, athlete, null));
+
+        assertTrue(missing.getMessage().contains("STR, DEX"), missing.getMessage());
+        assertEquals(15, c.getStrength());
+        assertEquals(14, c.getDexterity());
+        assertTrue(c.getFeatures().isEmpty());
+    }
+
+    @Test
+    @DisplayName("6.33 A half-feat refuses an ability its choice doesn't list (Athlete's CON) and takes one it lists in any case or spelling")
+    void halfFeatAbilityMustBeOffered() {
+        PlayerCharacter c = baseCharacter();
+        Feat athlete = buildFeat("Athlete", "[{\"choose\": {\"from\": [\"str\", \"dex\"], \"amount\": 1}}]", null, null);
+        ApplyChoicesRequest.AsiChoice con = new ApplyChoicesRequest.AsiChoice();
+        con.setFeatAbility("CON");
+        ApplyChoicesRequest.AsiChoice notAnAbility = new ApplyChoicesRequest.AsiChoice();
+        notAnAbility.setFeatAbility("luck");
+
+        assertThrows(ValidationException.class, () -> resolver.applyFeat(c, athlete, con));
+        assertThrows(ValidationException.class, () -> resolver.applyFeat(c, athlete, notAnAbility));
+        assertEquals(14, c.getConstitution());
+
+        ApplyChoicesRequest.AsiChoice dexterity = new ApplyChoicesRequest.AsiChoice();
+        dexterity.setFeatAbility("Dexterity");
+        FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, athlete, dexterity);
+
+        assertEquals(15, c.getDexterity());
+        assertEquals(Map.of("dexterity", 1), effects.abilityIncreases());
+    }
+
+    @Test
+    @DisplayName("6.34 Resilient (PHB p.168) adds the chosen ability's save by its abbreviation, as the class data writes saves")
+    void resilientAddsAbbreviatedSave() {
+        PlayerCharacter c = baseCharacter();
+
+        FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, resilientFeat(), resilient("wis", "wisdom"));
+
+        assertEquals(13, c.getWisdom());
+        assertEquals(List.of("STR", "CON", "WIS"), c.getSavingThrowProficiencies());
+        assertEquals(List.of("WIS"), effects.savingThrowProficienciesAdded());
+    }
+
+    @Test
+    @DisplayName("6.35 Resilient refuses a saving throw other than the ability it increases, and a missing one, changing nothing")
+    void resilientSaveMustMatchAbility() {
+        PlayerCharacter c = baseCharacter();
+
+        ValidationException other = assertThrows(ValidationException.class,
+                () -> resolver.applyFeat(c, resilientFeat(), resilient("dex", "WIS")));
+        assertThrows(ValidationException.class, () -> resolver.applyFeat(c, resilientFeat(), resilient("dex", null)));
+        assertThrows(ValidationException.class, () -> resolver.applyFeat(c, resilientFeat(), resilient("dex", "fate")));
+
+        assertTrue(other.getMessage().contains("DEX"), other.getMessage());
+        assertEquals(14, c.getDexterity());
+        assertEquals(List.of("STR", "CON"), c.getSavingThrowProficiencies());
+        assertTrue(c.getFeatures().isEmpty());
+    }
+
+    @Test
+    @DisplayName("6.36 Resilient in a save the character is proficient in under another name (\"CONSTITUTION\") adds no second entry")
+    void resilientNoDuplicateSave() {
+        PlayerCharacter c = baseCharacter();
+        c.setSavingThrowProficiencies(List.of("STR", "CONSTITUTION"));
+
+        FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, resilientFeat(), resilient("CON", "con"));
+
+        assertEquals(15, c.getConstitution());
+        assertEquals(List.of("STR", "CONSTITUTION"), c.getSavingThrowProficiencies());
+        assertTrue(effects.savingThrowProficienciesAdded().isEmpty());
+    }
+
+    @Test
+    @DisplayName("6.37 A saving throw choice the feat's list leaves out is refused")
+    void saveChoiceMustBeOffered() {
+        PlayerCharacter c = baseCharacter();
+        Feat narrow = buildFeat("Narrow Resolve", null,
+                "{\"savingThrowProficiencies\": [{\"choose\": {\"from\": [\"wis\", \"cha\"]}}]}", null);
+        ApplyChoicesRequest.AsiChoice dex = new ApplyChoicesRequest.AsiChoice();
+        dex.setSavingThrowChoice("DEX");
+
+        assertThrows(ValidationException.class, () -> resolver.applyFeat(c, narrow, dex));
+
+        ApplyChoicesRequest.AsiChoice cha = new ApplyChoicesRequest.AsiChoice();
+        cha.setSavingThrowChoice("Charisma");
+        resolver.applyFeat(c, narrow, cha);
+        assertEquals(List.of("STR", "CON", "CHA"), c.getSavingThrowProficiencies());
+    }
+
     // --- Helpers ---
+
+    // Resilient as 5etools gives it: +1 to any ability, and proficiency in that ability's saving throws
+    private Feat resilientFeat() {
+        String abilities = "[\"str\", \"dex\", \"con\", \"int\", \"wis\", \"cha\"]";
+        return buildFeat("Resilient", "[{\"choose\": {\"from\": " + abilities + ", \"amount\": 1}}]",
+                "{\"savingThrowProficiencies\": [{\"choose\": {\"from\": " + abilities + "}}]}", null);
+    }
+
+    private static ApplyChoicesRequest.AsiChoice resilient(String ability, String save) {
+        ApplyChoicesRequest.AsiChoice choices = new ApplyChoicesRequest.AsiChoice();
+        choices.setFeatAbility(ability);
+        choices.setSavingThrowChoice(save);
+        return choices;
+    }
 
     // A DM's active FEAT grant with what applying it recorded
     private static DmAdjustment featGrant(String featName, AppliedFeatEffects effects) {

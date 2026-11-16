@@ -8,6 +8,7 @@ import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,14 +33,24 @@ public class AuthService {
     static final Duration REFRESH_TOKEN_LIFETIME = Duration.ofDays(7);
     private static final int REFRESH_TOKEN_BYTES = 32;
     private static final SecureRandom RANDOM = new SecureRandom();
+    /** The most bytes of a password BCrypt reads (UTF-8). */
+    static final int MAX_PASSWORD_BYTES = 72;
+    private static final String INVALID_CREDENTIALS = "Invalid username or password";
+    private static final String DUMMY_PASSWORD = "no-account-has-this-password";
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
+    private volatile String dummyHash;
 
     @Transactional
     public AuthResult register(RegisterRequest request) {
+        // BCrypt reads only the first 72 bytes, and Spring Security's encoder refuses more
+        if (passwordBytes(request.getPassword()) > MAX_PASSWORD_BYTES) {
+            throw new ValidationException("Password must be at most " + MAX_PASSWORD_BYTES
+                    + " bytes; letters outside plain English, such as accented letters or emoji, take 2 to 4 each");
+        }
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new ConflictException("Username already taken");
         }
@@ -54,21 +65,47 @@ public class AuthService {
                 .displayName(request.getDisplayName() != null ? request.getDisplayName() : request.getUsername())
                 .build();
 
-        user = userRepository.save(user);
+        // Two registrations racing for the same name or email pass the checks above; the unique constraint stops the
+        // second, which is then the same 409
+        try {
+            user = userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictException("Username or email already registered");
+        }
 
         return startSession(user);
     }
 
     @Transactional
     public AuthResult login(LoginRequest request) {
-        User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new ValidationException("Invalid username or password"));
-
+        // A password no account can have (over 72 bytes, which registration refuses) is wrong, not a 500
+        boolean tooLong = passwordBytes(request.getPassword()) > MAX_PASSWORD_BYTES;
+        Optional<User> found = userRepository.findByUsername(request.getUsername());
+        // An unknown username takes as long as a wrong password, so the time taken doesn't tell which names exist
+        if (found.isEmpty() || tooLong) {
+            passwordEncoder.matches(DUMMY_PASSWORD, dummyHash());
+            throw new ValidationException(INVALID_CREDENTIALS);
+        }
+        User user = found.get();
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new ValidationException("Invalid username or password");
+            throw new ValidationException(INVALID_CREDENTIALS);
         }
 
         return startSession(user);
+    }
+
+    private static int passwordBytes(String password) {
+        return password == null ? 0 : password.getBytes(StandardCharsets.UTF_8).length;
+    }
+
+    // A hash of a password no one uses, made once with the real encoder's cost, for the unknown username's comparison
+    private String dummyHash() {
+        String hash = dummyHash;
+        if (hash == null) {
+            hash = passwordEncoder.encode(DUMMY_PASSWORD);
+            dummyHash = hash;
+        }
+        return hash;
     }
 
     /**

@@ -393,12 +393,24 @@ export const CHANNEL_DIVINITY_OPTIONS: Record<string, ChannelOption> = {
 const PALADIN_OPTIONS = ['sacred-weapon', 'turn-the-unholy', 'natures-wrath', 'turn-the-faithless', 'abjure-enemy',
   'vow-of-enmity'];
 
-/** The Channel Divinity options the participant can use from this pool, a cleric's or a paladin's, in the server's order. */
-export function channelOptions(participant: Pick<EncounterParticipant, 'channelDivinityOptions'>,
+// The participant's Channel Divinity pools, a cleric's and a paladin's
+function channelPools(participant: Partial<Pick<EncounterParticipant, 'resourcePoolsCurrent'>>): ResourcePoolEntry[] {
+  return (participant.resourcePoolsCurrent ?? []).filter(p => poolEffect(p) === 'channel-divinity');
+}
+
+/**
+ * The Channel Divinity options the participant can use from this pool, a cleric's or a paladin's, in the server's
+ * order. A cleric-paladin has one pool that both classes' options spend (PHB p.164), so a pool offers the other
+ * class's options too when the participant has no pool of that class's.
+ */
+export function channelOptions(
+  participant: Pick<EncounterParticipant, 'channelDivinityOptions'> & Partial<Pick<EncounterParticipant, 'resourcePoolsCurrent'>>,
   pool: Pick<ResourcePoolEntry, 'poolId'>): { id: string; option: ChannelOption }[] {
   const paladin = pool.poolId.includes('paladin');
+  const pools = channelPools(participant);
+  const shared = pools.some(p => p.poolId === pool.poolId) && pools.every(p => p.poolId === pool.poolId);
   return (participant.channelDivinityOptions ?? [])
-    .filter(id => CHANNEL_DIVINITY_OPTIONS[id] !== undefined && PALADIN_OPTIONS.includes(id) === paladin)
+    .filter(id => CHANNEL_DIVINITY_OPTIONS[id] !== undefined && (shared || PALADIN_OPTIONS.includes(id) === paladin))
     .map(id => ({ id, option: CHANNEL_DIVINITY_OPTIONS[id] }));
 }
 
@@ -416,7 +428,9 @@ export function guidedStrikeBlock(
   participant: Pick<EncounterParticipant, 'channelDivinityOptions' | 'resourcePoolsCurrent'>,
 ): string | null {
   if (!(participant.channelDivinityOptions ?? []).includes('guided-strike')) return 'Not a War Domain cleric';
-  const pool = (participant.resourcePoolsCurrent ?? []).find(p => p.poolId === CLERIC_CHANNEL_DIVINITY);
+  // The cleric's pool, or the one a cleric-paladin's classes share
+  const pool = (participant.resourcePoolsCurrent ?? []).find(p => p.poolId === CLERIC_CHANNEL_DIVINITY)
+    ?? channelPools(participant)[0];
   return pool && pool.currentUses > 0 ? null : 'No Channel Divinity left';
 }
 

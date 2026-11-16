@@ -82,14 +82,18 @@ public class FeatEffectResolver {
         List<Map<String, Object>> optionalFeaturesAdded = new ArrayList<>();
         List<KnownSpell> spellsAdded = new ArrayList<>();
 
-        // Apply ability score increase from feat
         List<FeatAbilityIncrease.Entry> increases = FeatAbilityIncrease.readable(feat);
+        FeatEffects effects = FeatEffects.readable(feat);
+        // The ability and saving throw chosen are checked before anything changes
+        Optional<Ability> chosenAbility = chosenAbility(feat, increases, choices);
+        Optional<Ability> chosenSave = chosenSave(feat, effects, chosenAbility, choices);
+
+        // Apply ability score increase from feat
         if (!increases.isEmpty()) {
-            abilityIncreases = applyAbilityScoreIncrease(character, increases, choices);
+            abilityIncreases = applyAbilityScoreIncrease(character, increases, chosenAbility, choices);
         }
 
         // Apply structured effects
-        FeatEffects effects = FeatEffects.readable(feat);
         if (!effects.resistances().isEmpty()) {
             resistancesAdded = applyResistances(character, effects.resistances(), choices);
         }
@@ -110,7 +114,7 @@ public class FeatEffectResolver {
             langProfsAdded = applyLanguageProficiencies(character, effects.languageProficiencies(), choices);
         }
         if (!effects.savingThrowProficiencies().isEmpty()) {
-            saveProfsAdded = applySavingThrowProficiencies(character, effects.savingThrowProficiencies(), choices);
+            saveProfsAdded = applySavingThrowProficiencies(character, effects.savingThrowProficiencies(), chosenSave);
         }
         if (!effects.skillToolLanguageProficiencies().isEmpty()) {
             Map<String, List<String>> mixed = applySkillToolLanguageProficiencies(character, choices);
@@ -229,15 +233,96 @@ public class FeatEffectResolver {
 
     // --- Ability Score ---
 
-    // Each increase the feat gives, by the amount actually applied under the maximum (D167)
+    /**
+     * The ability a feat with a choice of increase increases: required, and one of those its choice lists, read as
+     * {@link Ability#parse} reads it, in any case and abbreviated or not. Empty for a feat without a choice.
+     *
+     * @throws ValidationException for a missing ability, or one the feat doesn't offer
+     */
+    static Optional<Ability> chosenAbility(Feat feat, List<FeatAbilityIncrease.Entry> increases,
+                                           ApplyChoicesRequest.AsiChoice choices) {
+        List<FeatAbilityIncrease.Choose> choose = increases.stream()
+                .map(FeatAbilityIncrease.Entry::choose).filter(Objects::nonNull).toList();
+        if (choose.isEmpty()) return Optional.empty();
+        Set<Ability> offered = EnumSet.noneOf(Ability.class);
+        choose.forEach(entry -> offered.addAll(abilities(entry.from())));
+        String answer = choices != null ? choices.getFeatAbility() : null;
+        if (answer == null || answer.isBlank()) {
+            throw new ValidationException(feat.getName() + " increases an ability of your choice: choose "
+                    + offeredNames(offered));
+        }
+        Ability ability = Ability.parse(answer)
+                .orElseThrow(() -> new ValidationException("'" + answer + "' is not an ability"));
+        // A choice that lists no abilities offers any
+        if (!offered.isEmpty() && !offered.contains(ability)) {
+            throw new ValidationException(feat.getName() + " increases " + offeredNames(offered) + ", not "
+                    + ability.name());
+        }
+        return Optional.of(ability);
+    }
+
+    /**
+     * The saving throw a feat with a choice of one makes the character proficient in: required, one of those its
+     * choice lists, and, for a feat that also increases an ability of the character's choice, that ability, as
+     * Resilient's is (PHB p.168). Empty for a feat without the choice.
+     *
+     * @throws ValidationException for a missing saving throw, one the feat doesn't offer, or one other than the
+     *                             ability chosen
+     */
+    static Optional<Ability> chosenSave(Feat feat, FeatEffects effects, Optional<Ability> chosenAbility,
+                                        ApplyChoicesRequest.AsiChoice choices) {
+        List<JsonNode> saveChoices = effects.savingThrowProficiencies().stream()
+                .filter(item -> item.isObject() && item.has("choose")).toList();
+        if (saveChoices.isEmpty()) return Optional.empty();
+        Set<Ability> offered = EnumSet.noneOf(Ability.class);
+        for (JsonNode item : saveChoices) {
+            List<String> from = new ArrayList<>();
+            item.path("choose").path("from").forEach(name -> from.add(name.asString("")));
+            offered.addAll(abilities(from));
+        }
+        String answer = choices != null ? choices.getSavingThrowChoice() : null;
+        if (answer == null || answer.isBlank()) {
+            throw new ValidationException(feat.getName() + " gives proficiency in a saving throw of your choice: "
+                    + "choose " + chosenAbility.map(Ability::name).orElse(offeredNames(offered)));
+        }
+        Ability save = Ability.parse(answer)
+                .orElseThrow(() -> new ValidationException("'" + answer + "' is not an ability"));
+        if (!offered.isEmpty() && !offered.contains(save)) {
+            throw new ValidationException(feat.getName() + " gives proficiency in " + offeredNames(offered)
+                    + " saving throws, not " + save.name());
+        }
+        if (chosenAbility.isPresent() && chosenAbility.get() != save) {
+            throw new ValidationException(feat.getName() + "'s saving throw is the ability it increases, "
+                    + chosenAbility.get().name() + ", not " + save.name());
+        }
+        return Optional.of(save);
+    }
+
+    // The abilities a choice lists, leaving out any name that isn't one
+    private static Set<Ability> abilities(List<String> names) {
+        Set<Ability> abilities = EnumSet.noneOf(Ability.class);
+        for (String name : names) {
+            Ability.parse(name).ifPresent(abilities::add);
+        }
+        return abilities;
+    }
+
+    private static String offeredNames(Set<Ability> offered) {
+        Set<Ability> names = offered.isEmpty() ? EnumSet.allOf(Ability.class) : offered;
+        return String.join(", ", names.stream().map(Ability::name).toList());
+    }
+
+    // Each increase the feat gives, by the amount actually applied under the maximum (D167); the chosen ability is
+    // recorded as it was sent, in lower case, as before
     private Map<String, Integer> applyAbilityScoreIncrease(PlayerCharacter character,
                                                             List<FeatAbilityIncrease.Entry> increases,
+                                                            Optional<Ability> chosenAbility,
                                                             ApplyChoicesRequest.AsiChoice choices) {
         Map<String, Integer> applied = new LinkedHashMap<>();
         for (FeatAbilityIncrease.Entry entry : increases) {
             if (entry.choose() != null) {
-                if (choices != null && choices.getFeatAbility() != null) {
-                    String ability = choices.getFeatAbility().toLowerCase();
+                if (chosenAbility.isPresent()) {
+                    String ability = choices.getFeatAbility().trim().toLowerCase(Locale.ROOT);
                     applied.put(ability, CharacterUpdates.increaseAbility(character, ability, entry.choose().amount()));
                 }
             } else {
@@ -435,19 +520,21 @@ public class FeatEffectResolver {
         return added;
     }
 
+    // The saving throw chosen, by its abbreviation as the class data writes saves, such as "CON", and only when the
+    // character isn't proficient in it already under any name, such as "CONSTITUTION"
     private List<String> applySavingThrowProficiencies(PlayerCharacter character, List<JsonNode> node,
-                                                        ApplyChoicesRequest.AsiChoice choices) {
+                                                        Optional<Ability> chosenSave) {
         List<String> added = new ArrayList<>();
         List<String> current = copy(character.getSavingThrowProficiencies());
 
         for (JsonNode item : node) {
-            if (item.isObject() && item.has("choose")) {
-                if (choices != null && choices.getSavingThrowChoice() != null) {
-                    String save = choices.getSavingThrowChoice().toUpperCase();
-                    if (!current.contains(save)) {
-                        current.add(save);
-                        added.add(save);
-                    }
+            if (item.isObject() && item.has("choose") && chosenSave.isPresent()) {
+                Ability ability = chosenSave.get();
+                boolean proficient = current.stream()
+                        .anyMatch(save -> Ability.parse(save).filter(ability::equals).isPresent());
+                if (!proficient) {
+                    current.add(ability.name());
+                    added.add(ability.name());
                 }
             }
         }

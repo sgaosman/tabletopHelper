@@ -487,8 +487,10 @@ class LevelProgressionTest {
         @Test
         @DisplayName("Prerequisites are checked against every class the character has, not only the first (PHB p.163)")
         void everyCurrentClassPrerequisites() {
-            // CHA 12 misses the Paladin's CHA 13; the Fighter and the Rogue are met
-            PlayerCharacter pc = f.create(f.human, new int[]{16, 14, 12, 10, 10, 12}, f.fighter, 2, f.paladin, 2);
+            // CHA 12 misses the Paladin's CHA 13; the Fighter and the Rogue are met. Creation needs CHA 13 for the
+            // Paladin, so the score drops after it
+            PlayerCharacter pc = f.create(f.human, new int[]{16, 14, 12, 10, 10, 13}, f.fighter, 2, f.paladin, 2);
+            pc.setCharisma(12);
 
             assertThatThrownBy(() -> f.levelUp(pc, f.rogue))
                     .isInstanceOf(ConflictException.class)

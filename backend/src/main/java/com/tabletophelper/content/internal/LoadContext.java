@@ -46,7 +46,14 @@ public class LoadContext {
     private static final int MISSING_LOGGED = 10;
 
     /** What the run did to one table. */
-    public record TableCounts(String table, int added, int changed, int unchanged, int missing, int duplicates) {
+    public record TableCounts(String table, int added, int changed, int unchanged, int missing, int duplicates,
+                              int deleted) {
+
+        /** The counts of a table whose missing rows are kept. */
+        public TableCounts(String table, int added, int changed, int unchanged, int missing, int duplicates) {
+            this(table, added, changed, unchanged, missing, duplicates, 0);
+        }
+
         int rows() {
             return added + changed + unchanged;
         }
@@ -55,6 +62,7 @@ public class LoadContext {
         public String toString() {
             return table + ": " + added + " added, " + changed + " changed, " + unchanged + " unchanged"
                     + (missing > 0 ? ", " + missing + " missing from the data (kept)" : "")
+                    + (deleted > 0 ? ", " + deleted + " missing from the data (deleted)" : "")
                     + (duplicates > 0 ? ", " + duplicates + " repeated keys in the data skipped" : "");
         }
     }
@@ -174,6 +182,21 @@ public class LoadContext {
      */
     public <T> Map<String, T> upsert(String table, JpaRepository<T, ?> repository, List<T> parsed,
                                      Function<T, String> key, String... ownedElsewhere) {
+        return upsert(table, repository, parsed, key, false, ownedElsewhere);
+    }
+
+    /**
+     * As {@link #upsert}, but deletes the stored rows whose keys the data no longer gives, logging each: for a mapping
+     * table that nothing references by ID, such as {@code class_feature_pools}, whose rows the app reads as live, so
+     * a row kept after the data dropped it would still grant what the data no longer does.
+     */
+    public <T> Map<String, T> upsertDeletingMissing(String table, JpaRepository<T, ?> repository, List<T> parsed,
+                                                    Function<T, String> key) {
+        return upsert(table, repository, parsed, key, true);
+    }
+
+    private <T> Map<String, T> upsert(String table, JpaRepository<T, ?> repository, List<T> parsed,
+                                      Function<T, String> key, boolean deleteMissing, String... ownedElsewhere) {
         Map<String, T> existing = new LinkedHashMap<>();
         for (T row : repository.findAll()) {
             existing.putIfAbsent(key.apply(row), row);
@@ -214,7 +237,13 @@ public class LoadContext {
         }
 
         List<String> missing = existing.keySet().stream().filter(k -> !result.containsKey(k)).toList();
-        if (!missing.isEmpty()) {
+        int deleted = 0;
+        if (!missing.isEmpty() && deleteMissing) {
+            // Every key is logged: these rows are gone, so the log is the only record of them
+            log.warn("{}: deleting {} rows that are no longer in the data: {}", table, missing.size(), missing);
+            repository.deleteAll(missing.stream().map(existing::get).toList());
+            deleted = missing.size();
+        } else if (!missing.isEmpty()) {
             log.warn("{}: {} rows are no longer in the data and are kept: {}{}", table, missing.size(),
                     missing.subList(0, Math.min(MISSING_LOGGED, missing.size())),
                     missing.size() > MISSING_LOGGED ? " and " + (missing.size() - MISSING_LOGGED) + " more" : "");
@@ -222,7 +251,8 @@ public class LoadContext {
         if (duplicates > 0) {
             log.info("{}: the data repeats {} natural keys; the first row of each was loaded", table, duplicates);
         }
-        counts.add(new TableCounts(table, added.size(), changed, unchanged, missing.size(), duplicates));
+        counts.add(new TableCounts(table, added.size(), changed, unchanged, missing.size() - deleted, duplicates,
+                deleted));
         return result;
     }
 

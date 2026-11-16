@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ChannelDivinityIT extends IntegrationTest {
 
     private static final String CHANNEL_DIVINITY = "class:cleric-channel-divinity";
+    private static final String PALADIN_CHANNEL_DIVINITY = "class:paladin-channel-divinity";
     private static final String INSPIRATION = "class:bard-bardic-inspiration";
     private static final String ARCANE_RECOVERY = "class:wizard-arcane-recovery";
 
@@ -227,6 +228,32 @@ class ChannelDivinityIT extends IntegrationTest {
         ResponseEntity<String> longRest = exchange(HttpMethod.POST, "/api/characters/" + ezra + "/long-rest", null,
                 player.accessToken());
         assertThat(longRest.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("A Paladin 3 / Cleric 2's sheet has one Channel Divinity pool of 1 use, not one from each class "
+            + "(PHB p.164)")
+    void clericPaladinHasOnePool() {
+        CharacterClass paladin = caster("Paladin", 10, "CHA");
+        pool(paladin, 3, definition(PALADIN_CHANNEL_DIVINITY, "Channel Divinity", "1", "shortRest", "ACTION",
+                "{\"effect\": \"channel-divinity\"}"));
+        UUID clericId = characterClassRepository.findAll().stream().filter(c -> c.getName().equals("Cleric"))
+                .findFirst().orElseThrow().getId();
+        Map<String, Object> body = new LinkedHashMap<>(Map.of("name", "Seraph", "raceId", race,
+                "classId", paladin.getId(), "level", 5, "strength", 14, "dexterity", 10, "constitution", 14,
+                "intelligence", 10, "wisdom", 14, "charisma", 14));
+        body.put("multiclassClassEntries", List.of(Map.of("classId", paladin.getId(), "level", 3),
+                Map.of("classId", clericId, "level", 2)));
+
+        JsonNode seraph = expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters", body,
+                player.accessToken()));
+
+        List<String> divinity = new ArrayList<>();
+        seraph.get("resourcePools").forEach(p -> {
+            if (p.get("poolId").asString().contains("channel-divinity")) divinity.add(p.get("poolId").asString());
+        });
+        assertThat(divinity).containsExactly(PALADIN_CHANNEL_DIVINITY);
+        assertThat(pool(seraph, "resourcePools", PALADIN_CHANNEL_DIVINITY).get("maxUses").asInt()).isEqualTo(1);
     }
 
     // ── Helpers ──────────────────────────────────────────────────

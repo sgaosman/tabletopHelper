@@ -60,7 +60,7 @@ class AuthServiceTest {
         when(userRepository.existsByUsername("thorin")).thenReturn(false);
         when(userRepository.existsByEmail("thorin@shire.com")).thenReturn(false);
         when(passwordEncoder.encode("Mithril123!")).thenReturn("hashed_password");
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+        when(userRepository.saveAndFlush(any(User.class))).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
             user.setId(userId);
             return user;
@@ -98,7 +98,92 @@ class AuthServiceTest {
                 () -> authService.register(request));
 
         assertEquals("Username already taken", ex.getMessage());
-        verify(userRepository, never()).save(any());
+        verify(userRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(refreshTokenRepository);
+    }
+
+    @Test
+    @DisplayName("Register refuses a password over BCrypt's 72 bytes with a 400, counting UTF-8 bytes, not characters")
+    void register_refusesPasswordOver72Bytes() {
+        RegisterRequest request = new RegisterRequest();
+        request.setUsername("thorin");
+        request.setEmail("thorin@shire.com");
+        // 37 characters, 74 bytes
+        request.setPassword("é".repeat(37));
+
+        ValidationException ex = assertThrows(ValidationException.class, () -> authService.register(request));
+
+        assertTrue(ex.getMessage().contains("72 bytes"), ex.getMessage());
+        verifyNoInteractions(passwordEncoder, refreshTokenRepository);
+        verify(userRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("Register accepts a password of exactly 72 bytes")
+    void register_accepts72Bytes() {
+        RegisterRequest request = new RegisterRequest();
+        request.setUsername("thorin");
+        request.setEmail("thorin@shire.com");
+        request.setPassword("a".repeat(72));
+        when(passwordEncoder.encode("a".repeat(72))).thenReturn("hashed_password");
+        when(userRepository.saveAndFlush(any(User.class))).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            user.setId(userId);
+            return user;
+        });
+        stubRefreshTokenSave();
+
+        assertEquals(userId, authService.register(request).response().getUserId());
+    }
+
+    @Test
+    @DisplayName("Two registrations racing for one username: the unique constraint's violation is a 409, not a 500")
+    void register_raceIsConflict() {
+        RegisterRequest request = new RegisterRequest();
+        request.setUsername("thorin");
+        request.setEmail("thorin@shire.com");
+        request.setPassword("Mithril123!");
+        when(passwordEncoder.encode("Mithril123!")).thenReturn("hashed_password");
+        when(userRepository.saveAndFlush(any(User.class)))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("uq_users_username"));
+
+        ConflictException ex = assertThrows(ConflictException.class, () -> authService.register(request));
+
+        assertEquals("Username or email already registered", ex.getMessage());
+        verifyNoInteractions(refreshTokenRepository);
+    }
+
+    @Test
+    @DisplayName("Login with an unknown username still compares a password hash, so it takes as long as a wrong password")
+    void login_unknownUser_comparesDummyHash() {
+        LoginRequest request = new LoginRequest();
+        request.setUsername("nobody");
+        request.setPassword("Mithril123!");
+        when(userRepository.findByUsername("nobody")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(anyString())).thenReturn("dummy_hash");
+
+        ValidationException ex = assertThrows(ValidationException.class, () -> authService.login(request));
+        assertThrows(ValidationException.class, () -> authService.login(request));
+
+        assertEquals("Invalid username or password", ex.getMessage());
+        verify(passwordEncoder, times(2)).matches(anyString(), eq("dummy_hash"));
+        // The dummy hash is made once
+        verify(passwordEncoder, times(1)).encode(anyString());
+        verifyNoInteractions(refreshTokenRepository);
+    }
+
+    @Test
+    @DisplayName("Login with a password over 72 bytes is the usual 400, never handed to BCrypt")
+    void login_passwordOver72Bytes_isInvalid() {
+        LoginRequest request = new LoginRequest();
+        request.setUsername("thorin");
+        request.setPassword("x".repeat(73));
+        when(userRepository.findByUsername("thorin")).thenReturn(Optional.of(existingUser));
+
+        ValidationException ex = assertThrows(ValidationException.class, () -> authService.login(request));
+
+        assertEquals("Invalid username or password", ex.getMessage());
+        verify(passwordEncoder, never()).matches(eq("x".repeat(73)), anyString());
         verifyNoInteractions(refreshTokenRepository);
     }
 

@@ -130,4 +130,28 @@ describe('FeatPicker', () => {
       type: 'feat', featId: 'feat-initiate', spellIds: ['spell-fire-bolt', 'spell-light'],
     })));
   });
+
+  it("sends Resilient's saving throw as the ability it increases, with no separate choice (PHB p.168)", async () => {
+    const abilities = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'];
+    const resilient: Feat = {
+      id: 'feat-resilient', name: 'Resilient', source: 'PHB',
+      abilityScoreIncrease: [{ choose: { from: abilities, amount: 1 } }],
+      effects: { savingThrowProficiencies: [{ choose: { from: abilities } }] } as unknown as Feat['effects'],
+    };
+    server.use(
+      http.get('/api/reference/feats', () => HttpResponse.json([resilient])),
+      http.get('/api/characters/:id/feat-options', () => HttpResponse.json([option(resilient)])),
+    );
+    const onSelectionChange = vi.fn();
+    render(<FeatPicker character={makeMockCharacter('char-001', 'Mira', 'Fighter', 4)} onSelectionChange={onSelectionChange} />);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /Resilient/ }));
+    expect(screen.queryByText('Choose saving throw proficiency')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^WIS/ }));
+
+    await waitFor(() => expect(onSelectionChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      featId: 'feat-resilient', featAbility: 'WIS', savingThrowChoice: 'WIS',
+    })));
+  });
 });
