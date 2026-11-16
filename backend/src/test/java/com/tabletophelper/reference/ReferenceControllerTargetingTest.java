@@ -98,6 +98,27 @@ class ReferenceControllerTargetingTest {
     }
 
     @Test
+    @DisplayName("Etherealness as the data ships it targets 1 at 7th level, then three per slot level above 7th in "
+            + "place of the 1: 3 at 8th and 6 at 9th (PHB p.238, D225)")
+    void etherealnessReplacesItsBaseWhenUpcast() throws Exception {
+        String definition;
+        try (var in = getClass().getResourceAsStream("/data/spell-effects/spell-effect-definitions.json")) {
+            var all = objectMapper.readTree(in);
+            definition = java.util.stream.StreamSupport.stream(all.spliterator(), false)
+                    .filter(node -> "Etherealness".equals(node.path("spellName").asString()))
+                    .findFirst().orElseThrow().toString();
+        }
+        Spell spell = new Spell();
+        spell.setName("Etherealness");
+        spell.setEffectTemplate(SpellTemplate.parse(definition));
+        when(spellRepository.findByNameIgnoreCase("Etherealness")).thenReturn(Optional.of(spell));
+
+        assertEquals(1, controller.getSpellTargeting("Etherealness", 7).getBody().maxTargets());
+        assertEquals(3, controller.getSpellTargeting("Etherealness", 8).getBody().maxTargets());
+        assertEquals(6, controller.getSpellTargeting("Etherealness", 9).getBody().maxTargets());
+    }
+
+    @Test
     @DisplayName("No targetCount (area spell) returns maxTargets=-1")
     void noTargetCount() {
         Spell spell = new Spell();

@@ -4503,3 +4503,27 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D159, D178, D222
 
 **Tests:** Song of Rest rules, service, offer and HTTP cases; multiclass skill, swap-only and Mage Hand Pending Choice cases with the PHB golden tables updated for swap-only choices; `ManageSpellsModal`, `ProficiencyChoiceModal` and sheet tests. On its branch 4,784 backend unit, 581 integration and 1,277 frontend tests passed; merged with D224, 4,802, 581 and 1,278.
+
+---
+
+## D225: Spell Data Fixes from the Overnight Audit, and Pool Reset Wording
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration; spell-effects loader version 14)
+
+**Context:** an audit during the user's overnight run of 2026-11-16 cross-checked all 525 spell effect definitions against the 2014 text in the 5eTools source data: level, concentration and duration, save ability and half on save, attack or save, area, damage dice and type (nested ones too), At Higher Levels and cantrip scaling, healing and temporary HP, repeat saves, conditions and target counts. Simplifications already in this log were left alone. It confirmed five errors; the fixes are the lead's, recorded for review.
+
+**Decision:**
+- **Chromatic Orb** (PHB p.221) dealt a damage type of free text ("varies (acid, cold, …)"), so the caster couldn't choose and no resistance or immunity ever applied. It is now an `OPTION` type with acid, cold, fire, lightning, poison and thunder, chosen on the cast screen as Conjure Volley's is.
+- **Conjure Barrage** (PHB p.225), "varies" likewise, now offers piercing, bludgeoning and slashing, the weapon's or ammunition's type, as Conjure Volley does.
+- **Magic Weapon** (PHB p.257) and **Elemental Weapon** (PHB p.237) rose without limit when upcast (+4 from a 9th-level slot). `ModifierUpcast` gains an optional `maxSteps`, and both stop at +3 (and 3d4 for Elemental Weapon).
+- **Etherealness** (PHB p.238) allowed 1 + 3 targets per slot level above 7th (4 at 8th); it is three per level above 7th, the caster included (3 at 8th, 6 at 9th). `TargetScaling` gains `replacesBase`, and the targeting endpoint and the cast share one `maxTargets` calculation.
+- **Pool reset wording:** a resource pool's tooltip showed the raw value ("resets on shortRest", "resets on LONG_REST", "RECHARGE"); it now reads "resets on a short or long rest", "resets on a long rest", "recharges" and so on.
+
+**Noted, not changed:** 75 concentration spells' duration text leaves out the word "Concentration" (the flag itself is right for all 525); a few hour-long spells (Hex, Hunter's Mark, Charm Person, False Life, Produce Flame) have no duration in rounds, which outlasts any fight anyway.
+
+**Key files:** `spell-effect-definitions.json`, `SpellTemplate.java`, `SpellEffects.java`, `ReferenceController.java`, `SpellEffectLoader.java`, `ResourcePoolDisplay.tsx`
+
+**Related:** D199, D207
+
+**Tests:** new `SpellDataFixesTest` and `SpellTemplateScalingTest`, an Etherealness case in `ReferenceControllerTargetingTest`, updated `ResourcePoolDisplay` titles; 4,810 backend unit, 581 integration and 1,278 frontend tests pass.

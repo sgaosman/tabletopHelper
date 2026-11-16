@@ -106,11 +106,11 @@ public class ReferenceController {
         Integer baseTargetCount = template.targetCount();
 
         int maxTargets = baseTargetCount != null ? baseTargetCount : Integer.MAX_VALUE;
-        if (baseTargetCount != null && slotLevel > spellLevel) {
-            SpellTemplate.TargetScaling upcastScaling = template.targetCountUpcastScaling();
-            if (upcastScaling != null && upcastScaling.additionalTargetsPerLevel() != null) {
-                maxTargets += upcastScaling.additionalTargetsPerLevel() * (slotLevel - spellLevel);
-            }
+        SpellTemplate.TargetScaling upcastScaling = template.targetCountUpcastScaling();
+        if (baseTargetCount != null && upcastScaling != null) {
+            // The targets per level may replace the base, as Etherealness's three per level above 7th (PHB p.238,
+            // D225)
+            maxTargets = upcastScaling.maxTargets(baseTargetCount, spellLevel, slotLevel);
         }
 
         boolean selfOnly = Boolean.TRUE.equals(template.selfOnly());

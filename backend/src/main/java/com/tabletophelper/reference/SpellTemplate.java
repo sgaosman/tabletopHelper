@@ -1938,9 +1938,30 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
     public record Components(Boolean verbal) {
     }
 
-    /** The targets a spell adds for each slot level above its own. */
+    /**
+     * The targets a spell adds for each slot level above its own.
+     *
+     * @param additionalTargetsPerLevel the targets each slot level above the spell's own gives
+     * @param replacesBase              those targets replace the spell's own target count once it is cast with a
+     *                                  higher slot, rather than adding to it: Etherealness affects up to three
+     *                                  willing creatures, the caster included, for each slot level above 7th, so 3
+     *                                  at 8th and 6 at 9th, not 4 and 7 (PHB p.238, D225)
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record TargetScaling(Integer additionalTargetsPerLevel) {
+    public record TargetScaling(Integer additionalTargetsPerLevel, boolean replacesBase) {
+
+        /**
+         * The most targets a spell of spellLevel whose own target count is base may have with a slot of slotLevel:
+         * base at its own level, then base plus the targets per level above it, or those targets alone when they
+         * replace the base.
+         */
+        public int maxTargets(int base, int spellLevel, int slotLevel) {
+            if (slotLevel <= spellLevel || additionalTargetsPerLevel == null) {
+                return base;
+            }
+            int added = additionalTargetsPerLevel * (slotLevel - spellLevel);
+            return replacesBase ? added : base + added;
+        }
     }
 
     /**
@@ -2013,15 +2034,19 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
      * What an Ongoing Modifier gains for each step of slot levels above its spell's own (D184), such as Magic Weapon's
      * +1 for every two (PHB p.257) or Aid's 5 hit points for each (PHB p.211).
      *
-     * @param every how many slot levels make a step; 1 when the data doesn't say
+     * @param every    how many slot levels make a step; 1 when the data doesn't say
+     * @param maxSteps the most steps any slot gives; no limit when the data doesn't say. Magic Weapon's bonus stops at
+     *                 +3 from a 6th-level slot (PHB p.257) and Elemental Weapon's at +3 and 3d4 from a 7th (PHB
+     *                 p.237), so each has 2 (D225)
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record ModifierUpcast(Integer every, Integer flat, String dice) {
+    public record ModifierUpcast(Integer every, Integer flat, String dice, Integer maxSteps) {
 
-        /** How many steps a slot of slotLevel gives a spell of spellLevel. */
+        /** How many steps a slot of slotLevel gives a spell of spellLevel, no more than maxSteps. */
         public int steps(int spellLevel, int slotLevel) {
             int interval = Math.max(1, every != null ? every : 1);
-            return Math.max(0, slotLevel - spellLevel) / interval;
+            int steps = Math.max(0, slotLevel - spellLevel) / interval;
+            return maxSteps != null ? Math.min(steps, Math.max(0, maxSteps)) : steps;
         }
     }
 

@@ -49,9 +49,9 @@ describe('ResourcePoolDisplay', () => {
   it('describes the source and reset rule in the tooltip', () => {
     render(<ResourcePoolDisplay pools={pools(rage, luck, breath)} />);
 
-    expect(screen.getByTitle('Rage — Barbarian — resets on LONG_REST')).toBeInTheDocument();
-    expect(screen.getByTitle('Luck Points — FEAT — resets on LONG_REST')).toBeInTheDocument();
-    expect(screen.getByTitle('Fire Breath — Red Dragon — resets on RECHARGE (recharge 1d6>=5)')).toBeInTheDocument();
+    expect(screen.getByTitle('Rage — Barbarian — resets on a long rest')).toBeInTheDocument();
+    expect(screen.getByTitle('Luck Points — FEAT — resets on a long rest')).toBeInTheDocument();
+    expect(screen.getByTitle('Fire Breath — Red Dragon — recharges (recharge 1d6>=5)')).toBeInTheDocument();
   });
 
   it('shows only the pools from the requested sources', () => {

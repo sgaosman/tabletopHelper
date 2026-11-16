@@ -1208,10 +1208,8 @@ public class SpellEffects {
         int spellLevel = template.level();
         int max = template.targetCount();
         SpellTemplate.TargetScaling scaling = template.targetCountUpcastScaling();
-        if (slotLevel > spellLevel && scaling != null && scaling.additionalTargetsPerLevel() != null) {
-            max += scaling.additionalTargetsPerLevel() * (slotLevel - spellLevel);
-        }
-        return OptionalInt.of(max);
+        // The targets per level may replace the base, as Etherealness's three per level above 7th (PHB p.238, D225)
+        return OptionalInt.of(scaling != null ? scaling.maxTargets(max, spellLevel, slotLevel) : max);
     }
 
     /**

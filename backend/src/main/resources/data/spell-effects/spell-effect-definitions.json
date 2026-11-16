@@ -3975,7 +3975,7 @@
       {
         "effectType": "DAMAGE",
         "damageDice": "3d8",
-        "damageType": "varies (acid, cold, fire, lightning, poison, or thunder - chosen by caster)",
+        "damageType": "OPTION",
         "upcastScaling": {
           "additionalDicePerLevel": "1d8",
           "additionalFlatPerLevel": 0
@@ -3994,7 +3994,15 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Requires 50 gp diamond (not consumed). Caster selects damage type on cast."
+    "notes": "Requires 50 gp diamond (not consumed). Caster selects damage type on cast; the option chooses it. (PHB p.221, D225)",
+    "castOptions": [
+      "acid",
+      "cold",
+      "fire",
+      "lightning",
+      "poison",
+      "thunder"
+    ]
   },
   {
     "spellName": "Color Spray",
@@ -10962,7 +10970,8 @@
             "weaponOnly": true,
             "upcast": {
               "every": 2,
-              "flat": 1
+              "flat": 1,
+              "maxSteps": 2
             }
           },
           {
@@ -10971,7 +10980,8 @@
             "weaponOnly": true,
             "upcast": {
               "every": 2,
-              "flat": 1
+              "flat": 1,
+              "maxSteps": 2
             }
           }
         ]
@@ -14105,7 +14115,7 @@
       {
         "effectType": "DAMAGE",
         "damageDice": "3d8",
-        "damageType": "varies",
+        "damageType": "OPTION",
         "upcastScaling": null,
         "cantripScaling": null
       }
@@ -14120,7 +14130,12 @@
     "classes": [
       "Ranger"
     ],
-    "notes": "REVIEW: Damage type depends on weapon used — typically slashing, piercing, or bludgeoning. No upcast scaling listed in source."
+    "notes": "The damage type is the ammunition or thrown weapon's; the option chooses it. No upcast scaling listed in source. (PHB p.225, D225)",
+    "castOptions": [
+      "piercing",
+      "bludgeoning",
+      "slashing"
+    ]
   },
   {
     "spellName": "Counterspell",
@@ -14431,7 +14446,8 @@
             "weaponOnly": true,
             "upcast": {
               "every": 2,
-              "flat": 1
+              "flat": 1,
+              "maxSteps": 2
             }
           },
           {
@@ -14443,7 +14459,8 @@
             "weaponOnly": true,
             "upcast": {
               "every": 2,
-              "dice": "1d4"
+              "dice": "1d4",
+              "maxSteps": 2
             }
           }
         ]
@@ -14460,7 +14477,7 @@
       "Artificer",
       "Paladin"
     ],
-    "notes": "REVIEW: Non-standard upcast scaling — not per-level linear. damageType is 'varies' because caster chooses from 5 options.",
+    "notes": "The bonus rises every two slot levels and stops at +3 and 3d4 from 7th level (PHB p.237, D225); the caster chooses the damage type from the five options.",
     "castOptions": [
       "acid",
       "cold",
@@ -25139,7 +25156,8 @@
     "targetType": "SINGLE_TARGET",
     "targetCount": 1,
     "targetCountUpcastScaling": {
-      "additionalTargetsPerLevel": 3
+      "additionalTargetsPerLevel": 3,
+      "replacesBase": true
     },
     "aoeShape": null,
     "aoeSize": null,

@@ -33,6 +33,8 @@ import java.util.Map;
  * since version 9 the low-level spells D196 automates, and since version 10 those D197 automates, and since version
  * 11 Branding Smite's rider, and since version 13 the spells D199 automates, with the Ongoing Modifier
  * kinds and keys they add, such as heldObjectSave, hpPool, followUpSave's damage and picked creatures, and darts.
+ * Since version 14 an Ongoing Modifier's upcast may stop at maxSteps and a target scaling may replace the spell's
+ * own target count (replacesBase) (D225).
  */
 @Component
 @RequiredArgsConstructor
@@ -63,8 +65,10 @@ public class SpellEffectLoader implements ContentLoader {
         // D197, such as Zephyr Strike, Flame Arrows and Ray of Enfeeblement; 11: Branding Smite as a weapon-hit
         // rider instead of damage to its caster; 12: Psychic Scream's kill note (D198); 13: the spells automated in
         // D199, such as the lasting areas (Stinking Cloud, Spike Growth), the hit-point pools (Sleep, Color Spray), the
-        // smites, Magic Missile and the log-only buffs
-        return 13;
+        // smites, Magic Missile and the log-only buffs; 14: an upcast modifier's maxSteps and a target scaling's
+        // replacesBase, for Magic Weapon, Elemental Weapon and Etherealness, and Chromatic Orb's and Conjure
+        // Barrage's damage types as cast options (D225)
+        return 14;
     }
 
     @Override

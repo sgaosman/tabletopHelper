@@ -93,7 +93,7 @@ export default function ResourcePoolDisplay({
                 ? 'bg-rule-light text-muted'
                 : 'bg-page-alt text-ink'
               }`}
-            title={`${entry.displayName} — ${entry.sourceName || entry.sourceType} — ${entry.resetOn === 'none' ? 'no rest restores it' : `resets on ${entry.resetOn}`}${entry.resetCheck ? ` (recharge ${entry.resetCheck})` : ''}`}
+            title={`${entry.displayName} — ${entry.sourceName || entry.sourceType} — ${resetText(entry.resetOn)}${entry.resetCheck ? ` (recharge ${entry.resetCheck})` : ''}`}
           >
             {/* Icon placeholder — mapped from lucide-react icon name */}
             <span className="text-xs opacity-60">{iconChar(entry.icon)}</span>
@@ -917,5 +917,20 @@ function iconChar(icon?: string | null): string {
     case 'paw-print': return '🐾';
     case 'git-branch': return '🐉';
     default: return '●';
+  }
+}
+
+// When a pool comes back, in words: the server's resetOn is camelCase for characters ("shortRest") and upper case for
+// monsters ("LONG_REST", "RECHARGE")
+function resetText(resetOn: string | null | undefined): string {
+  const key = (resetOn ?? '').replace(/[_\s]/g, '').toLowerCase();
+  switch (key) {
+    case 'shortrest': return 'resets on a short or long rest';
+    case 'longrest': return 'resets on a long rest';
+    case 'dawn': return 'resets at dawn';
+    case 'turn': return 'resets each turn';
+    case 'recharge': return 'recharges';
+    case '': case 'none': case 'never': return 'no rest restores it';
+    default: return `resets on ${(resetOn ?? '').replace(/_/g, ' ').toLowerCase()}`;
   }
 }
