@@ -84,6 +84,7 @@ public class CharacterMapper {
                 .armourClassBreakdown(armourClass)
                 .initiativeBonus(c.getInitiativeBonus())
                 .speed(c.getSpeed())
+                .passivePerception(characterStats.passivePerception(c))
                 .proficiencyBonus(c.getProficiencyBonus())
                 .savingThrowProficiencies(c.getSavingThrowProficiencies())
                 .skillProficiencies(c.getSkillProficiencies())

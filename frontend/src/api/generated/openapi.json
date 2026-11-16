@@ -7208,6 +7208,7 @@
           "level",
           "name",
           "ownerDisplayName",
+          "passivePerception",
           "pendingChoices",
           "proficiencyBonus",
           "raceId",
@@ -7461,6 +7462,10 @@
           },
           "ownerDisplayName": {
             "type": "string"
+          },
+          "passivePerception": {
+            "type": "integer",
+            "format": "int32"
           },
           "pendingChoices": {
             "type": "array",

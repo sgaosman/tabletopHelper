@@ -1121,7 +1121,7 @@
       "sourceType": "CLASS",
       "maxUsesFormula": "max(1, intelligenceModifier)",
       "resetOn": "longRest",
-      "resetAmount": null,
+      "resetAmount": "1",
       "resetCheck": null,
       "spendActionType": "FREE",
       "description": "Deal extra force damage equal to half your wizard level when you damage a creature with a wizard spell. Resets to 1 on long rest (increasing when you use Dispel Magic or Counterspell).",

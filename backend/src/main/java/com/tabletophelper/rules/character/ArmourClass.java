@@ -12,7 +12,7 @@ import java.util.Optional;
  * A character's Armour Class under the 2014 rules, before the DM's adjustments (M13.5), with the parts it adds up from.
  * <ul>
  *   <li>Body armour (PHB p.144-145): light armour's base AC plus the DEX modifier, medium armour's plus the DEX modifier
- *       up to +2, heavy armour's alone, each with its magic bonus.</li>
+ *       up to +2 (+3 with Medium Armor Master, PHB p.168), heavy armour's alone, each with its magic bonus.</li>
  *   <li>Without body armour: 10 + the DEX modifier (PHB p.14), or the best of the character's other unarmoured
  *       formulas, which don't stack: the Barbarian's Unarmored Defense (10 + DEX + CON, a shield allowed, PHB p.48), the
  *       Monk's (10 + DEX + WIS, no shield, PHB p.78), Draconic Resilience (13 + DEX, PHB p.102) and a race's natural
@@ -28,6 +28,13 @@ public final class ArmourClass {
     public static final int UNARMOURED_BASE = 10;
     /** The most of its DEX modifier medium armour lets a creature add (PHB p.144). */
     public static final int MEDIUM_DEX_CAP = 2;
+    /**
+     * The most of its DEX modifier medium armour lets a creature with Medium Armor Master add: 3, which a Dexterity of
+     * 16 or higher gives (PHB p.168, D230).
+     */
+    public static final int MEDIUM_ARMOR_MASTER_DEX_CAP = 3;
+    /** Dragon Hide's unarmoured base AC, 13 + DEX, a shield allowed (XGE p.74, D230). */
+    public static final int DRAGON_HIDE_BASE = 13;
     /** How much heavy armour slows a wearer without the Strength it needs (PHB p.144). */
     public static final int HEAVY_ARMOUR_SPEED_PENALTY = 10;
 
@@ -130,6 +137,20 @@ public final class ArmourClass {
     }
 
     /**
+     * Dragon Hide's hardened scales: 13 + DEX while not wearing armour, and still with a shield (XGE p.74, D230); like
+     * Draconic Resilience, one more unarmoured formula that doesn't stack with the others.
+     */
+    public static Unarmoured dragonHide() {
+        return new Unarmoured("Dragon Hide", DRAGON_HIDE_BASE, List.of(Ability.DEX), true);
+    }
+
+    /** As {@link #of(Armour, Shield, Map, List, List, int)} with medium armour's usual DEX cap of +2. */
+    public static Result of(Armour armour, Shield shield, Map<Ability, Integer> modifiers, List<Unarmoured> unarmoured,
+                            List<Bonus> bonuses) {
+        return of(armour, shield, modifiers, unarmoured, bonuses, MEDIUM_DEX_CAP);
+    }
+
+    /**
      * The AC: the body armour's when one is worn, or else the best unarmoured formula that applies (10 + DEX among
      * them, so none is ever worse), then the shield and the flat bonuses.
      *
@@ -139,16 +160,18 @@ public final class ArmourClass {
      * @param unarmoured the character's unarmoured formulas besides 10 + DEX, in the order they are offered; one
      *                   gained first wins a tie
      * @param bonuses    the flat bonuses
+     * @param mediumDexCap the most of its DEX modifier medium armour adds: {@link #MEDIUM_DEX_CAP}, or
+     *                     {@link #MEDIUM_ARMOR_MASTER_DEX_CAP} with Medium Armor Master (PHB p.168, D230)
      */
     public static Result of(Armour armour, Shield shield, Map<Ability, Integer> modifiers, List<Unarmoured> unarmoured,
-                            List<Bonus> bonuses) {
+                            List<Bonus> bonuses, int mediumDexCap) {
         List<Part> parts = new ArrayList<>();
         if (armour != null) {
             parts.add(new Part(armour.name(), armour.base() + armour.bonus()));
             int dex = modifier(modifiers, Ability.DEX);
             switch (armour.category()) {
                 case LIGHT -> parts.add(new Part("DEX", dex));
-                case MEDIUM -> parts.add(new Part("DEX (max " + MEDIUM_DEX_CAP + ")", Math.min(dex, MEDIUM_DEX_CAP)));
+                case MEDIUM -> parts.add(new Part("DEX (max " + mediumDexCap + ")", Math.min(dex, mediumDexCap)));
                 case HEAVY -> { }
             }
             // Natural armour that may stand in for armour giving a lower AC

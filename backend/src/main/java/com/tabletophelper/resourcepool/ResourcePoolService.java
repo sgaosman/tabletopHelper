@@ -170,6 +170,7 @@ public class ResourcePoolService {
             byPoolId.put(poolId, ResourcePoolEntry.feat(featName, name, uses, resetOn)
                     .withCurrentUses(keptUses(byPoolId.get(poolId), uses)));
         }
+        addMartialAdeptDie(character, byPoolId, desiredPoolIds);
 
         // A magic item's charges (D210): a linked item the character carries with charges, attuned to when it requires
         // attunement (DMG p.136); one pool for each item, however many are carried. A pool that comes back, the item
@@ -223,6 +224,40 @@ public class ResourcePoolService {
             }
         }
         byPoolId.put(kept.poolId(), kept.withCurrentUses(Math.max(0, kept.maxUses() - spent)));
+    }
+
+    /** The Battle Master's superiority dice pool (PHB p.73). */
+    static final String SUPERIORITY_DICE_POOL = "subclass:battle-master-superiority-dice";
+    /** Martial Adept's superiority die pool, the feat's own while the character has no other superiority dice. */
+    static final String MARTIAL_ADEPT_POOL = ResourcePoolEntry.featPoolId("Martial Adept");
+
+    /**
+     * Martial Adept's superiority die "is added to any superiority dice you have from another source" (PHB p.168,
+     * D230): a Battle Master with the feat keeps one superiority dice pool, the Battle Master's with one more use, and
+     * no feat pool. The uses already spent from both pools on the sheet stay spent from the one kept. The feat's die is
+     * a d6 where the Battle Master's are larger; the pool keeps one die size, the Battle Master's.
+     */
+    private static void addMartialAdeptDie(PlayerCharacter character, Map<String, ResourcePoolEntry> byPoolId,
+                                           Set<String> desiredPoolIds) {
+        ResourcePoolEntry dice = desiredPoolIds.contains(SUPERIORITY_DICE_POOL) ? byPoolId.get(SUPERIORITY_DICE_POOL)
+                : null;
+        ResourcePoolEntry feat = desiredPoolIds.contains(MARTIAL_ADEPT_POOL) ? byPoolId.get(MARTIAL_ADEPT_POOL) : null;
+        if (dice == null || feat == null) return;
+        Map<String, ResourcePoolEntry> onSheet = orEmpty(character.getResourcePools()).stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(ResourcePoolEntry::poolId, e -> e, (a, b) -> a));
+        int maxUses = dice.maxUses() + feat.maxUses();
+        String formula = dice.maxUsesFormula() != null ? "(" + dice.maxUsesFormula() + ") + " + feat.maxUses() : null;
+        ResourcePoolEntry oldDice = onSheet.get(SUPERIORITY_DICE_POOL);
+        ResourcePoolEntry oldFeat = onSheet.get(MARTIAL_ADEPT_POOL);
+        int spent = (oldDice != null ? Math.max(0, oldDice.maxUses() - oldDice.currentUses()) : 0)
+                + (oldFeat != null ? Math.max(0, oldFeat.maxUses() - oldFeat.currentUses()) : 0);
+        desiredPoolIds.remove(MARTIAL_ADEPT_POOL);
+        byPoolId.remove(MARTIAL_ADEPT_POOL);
+        byPoolId.put(SUPERIORITY_DICE_POOL, new ResourcePoolEntry(dice.poolId(), dice.displayName(), dice.sourceType(),
+                dice.sourceName(), maxUses, formula, Math.max(0, maxUses - spent),
+                dice.resetOn(), dice.resetAmount(), dice.resetCheck(), dice.spendActionType(), dice.icon(),
+                dice.metadata()));
     }
 
     // The use-pool effect of a Channel Divinity pool, a cleric's or a paladin's, as encounter's ChannelDivinityEffects

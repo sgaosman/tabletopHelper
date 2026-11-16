@@ -119,6 +119,13 @@ public class CharacterResponse {
     @Schema(requiredMode = REQUIRED)
     private Integer speed;
 
+    /**
+     * Passive Wisdom (Perception), worked out on the server (D230): 10 + WIS + proficiency, doubled by Expertise, or
+     * Jack of All Trades' half without it, + Observant's +5 (PHB p.175, p.54, p.168).
+     */
+    @Schema(requiredMode = REQUIRED)
+    private Integer passivePerception;
+
     @Schema(requiredMode = REQUIRED)
     private Integer proficiencyBonus;
 

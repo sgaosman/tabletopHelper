@@ -512,7 +512,7 @@ export function makeMockCharacter(id: string, name: string, cls: string, level: 
     // The scores without the DM's adjustments, of which there are none (D158)
     baseAbilityScores: { strength: 14, dexterity: 12, constitution: 14, intelligence: 10, wisdom: 12, charisma: 10 },
     hpMax: 30, hpCurrent: 30, hpTemp: 0,
-    armourClass: 16, initiativeBonus: 1, speed: 30, proficiencyBonus: 3,
+    armourClass: 16, initiativeBonus: 1, speed: 30, passivePerception: 11, proficiencyBonus: 3,
     // How the server worked the AC out (M13.5): a chain shirt and DEX, with nothing equipped in the inventory listed
     armourClassBreakdown: {
       total: 16,

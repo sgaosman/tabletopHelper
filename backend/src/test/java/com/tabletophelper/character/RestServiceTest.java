@@ -621,6 +621,43 @@ class RestServiceTest {
         }
 
         @Test
+        @DisplayName("A long rest sets a War Wizard's Power Surge to one, from none or from all three, and a short rest leaves it (XGE p.60, D230)")
+        void powerSurgeResetsToOne() {
+            String poolId = "subclass:war-magic-power-surge";
+            Subclass warMagic = Subclass.builder().id(UUID.randomUUID()).name("School of War Magic")
+                    .characterClass(f.wizard).features("[]").build();
+            ResourcePoolDefinition surge = ResourcePoolDefinition.builder().poolId(poolId).displayName("Power Surge")
+                    .sourceType("CLASS").maxUsesFormula("max(1, intelligenceModifier)").resetOn("longRest")
+                    .resetAmount("1").build();
+            when(f.subclassRepository.findById(warMagic.getId())).thenReturn(Optional.of(warMagic));
+            when(f.featurePoolRepository.findByClassIdAndLevelAndSubclass(eq(f.wizard.getId()), anyInt(),
+                    eq(warMagic.getId()))).thenReturn(List.of(ClassFeaturePool.builder().characterClass(f.wizard)
+                    .subclass(warMagic).minLevel(2).poolDefinition(surge).build()));
+            PlayerCharacter pc = f.create(f.human, CON_14, f.wizard, 6);
+            pc.setMulticlassEntries(List.of(new ClassEntry(f.wizard.getId(), "Wizard", warMagic.getId(),
+                    warMagic.getName(), 6)));
+            f.characterStats.apply(pc);
+            // INT 16: up to three surges
+            assertThat(pc.getResourcePools()).filteredOn(p -> p.poolId().equals(poolId))
+                    .extracting(ResourcePoolEntry::maxUses).containsExactly(3);
+
+            uses(pc, poolId, 0);
+            CharacterResponse shortRested = f.rests.shortRest(pc.getId(), new ShortRestRequest(List.of()), f.userId)
+                    .character();
+            assertThat(shortRested.getResourcePools()).filteredOn(p -> p.poolId().equals(poolId))
+                    .extracting(ResourcePoolEntry::currentUses).containsExactly(0);
+
+            assertThat(f.rests.longRest(pc.getId(), f.userId).getResourcePools())
+                    .filteredOn(p -> p.poolId().equals(poolId))
+                    .extracting(ResourcePoolEntry::currentUses).containsExactly(1);
+
+            uses(pc, poolId, 3);
+            assertThat(f.rests.longRest(pc.getId(), f.userId).getResourcePools())
+                    .filteredOn(p -> p.poolId().equals(poolId))
+                    .extracting(ResourcePoolEntry::currentUses).containsExactly(1);
+        }
+
+        @Test
         @DisplayName("A long rest gives a magic item's pool its own dice of charges back, and leaves one that never recharges (D210)")
         void itemPoolsRechargeByTheirRule() {
             PlayerCharacter pc = f.create(f.human, CON_14, f.fighter, 5);
