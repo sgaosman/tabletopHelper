@@ -142,6 +142,15 @@ export class MockStompClient {
     this.socketClosed();
   }
 
+  /**
+   * The server closes the socket with a close code, as it does with 1008 when the socket's token expired or its user
+   * logged out (D238). An active client then waits out its delay; reconnectNow() makes the next attempt.
+   */
+  closeByServer(code: number): void {
+    this.closeConnection();
+    this.onWebSocketClose({ code, reason: '', wasClean: true } as CloseEvent);
+  }
+
   /** The attempt after goDown(): an active client connects again, running beforeConnect first. */
   async reconnectNow(): Promise<void> {
     if (this.active && !this.connected) await this.connect();

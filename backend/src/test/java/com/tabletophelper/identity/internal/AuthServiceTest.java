@@ -322,23 +322,35 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("Logout revokes the presented token's family")
+    @DisplayName("Logout revokes the presented token's family and returns its user, whose sockets are then closed (D238)")
     void logout_revokesFamily() {
         RefreshToken current = storedToken("token", Instant.now().plus(Duration.ofDays(3)));
         when(refreshTokenRepository.findByTokenHashForUpdate(AuthService.hash("token"))).thenReturn(Optional.of(current));
+        when(refreshTokenRepository.revokeFamily(eq(current.getFamilyId()), any(Instant.class))).thenReturn(2);
 
-        authService.logout("token");
+        Optional<UUID> loggedOut = authService.logout("token");
 
         verify(refreshTokenRepository).revokeFamily(eq(current.getFamilyId()), any(Instant.class));
+        assertEquals(Optional.of(userId), loggedOut);
     }
 
     @Test
-    @DisplayName("Logout with an unknown or missing token does nothing")
+    @DisplayName("Logout with a token whose login had already ended returns no user, so no sockets are closed")
+    void logout_alreadyRevoked_returnsNoUser() {
+        RefreshToken current = storedToken("token", Instant.now().plus(Duration.ofDays(3)));
+        when(refreshTokenRepository.findByTokenHashForUpdate(AuthService.hash("token"))).thenReturn(Optional.of(current));
+        when(refreshTokenRepository.revokeFamily(eq(current.getFamilyId()), any(Instant.class))).thenReturn(0);
+
+        assertTrue(authService.logout("token").isEmpty());
+    }
+
+    @Test
+    @DisplayName("Logout with an unknown or missing token does nothing and returns no user")
     void logout_withUnknownOrMissingToken_doesNothing() {
         when(refreshTokenRepository.findByTokenHashForUpdate(AuthService.hash("unknown"))).thenReturn(Optional.empty());
 
-        authService.logout("unknown");
-        authService.logout(null);
+        assertTrue(authService.logout("unknown").isEmpty());
+        assertTrue(authService.logout(null).isEmpty());
 
         verify(refreshTokenRepository, never()).revokeFamily(any(), any());
     }

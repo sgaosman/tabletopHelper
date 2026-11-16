@@ -34,10 +34,13 @@ public class AuthController {
     private static final String REFRESH_COOKIE_PATH = "/api/auth";
 
     private final AuthService authService;
+    private final WebSocketSessions webSocketSessions;
     private final boolean cookieSecure;
 
-    public AuthController(AuthService authService, @Value("${app.auth.cookie-secure}") boolean cookieSecure) {
+    public AuthController(AuthService authService, WebSocketSessions webSocketSessions,
+                          @Value("${app.auth.cookie-secure}") boolean cookieSecure) {
         this.authService = authService;
+        this.webSocketSessions = webSocketSessions;
         this.cookieSecure = cookieSecure;
     }
 
@@ -64,10 +67,16 @@ public class AuthController {
         return withRefreshCookie(ResponseEntity.ok(), result.get());
     }
 
-    /** Revokes the session behind the cookie, if any, and tells the browser to delete the cookie. */
+    /**
+     * Revokes the session behind the cookie, if any, and tells the browser to delete the cookie. The user's open
+     * WebSockets are closed too, after the revocation has committed, on every tab and device (D238): logout does not
+     * revoke access tokens, so a socket would otherwise stay open until its token expired. A device or browser that
+     * is still signed in has its own login's refresh token and reconnects at once with a fresh access token, so
+     * closing its socket is harmless; other tabs of this browser share the revoked cookie and are signed out.
+     */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
-        authService.logout(refreshToken);
+        authService.logout(refreshToken).ifPresent(webSocketSessions::closeAllFor);
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, refreshCookie("", Duration.ZERO).toString())
                 .build();

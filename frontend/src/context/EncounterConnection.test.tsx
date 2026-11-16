@@ -11,7 +11,8 @@ import { createTestQueryClient, setupAuthToken, TEST_SESSION } from '../test/tes
 import { useLiveEncounter } from './liveEncounter';
 import { EncounterProvider } from './EncounterContext';
 import { ConnectionBanner } from '../components/encounter/ConnectionStatus';
-import { MAX_RECONNECT_DELAY_MS, RECONNECT_DELAY_MS } from '../hooks/useWebSocket';
+import { MAX_RECONNECT_DELAY_MS, POLICY_VIOLATION_CLOSE, RECONNECT_DELAY_MS } from '../hooks/useWebSocket';
+import { stopLiveSockets } from '../api/liveSockets';
 
 /** Counts the loads of the encounter, answering each with the round number of that load. */
 function countLoads() {
@@ -51,6 +52,13 @@ async function renderConnected() {
   );
   await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('connected'));
   return { ...rendered, client: MockStompClient.latest() };
+}
+
+/** An unsigned JWT that lives the given number of seconds; the client reads only its exp and iat. */
+function fakeJwt(lifetimeSeconds: number, id: number) {
+  const encode = (value: object) => btoa(JSON.stringify(value)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const iat = Math.floor(Date.now() / 1000);
+  return `${encode({ alg: 'none' })}.${encode({ sub: 'user-001', jti: id, iat, exp: iat + lifetimeSeconds })}.sig`;
 }
 
 function setBrowserOnline(online: boolean) {
@@ -169,6 +177,97 @@ describe('the live connection of an encounter page', () => {
 
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('connected'));
     await waitFor(() => expect(loads.encounter).toBe(2));
+  });
+
+  it('reconnects quietly with a fresh token when the server closes the socket at token expiry (D238)', async () => {
+    setupAuthToken();
+    let issued = 0;
+    server.use(http.post('/api/auth/refresh', () => {
+      issued += 1;
+      return HttpResponse.json({ ...TEST_SESSION, accessToken: `socket-token-${issued}` });
+    }));
+    const loads = countLoads();
+    const { client } = await renderConnected();
+    await waitFor(() => expect(loads.encounter).toBe(1));
+
+    act(() => client.closeByServer(POLICY_VIOLATION_CLOSE));
+
+    // No banner while the client waits out its short delay
+    expect(screen.getByTestId('state')).toHaveTextContent('connected');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(client.active).toBe(true);
+
+    await act(() => client.reconnectNow());
+
+    expect(client.connectHeaders).toEqual({ Authorization: 'Bearer socket-token-2' });
+    expect(client.isSubscribed('/topic/encounter/enc-001/state')).toBe(true);
+    expect(client.isSubscribed('/topic/encounter/enc-001/log')).toBe(true);
+    expect(screen.getByTestId('state')).toHaveTextContent('connected');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    await waitFor(() => expect(loads.encounter).toBe(2));
+  });
+
+  it('stops, rather than retrying forever, when the server closed the socket and the refresh is refused', async () => {
+    setupAuthToken();
+    let refreshes = 0;
+    const { client } = await renderConnected();
+    server.use(http.post('/api/auth/refresh', () => {
+      refreshes += 1;
+      return HttpResponse.json({ error: 'Your session has ended. Please sign in again.' }, { status: 401 });
+    }));
+
+    act(() => client.closeByServer(POLICY_VIOLATION_CLOSE));
+    await act(() => client.reconnectNow());
+
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('offline'));
+    expect(client.active).toBe(false);
+    expect(refreshes).toBe(1);
+    // Nothing tries again, not even the network coming back
+    await act(() => client.reconnectNow());
+    act(() => setBrowserOnline(true));
+    expect(refreshes).toBe(1);
+  });
+
+  it('renews the connection with a fresh token before the token expires, without a banner (D238)', async () => {
+    let issued = 0;
+    setupAuthToken();
+    // A one-second token is renewed halfway through its life
+    server.use(http.post('/api/auth/refresh', () => {
+      issued += 1;
+      return HttpResponse.json({ ...TEST_SESSION, accessToken: fakeJwt(1, issued) });
+    }));
+    const loads = countLoads();
+    const { client, unmount } = await renderConnected();
+    await waitFor(() => expect(loads.encounter).toBe(1));
+    const states: string[] = [];
+    const observer = new MutationObserver(() => states.push(screen.getByTestId('state').textContent ?? ''));
+    observer.observe(screen.getByTestId('state'), { childList: true, characterData: true, subtree: true });
+
+    await waitFor(() => expect(issued).toBeGreaterThanOrEqual(2), { timeout: 3000 });
+    await waitFor(() => expect(client.connected).toBe(true));
+
+    expect(client.connectHeaders).toEqual({ Authorization: `Bearer ${fakeJwt(1, issued)}` });
+    expect(client.isSubscribed('/topic/encounter/enc-001/state')).toBe(true);
+    expect(screen.getByTestId('state')).toHaveTextContent('connected');
+    expect(states.every(state => state === 'connected')).toBe(true);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    // What was published during the swap is loaded again
+    await waitFor(() => expect(loads.encounter).toBeGreaterThanOrEqual(2));
+    observer.disconnect();
+    unmount();
+  });
+
+  it('is stopped for good by logout, and the network coming back does not reconnect it (D238)', async () => {
+    setupAuthToken();
+    const { client } = await renderConnected();
+
+    await act(() => stopLiveSockets());
+
+    expect(client.active).toBe(false);
+    expect(screen.getByTestId('state')).toHaveTextContent('offline');
+    act(() => setBrowserOnline(true));
+    expect(client.active).toBe(false);
+    expect(screen.getByTestId('state')).toHaveTextContent('offline');
   });
 
   it('is offline, without retrying, once the session has ended', async () => {

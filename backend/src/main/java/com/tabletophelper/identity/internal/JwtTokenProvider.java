@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.time.Instant;
 import java.util.Date;
 import java.util.Set;
 import java.util.Optional;
@@ -80,7 +81,9 @@ public class JwtTokenProvider {
 
     /**
      * Reads a bearer token. Empty unless the signature is valid, the token has not expired and it
-     * carries {@code type: access}; tokens issued before D156 have no type and are refused.
+     * carries {@code type: access}; tokens issued before D156 have no type and are refused. Every token this
+     * provider signs has an expiry, so one without is refused too: an open WebSocket closes when its token
+     * expires (D238).
      */
     public Optional<AccessTokenClaims> parseAccessToken(String token) {
         if (token == null || token.isBlank()) {
@@ -93,16 +96,16 @@ public class JwtTokenProvider {
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
-            if (claims.getSubject() == null) {
+            if (claims.getSubject() == null || claims.getExpiration() == null) {
                 return Optional.empty();
             }
-            return Optional.of(new AccessTokenClaims(
-                    UUID.fromString(claims.getSubject()), claims.get("username", String.class)));
+            return Optional.of(new AccessTokenClaims(UUID.fromString(claims.getSubject()),
+                    claims.get("username", String.class), claims.getExpiration().toInstant()));
         } catch (JwtException | IllegalArgumentException e) {
             return Optional.empty();
         }
     }
 
-    /** The user an access token was issued to. */
-    public record AccessTokenClaims(UUID userId, String username) {}
+    /** The user an access token was issued to, and when it expires. */
+    public record AccessTokenClaims(UUID userId, String username, Instant expiresAt) {}
 }

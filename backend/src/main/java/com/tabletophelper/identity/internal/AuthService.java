@@ -144,14 +144,19 @@ public class AuthService {
         return Optional.of(buildResult(current.getUser(), nextToken));
     }
 
-    /** Revokes every token from the presented token's login. A missing or unknown token is ignored. */
+    /**
+     * Revokes every token from the presented token's login. A missing or unknown token is ignored. Returns the user
+     * whose login this ended, so their WebSockets can be closed (D238); empty when the token was missing or unknown,
+     * or its login had already ended, so a stale token cannot keep closing someone's sockets.
+     */
     @Transactional
-    public void logout(String refreshToken) {
+    public Optional<UUID> logout(String refreshToken) {
         if (refreshToken == null || refreshToken.isBlank()) {
-            return;
+            return Optional.empty();
         }
-        refreshTokenRepository.findByTokenHashForUpdate(hash(refreshToken))
-                .ifPresent(token -> refreshTokenRepository.revokeFamily(token.getFamilyId(), Instant.now()));
+        return refreshTokenRepository.findByTokenHashForUpdate(hash(refreshToken))
+                .filter(token -> refreshTokenRepository.revokeFamily(token.getFamilyId(), Instant.now()) > 0)
+                .map(token -> token.getUser().getId());
     }
 
     /** SHA-256 of the token as lowercase hex; only this is stored. */

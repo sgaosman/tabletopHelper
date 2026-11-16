@@ -11,6 +11,9 @@ app:
   jwt:
     # Its own secret, because R3 removes the default from application.yml (D156)
     secret: integration-tests-only-secret-that-is-long-enough-for-hs512-signing-0123456789
+  websocket:
+    # WebSocketSessionLifetimeIT waits for a short-lived token's socket to close
+    expiry-sweep-interval: 500ms
   auth:
     # Every test registers and logs in from 127.0.0.1, so the limits are out of reach; AuthRateLimitIT lowers them
     rate-limit:

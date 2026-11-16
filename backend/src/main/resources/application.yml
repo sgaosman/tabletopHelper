@@ -25,6 +25,9 @@ app:
     # dev profile has a secret of its own (D156)
     secret: ${JWT_SECRET:}
     access-token-expiration-ms: 900000
+  websocket:
+    # How often open WebSockets are checked for an expired access token; one that has expired is closed (D238)
+    expiry-sweep-interval: 15s
   auth:
     # The refresh cookie is Secure everywhere except the dev profile, which runs on plain HTTP (D156)
     cookie-secure: true

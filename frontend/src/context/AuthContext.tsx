@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../api/authApi';
 import { clearAccessToken, refreshAccessToken, setAccessToken } from '../api/tokenStore';
 import { apiErrorStatus } from '../api/errors';
+import { stopLiveSockets } from '../api/liveSockets';
 import type { AuthStatus, AuthUser, LoginRequest, RegisterRequest, AuthResponse } from '../types/auth';
 import { AuthContext } from './authSession';
 
@@ -95,8 +96,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // The server revokes the session and clears the cookie. If it cannot be reached, this tab
   // still signs out; the cookie then lasts until it expires. The query cache is emptied too, so
-  // the next account to sign in sees none of this one's data (D171)
+  // the next account to sign in sees none of this one's data (D171). Live encounter connections
+  // are closed first, so none reconnects while the session ends (D238)
   const logout = useCallback(async () => {
+    await stopLiveSockets();
     try {
       await authApi.logout();
     } catch (err) {

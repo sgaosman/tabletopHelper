@@ -4427,7 +4427,7 @@ The plan's twelve questions were answered with its recommended answers when the 
 
 **Open (not changed, for the user):** character creation still stores saving-throw proficiencies, expertise, damage resistances and known spells as the request gives them, so a player could create a character resistant to everything; deriving them on the server is a larger change. A WebSocket session outlives its access token and logout; it matters once members can be removed from a campaign. The Player View still shows monsters' AC, initiative modifier and speed, which [[#D157]] doesn't list as hidden. `AddParticipantRequest`'s HP, AC and initiative fields are unbounded (DM-only).
 
-**Update (2026-11-16):** the monster AC, initiative modifier and speed item is closed by [[#D235]]. The WebSocket item stays open for the user: a socket only receives broadcasts (every command goes over REST, which checks the token) and normal logout closes it, so the lead's recommendation is to close a user's sockets once members can be removed from a campaign.
+**Update (2026-11-16):** the monster AC, initiative modifier and speed item is closed by [[#D235]]. The WebSocket item stays open for the user: a socket only receives broadcasts (every command goes over REST, which checks the token) and normal logout closes it, so the lead's recommendation is to close a user's sockets once members can be removed from a campaign. **Later the same day** the user chose to close them now: [[#D238]].
 
 **Key files:** `EncounterService.java`, `EncounterResults.java`, `CombatResults.java`, `WriteBackService.java`, `AuthRateLimitFilter.java`, `config/RequestSizeFilter.java`, `AuthService.java`, `JwtTokenProvider.java`, `CharacterSheetService.java`, `CharacterService.java`, request DTOs, `frontend/Caddyfile`, `openapi.json`
 
@@ -4814,3 +4814,26 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D208, D231
 
 **Tests:** `RaceLoaderIT` (Mark of Warding Dwarf: alarm and mage armor at 1st, arcane lock at 3rd, each once a long rest); backend unit tests pass.
+
+---
+
+## D238: WebSockets Close at Token Expiry and on Logout
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration)
+
+**Context:** [[#D221]] left open that a STOMP socket outlives its access token and the user's logout: the token is checked once at CONNECT and logout only revokes the refresh-token family. The socket can only receive broadcasts (commands go over REST), so the risk was an old tab or stolen token still receiving encounter updates. The user chose to close it.
+
+**Decision:**
+- **Registry:** `WebSocketSessions` maps each open socket to its user and access-token expiry, recorded at CONNECT (`AccessTokenClaims.expiresAt`; a token without an expiry is now refused) and dropped on close; `WebSocketSessionTracker` wraps the STOMP handler so the server holds the socket and can close it.
+- **Expiry:** a sweep every 15 s (`app.websocket.expiry-sweep-interval`; scheduling isn't enabled in the app, so `WebSocketExpirySweeper` runs its own daemon thread with the app's lifecycle) closes expired sockets with 1008 "Access token expired". Between sweeps a SUBSCRIBE or SEND on an expired socket is refused, which closes it.
+- **Logout** closes every socket of the user, 1008 "Signed out", after the revocation commits. The user comes from the refresh-token row and only when live tokens were revoked, so a stale cookie closes nothing. **(choice)** All of the user's sockets, not one device's: a socket can't be tied to a login, and a device still signed in reconnects at once with its own token; other tabs of the same browser share the revoked cookie and are signed out, as logout means.
+- **Frontend:** logout stops every live connection before calling the server (`api/liveSockets.ts`), so the route-unmount path is no longer relied on. `useWebSocket` renews the connection 60 s before the token expires (halfway for very short tokens; timed from the token's lifetime, so a wrong local clock doesn't matter) without a banner, reloading updates missed in the swap; after a server 1008 close it reconnects quietly with a refreshed token; a refused refresh (401) stops it with "session ended" instead of looping.
+
+**Knock-on effects:** none on REST. **(limit)** Access tokens aren't revoked, so a socket opened after logout with a still-valid token lives until the token expires and the sweep closes it. After a 1008 close the page reads "connected" for about a second while it reconnects; sends in that window are dropped, as before.
+
+**Key files:** `identity/internal/WebSocketSessions.java`, `WebSocketSessionTracker.java`, `WebSocketExpirySweeper.java`, `WebSocketAuthConfig.java`, `WebSocketAuthInterceptor.java`, `JwtTokenProvider.java`, `AuthService.java`, `AuthController.java`, `application.yml`; frontend `api/liveSockets.ts`, `hooks/useWebSocket.ts`, `context/AuthContext.tsx`
+
+**Related:** D156, D221
+
+**Tests:** `WebSocketSessionsTest` (including a sweep/logout race), `WebSocketAuthInterceptorTest`, `AuthControllerTest`, `AuthServiceTest`, `JwtTokenProviderTest`; new `WebSocketSessionLifetimeIT` (a 2 s token's socket closes after expiry while another user's stays; logout closes the user's socket and not another's; a second logout with a revoked cookie closes nothing); frontend quiet reconnect after 1008, no retry loop on a refused refresh, renewal without a banner, logout stopping the client, `liveSockets`. 4,986 backend unit, 608 integration and 1,348 frontend tests pass. Checked on the rehearsal copy: logging the QA DM out from a separate login closed the browser's socket ("Signed out"), and the open DM session refreshed and reconnected with no banner.

@@ -10,8 +10,9 @@ import org.junit.jupiter.api.Test;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Date;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -28,7 +29,7 @@ class JwtTokenProviderTest {
     }
 
     @Test
-    @DisplayName("An access token parses back to its userId and username")
+    @DisplayName("An access token parses back to its userId, username and expiry")
     void generateAccessToken_parsesBackToItsClaims() {
         UUID userId = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
         String username = "thorin_oakenshield_42";
@@ -37,7 +38,12 @@ class JwtTokenProviderTest {
 
         // JWT should have 3 parts separated by dots
         assertEquals(3, token.split("\\.").length);
-        assertEquals(Optional.of(new AccessTokenClaims(userId, username)), jwtTokenProvider.parseAccessToken(token));
+        AccessTokenClaims claims = jwtTokenProvider.parseAccessToken(token).orElseThrow();
+        assertEquals(userId, claims.userId());
+        assertEquals(username, claims.username());
+        // JWT expiry has whole-second precision
+        long secondsLeft = Duration.between(Instant.now(), claims.expiresAt()).toSeconds();
+        assertTrue(secondsLeft > 890 && secondsLeft <= 900, "expires in " + secondsLeft + "s");
     }
 
     @Test

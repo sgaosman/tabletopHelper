@@ -7,6 +7,7 @@ import { server } from '../test/mocks/server';
 import { makeCampaign, makeMockCharacter } from '../test/mocks/handlers';
 import { createTestQueryClient, setupAuthToken } from '../test/test-utils';
 import { getAccessToken } from '../api/tokenStore';
+import { registerLiveSocket } from '../api/liveSockets';
 import { queryKeys } from '../queries/keys';
 import { AuthProvider } from './AuthContext';
 import { useAuth } from '../hooks/useAuth';
@@ -144,6 +145,28 @@ describe('AuthContext', () => {
     expect(await screen.findByText('Status: anonymous')).toBeInTheDocument();
     expect(logoutCalls()).toBe(1);
     expect(getAccessToken()).toBeNull();
+  });
+
+  it('stops every live connection before asking the server to end the session (D238)', async () => {
+    setupAuthToken();
+    const events: string[] = [];
+    server.use(http.post('/api/auth/logout', () => {
+      events.push('logout request');
+      return new HttpResponse(null, { status: 204 });
+    }));
+    const stop = vi.fn(async () => {
+      events.push('socket stopped');
+    });
+    const unregister = registerLiveSocket(stop);
+    renderProvider();
+    await screen.findByText('Status: authenticated');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Log out' }));
+
+    expect(await screen.findByText('Status: anonymous')).toBeInTheDocument();
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(events).toEqual(['socket stopped', 'logout request']);
+    unregister();
   });
 
   it('empties the query cache on logout, so the next account sees none of this one', async () => {
