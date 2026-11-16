@@ -4314,7 +4314,7 @@ The plan's twelve questions were answered with its recommended answers when the 
 
 **Related:** D174, D176, D196, D208; roadmap M13
 
-**Tests:** `ReactionOffersTest` (25), `ReactionPromptsIT` (5: a goblin's hit on a wizard taken back by Shield and restored by undo, a Shield that still hits, an archmage's Counterspell offered to the DM and countering, offers expiring, undo and dismissal), `ReactionPrompt.test.tsx` (10) and a player-page filter test; 4,680 backend unit, 568 integration and 1,255 frontend tests on its branch; 4,691, 571 and 1,258 merged with D218, whose scroll check now also comes before a Shield answer (a Shield read from a scroll that fails its check takes nothing back).
+**Tests:** `ReactionOffersTest` (25), `ReactionPromptsIT` (5: a goblin's hit on a wizard taken back by Shield and restored by undo, a Shield that still hits, an archmage's Counterspell offered to the DM and countering, offers expiring, undo and dismissal), `ReactionPrompt.test.tsx` (10) and a player-page filter test; 4,680 backend unit, 568 integration and 1,255 frontend tests on its branch; 4,691, 571 and 1,258 merged with D218, whose scroll check now also comes before a Shield answer (a Shield read from a scroll that fails its check takes nothing back). Checked in the browser on the rehearsal copy: a fighter's Magic Missile from a wand beside a monster mage raised a "Mage can react" prompt on the DM's page with Counterspell at slot levels 3 to 5 and Skip; taking it countered the spell, the knight's 9 damage came back (52/52), the mage spent a 3rd-level slot, the wand's charge stayed spent, and the prompt cleared.
 
 
 ## D218: Item Use Fixes from Review
