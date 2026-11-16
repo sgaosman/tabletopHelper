@@ -18,7 +18,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * Style, {@code metamagic} for a sorcerer's Metamagic options, {@code proficiencies} for a subclass's bonus
  * proficiencies, by name, and {@code spells} for cantrips or spells, a subclass's cantrips among them, with
  * {@code swap} for a known caster's optional swap, and {@code draconicAncestry} for a Dragonborn's draconic
- * ancestry, by its dragon, such as "Red" (D208).
+ * ancestry, by its dragon, such as "Red" (D208), and {@code subclassOption} for the named list a subclass's player
+ * picks, such as a Circle of the Land druid's terrain, "Arctic" (D231).
  */
 @Data
 public class ApplyChoicesRequest {
@@ -36,6 +37,7 @@ public class ApplyChoicesRequest {
     private List<String> proficiencies;
     private List<String> spells;
     private String draconicAncestry;
+    private String subclassOption;
 
     @Valid
     private SpellSwap swap;

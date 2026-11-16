@@ -1,6 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
-import tools.jackson.databind.JsonNode;
+import com.tabletophelper.character.SubclassSpells;
 import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.ClassEntry;
@@ -223,17 +223,21 @@ class CasterSpells {
         List<SpellSources.Known> spells = new ArrayList<>();
         for (SubclassLevel granted : subclasses.values()) {
             String origin = granted.className() != null ? "class:" + granted.className() : null;
-            JsonNode byLevel = StoredJson.read(objectMapper, granted.subclass().getAlwaysPreparedSpells(),
-                    granted.subclass().getName() + "'s always-prepared spells");
-            byLevel.properties().forEach(group -> {
-                String classLevel = group.getKey().trim();
+            // With the spells of the option the character picked, such as a Land druid's terrain (D231)
+            Subclass subclass = granted.subclass();
+            UUID classId = subclass.getCharacterClass() != null ? subclass.getCharacterClass().getId() : null;
+            Map<String, List<String>> byLevel = SubclassSpells.alwaysPrepared(objectMapper, subclass,
+                    SubclassSpells.optionOf(character, classId));
+            if (byLevel == null) continue;
+            byLevel.forEach((key, names) -> {
+                String classLevel = key.trim();
                 if (!CLASS_LEVEL.matcher(classLevel).matches()
                         || Integer.parseInt(classLevel) > granted.classLevel()) {
                     return;
                 }
-                for (JsonNode name : group.getValue()) {
-                    if (name.isString() && !name.asString("").isBlank()) {
-                        Resolved resolved = resolve(name.asString(""), null);
+                for (String name : names) {
+                    if (name != null && !name.isBlank()) {
+                        Resolved resolved = resolve(name, null);
                         spells.add(new SpellSources.Known(resolved.name(), resolved.level(), origin, false, true,
                                 false, null, null, resolved.castingTime()));
                     }

@@ -64,6 +64,15 @@ public class Subclass {
     @Column(name = "additional_proficiencies", columnDefinition = "jsonb")
     private String additionalProficiencies;
 
+    // The spells the subclass grants outside its always-prepared list (V41, D231): {"known": {classLevel: [names]},
+    // "options": [{"name": name, "prepared": {classLevel: [names]}, "known": {classLevel: [names]}}]}, each part left
+    // out when empty, such as a Gloom Stalker's known spells (XGE p.42) or a Circle of the Land druid's terrains (PHB p.68-69);
+    // null for none
+    @JsonRawValue
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "granted_spells", columnDefinition = "jsonb")
+    private String grantedSpells;
+
     // Mechanical effects the 5etools data doesn't give, such as {"hpPerClassLevel": 1}, from the effects overlay the
     // content loader applies (V28); null for none. Character rules read it, and it isn't part of the API
     @JsonIgnore

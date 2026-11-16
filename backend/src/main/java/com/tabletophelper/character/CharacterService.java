@@ -590,6 +590,55 @@ public class CharacterService {
     }
 
     /**
+     * The spells the character's subclasses teach at its class levels that it doesn't know, such as a Gloom Stalker's
+     * disguise self at Ranger 3 (XGE p.42), for the recompute-characters job (D231); changes nothing.
+     *
+     * @throws ConflictException when a subclass the character has can't be found or read
+     */
+    public List<PendingChoiceService.MissingSubclassSpell> missingSubclassSpells(PlayerCharacter character) {
+        return pendingChoices.missingSubclassSpells(character);
+    }
+
+    /**
+     * Teaches the character what {@link #missingSubclassSpells} finds, each recorded on its class level, for the
+     * recompute-characters job; the caller saves the character.
+     */
+    public void storeMissingSubclassSpells(PlayerCharacter character) {
+        pendingChoices.storeMissingSubclassSpells(character);
+    }
+
+    /**
+     * How the character's race spells differ from the race data's (D231): a known levelled spell the sheet casts at
+     * will that the race casts once a long rest, such as a Hexblood's hex (VRGR p.18), or a spell the race casts once
+     * between short or long rests that the sheet lacks, such as a VGM firbolg's detect magic (VGM p.107), for the
+     * recompute-characters job; changes nothing.
+     *
+     * @throws ConflictException when the race's spells can't be read
+     */
+    public List<RaceSpellChange> outdatedRaceSpells(PlayerCharacter character) {
+        return RaceSpells.changes(objectMapper, character).stream()
+                .map(change -> new RaceSpellChange(change.spell(), change.before(), change.after()))
+                .toList();
+    }
+
+    /**
+     * Gives the character's race spells the race data's casting, and adds those it lacks, as {@link #outdatedRaceSpells}
+     * finds, for the recompute-characters job; the caller saves the character.
+     */
+    public void storeRaceSpells(PlayerCharacter character) {
+        RaceSpells.apply(character, RaceSpells.changes(objectMapper, character));
+    }
+
+    /**
+     * A race spell whose casting on the sheet differs from the race data's, or that the sheet lacks.
+     *
+     * @param spell  the spell
+     * @param before how the sheet casts it, such as "level 0, at will", or "none"
+     * @param after  how the race data casts it, such as "level 1, 1/long rest"
+     */
+    public record RaceSpellChange(String spell, String before, String after) {}
+
+    /**
      * Gives the character what {@link #missingSubclassProficiencies} finds, each recorded on the level that records its
      * subclass when the history has one, for the recompute-characters job; the caller saves the character.
      */

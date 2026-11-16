@@ -43,6 +43,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param kenseiWeapons  for PROFICIENCY, true when the weapons chosen become the Way of the Kensei monk's kensei weapons
  *                       (XGE p.34), recorded on the level's {@code kenseiWeapons}: a weapon the character is proficient
  *                       with may be chosen, one that is a kensei weapon already may not; null otherwise
+ * @param school         for SUBCLASS_CANTRIP, the school the cantrip is of, as the Death Domain's necromancy cantrip from
+ *                       any class's list (DMG p.96, D231); null for any
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -61,15 +63,25 @@ public record PendingChoice(
         String spellList,
         ProficienciesGained proficiencyOptions,
         Boolean expertise,
-        Boolean kenseiWeapons
+        Boolean kenseiWeapons,
+        String school
 ) {
+
+    /** A choice of no school. */
+    public PendingChoice(UUID id, Type type, Source source, int characterLevel, UUID classId, String className,
+                         Integer classLevel, int count, List<String> options, Integer maxSpellLevel, Boolean swap,
+                         String spellList, ProficienciesGained proficiencyOptions, Boolean expertise,
+                         Boolean kenseiWeapons) {
+        this(id, type, source, characterLevel, classId, className, classLevel, count, options, maxSpellLevel, swap,
+                spellList, proficiencyOptions, expertise, kenseiWeapons, null);
+    }
 
     /** A choice that makes no kensei weapons. */
     public PendingChoice(UUID id, Type type, Source source, int characterLevel, UUID classId, String className,
                          Integer classLevel, int count, List<String> options, Integer maxSpellLevel, Boolean swap,
                          String spellList, ProficienciesGained proficiencyOptions, Boolean expertise) {
         this(id, type, source, characterLevel, classId, className, classLevel, count, options, maxSpellLevel, swap,
-                spellList, proficiencyOptions, expertise, null);
+                spellList, proficiencyOptions, expertise, null, null);
     }
 
     /** A choice that offers no proficiencies, as every type but PROFICIENCY is. */
@@ -77,13 +89,20 @@ public record PendingChoice(
                          Integer classLevel, int count, List<String> options, Integer maxSpellLevel, Boolean swap,
                          String spellList) {
         this(id, type, source, characterLevel, classId, className, classLevel, count, options, maxSpellLevel, swap,
-                spellList, null, null, null);
+                spellList, null, null, null, null);
     }
 
     /** What is chosen, in the order a level's choices are shown and made: a subclass can bring more. */
     public enum Type {
         /** The class's subclass, which can bring more choices of its own, such as an Eldritch Knight's spells */
         SUBCLASS,
+        /**
+         * One of the named lists of spells a subclass's player picks from when it is taken (D231), in its
+         * {@code options}: a Circle of the Land druid's terrain, whose circle spells it has always prepared at Druid 3,
+         * 5, 7 and 9 (PHB p.68-69), or a Divine Soul sorcerer's affinity, whose spell it learns (XGE p.50). Recorded on
+         * the level that records the subclass, as its {@code subclassOption}
+         */
+        SUBCLASS_OPTION,
         /** A Fighting Style, from the class's list */
         FIGHTING_STYLE,
         /** Metamagic options a sorcerer learns, from the class's list (PHB p.101–102, M18) */
@@ -144,6 +163,6 @@ public record PendingChoice(
     /** The same choice with a new count, as when creation made part of it. */
     public PendingChoice withCount(int newCount) {
         return new PendingChoice(id, type, source, characterLevel, classId, className, classLevel, newCount, options,
-                maxSpellLevel, swap, spellList, proficiencyOptions, expertise, kenseiWeapons);
+                maxSpellLevel, swap, spellList, proficiencyOptions, expertise, kenseiWeapons, school);
     }
 }

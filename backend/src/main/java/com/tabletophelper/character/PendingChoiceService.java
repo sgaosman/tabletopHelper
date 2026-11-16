@@ -130,6 +130,7 @@ public class PendingChoiceService {
             case ASI -> applyAsi(character, index, request.getAsi());
             case FEAT -> applyFeat(character, choice, index, request.getFeat());
             case SUBCLASS -> brought = applySubclass(character, choice, index, request.getSubclassId());
+            case SUBCLASS_OPTION -> applySubclassOption(character, choice, index, request.getSubclassOption());
             case EXPERTISE -> applyExpertise(character, choice, index, request.getExpertiseSkills());
             case FIGHTING_STYLE -> applyFightingStyle(character, choice, index, request.getFightingStyle());
             case METAMAGIC -> applyMetamagic(character, choice, index, request.getMetamagic());
@@ -170,6 +171,7 @@ public class PendingChoiceService {
         given.put("spells", request.getSpells());
         given.put("swap", request.getSwap());
         given.put("draconicAncestry", request.getDraconicAncestry());
+        given.put("subclassOption", request.getSubclassOption());
         List<String> takes = switch (type) {
             case ASI -> List.of("asi");
             case FEAT -> List.of("feat");
@@ -181,6 +183,7 @@ public class PendingChoiceService {
             case SUBCLASS_CANTRIP, CANTRIPS, MYSTIC_ARCANUM -> List.of("spells");
             case SPELLS -> List.of("spells", "swap");
             case DRACONIC_ANCESTRY -> List.of("draconicAncestry");
+            case SUBCLASS_OPTION -> List.of("subclassOption");
         };
         given.forEach((field, value) -> {
             if (value != null && !takes.contains(field)) {
@@ -436,9 +439,12 @@ public class PendingChoiceService {
                 choice.className(), choice.classLevel(), choice.source()));
         brought.addAll(subclassCantrips(character, subclass, index, choice.characterLevel(), classId,
                 choice.className(), choice.classLevel(), choice.source()));
+        brought.addAll(optionChoice(subclass, choice.characterLevel(), classId, choice.className(),
+                choice.classLevel(), choice.source()));
         for (int level = Math.max(1, subclassLevel); level <= classLevel; level++) {
             int levelIndex = historyIndexOf(character, classId, choice.className(), level);
             if (levelIndex < 0) continue;
+            grantSubclassSpells(character, subclass, level, levelIndex, null);
             int levelCharacterLevel = character.getLevelHistory().get(levelIndex).characterLevel();
             brought.addAll(proficiencyChoices(SubclassProficiencies.choicesAt(objectMapper, subclass, level,
                     subclassLevel), levelCharacterLevel, classId, choice.className(), level, choice.source()));
@@ -708,6 +714,158 @@ public class PendingChoiceService {
         CharacterUpdates.recordChoices(character, index, c -> c.withMysticArcanum(learned));
     }
 
+    // ── A subclass's option and the spells it teaches (D231) ─────
+
+    /**
+     * One of the named lists a subclass's player picks from, by name in any case: a Circle of the Land druid's terrain
+     * (PHB p.68-69: arctic, coast, desert, forest, grassland, mountain, swamp or Underdark), whose circle spells the druid
+     * then has always prepared from Druid 3, or a Divine Soul's affinity (XGE p.50), whose spell it learns. Recorded on
+     * the level that owes it, the subclass's, as its {@code subclassOption}; the option's spells of each class level the
+     * character has are learned and recorded on that level, so levelling down forgets them. A level that records an
+     * option already is a 409.
+     */
+    private void applySubclassOption(PlayerCharacter character, PendingChoice choice, int index, String picked) {
+        Subclass subclass = subclassOf(character, choice.classId());
+        if (subclass == null) {
+            throw new ConflictException(character.getName() + "'s " + choice.className()
+                    + " has no subclass, so can't pick its option");
+        }
+        SubclassSpells.Granted granted = SubclassSpells.of(objectMapper, subclass);
+        List<String> offered = choice.options() != null ? choice.options() : granted.optionNames();
+        String option = granted.optionNamed(picked)
+                .filter(found -> containsIgnoringCase(offered, found))
+                .orElseThrow(() -> new ValidationException("Choose one of " + String.join(", ", offered)
+                        + (picked != null && !picked.isBlank() ? ", not " + picked.trim() : "")));
+        LevelChoices recorded = character.getLevelHistory().get(index).choices();
+        if (recorded != null && recorded.subclassOption() != null) {
+            throw new ConflictException("Level " + choice.characterLevel() + " records its "
+                    + subclass.getName() + " option already: " + recorded.subclassOption());
+        }
+        CharacterUpdates.recordChoices(character, index, c -> c.withSubclassOption(option));
+        int classLevel = MulticlassValidator.classLevels(character.getMulticlassEntries())
+                .getOrDefault(choice.classId(), 0);
+        SubclassSpells.Option spells = granted.options().get(option);
+        for (int level = 1; level <= classLevel; level++) {
+            List<String> names = spells.known().getOrDefault(level, List.of());
+            int levelIndex = historyIndexOf(character, choice.classId(), choice.className(), level);
+            if (names.isEmpty() || levelIndex < 0) continue;
+            recordSubclassSpells(character, levelIndex, spellService.learnSubclassSpells(character, names,
+                    subclass.getName()));
+        }
+    }
+
+    /** The SUBCLASS_OPTION choice a subclass owes when it is taken, on the level given; none for one with no options. */
+    private List<PendingChoice> optionChoice(Subclass subclass, int characterLevel, UUID classId, String className,
+                                             Integer classLevel, Source source) {
+        List<String> options = SubclassSpells.of(objectMapper, subclass).optionNames();
+        if (options.isEmpty()) return List.of();
+        return List.of(new PendingChoice(UUID.randomUUID(), Type.SUBCLASS_OPTION, source, characterLevel, classId,
+                className, classLevel, 1, options, null, null, null));
+    }
+
+    /**
+     * Teaches the spells the subclass grants at the class level, with those of the option given, and records them on
+     * the level at that history index (D231).
+     */
+    private void grantSubclassSpells(PlayerCharacter character, Subclass subclass, int classLevel, int levelIndex,
+                                     String option) {
+        List<String> names = SubclassSpells.of(objectMapper, subclass).knownAt(classLevel, option);
+        if (names.isEmpty()) return;
+        recordSubclassSpells(character, levelIndex, spellService.learnSubclassSpells(character, names,
+                subclass.getName()));
+    }
+
+    private static void recordSubclassSpells(PlayerCharacter character, int levelIndex, List<String> learned) {
+        if (learned.isEmpty()) return;
+        CharacterUpdates.recordChoices(character, levelIndex, c -> c.withSubclassSpells(
+                List.copyOf(CharacterUpdates.merged(c.subclassSpells(), learned))));
+    }
+
+    // The class's subclass; null for none
+    private Subclass subclassOf(PlayerCharacter character, UUID classId) {
+        UUID subclassId = classId != null ? CharacterUpdates.subclassIdOf(character, classId) : null;
+        return subclassId != null ? subclassRepository.findById(subclassId).orElse(null) : null;
+    }
+
+    // The SUBCLASS_OPTION choice of each subclass with options that the level recording it hasn't made and that isn't
+    // pending, as for a Circle of the Land druid made before terrains were chosen (D231), who has no circle spells
+    // until it is made
+    private List<PendingChoice> missedOptionChoices(PlayerCharacter character, List<PendingChoice> pending) {
+        List<PendingChoice> missed = new ArrayList<>();
+        for (ClassEntry entry : subclassEntries(character)) {
+            Subclass subclass = subclassRepository.findById(entry.subclassId()).orElse(null);
+            if (subclass == null) continue;
+            int index = subclassRecordIndex(character, entry.classId());
+            if (index < 0) {
+                CharacterClass characterClass = subclass.getCharacterClass();
+                index = characterClass != null ? historyIndexOf(character, entry.classId(), entry.className(),
+                        subclassLevel(characterClass)) : -1;
+            }
+            if (index < 0) continue;
+            LevelHistoryEntry level = character.getLevelHistory().get(index);
+            boolean made = level.choices() != null && level.choices().subclassOption() != null;
+            if (made || isPending(pending, Type.SUBCLASS_OPTION, level.characterLevel())) continue;
+            missed.addAll(optionChoice(subclass, level.characterLevel(), level.classId(), level.className(),
+                    level.classLevel(), Source.LEVEL_UP));
+        }
+        return missed;
+    }
+
+    /**
+     * The spells the character's subclasses teach at the class levels it has that it doesn't know, as characters given
+     * a subclass before its spells were granted lack them (D231), for the recompute-characters job: a Gloom Stalker's
+     * disguise self at Ranger 3 (XGE p.42), say, or a Divine Soul's affinity spell once the affinity is picked. Each is
+     * recorded on its class level's history entry, so a level the history lacks gives none. Changes nothing.
+     *
+     * @throws ConflictException when a subclass the character has can't be found or read
+     */
+    public List<MissingSubclassSpell> missingSubclassSpells(PlayerCharacter character) {
+        List<MissingSubclassSpell> found = new ArrayList<>();
+        for (ClassEntry entry : subclassEntries(character)) {
+            Subclass subclass = subclassRepository.findById(entry.subclassId())
+                    .orElseThrow(() -> new ConflictException("The subclass " + entry.subclassName() + " of "
+                            + character.getName() + "'s " + entry.className() + " can't be found"));
+            SubclassSpells.Granted granted = SubclassSpells.of(objectMapper, subclass);
+            String option = SubclassSpells.optionOf(character, entry.classId());
+            for (int level = 1; level <= entry.level(); level++) {
+                List<String> names = granted.knownAt(level, option);
+                int index = names.isEmpty() ? -1
+                        : historyIndexOf(character, entry.classId(), entry.className(), level);
+                if (index < 0) continue;
+                for (String name : names) {
+                    if (!CharacterSpellService.knows(character, name) && spellService.isSpell(name)) {
+                        found.add(new MissingSubclassSpell(subclass.getName(), name, entry.className(), level, index));
+                    }
+                }
+            }
+        }
+        return found;
+    }
+
+    /**
+     * Teaches the character what {@link #missingSubclassSpells} finds, each recorded on its class level, for the
+     * recompute-characters job; the caller saves the character.
+     */
+    public void storeMissingSubclassSpells(PlayerCharacter character) {
+        for (MissingSubclassSpell missing : missingSubclassSpells(character)) {
+            recordSubclassSpells(character, missing.levelIndex(), spellService.learnSubclassSpells(character,
+                    List.of(missing.spell()), missing.subclassName()));
+        }
+    }
+
+    /**
+     * A spell a character's subclass teaches at a class level it has that it doesn't know (D231).
+     *
+     * @param subclassName the subclass
+     * @param spell        the spell, as the subclass names it
+     * @param className    the class
+     * @param classLevel   the class level that teaches it
+     * @param levelIndex   that level's place in the level history
+     */
+    public record MissingSubclassSpell(String subclassName, String spell, String className, int classLevel,
+                                       int levelIndex) {
+    }
+
     // The subclass the character's class has, by name; null for none
     private static String subclassNameOf(PlayerCharacter character, UUID classId) {
         if (classId == null) return null;
@@ -735,8 +893,10 @@ public class PendingChoiceService {
                                                  Integer classLevel, Source source) {
         List<SubclassProficiencies.CantripChoice> owed = new ArrayList<>();
         for (SubclassProficiencies.CantripChoice cantrip : SubclassProficiencies.cantrips(objectMapper, subclass)) {
-            if (cantrip.grant() == null || CharacterSpellService.knows(character, cantrip.grant())) {
-                owed.add(cantrip);
+            boolean knowsGrant = cantrip.grant() != null && CharacterSpellService.knows(character, cantrip.grant());
+            if (cantrip.grant() == null || knowsGrant) {
+                // A grant without a fallback owes nothing when the character knows the cantrip already (D231)
+                if (cantrip.owesChoice(knowsGrant)) owed.add(cantrip);
                 continue;
             }
             List<String> learned = spellService.learnGrantedSubclassCantrip(character, cantrip.grant(),
@@ -794,7 +954,8 @@ public class PendingChoiceService {
                                                       Integer classLevel, Source source) {
         return cantrips.stream()
                 .map(c -> new PendingChoice(UUID.randomUUID(), Type.SUBCLASS_CANTRIP, source, characterLevel, classId,
-                        className, classLevel, c.count(), c.spells(), 0, null, c.spellList()))
+                        className, classLevel, c.count(), c.spells(), 0, null, c.spellList(), null, null, null,
+                        c.school()))
                 .toList();
     }
 
@@ -838,10 +999,13 @@ public class PendingChoiceService {
                         characterClass.getName(), subclassLevel, Source.CREATION));
                 owed.addAll(subclassCantrips(character, subclass, index, subclassCharacterLevel, entry.classId(),
                         characterClass.getName(), subclassLevel, Source.CREATION));
+                owed.addAll(optionChoice(subclass, subclassCharacterLevel, entry.classId(), characterClass.getName(),
+                        subclassLevel, Source.CREATION));
             }
             for (int level = Math.max(1, subclassLevel); level <= entry.level(); level++) {
                 int levelIndex = historyIndexOf(character, entry.classId(), characterClass.getName(), level);
                 if (levelIndex < 0) continue;
+                grantSubclassSpells(character, subclass, level, levelIndex, null);
                 int levelCharacterLevel = character.getLevelHistory().get(levelIndex).characterLevel();
                 owed.addAll(proficiencyChoices(SubclassProficiencies.choicesAt(objectMapper, subclass, level,
                                 subclassLevel), levelCharacterLevel,
@@ -886,6 +1050,11 @@ public class PendingChoiceService {
         Subclass subclass = subclassId != null && classLevel > subclassLevel
                 ? subclassRepository.findById(subclassId).orElse(null) : null;
         if (subclass != null) {
+            int levelIndex = CharacterUpdates.historyIndex(character, characterLevel);
+            if (levelIndex >= 0) {
+                grantSubclassSpells(character, subclass, classLevel, levelIndex,
+                        SubclassSpells.optionOf(character, levelClass.getId()));
+            }
             pending.addAll(proficiencyChoices(SubclassProficiencies.choicesAt(objectMapper, subclass, classLevel,
                     subclassLevel), characterLevel, levelClass.getId(), levelClass.getName(), classLevel,
                     Source.LEVEL_UP));
@@ -985,6 +1154,7 @@ public class PendingChoiceService {
             CharacterSpellService.forget(character, level.className(), choices.cantrips(), choices.spells());
         }
         CharacterSpellService.forgetSubclassCantrips(character, choices.subclassCantrips());
+        CharacterSpellService.forgetSubclassSpells(character, choices.subclassSpells());
         CharacterSpellService.forgetMysticArcanum(character, choices.mysticArcanum());
         if (choices.subclass() != null) {
             UUID classId = choices.subclass().classId();
@@ -1410,6 +1580,7 @@ public class PendingChoiceService {
                     null, ClassProgression.spellList(classTables, level.className(), null).orElse(level.className())));
         }
         missed.addAll(missedProficiencyChoices(character, pending));
+        missed.addAll(missedOptionChoices(character, pending));
         // A Dragonborn made before D208 chose a resistance but no ancestry: the choice offers the dragons of that type
         if (DraconicAncestries.owedBy(character.getRaceRef(), objectMapper)
                 && DraconicAncestries.of(character).isEmpty()
@@ -1509,7 +1680,7 @@ public class PendingChoiceService {
             return List.of();
         }
         List<SubclassProficiencies.CantripChoice> owed = cantrips.stream()
-                .filter(c -> c.grant() == null || CharacterSpellService.knows(character, c.grant()))
+                .filter(c -> c.owesChoice(c.grant() != null && CharacterSpellService.knows(character, c.grant())))
                 .toList();
         return cantripChoices(owed, level.characterLevel(), level.classId(), level.className(),
                 level.classLevel(), Source.LEVEL_UP);

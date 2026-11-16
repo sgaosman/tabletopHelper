@@ -4,6 +4,7 @@ import { mysticArcanumTitle } from './mysticArcanum';
 /** What each kind of Pending Choice is called on the sheet (D159). */
 const TITLES: Record<PendingChoiceType, string> = {
   SUBCLASS: 'Subclass',
+  SUBCLASS_OPTION: 'Subclass Option',
   FIGHTING_STYLE: 'Fighting Style',
   METAMAGIC: 'Metamagic',
   PROFICIENCY: 'Proficiencies',
@@ -142,13 +143,17 @@ export function proficiencyTaken(character: PlayerCharacter, choice: PendingChoi
 
 /**
  * The choice's name, such as "Subclass", "Spellbook" for a wizard's spells, "Skills or Languages", "Kensei Weapon"
- * for a Way of the Kensei monk's, or "Mystic Arcanum (6th)" for a warlock's.
+ * for a Way of the Kensei monk's, "Mystic Arcanum (6th)" for a warlock's, or "Terrain" for a Circle of the Land
+ * druid's (D231).
  */
 export function choiceTitle(choice: PendingChoice): string {
   if (isSpellbookChoice(choice)) return 'Spellbook';
   if (isSwapOnlyChoice(choice)) return 'Spell Swap';
   if (choice.type === 'MYSTIC_ARCANUM' && choice.maxSpellLevel) return mysticArcanumTitle(choice.maxSpellLevel);
   if (choice.type === 'PROFICIENCY' && choice.kenseiWeapons) return 'Kensei Weapon';
+  // A Circle of the Land druid's terrain (PHB p.68-69) or a Divine Soul's affinity (XGE p.50), D231
+  if (choice.type === 'SUBCLASS_OPTION' && choice.className === 'Druid') return 'Terrain';
+  if (choice.type === 'SUBCLASS_OPTION' && choice.className === 'Sorcerer') return 'Divine Affinity';
   if (choice.type === 'PROFICIENCY') {
     const kinds = KIND_ORDER.filter(kind => (choice.proficiencyOptions?.[kind] ?? []).length > 0);
     if (kinds.length === 0) return TITLES.PROFICIENCY;

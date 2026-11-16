@@ -40,6 +40,12 @@ import java.util.List;
  * @param draconicAncestry the dragon a Dragonborn chose as its draconic ancestry (PHB p.34, D208), such as "Red", on its
  *                      1st level, from its race's DRACONIC_ANCESTRY choice; its Breath Weapon's damage type, shape and
  *                      save, and its damage resistance, follow it
+ * @param subclassOption the named list a subclass's player picked on this level, the subclass's, from its
+ *                      SUBCLASS_OPTION choice (D231): a Circle of the Land druid's terrain, whose circle spells it has
+ *                      always prepared (PHB p.68-69), or a Divine Soul's affinity (XGE p.50)
+ * @param subclassSpells the spells this level's subclass taught, known with the source "subclass:" and the subclass's
+ *                      name and not counted against Spells Known (D231), such as a Gloom Stalker's disguise self at
+ *                      Ranger 3 (XGE p.42) or a Divine Soul's affinity spell; levelling down forgets them
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -57,12 +63,24 @@ public record LevelChoices(
         List<String> kenseiWeapons,
         List<String> subclassCantrips,
         String mysticArcanum,
-        String draconicAncestry
+        String draconicAncestry,
+        String subclassOption,
+        List<String> subclassSpells
 ) {
 
     /** No choices, as each level starts. */
     public static final LevelChoices NONE = new LevelChoices(null, null, null, null, null, null, null, null, null,
-            null, null, null, null, null);
+            null, null, null, null, null, null, null);
+
+    /** Choices with no subclass option or subclass spells. */
+    public LevelChoices(AbilityScoreImprovement asi, List<String> expertise, SubclassChosen subclass,
+                        String fightingStyle, List<String> cantrips, SpellsLearned spells, List<FeatTaken> feats,
+                        Boolean setsSpellcastingAbility, List<String> metamagic, List<String> proficiencies,
+                        List<String> kenseiWeapons, List<String> subclassCantrips, String mysticArcanum,
+                        String draconicAncestry) {
+        this(asi, expertise, subclass, fightingStyle, cantrips, spells, feats, setsSpellcastingAbility, metamagic,
+                proficiencies, kenseiWeapons, subclassCantrips, mysticArcanum, draconicAncestry, null, null);
+    }
 
     /** Choices with no draconic ancestry. */
     public LevelChoices(AbilityScoreImprovement asi, List<String> expertise, SubclassChosen subclass,
@@ -122,84 +140,110 @@ public record LevelChoices(
     public LevelChoices withAsi(AbilityScoreImprovement newAsi) {
         return new LevelChoices(newAsi, expertise, subclass, fightingStyle, cantrips, spells, feats,
                 setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips,
-                mysticArcanum, draconicAncestry);
+                mysticArcanum, draconicAncestry, subclassOption,
+                subclassSpells);
     }
 
     public LevelChoices withExpertise(List<String> newExpertise) {
         return new LevelChoices(asi, newExpertise, subclass, fightingStyle, cantrips, spells, feats,
                 setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips,
-                mysticArcanum, draconicAncestry);
+                mysticArcanum, draconicAncestry, subclassOption,
+                subclassSpells);
     }
 
     public LevelChoices withSubclass(SubclassChosen newSubclass) {
         return new LevelChoices(asi, expertise, newSubclass, fightingStyle, cantrips, spells, feats,
                 setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips,
-                mysticArcanum, draconicAncestry);
+                mysticArcanum, draconicAncestry, subclassOption,
+                subclassSpells);
     }
 
     public LevelChoices withFightingStyle(String newFightingStyle) {
         return new LevelChoices(asi, expertise, subclass, newFightingStyle, cantrips, spells, feats,
                 setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips,
-                mysticArcanum, draconicAncestry);
+                mysticArcanum, draconicAncestry, subclassOption,
+                subclassSpells);
     }
 
     public LevelChoices withCantrips(List<String> newCantrips) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, newCantrips, spells, feats,
                 setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips,
-                mysticArcanum, draconicAncestry);
+                mysticArcanum, draconicAncestry, subclassOption,
+                subclassSpells);
     }
 
     public LevelChoices withSpells(SpellsLearned newSpells) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, newSpells, feats,
                 setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips,
-                mysticArcanum, draconicAncestry);
+                mysticArcanum, draconicAncestry, subclassOption,
+                subclassSpells);
     }
 
     public LevelChoices withFeats(List<FeatTaken> newFeats) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, newFeats,
                 setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips,
-                mysticArcanum, draconicAncestry);
+                mysticArcanum, draconicAncestry, subclassOption,
+                subclassSpells);
     }
 
     public LevelChoices withSetsSpellcastingAbility(Boolean sets) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats, sets, metamagic,
                 proficiencies, kenseiWeapons, subclassCantrips,
-                mysticArcanum, draconicAncestry);
+                mysticArcanum, draconicAncestry, subclassOption,
+                subclassSpells);
     }
 
     public LevelChoices withMetamagic(List<String> newMetamagic) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats,
                 setsSpellcastingAbility, newMetamagic, proficiencies, kenseiWeapons, subclassCantrips,
-                mysticArcanum, draconicAncestry);
+                mysticArcanum, draconicAncestry, subclassOption,
+                subclassSpells);
     }
 
     public LevelChoices withProficiencies(List<String> newProficiencies) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats,
                 setsSpellcastingAbility, metamagic, newProficiencies, kenseiWeapons, subclassCantrips,
-                mysticArcanum, draconicAncestry);
+                mysticArcanum, draconicAncestry, subclassOption,
+                subclassSpells);
     }
 
     public LevelChoices withKenseiWeapons(List<String> newKenseiWeapons) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats,
                 setsSpellcastingAbility, metamagic, proficiencies, newKenseiWeapons, subclassCantrips,
-                mysticArcanum, draconicAncestry);
+                mysticArcanum, draconicAncestry, subclassOption,
+                subclassSpells);
     }
 
     public LevelChoices withSubclassCantrips(List<String> newSubclassCantrips) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats,
                 setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, newSubclassCantrips,
-                mysticArcanum, draconicAncestry);
+                mysticArcanum, draconicAncestry, subclassOption,
+                subclassSpells);
     }
 
     public LevelChoices withDraconicAncestry(String newDraconicAncestry) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats,
                 setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips,
-                mysticArcanum, newDraconicAncestry);
+                mysticArcanum, newDraconicAncestry, subclassOption,
+                subclassSpells);
     }
 
     public LevelChoices withMysticArcanum(String newMysticArcanum) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats,
                 setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips,
-                newMysticArcanum, draconicAncestry);
+                newMysticArcanum, draconicAncestry, subclassOption,
+                subclassSpells);
+    }
+
+    public LevelChoices withSubclassOption(String newSubclassOption) {
+        return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats,
+                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips,
+                mysticArcanum, draconicAncestry, newSubclassOption, subclassSpells);
+    }
+
+    public LevelChoices withSubclassSpells(List<String> newSubclassSpells) {
+        return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats,
+                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips,
+                mysticArcanum, draconicAncestry, subclassOption, newSubclassSpells);
     }
 }

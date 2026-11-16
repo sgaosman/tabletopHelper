@@ -319,6 +319,17 @@ public class CharacterSpellService {
             } else if (choice.spellList() != null && !classLists(spell).contains(choice.spellList())) {
                 throw new ValidationException(spell.getName() + " isn't on the " + choice.spellList() + " spell list");
             }
+            // A choice of a school takes a cantrip of it, from the choice's list or any class's, as the Death Domain's
+            // necromancy cantrip (DMG p.96, D231)
+            if (choice.options() == null && choice.school() != null) {
+                if (spell.getSchool() == null || !spell.getSchool().equalsIgnoreCase(choice.school())) {
+                    throw new ValidationException(spell.getName() + " isn't a " + choice.school().toLowerCase(Locale.ROOT)
+                            + " cantrip");
+                }
+                if (choice.spellList() == null && classLists(spell).isEmpty()) {
+                    throw new ValidationException(spell.getName() + " is on no class's spell list");
+                }
+            }
             if (knows(known, spell.getName())) {
                 throw new ValidationException(character.getName() + " already knows " + spell.getName());
             }
@@ -357,6 +368,49 @@ public class CharacterSpellService {
                 null));
         character.setSpellsKnown(known);
         return List.of(spell.getName());
+    }
+
+    /**
+     * Learns the spells a subclass teaches at a class level (D231), such as a Gloom Stalker's disguise self at Ranger 3
+     * (XGE p.42), Aberrant Mind's psionic spells (TCE p.66) or a Divine Soul's affinity spell (XGE p.50), with the
+     * source "subclass:" and the subclass's name, so they don't count against the class's Spells Known. A spell the
+     * character knows already, from any source, isn't learned again, so levelling down won't take it away; nor is one
+     * the spell data lacks. The caller records them on the level, so levelling down past it forgets them.
+     *
+     * @return the spells learned, by the spell data's names
+     */
+    List<String> learnSubclassSpells(PlayerCharacter character, List<String> names, String subclassName) {
+        List<KnownSpell> known = copy(character.getSpellsKnown());
+        List<String> learned = new ArrayList<>();
+        for (String name : distinct(orEmpty(names))) {
+            Spell spell = spellRepository.findByNameIgnoreCase(name.trim()).orElse(null);
+            if (spell == null || knows(known, spell.getName())) continue;
+            known.add(new KnownSpell(null, spell.getName(), spell.getLevel(), SUBCLASS_SOURCE + subclassName, null,
+                    null, null, null, null));
+            learned.add(spell.getName());
+        }
+        character.setSpellsKnown(known);
+        return learned;
+    }
+
+    /** Whether the spell data has a spell of that name, in any case. */
+    boolean isSpell(String name) {
+        return name != null && !name.isBlank() && spellRepository.findByNameIgnoreCase(name.trim()).isPresent();
+    }
+
+    /**
+     * Forgets the spells a level's subclass taught (D231), as levelling down past the level does: the levelled
+     * subclass entries of those names.
+     */
+    static void forgetSubclassSpells(PlayerCharacter character, List<String> spells) {
+        if (spells == null || spells.isEmpty()) {
+            return;
+        }
+        List<String> keys = spells.stream().filter(Objects::nonNull).map(CharacterSpellService::key).toList();
+        List<KnownSpell> known = copy(character.getSpellsKnown());
+        known.removeIf(spell -> spell.source() != null && spell.source().startsWith(SUBCLASS_SOURCE)
+                && spell.level() > 0 && spell.name() != null && keys.contains(key(spell.name())));
+        character.setSpellsKnown(known);
     }
 
     /**

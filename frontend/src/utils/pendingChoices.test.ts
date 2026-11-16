@@ -97,6 +97,15 @@ describe('pendingChoices', () => {
     expect(choiceLabel(cantrip)).toBe('Subclass Cantrip (Fighter 3)');
   });
 
+  it("names a Land druid's terrain and a Divine Soul's affinity (PHB p.68-69, XGE p.50, D231)", () => {
+    const terrain = makeMockPendingChoice({ type: 'SUBCLASS_OPTION', className: 'Druid', classLevel: 2,
+      characterLevel: 2, options: ['Arctic', 'Underdark'] });
+    expect(choiceTitle(terrain)).toBe('Terrain');
+    expect(choiceLabel(terrain)).toBe('Terrain (Druid 2)');
+    expect(choiceTitle({ ...terrain, className: 'Sorcerer' })).toBe('Divine Affinity');
+    expect(choiceTitle({ ...terrain, className: 'Bard' })).toBe('Subclass Option');
+  });
+
   it("names a warlock's Mystic Arcanum by its spell level (PHB p.108)", () => {
     const arcanum = makeMockPendingChoice({ type: 'MYSTIC_ARCANUM', className: 'Warlock', classLevel: 11,
       characterLevel: 11, maxSpellLevel: 6 });

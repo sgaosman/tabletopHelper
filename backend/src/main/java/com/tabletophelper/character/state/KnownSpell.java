@@ -24,6 +24,9 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param atWill          true when it is cast without a slot
  * @param usesPerLongRest how often it can be cast without a slot between long rests
  * @param unlocksAtLevel  the character level a racial spell becomes available at
+ * @param usesResetOn     "shortRest" when its uses come back on a short or long rest, as a VGM firbolg's detect magic
+ *                        and disguise self (VGM p.107) or a DMG eladrin's misty step (DMG p.286); null when they come
+ *                        back on a long rest only (D231)
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -36,8 +39,23 @@ public record KnownSpell(
         Boolean alwaysPrepared,
         Boolean atWill,
         Integer usesPerLongRest,
-        Integer unlocksAtLevel
+        Integer unlocksAtLevel,
+        String usesResetOn
 ) {
+
+    /** A spell whose uses, if it has any, come back on a long rest. */
+    public KnownSpell(UUID id, String name, int level, String source, Boolean prepared, Boolean alwaysPrepared,
+                      Boolean atWill, Integer usesPerLongRest, Integer unlocksAtLevel) {
+        this(id, name, level, source, prepared, alwaysPrepared, atWill, usesPerLongRest, unlocksAtLevel, null);
+    }
+
+    /** What {@code usesResetOn} holds for uses that come back on a short or a long rest (D231). */
+    public static final String SHORT_REST = "shortRest";
+
+    /** Whether the spell's uses come back on a short rest as well as a long one (D231). */
+    public boolean usesResetOnShortRest() {
+        return SHORT_REST.equals(usesResetOn);
+    }
 
     /**
      * What the source of a cantrip a subclass taught starts with, before the subclass's name, such as "subclass:Nature

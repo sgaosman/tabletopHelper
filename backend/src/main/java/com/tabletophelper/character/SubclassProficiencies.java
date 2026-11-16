@@ -115,17 +115,35 @@ final class SubclassProficiencies {
      * @param ofCantripsKnown true when the cantrip is one of the class's Cantrips Known, as an Arcane Trickster's Mage
      *                  Hand is one of its three at Rogue 3 (PHB p.98, D223), so the class's CANTRIPS choice at the
      *                  subclass level is that many fewer; false when it is learned on top, as Minor Illusion is
+     * @param school    the school the cantrip chosen is of, from the spellList or, without one, from any class's list,
+     *                  as the Death Domain's necromancy cantrip (DMG p.96, D231); null for any school
      */
-    record CantripChoice(int count, List<String> spells, String spellList, String grant, boolean ofCantripsKnown) {
+    record CantripChoice(int count, List<String> spells, String spellList, String grant, boolean ofCantripsKnown,
+                         String school) {
 
         /** A choice always owed. */
         CantripChoice(int count, List<String> spells, String spellList) {
-            this(count, spells, spellList, null, false);
+            this(count, spells, spellList, null, false, null);
         }
 
         /** A cantrip learned on top of the class's Cantrips Known. */
         CantripChoice(int count, List<String> spells, String spellList, String grant) {
-            this(count, spells, spellList, grant, false);
+            this(count, spells, spellList, grant, false, null);
+        }
+
+        /** A choice of any school. */
+        CantripChoice(int count, List<String> spells, String spellList, String grant, boolean ofCantripsKnown) {
+            this(count, spells, spellList, grant, ofCantripsKnown, null);
+        }
+
+        /**
+         * Whether the subclass owes a choice: always for one without a grant, and for a grant only when the character
+         * knows the cantrip already and the grant names a list to choose another from, as the School of Illusion's
+         * does (PHB p.118). A grant without one, as the Light Domain's light (PHB p.60: "if you don't already know
+         * it"), owes nothing then (D231).
+         */
+        boolean owesChoice(boolean knowsGrant) {
+            return grant == null || (knowsGrant && (spellList != null || spells != null));
         }
     }
 
@@ -256,15 +274,21 @@ final class SubclassProficiencies {
             cantrip.path("spells").forEach(spell -> {
                 if (spell.isString() && !spell.asString("").isBlank()) spells.add(spell.asString("").trim());
             });
-            String spellList = cantrip.path("spellList").isString() ? cantrip.path("spellList").asString("") : null;
-            if (count < 1 || (spells.isEmpty() == (spellList == null || spellList.isBlank()))) {
-                throw unreadable(subclass);
-            }
+            String spellList = cantrip.path("spellList").isString() && !cantrip.path("spellList").asString("").isBlank()
+                    ? cantrip.path("spellList").asString("").trim() : null;
+            String school = cantrip.path("school").isString() && !cantrip.path("school").asString("").isBlank()
+                    ? cantrip.path("school").asString("").trim() : null;
             String grant = cantrip.path("grant").isString() && !cantrip.path("grant").asString("").isBlank()
                     ? cantrip.path("grant").asString("").trim() : null;
+            // A choice names its spells, or its list or school; a grant may name a list for its fallback (D231)
+            boolean chooses = !spells.isEmpty() || spellList != null || school != null;
+            if (count < 1 || (!spells.isEmpty() && (spellList != null || school != null))
+                    || (grant == null && !chooses)) {
+                throw unreadable(subclass);
+            }
             found.add(new CantripChoice(count, spells.isEmpty() ? null : List.copyOf(spells),
-                    spells.isEmpty() ? spellList.trim() : null, grant,
-                    cantrip.path("ofCantripsKnown").asBoolean(false)));
+                    spells.isEmpty() ? spellList : null, grant,
+                    cantrip.path("ofCantripsKnown").asBoolean(false), school));
         }
         return found;
     }

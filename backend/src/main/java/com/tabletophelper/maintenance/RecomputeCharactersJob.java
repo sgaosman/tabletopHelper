@@ -49,7 +49,12 @@ import java.util.regex.Pattern;
  * does, and those of a later class level, such as a Fighter 7 Samurai's Wisdom saving throws (XGE p.31), recorded on
  * that level; so does the Expertise a subclass gives, such as a Scout's (XGE p.47), where a level records it, and a
  * cantrip a subclass grants unless known, such as a School of Illusion wizard's Minor Illusion (PHB p.118), where a level
- * records the subclass and the character doesn't know it. A class or subclass feature whose text on the sheet differs from the class data's takes the data's, as the
+ * records the subclass and the character doesn't know it. Since D231 the cantrips a subclass grants without a fallback,
+ * such as a Light Domain cleric's light (PHB p.60), are among those; the spells a subclass teaches at the class levels the
+ * character has, such as a Gloom Stalker's (XGE p.42), are learned and recorded on their levels; and the race spells
+ * whose casting the race data now gives otherwise, such as a Hexblood's hex once a long rest rather than at will (VRGR
+ * p.18), take the data's, with those the sheet lacks added, such as a VGM firbolg's detect magic (VGM p.107). A
+ * Circle of the Land druid's terrain is a choice, which the backfill-pending-choices job adds. A class or subclass feature whose text on the sheet differs from the class data's takes the data's, as the
  * features nested inside another, such as the Life Domain's Disciple of Life (PHB p.60), reach the data only from the
  * class loader's version 4; names, sources and order stay, so levelling down still removes them. Dry run by default;
  * {@code --maintenance.apply=true} writes.
@@ -170,6 +175,25 @@ public class RecomputeCharactersJob implements MaintenanceJob {
             cantrips = List.of();
         }
         cantrips.forEach(missing -> diffs.add(subclassCantrip(missing)));
+        List<PendingChoiceService.MissingSubclassSpell> subclassSpells;
+        try {
+            subclassSpells = characterService.missingSubclassSpells(pc);
+        } catch (RuntimeException e) {
+            warnings.add(who + ": subclass spells skipped (" + (e instanceof ConflictException ? ""
+                    : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
+            subclassSpells = List.of();
+        }
+        subclassSpells.forEach(missing -> diffs.add(subclassSpell(missing)));
+        List<CharacterService.RaceSpellChange> raceSpells;
+        try {
+            raceSpells = characterService.outdatedRaceSpells(pc);
+        } catch (RuntimeException e) {
+            warnings.add(who + ": race spells skipped (" + (e instanceof ConflictException ? ""
+                    : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
+            raceSpells = List.of();
+        }
+        raceSpells.forEach(change -> diffs.add("race spell: " + change.spell() + ", " + change.before() + " → "
+                + change.after()));
         List<CharacterService.OutdatedFeatureText> texts;
         try {
             texts = characterService.outdatedFeatureTexts(pc);
@@ -191,6 +215,12 @@ public class RecomputeCharactersJob implements MaintenanceJob {
             }
             if (!cantrips.isEmpty()) {
                 characterService.storeMissingSubclassCantrips(pc);
+            }
+            if (!subclassSpells.isEmpty()) {
+                characterService.storeMissingSubclassSpells(pc);
+            }
+            if (!raceSpells.isEmpty()) {
+                characterService.storeRaceSpells(pc);
             }
             if (!texts.isEmpty()) {
                 characterService.storeFeatureTexts(pc);
@@ -228,6 +258,12 @@ public class RecomputeCharactersJob implements MaintenanceJob {
     // Such as "subclass cantrip: + Minor Illusion (School of Illusion, recorded on Wizard 2)"
     private static String subclassCantrip(PendingChoiceService.MissingSubclassCantrip missing) {
         return "subclass cantrip: + " + missing.cantrip() + " (" + missing.subclassName() + ", recorded on "
+                + missing.className() + " " + missing.classLevel() + ")";
+    }
+
+    // Such as "subclass spell: + Disguise Self (Gloom Stalker, recorded on Ranger 3)"
+    private static String subclassSpell(PendingChoiceService.MissingSubclassSpell missing) {
+        return "subclass spell: + " + missing.spell() + " (" + missing.subclassName() + ", recorded on "
                 + missing.className() + " " + missing.classLevel() + ")";
     }
 

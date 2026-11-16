@@ -141,8 +141,10 @@ public class ResourcePoolService {
             if (!desiredPoolIds.add(poolId)) continue;
 
             int uses = spell.usesPerLongRest();
+            // Uses that come back on a short or long rest, as a VGM firbolg's (VGM p.107), reset on a short rest (D231)
             byPoolId.put(poolId, ResourcePoolEntry.innate(spell.name().trim(), uses, sourceType(spell.source()),
-                    sourceName(spell.source())).withCurrentUses(keptUses(byPoolId.get(poolId), uses)));
+                    sourceName(spell.source()), spell.usesResetOnShortRest() ? "shortRest" : "longRest")
+                    .withCurrentUses(keptUses(byPoolId.get(poolId), uses)));
         }
 
         // A Mystic Arcanum is cast once without a slot between long rests (PHB p.108): one pool for each arcanum spell

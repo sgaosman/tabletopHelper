@@ -39,7 +39,8 @@ public class SpellLoader implements ContentLoader {
     public int version() {
         // 2: an area from the caster reads "Self (15-foot cone)", not "15 feet"
         // 3: a range of one reads "1 mile", not "1 miles"
-        return 3;
+        // 4: a subclass's spell named with a |source suffix joins its list (D231)
+        return 4;
     }
 
     @Override
@@ -161,7 +162,10 @@ public class SpellLoader implements ContentLoader {
         if (node.isArray()) {
             for (JsonNode spellNode : node) {
                 if (!spellNode.isString()) continue;
-                String spellName = spellNode.asString("").replace("#c", "");
+                // Without the #c cantrip mark and the |source suffix, so "summon elemental|tce" (the Fathomless's, TCE
+                // p.72) and "fire shield|" (PSA) join their subclass's list (D231)
+                String spellName = CharacterClassLoader.spellName(spellNode.asString(""));
+                if (spellName.isBlank()) continue;
                 for (Map.Entry<String, Set<String>> entry : target.entrySet()) {
                     if (entry.getKey().toLowerCase().startsWith(spellName.toLowerCase() + "|")) {
                         entry.getValue().add(label);

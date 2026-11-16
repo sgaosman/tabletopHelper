@@ -22,7 +22,9 @@ import java.util.List;
  * choice owed instead of a conditional grant the sheet has that its level didn't give, such as a Fighter 7 Samurai's
  * Intelligence or Charisma saving throws (XGE p.31), and a subclass's cantrip of the player's choice, such as an Arcane
  * Archer's (XGE p.28), when the level records none, and a warlock's Mystic Arcanum at Warlock 11th, 13th, 15th and 17th
- * level (PHB p.108) when the level records none and the sheet knows no arcanum spell of that level.
+ * level (PHB p.108) when the level records none and the sheet knows no arcanum spell of that level, and since D231 a
+ * subclass's option, such as a Circle of the Land druid's terrain (PHB p.68-69) or a Divine Soul's affinity (XGE p.50),
+ * when the level that records the subclass records none: until it is made, the druid has no circle spells.
  * Fighting Styles and known spells aren't backfilled. Each character that would gain choices is reported with each
  * choice, and one whose classes or subclasses can't be found is skipped with a warning. A second run adds nothing,
  * since the choices it added are pending. Dry run by default; {@code --maintenance.apply=true} writes.
