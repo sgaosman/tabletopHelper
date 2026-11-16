@@ -80,7 +80,7 @@ describe('RepeatEffectModal', () => {
         return HttpResponse.json(makeMockCastSpellResponse({
           encounterState, spellName: 'Hold Person', slotLevelUsed: 2,
           resultSummary: 'Test Goblin fails its save.',
-          targets: [{ targetId: 'part-goblin', targetName: 'Test Goblin', outcome: 'failed', saveRoll: 9, conditionsApplied: ['paralyzed'] }],
+          targets: [{ targetId: 'part-goblin', targetName: 'Test Goblin', outcome: 'failed', saveRoll: 9, conditionsApplied: ['paralyzed'], damageParts: [] }],
         }));
       }),
     );

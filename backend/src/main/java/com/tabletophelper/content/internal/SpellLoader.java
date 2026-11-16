@@ -38,7 +38,8 @@ public class SpellLoader implements ContentLoader {
     @Override
     public int version() {
         // 2: an area from the caster reads "Self (15-foot cone)", not "15 feet"
-        return 2;
+        // 3: a range of one reads "1 mile", not "1 miles"
+        return 3;
     }
 
     @Override
@@ -257,7 +258,16 @@ public class SpellLoader implements ContentLoader {
         if ("unlimited".equals(distType)) return "Unlimited";
 
         int amount = distance.path("amount").asInt(0);
-        return amount + " " + distType;
+        return amount + " " + (amount == 1 ? singular(distType) : distType);
+    }
+
+    // A unit of one, as "1 mile" rather than "1 miles" (Teleportation Circle's 10 feet stays plural)
+    private static String singular(String unit) {
+        return switch (unit) {
+            case "feet" -> "foot";
+            case "miles" -> "mile";
+            default -> unit;
+        };
     }
 
     private String parseComponents(JsonNode compNode) throws Exception {

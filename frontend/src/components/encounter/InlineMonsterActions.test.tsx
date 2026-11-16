@@ -39,6 +39,7 @@ describe('InlineMonsterActions', () => {
         targetResults: [{
           targetId: 'part-gimli', targetName: 'Gimli', attackOutcome: 'HIT', damage: 5, damageType: 'slashing', healing: 0,
           conditionsApplied: ['prone'], savedSuccessfully: false, legendaryResistanceAvailable: false, legendaryResistanceRemaining: 0,
+          damageParts: [{ type: 'slashing', amount: 5 }],
         }],
         requiresManualResolution: false, conditionsInflicted: [], legendaryResistanceAvailable: false, legendaryResistanceRemaining: 0,
         encounterState: makeMockEncounter({ participants }),
@@ -59,6 +60,26 @@ describe('InlineMonsterActions', () => {
 
     await user.click(screen.getByRole('button', { name: 'Clear' }));
     expect(screen.queryByText('Test Goblin uses Scimitar.')).not.toBeInTheDocument();
+  });
+
+  it('shows each damage type of a hit with two (D207)', async () => {
+    server.use(http.post('/api/encounters/:id/combat/monster-action', () => HttpResponse.json({
+      resolved: true, description: 'Test Goblin uses Scimitar.', totalDamage: 16, totalHealing: 0,
+      targetResults: [{
+        targetId: 'part-gimli', targetName: 'Gimli', attackOutcome: 'HIT', damage: 16, damageType: 'slashing', healing: 0,
+        conditionsApplied: [], savedSuccessfully: false, legendaryResistanceAvailable: false, legendaryResistanceRemaining: 0,
+        damageParts: [{ type: 'slashing', amount: 12 }, { type: 'lightning', amount: 4 }],
+      }],
+      requiresManualResolution: false, conditionsInflicted: [], legendaryResistanceAvailable: false, legendaryResistanceRemaining: 0,
+      encounterState: makeMockEncounter({ participants }),
+    } satisfies MonsterActionResponse)));
+    const user = await renderActions();
+
+    await user.click(await screen.findByRole('button', { name: /Scimitar/ }));
+    await user.click(screen.getByRole('button', { name: 'Gimli' }));
+    await user.click(screen.getByRole('button', { name: 'Execute Scimitar (1 target)' }));
+
+    expect(await screen.findByText('Gimli: HIT — 12 slashing + 4 lightning')).toBeInTheDocument();
   });
 
   it('shows the server\'s reason when it refuses', async () => {

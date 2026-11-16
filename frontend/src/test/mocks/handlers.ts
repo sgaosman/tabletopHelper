@@ -694,7 +694,7 @@ export function makeMockCastSpellResponse(overrides: Partial<CastSpellResponse> 
     encounterState: makeMockEncounter(),
     spellName: 'Fire Bolt', slotLevelUsed: 0, spellSource: 'NONE', autoResolved: true,
     resultSummary: 'Fire Bolt hits Test Goblin for 7 fire damage.',
-    targets: [{ targetId: 'part-001', targetName: 'Test Goblin', outcome: 'hit', damage: 7, conditionsApplied: [], attackRoll: 18 }],
+    targets: [{ targetId: 'part-001', targetName: 'Test Goblin', outcome: 'hit', damage: 7, conditionsApplied: [], attackRoll: 18, damageParts: [{ type: 'fire', amount: 7 }] }],
   } satisfies CastSpellResponse;
   return { ...response, ...overrides };
 }

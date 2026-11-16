@@ -595,5 +595,18 @@ class ResolverTest {
             assertEquals(16, total(critical.damage()));
             assertEquals(0, crit.remaining());
         }
+
+        @Test
+        @DisplayName("Empowered Spell on a weapon attack with a spell's dice added rerolls only the spell's, from the "
+                + "first of its parts on (D212)")
+        void empoweredSpellDiceOnly() {
+            // The weapon's 1d8 1 stays; the spell's 1d8 1 is rerolled to 8, and its 2 to 7; a third reroll finds none
+            var dice = Rng.scripted(15, 1, 1, 2, 8, 7);
+            var hit = new Resolver(dice).resolve(attack(5, RollMode.NORMAL, false, false, part("1d8", "slashing"),
+                    part("2d8", "fire")), AttackRules.Side.NONE, List.of(target(GOBLIN, 12, 0)), 3, 1).getFirst();
+
+            assertEquals(List.of(new Resolver.Damage("slashing", 1), new Resolver.Damage("fire", 15)), hit.damage());
+            assertEquals(0, dice.remaining());
+        }
     }
 }

@@ -131,6 +131,9 @@ export type MonsterActionRequest = Schemas['MonsterActionRequest'];
 
 export type MonsterActionTargetResult = Schemas['TargetResult'];
 
+/** One damage type a target took after its defences, with its amount; a null type is untyped damage (D207). */
+export type DamagePart = Schemas['DamagePart'];
+
 export type MonsterActionResponse = Schemas['MonsterActionResponse'];
 
 /**

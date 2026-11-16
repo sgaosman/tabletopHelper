@@ -61,5 +61,10 @@ public class CastSpellResponse {
 
         private Integer attackRoll;
         private Integer saveRoll;
+
+        // Each damage type that got through with its amount, in the order rolled, as "8 piercing + 5 cold" (D207)
+        @Schema(requiredMode = REQUIRED)
+        @Builder.Default
+        private List<DamagePart> damageParts = List.of();
     }
 }

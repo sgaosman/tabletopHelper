@@ -30,7 +30,8 @@ public record MonsterActionResponse(
     /**
      * One target's result. damage is what it took after its defences; savedSuccessfully is set when it made its
      * save, the one a hit calls for against its conditions included; legendaryResistanceAvailable is set on a
-     * failed save by a creature with Legendary Resistance left (D163).
+     * failed save by a creature with Legendary Resistance left (D163). damageType is the first type taken;
+     * damageParts lists every type that got through with its amount, in the order rolled.
      */
     public record TargetResult(
             @Schema(requiredMode = REQUIRED) UUID targetId,
@@ -44,7 +45,8 @@ public record MonsterActionResponse(
             Integer rollTotal,
             String damageType,
             @Schema(requiredMode = REQUIRED) boolean legendaryResistanceAvailable,
-            @Schema(requiredMode = REQUIRED) int legendaryResistanceRemaining
+            @Schema(requiredMode = REQUIRED) int legendaryResistanceRemaining,
+            @Schema(requiredMode = REQUIRED) List<DamagePart> damageParts
     ) {
     }
 }

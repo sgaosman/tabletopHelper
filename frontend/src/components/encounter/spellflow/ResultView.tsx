@@ -1,6 +1,7 @@
 import { Sparkles, AlertTriangle } from 'lucide-react';
 import type { CastSpellResponse } from '../../../types/combat';
 import Button from '../../ui/Button';
+import { damageBreakdown } from '../../../utils/damageParts';
 
 interface Props {
   result: CastSpellResponse;
@@ -56,7 +57,7 @@ export default function ResultView({ result, onClose }: Props) {
                   </span>
                 )}
                 {t.damage != null && t.damage > 0 && (
-                  <span className="text-debuff">{t.damage} dmg</span>
+                  <span className="text-debuff">{damageBreakdown(t.damage, t.damageParts) ?? t.damage} dmg</span>
                 )}
                 {t.healing != null && t.healing > 0 && (
                   <span className="text-buff">{t.healing} heal</span>

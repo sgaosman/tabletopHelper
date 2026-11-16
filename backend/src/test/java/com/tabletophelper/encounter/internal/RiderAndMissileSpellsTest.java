@@ -1,10 +1,16 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.character.FlexibleCasting;
+import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.dto.AttackRollRequest;
 import com.tabletophelper.encounter.dto.CastSpellRequest;
+import com.tabletophelper.encounter.dto.CastSpellResponse;
+import com.tabletophelper.encounter.dto.DamagePart;
+import com.tabletophelper.encounter.dto.MetamagicChoice;
 import com.tabletophelper.encounter.dto.RepeatSaveRequest;
 import com.tabletophelper.encounter.dto.RepeatSpellEffectRequest;
 import com.tabletophelper.encounter.dto.SpellOption;
@@ -14,6 +20,7 @@ import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
+import com.tabletophelper.rules.combat.Metamagic;
 import com.tabletophelper.rules.combat.OngoingModifier;
 import com.tabletophelper.rules.combat.OngoingModifiers;
 import com.tabletophelper.rules.combat.Resolver;
@@ -27,6 +34,7 @@ import tools.jackson.databind.JsonNode;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -399,14 +407,54 @@ class RiderAndMissileSpellsTest {
             }
         }
 
-        private void castBlade(String spell, List<EncounterParticipant> targets, int... rolls) {
+        private CastSpellResponse castBlade(String spell, List<EncounterParticipant> targets, int... rolls) {
+            return castBlade(spell, targets, null, rolls);
+        }
+
+        private CastSpellResponse castBlade(String spell, List<EncounterParticipant> targets,
+                                            List<MetamagicChoice> metamagic, int... rolls) {
             CastSpellRequest request = new CastSpellRequest();
             request.setSpellName(spell);
             request.setSlotLevel(0);
             request.setTargetIds(targets.stream().map(EncounterParticipant::getId).toList());
             request.setOption("Longsword");
+            request.setMetamagic(metamagic);
             f.dice.script(rolls);
-            f.spellcasting.castSpell(f.encounterId(), request, aria.getId(), f.dmUserId);
+            return f.spellcasting.castSpell(f.encounterId(), request, aria.getId(), f.dmUserId);
+        }
+
+        // Aria knows Empowered Spell and has sorcery points; her CHA 16 rerolls up to 3 dice (PHB p.102)
+        private List<MetamagicChoice> empowered() {
+            aria.getCharacter().setFeatures(new ArrayList<>(List.of(new Feature(
+                    Metamagic.FEATURE_PREFIX + Metamagic.Option.EMPOWERED.displayName(), null, "Sorcerer"))));
+            aria.setResourcePoolsCurrent(new ArrayList<>(List.of(new ResourcePoolEntry(
+                    FlexibleCasting.SORCERY_POINTS, "Sorcery Points", "CLASS", null, 5, "sorcererLevel", 5,
+                    "longRest", null, null, "FREE", "sparkles", null))));
+            return List.of(new MetamagicChoice(Metamagic.Option.EMPOWERED, null));
+        }
+
+        @Test
+        @DisplayName("Empowered Green-Flame Blade rerolls the spell's fire dice, never the longsword's, then the leap's "
+                + "with the dice left (D212)")
+        void empoweredGreenFlame() {
+            // 15 hits; the longsword's 1 stays, the fire 1 is rerolled to 8; 2 dice are left for the leap, whose 1 is
+            // rerolled to 7, + 3
+            castBlade("Green-Flame Blade", List.of(ogre, goblin), empowered(), 15, 1, 1, 8, 1, 7);
+            assertThat(ogre.getHpCurrent()).isEqualTo(60 - 1 - 8);
+            assertThat(goblin.getHpCurrent()).isEqualTo(20 - 7 - 3);
+            assertThat(f.dice.remaining()).isZero();
+            assertThat(FlexibleCasting.sorceryPoints(aria.getResourcePoolsCurrent()).orElseThrow().currentUses())
+                    .isEqualTo(4);
+            assertThat(logged("the DM rerolls")).isFalse();
+        }
+
+        @Test
+        @DisplayName("Empowered Booming Blade rerolls the spell's thunder die on the hit, not the longsword's (D212)")
+        void empoweredBooming() {
+            // 15 hits; the longsword's 2 stays, the thunder's 1 is rerolled to 6
+            castBlade("Booming Blade", List.of(ogre), empowered(), 15, 2, 1, 6);
+            assertThat(ogre.getHpCurrent()).isEqualTo(60 - 2 - 6);
+            assertThat(f.dice.remaining()).isZero();
         }
 
         @Test
@@ -418,6 +466,15 @@ class RiderAndMissileSpellsTest {
             assertThat(ogre.getHpCurrent()).isEqualTo(60 - 9);
             assertThat(goblin.getHpCurrent()).isEqualTo(20 - 5);
             assertThat(logged("Longsword (Green-Flame Blade)")).isTrue();
+        }
+
+        @Test
+        @DisplayName("The cast's result names each damage type of the hit, the longsword's and the spell's (D207)")
+        void bladeDamageParts() {
+            CastSpellResponse response = castBlade("Green-Flame Blade", List.of(ogre), 15, 4, 5);
+            assertThat(response.getTargets().getFirst().getDamage()).isEqualTo(9);
+            assertThat(response.getTargets().getFirst().getDamageParts())
+                    .containsExactly(new DamagePart("slashing", 4), new DamagePart("fire", 5));
         }
 
         @Test

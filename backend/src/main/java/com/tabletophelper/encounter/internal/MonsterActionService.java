@@ -871,7 +871,8 @@ public class MonsterActionService {
                 outcome.total(),
                 applied.damageType(),
                 applied.legendaryResistanceOffered(),
-                applied.legendaryResistanceRemaining());
+                applied.legendaryResistanceRemaining(),
+                applied.damagePartsTaken());
     }
 
     // A monster that joined before its recharge pools covered bonus actions and reactions, or before limited uses were

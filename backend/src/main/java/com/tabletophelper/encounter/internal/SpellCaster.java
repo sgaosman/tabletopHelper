@@ -367,7 +367,8 @@ public class SpellCaster {
         String fifthNote = afterCast(encounter, caster, spellName, option, use, instance, reached, applied,
                 affected, saveDc, castingAbility, attackBonus);
         String seventhNote = afterSeventh(encounter, caster, spellName, slotLevel, option, use, seventh, normal,
-                applied, saveDc, castingAbility, attackBonus, picked, metamagic) + rollNote;
+                applied, saveDc, castingAbility, attackBonus, picked, metamagic,
+                empoweredLeft(metamagic.empoweredDice(), effect.damage(), applied)) + rollNote;
         keepRider(caster, spellName, saveDc, picked);
         String highNote = afterHighLevelCast(encounter, caster, spellName, slotLevel, high, use, affected)
                 + givePool(encounter, caster, spellName, use);
@@ -921,7 +922,7 @@ public class SpellCaster {
                                 String option, EffectApplier.Use use, SpellEffects.SeventhLevel seventh,
                                 List<EncounterParticipant> reached, List<EffectApplier.Applied> applied, int saveDc,
                                 String castingAbility, int attackBonus, List<EncounterParticipant> picked,
-                                MetamagicCasting.Plan metamagic) {
+                                MetamagicCasting.Plan metamagic, int followUpEmpowered) {
         if (seventh.equals(SpellEffects.SeventhLevel.NONE)) {
             return "";
         }
@@ -997,7 +998,7 @@ public class SpellCaster {
                 }
             } else {
                 afterAttack(encounter, caster, spellName, slotLevel, use, applied, picked, castingAbility,
-                        attackBonus, saveDc, metamagic);
+                        attackBonus, saveDc, metamagic, followUpEmpowered);
             }
         }
         SpellTemplate.RaisesOnKill raises = seventh.raises();
@@ -1088,7 +1089,8 @@ public class SpellCaster {
      */
     void afterAttack(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
                      EffectApplier.Use use, List<EffectApplier.Applied> applied, List<EncounterParticipant> picked,
-                     String castingAbility, int attackBonus, int saveDc, MetamagicCasting.Plan metamagic) {
+                     String castingAbility, int attackBonus, int saveDc, MetamagicCasting.Plan metamagic,
+                     int empoweredDice) {
         Optional<SpellEffects.FollowUp> found = spellEffects.followUp(spellName, slotLevel, caster, castingAbility,
                 attackBonus, saveDc);
         if (found.isEmpty()) {
@@ -1121,10 +1123,32 @@ public class SpellCaster {
                     + each.ability().name() + " save against " + spellName + ".");
         }
         // Careful Spell's creatures succeed on the follow-up's save, and Heightened Spell's rolls it, its first against
-        // the spell, with disadvantage (PHB p.102, D179)
+        // the spell, with disadvantage (PHB p.102, D179); Empowered Spell rerolls the follow-up's damage dice with what
+        // the attack's damage left of its dice, as Ice Knife's burst (rules call)
         effectApplier.apply(encounter, use, then, resolver.resolve(then, CreatureStats.side(caster),
                 stats.spellTargets(living, then, caster).stream().map(target -> withMetamagic(target, metamagic))
-                        .toList()));
+                        .toList(), empoweredDice));
+    }
+
+    /*
+     * The dice Empowered Spell has left for a spell's follow-up once its attack's damage rolls have taken theirs (PHB
+     * p.102, rules call): one damage roll after another, each taking as many as it rolled dice, in the order rolled, as
+     * Magic Missile's darts share them (D212). An attack that missed rolled no damage, so it takes none, and a critical
+     * hit's doubled dice count twice.
+     */
+    static int empoweredLeft(int empoweredDice, List<Effect.DamagePart> parts, List<EffectApplier.Applied> applied) {
+        int left = empoweredDice;
+        for (EffectApplier.Applied result : applied) {
+            Outcome outcome = result.outcome().outcome();
+            if (outcome != Outcome.HIT && outcome != Outcome.CRITICAL) {
+                continue;
+            }
+            int rolled = parts.stream()
+                    .mapToInt(part -> (outcome == Outcome.CRITICAL ? part.onCritical() : part.dice()).count())
+                    .sum();
+            left -= Math.min(left, rolled);
+        }
+        return left;
     }
 
     /*
@@ -1366,17 +1390,20 @@ public class SpellCaster {
      * from the creature it hit to the one the caster picked (TCE p.107); Booming Blade sheathes the creature it hit in
      * booming energy until the start of the caster's next turn, a Spell Effect the DM uses on it, as no map shows its
      * moving, dealing its thunder and ending the spell (TCE p.106). What the log adds.
+     *
+     * @param empoweredDice the dice Empowered Spell has left for the leap's damage once the hit's spell dice took
+     *                      theirs (D212); 0 without it
      */
     public String afterWeaponAttack(Encounter encounter, EncounterParticipant caster, String spellName,
                                     EffectApplier.Use use, EffectApplier.Applied attack,
                                     List<EncounterParticipant> picked, String castingAbility, int attackBonus,
-                                    int saveDc) {
+                                    int saveDc, int empoweredDice) {
         boolean hit = attack.outcome().outcome() == Outcome.HIT || attack.outcome().outcome() == Outcome.CRITICAL;
         if (!hit) {
             return "";
         }
         afterAttack(encounter, caster, spellName, 0, use, List.of(attack), picked, castingAbility, attackBonus,
-                saveDc, MetamagicCasting.Plan.NONE);
+                saveDc, MetamagicCasting.Plan.NONE, empoweredDice);
         if (spellEffects.lasting(spellName, 0).isEmpty() || attack.target().getLifeState() == LifeState.DEAD) {
             return "";
         }
@@ -2632,6 +2659,7 @@ public class SpellCaster {
                             .conditionsApplied(result.conditionNames())
                             .attackRoll(attack ? outcome.total() : null)
                             .saveRoll(save ? outcome.total() : null)
+                            .damageParts(result.damagePartsTaken())
                             .build();
                 })
                 .toList();

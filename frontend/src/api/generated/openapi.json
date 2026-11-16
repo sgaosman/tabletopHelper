@@ -8423,6 +8423,22 @@
           }
         }
       },
+      "DamagePart": {
+        "required": [
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "DamageRequest": {
         "required": [
           "amount",
@@ -14048,6 +14064,7 @@
       "TargetOutcome": {
         "required": [
           "conditionsApplied",
+          "damageParts",
           "outcome",
           "targetId",
           "targetName"
@@ -14069,6 +14086,12 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          },
+          "damageParts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DamagePart"
+            }
           },
           "healing": {
             "type": "integer",
@@ -14097,6 +14120,7 @@
           "attackOutcome",
           "conditionsApplied",
           "damage",
+          "damageParts",
           "healing",
           "legendaryResistanceAvailable",
           "legendaryResistanceRemaining",
@@ -14118,6 +14142,12 @@
           "damage": {
             "type": "integer",
             "format": "int32"
+          },
+          "damageParts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DamagePart"
+            }
           },
           "damageType": {
             "type": "string",
