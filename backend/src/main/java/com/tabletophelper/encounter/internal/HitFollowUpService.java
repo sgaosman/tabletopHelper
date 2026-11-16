@@ -13,6 +13,7 @@ import com.tabletophelper.encounter.dto.DivineSmiteRequest;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.dto.ProtectionRequest;
 import com.tabletophelper.encounter.dto.StunningStrikeRequest;
+import com.tabletophelper.encounter.state.ConcentrationCheck;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.encounter.state.WeaponHit;
 import com.tabletophelper.resourcepool.ResourcePoolService;
@@ -123,9 +124,11 @@ public class HitFollowUpService {
         EffectApplier.Use use = new EffectApplier.Use(paladin, paladin.getDisplayName(), CombatActionType.ATTACK,
                 "uses Divine Smite (" + dice + " radiant; " + note + ") after the " + hit.weapon() + " hit", "on",
                 "Divine Smite", null);
-        // The smite's damage is part of the hit's, so a concentrating target makes one check against both (PHB p.203)
-        effectApplier.applyToHit(encounter, use, effect, resolver.resolve(effect, List.of(stats.target(target, effect))),
-                hit.concentrationCheck());
+        // The smite's damage is part of the hit's, so a concentrating target makes one check against both (PHB p.203),
+        // and a dying one takes no death save failures of its own from it (PHB p.197, D224)
+        EffectApplier.Applied applied = effectApplier.applyToHit(encounter, use, effect,
+                resolver.resolve(effect, List.of(stats.target(target, effect))), hitDamage(hit)).getFirst();
+        paladin.setTurnEconomy(economyOf(paladin).withLastMeleeHit(joined(hit.smite(), applied)));
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 
@@ -222,9 +225,11 @@ public class HitFollowUpService {
                 "uses Deft Strike (" + dice + (damageType != null ? " " + damageType : "") + "; 1 ki" + kiLeft
                         + (hit.critical() ? "; critical hit" : "") + ") after the " + hit.weapon() + " hit", "on",
                 "Deft Strike", null);
-        // The extra damage is part of the hit's, so a concentrating target makes one check against both (PHB p.203)
-        effectApplier.applyToHit(encounter, use, effect, resolver.resolve(effect, List.of(stats.target(target, effect))),
-                hit.concentrationCheck());
+        // The extra damage is part of the hit's, so a concentrating target makes one check against both (PHB p.203),
+        // and a dying one takes no death save failures of its own from it (PHB p.197, D224)
+        EffectApplier.Applied applied = effectApplier.applyToHit(encounter, use, effect,
+                resolver.resolve(effect, List.of(stats.target(target, effect))), hitDamage(hit)).getFirst();
+        monk.setTurnEconomy(economyOf(monk).withLastMeleeHit(joined(hit.deftStrike(), applied)));
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 
@@ -260,6 +265,20 @@ public class HitFollowUpService {
                 + " uses Protection (reaction): the attack against " + protectedOne.getDisplayName()
                 + " has disadvantage; the DM rolls it so.", defender, protectedOne);
         return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    // What the hit's damage did, for damage added to it
+    private static EffectApplier.HitDamage hitDamage(WeaponHit hit) {
+        return new EffectApplier.HitDamage(hit.concentrationCheck(), hit.leftoverAtZero());
+    }
+
+    // The hit once damage has joined it: the concentration check judged against the two together, and the damage past
+    // 0 hit points with the added damage, so a smite and a Deft Strike on one hit add up (PHB p.197, p.203, D224)
+    private static WeaponHit joined(WeaponHit hit, EffectApplier.Applied applied) {
+        ConcentrationCheck check = applied.concentrationCheck() != null ? applied.concentrationCheck()
+                : hit.concentrationCheck();
+        Integer leftover = applied.leftoverAtZero() != null ? applied.leftoverAtZero() : hit.leftoverAtZero();
+        return hit.withConcentrationCheck(check).withLeftoverAtZero(leftover);
     }
 
     // The attacker's latest melee weapon hit, when it is on this turn and is the one named; a ranged hit, which a

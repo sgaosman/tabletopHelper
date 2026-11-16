@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.character.DmAdjustments;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.encounter.CombatActionType;
@@ -46,6 +47,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -101,6 +103,8 @@ public class EffectApplier {
             Set.of("incapacitated", "paralyzed", "petrified", "stunned", "unconscious");
 
     private static final String UNCONSCIOUS = "unconscious";
+
+    private static final String WAR_CASTER = "War Caster";
 
     // The condition a monster's grapple gives, which an escape check ends (PHB p.195, D203)
     private static final String GRAPPLED = "grappled";
@@ -217,12 +221,26 @@ public class EffectApplier {
      * @param damageParts                  each damage type that got through and its amount after the target's
      *                                     defences, in the order rolled, each type once (D207's quick result);
      *                                     empty when none did
+     * @param leftoverAtZero               for a player character its damage found at 0 hit points or dropped there,
+     *                                     leaving it dying, the damage past 0 (and past its temporary hit points), with
+     *                                     the hit's own when it was added to a hit; damage added to it later, as Divine
+     *                                     Smite's, joins this for massive damage (PHB p.197, D224). Null otherwise
      */
     public record Applied(EncounterParticipant target, Resolver.TargetOutcome outcome, int damageTaken,
                           String damageType, int healed, List<ConditionEntry> conditionsAdded,
                           boolean legendaryResistanceOffered, int legendaryResistanceRemaining,
                           String description, UUID logEntryId, ConcentrationCheck concentrationCheck,
-                          boolean droppedToZero, List<Resolver.Damage> damageParts) {
+                          boolean droppedToZero, List<Resolver.Damage> damageParts, Integer leftoverAtZero) {
+
+        public Applied(EncounterParticipant target, Resolver.TargetOutcome outcome, int damageTaken,
+                       String damageType, int healed, List<ConditionEntry> conditionsAdded,
+                       boolean legendaryResistanceOffered, int legendaryResistanceRemaining,
+                       String description, UUID logEntryId, ConcentrationCheck concentrationCheck,
+                       boolean droppedToZero, List<Resolver.Damage> damageParts) {
+            this(target, outcome, damageTaken, damageType, healed, conditionsAdded, legendaryResistanceOffered,
+                    legendaryResistanceRemaining, description, logEntryId, concentrationCheck, droppedToZero,
+                    damageParts, null);
+        }
 
         public List<String> conditionNames() {
             return conditionsAdded.stream().map(ConditionEntry::name).toList();
@@ -475,18 +493,31 @@ public class EffectApplier {
     }
 
     /**
+     * What an earlier hit's damage did, for damage added to it (PHB p.85, p.197, p.203).
+     *
+     * @param concentrationCheck the concentration check the hit's damage made the target roll, or null for none
+     * @param leftoverAtZero     the hit's damage past 0 hit points to a player character it found at 0 or dropped
+     *                           there, or null when it did neither (D224)
+     */
+    public record HitDamage(ConcentrationCheck concentrationCheck, Integer leftoverAtZero) {
+    }
+
+    /**
      * Applies a resolved Effect whose damage is part of an earlier hit's damage, as Divine Smite's is (PHB p.85). A
      * creature makes one concentration check against the damage a hit deals (PHB p.203), so when the hit already made
      * it roll one for the same concentration, that roll is judged again against the DC of the hit's combined damage
-     * instead of a second save being rolled; otherwise the added damage makes it roll as any damage does.
+     * instead of a second save being rolled; otherwise the added damage makes it roll as any damage does. A player
+     * character the hit found at 0 hit points or dropped there gets no death save failures from the added damage, the
+     * hit's having given them, and dies of massive damage only when the hit's damage past 0 and the added damage
+     * together reach its hit point maximum (PHB p.197, D224).
      *
-     * @param hitCheck the concentration check the hit's damage made the target roll, or null for none
+     * @param hit what the hit's damage did, or null for nothing to join
      */
     public List<Applied> applyToHit(Encounter encounter, Use use, Effect effect, List<Resolver.TargetOutcome> outcomes,
-                                    ConcentrationCheck hitCheck) {
+                                    HitDamage hit) {
         List<Applied> applied = new ArrayList<>();
         for (Resolver.TargetOutcome outcome : outcomes) {
-            applied.add(applyTo(encounter, use, effect, outcome, hitCheck, SpellEffects.CastRules.NONE));
+            applied.add(applyTo(encounter, use, effect, outcome, hit, SpellEffects.CastRules.NONE));
         }
         endExtraTurnsIfOthers(encounter, use.actor(), applied);
         return applied;
@@ -498,7 +529,9 @@ public class EffectApplier {
     }
 
     private Applied applyTo(Encounter encounter, Use use, Effect effect, Resolver.TargetOutcome outcome,
-                            ConcentrationCheck hitCheck, SpellEffects.CastRules rules) {
+                            HitDamage earlierHit, SpellEffects.CastRules rules) {
+        ConcentrationCheck hitCheck = earlierHit != null ? earlierHit.concentrationCheck() : null;
+        Integer hitLeftover = earlierHit != null ? earlierHit.leftoverAtZero() : null;
         EncounterParticipant target = CombatAccess.participant(encounter, outcome.targetId());
         Vitals before = vitals(target);
         ReactionOffers.Before reactorBefore = reactionOffers != null ? ReactionOffers.Before.of(target) : null;
@@ -514,9 +547,12 @@ public class EffectApplier {
                 + (rules.damageFloor() == 1 ? "" : "s") + ": it takes " + dealt + "." : "";
         // Death Ward turns the first drop to 0 into a drop to 1 (PHB p.230, D185)
         String warded = deathWard(encounter, target, dealt);
-        Taken taken = takeDamage(target, warded != null ? wardedDamage(target) : dealt,
-                outcome.outcome() == Outcome.CRITICAL);
+        int passed = warded != null ? wardedDamage(target) : dealt;
+        Taken taken = hitLeftover != null && atZero(before)
+                ? takeDamageAddedToHit(target, passed, outcome.outcome() == Outcome.CRITICAL, hitLeftover)
+                : takeDamage(target, passed, outcome.outcome() == Outcome.CRITICAL);
         VitalsChange damageChange = taken.change();
+        Integer leftoverAtZero = leftoverAtZero(taken, passed, atZero(before) ? hitLeftover : null);
         // Disintegrate: a creature it leaves at 0 hit points is dust (PHB p.233, D188)
         boolean dust = rules.disintegrates() && dealt > 0 && before.lifeState() != LifeState.DEAD
                 && damageChange.vitals().hp() == 0 && taken.form() == null;
@@ -608,7 +644,36 @@ public class EffectApplier {
                     damage.takenTypes());
         }
         return new Applied(target, outcome, dealt, damage.firstType(), healed, added, offered, remaining,
-                description, saved != null ? saved.getId() : null, check, droppedToZero, damage.takenParts());
+                description, saved != null ? saved.getId() : null, check, droppedToZero, damage.takenParts(),
+                leftoverAtZero);
+    }
+
+    // A player character dying or stable at 0 hit points, as Vitals name it
+    private static boolean atZero(Vitals vitals) {
+        return vitals.playerCharacter()
+                && (vitals.lifeState() == LifeState.DYING || vitals.lifeState() == LifeState.STABLE);
+    }
+
+    /*
+     * The damage past 0 hit points, and past temporary hit points, to a player character the damage found at 0 or dropped
+     * there and left dying, with the earlier hit's when this damage was added to it; null when it left the creature
+     * anywhere else, or got nothing past its temporary hit points at 0 (PHB p.197, D224)
+     */
+    private static Integer leftoverAtZero(Taken taken, int passed, Integer hitLeftover) {
+        Vitals before = taken.before();
+        Vitals after = taken.change().vitals();
+        if (!before.playerCharacter() || after.lifeState() != LifeState.DYING) {
+            return null;
+        }
+        int amount = taken.form() != null ? taken.carried() : passed;
+        if (before.lifeState() == LifeState.ALIVE) {
+            return taken.change().droppedToZero() ? Math.max(0, amount - before.tempHp() - before.hp()) : null;
+        }
+        int own = Math.max(0, amount - before.tempHp());
+        if (hitLeftover != null) {
+            return hitLeftover + own;
+        }
+        return own > 0 ? own : null;
     }
 
     // The damage a floor lets through: none below it, as Harm's 1 hit point (PHB p.249, D188); all of it without one
@@ -980,7 +1045,8 @@ public class EffectApplier {
         String name = condition.trim().toLowerCase();
         List<ConditionEntry> conditions = conditions(target);
         UUID sourceId = source != null ? source.getId() : null;
-        boolean byItsSource = Fear.isFrightened(name);
+        // A creature can be frightened of, or charmed by, more than one creature (D201, D224)
+        boolean byItsSource = Fear.isFrightened(name) || com.tabletophelper.rules.combat.Charm.isCharmed(name);
         if (conditions.stream().anyMatch(c -> c.name().equalsIgnoreCase(name)
                 && (!byItsSource || Objects.equals(c.sourceParticipantId(), sourceId)))) {
             return;
@@ -2922,12 +2988,17 @@ public class EffectApplier {
             return;
         }
         List<ConditionEntry> conditions = conditions(target);
-        conditions.add(ConditionEntry.fromEffect(condition.toLowerCase(Locale.ROOT), rounds, encounter.getRoundNumber(),
-                spell, caster.getId(), null));
+        ConditionEntry entry = ConditionEntry.fromEffect(condition.toLowerCase(Locale.ROOT), rounds,
+                encounter.getRoundNumber(), spell, caster.getId(), null);
+        conditions.add(entry);
         target.setActiveConditions(conditions);
         combatLog.write(encounter, CombatActionType.CONDITION_ADD, target.getDisplayName() + " is " + condition
                 + " by " + caster.getDisplayName() + "'s " + spell
                 + (rounds != null ? " for " + rounds + " rounds" : " until the DM ends it"), caster, target);
+        // The condition has the same follow-ups as one added any other way (D224): an incapacitating one ends the
+        // creature's concentration (PHB p.203, p.290-292), and unconsciousness ends Rage and Wild Shape (PHB p.48, p.67)
+        afterConditions(encounter, target, List.of(entry));
+        endLinked(encounter);
     }
 
     // One of the caster's Spell Effects, which must be there
@@ -3743,6 +3814,14 @@ public class EffectApplier {
     private record Taken(Vitals before, VitalsChange change, WildShapeForm form, int carried, String endured) {
     }
 
+    // Damage added to a hit that found a player character at 0 hit points or dropped it there (PHB p.197, D224)
+    private Taken takeDamageAddedToHit(EncounterParticipant target, int damage, boolean critical, int hitLeftover) {
+        Vitals before = vitals(target);
+        VitalsChange change = DamageRules.takeDamageAddedToHit(before, damage, critical, hitLeftover);
+        setVitals(target, change.vitals());
+        return new Taken(before, change, null, 0, null);
+    }
+
     private Taken takeDamage(EncounterParticipant target, int damage, boolean critical) {
         Vitals before = vitals(target);
         if (before.lifeState() == LifeState.ALIVE && WildShapeForm.of(target).isPresent()
@@ -4046,8 +4125,14 @@ public class EffectApplier {
         int modifier = stats.saveModifier(target, Ability.CON);
         // A concentration check is a Constitution saving throw (PHB p.203), so Bless's d4 counts (D184)
         CreatureStats.SaveModifiers modifiers = CreatureStats.saveModifiers(target, Ability.CON);
+        List<RollMode> modes = new ArrayList<>(modifiers.modes());
+        // War Caster: advantage on the Constitution saves to keep concentration when damaged (PHB p.170, D224), combined
+        // with any disadvantage as every other advantage is; monsters have no feats
+        if (target.getCharacter() != null && DmAdjustments.hasFeat(target.getCharacter(), WAR_CASTER)) {
+            modes.add(RollMode.ADVANTAGE);
+        }
         Resolver.SaveRoll roll = resolver.savingThrow(Ability.CON, modifier, dc, CreatureStats.conditionNames(target),
-                false, modifiers.modes(), modifiers.bonuses());
+                false, modes, modifiers.bonuses());
         String spell = target.getConcentration().spell();
         String dice = roll.d20s().size() > 1 ? saveDice(roll) : "d20(" + roll.d20() + ")";
         String description = target.getDisplayName() + " makes a concentration check: " + dice
@@ -4230,6 +4315,10 @@ public class EffectApplier {
         List<DefendedPart> parts = new ArrayList<>();
         for (Resolver.Damage part : damage) {
             Set<Defence> defences = stats.defences(target, part.type(), magical);
+            // Untyped damage skips the defences, but a petrified creature resists all damage (PHB p.291, D224)
+            if ((part.type() == null || part.type().isBlank()) && CreatureStats.petrified(target)) {
+                defences = EnumSet.of(Defence.RESISTANCE);
+            }
             parts.add(new DefendedPart(part.type(), DamageRules.applyDefences(part.amount(), defences), defences));
         }
         return new Defended(parts);

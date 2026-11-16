@@ -343,6 +343,35 @@ class EffectApplierTest {
 
             assertEquals(37, elemental.getHpCurrent());
         }
+
+        @ParameterizedTest
+        @EnumSource(value = Path.class, names = {"SPELL", "MONSTER_ACTION", "MONSTER_SPELL"})
+        @DisplayName("A petrified creature resists all damage, untyped included, and is immune to poison (PHB p.291, "
+                + "D224)")
+        void petrified(Path path) {
+            EncounterParticipant statue = f.monster("Statue", 50, 10);
+            f.effectApplier.addCondition(f.encounter, statue, "petrified", null);
+
+            damage(path, statue, 13, "fire");
+            assertEquals(44, statue.getHpCurrent());
+            damage(path, statue, 9, null);
+            assertEquals(40, statue.getHpCurrent());
+            damage(path, statue, 20, "poison");
+            assertEquals(40, statue.getHpCurrent());
+        }
+
+        @Test
+        @DisplayName("The DM's untyped damage by hand is the DM's number, petrified or not; typed damage is halved "
+                + "(D224)")
+        void petrifiedManual() {
+            EncounterParticipant statue = f.monster("Statue", 50, 10);
+            f.effectApplier.addCondition(f.encounter, statue, "petrified", null);
+
+            damage(Path.MANUAL, statue, 13, "fire");
+            assertEquals(44, statue.getHpCurrent());
+            damage(Path.MANUAL, statue, 4, null);
+            assertEquals(40, statue.getHpCurrent());
+        }
     }
 
     // ── Saving throws ────────────────────────────────────────────
@@ -764,6 +793,22 @@ class EffectApplierTest {
             assertNull(cleric.getConcentration());
             assertEquals(1, f.entries(CombatActionType.CONCENTRATION_CHECK).size());
             assertTrue(f.descriptions().contains("Cleric loses concentration on Bless (failed concentration check)"));
+        }
+
+        @Test
+        @DisplayName("War Caster gives advantage on the concentration save: 8 and 15 keep it (PHB p.170, D224)")
+        void warCaster() {
+            EncounterParticipant cleric = f.player("Cleric", 40, 16);
+            cleric.getCharacter().setFeatures(List.of(
+                    new com.tabletophelper.character.state.Feature("War Caster", null, "Feat")));
+            ConcentrationInstance instance = concentrate(cleric, "Bless");
+
+            damage(Path.MANUAL, cleric, 14, null, 8, 15);
+
+            assertEquals(instance, cleric.getConcentration());
+            assertTrue(f.entries(CombatActionType.CONCENTRATION_CHECK).getFirst().getDescription()
+                    .contains("= 15 vs DC 10, and maintains Bless"), f.descriptions().toString());
+            assertEquals(0, f.dice.remaining());
         }
 
         @ParameterizedTest

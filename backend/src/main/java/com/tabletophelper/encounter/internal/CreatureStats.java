@@ -53,6 +53,9 @@ public class CreatureStats {
 
     private static final Pattern BONUS = Pattern.compile("^\\s*([+-]?\\d{1,3})\\s*$");
     private static final Pattern WHOLE_RATING = Pattern.compile("^\\s*(\\d{1,2})\\s*$");
+    private static final String PETRIFIED = "petrified";
+    private static final String POISON = "poison";
+    private static final String POISONED = "poisoned";
     // How the race data records a condition immunity among its resistances
     private static final Pattern RACE_CONDITION_IMMUNITY =
             Pattern.compile("^\\s*condition immunity:\\s*(.+)$", Pattern.CASE_INSENSITIVE);
@@ -134,20 +137,18 @@ public class CreatureStats {
                 : new AttackRules.Senses(own.blindsight(), truesight, seesInvisible);
     }
 
-    // The conditions that include being incapacitated, which take Evasion away (PHB p.79, p.96)
+    // The conditions that include being incapacitated (PHB p.290-292)
     private static final Set<String> INCAPACITATED = Set.of("incapacitated", "paralyzed", "petrified", "stunned",
             "unconscious");
 
     /**
      * Whether the participant has Evasion now (D188): a rogue or monk of 7th level or higher (PHB p.96, p.79), a sheet
      * with the feature by name, a monster whose stat block has the trait, or an Ongoing Modifier that gives it, as Fizban's
-     * Platinum Shield (FTD p.20); never while it is incapacitated.
+     * Platinum Shield (FTD p.20). The 2014 text has no clause about being incapacitated, so an incapacitated creature
+     * keeps it; D224 corrects D188, which had taken it away as the 2024 rules do. A paralyzed or stunned creature
+     * still fails its DEX saves automatically and takes the full damage (SaveRules).
      */
     public static boolean evasion(EncounterParticipant participant) {
-        if (conditionNames(participant).stream().anyMatch(name -> INCAPACITATED.contains(name.toLowerCase(
-                java.util.Locale.ROOT)))) {
-            return false;
-        }
         if (ActiveModifiers.modifiersOn(participant).stream().anyMatch(m -> m.kind() == OngoingModifier.Kind.EVASION)) {
             return true;
         }
@@ -990,11 +991,28 @@ public class CreatureStats {
         if (ClassFeatures.raging(conditionNames(participant)) && ClassFeatures.rageResists(type)) {
             defences.add(Defence.RESISTANCE);
         }
+        // A petrified creature resists all damage and is immune to poison (PHB p.291, D224); "immune to poison" is read
+        // as poison damage as well as the poisoned condition (immuneToCondition)
+        if (petrified(participant)) {
+            defences.add(Defence.RESISTANCE);
+            if (POISON.equalsIgnoreCase(type)) {
+                defences.add(Defence.IMMUNITY);
+            }
+        }
         // Elemental Bane: the creature loses its resistance to the type chosen (XGE p.155, D185)
         if (OngoingModifiers.losesResistance(type, modifiers)) {
             defences.remove(Defence.RESISTANCE);
         }
         return defences;
+    }
+
+    /**
+     * Whether the participant is petrified, which gives it resistance to all damage, typed or not, and immunity to
+     * poison (PHB p.291, D224).
+     */
+    public static boolean petrified(EncounterParticipant participant) {
+        return participant.getActiveConditions() != null && participant.getActiveConditions().stream()
+                .anyMatch(c -> PETRIFIED.equalsIgnoreCase(c.name()));
     }
 
     /**
@@ -1018,6 +1036,10 @@ public class CreatureStats {
             return false;
         }
         String name = condition.trim();
+        // A petrified creature is immune to poison (PHB p.291, D224), so it can't be poisoned
+        if (POISONED.equalsIgnoreCase(name) && petrified(participant)) {
+            return true;
+        }
         // Heroism's immunity to being frightened (PHB p.250, D184)
         if (OngoingModifiers.immuneTo(name, ActiveModifiers.modifiersOn(participant), magical)) {
             return true;

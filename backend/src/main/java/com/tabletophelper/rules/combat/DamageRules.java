@@ -69,6 +69,37 @@ public final class DamageRules {
     }
 
     /**
+     * Damage added to a hit that found a player character at 0 hit points or dropped it there, as Divine Smite's is
+     * part of the hit's damage (PHB p.85, D224). The hit already gave its death save failures, or none when it dropped
+     * the creature, so the added damage gives none of its own; it only joins the hit's damage left over past 0 for
+     * massive damage: together at least the hit point maximum kill outright (PHB p.197). Temporary hit points absorb it
+     * first. A creature no longer at 0 takes it as any damage.
+     *
+     * @param hitLeftover the hit's damage past 0 hit points (and past temporary hit points), 0 when it dropped the
+     *                    creature exactly to 0
+     */
+    public static VitalsChange takeDamageAddedToHit(Vitals vitals, int damage, boolean critical, int hitLeftover) {
+        requireNotNegative(damage, "Damage");
+        requireNotNegative(hitLeftover, "The hit's damage left over");
+        if (!vitals.playerCharacter() || vitals.lifeState() == LifeState.ALIVE
+                || vitals.lifeState() == LifeState.DEAD) {
+            return takeDamage(vitals, damage, critical);
+        }
+        if (damage == 0) {
+            return VitalsChange.only(vitals);
+        }
+        int absorbed = Math.min(vitals.tempHp(), damage);
+        int leftover = damage - absorbed;
+        Vitals withoutTempHp = withTempHp(vitals, vitals.tempHp() - absorbed);
+        if (leftover > 0 && hitLeftover + leftover >= vitals.maxHp()) {
+            Vitals dead = atZero(withoutTempHp, LifeState.DEAD, vitals.deathSaveSuccesses(),
+                    vitals.deathSaveFailures());
+            return new VitalsChange(dead, false, true, true, false, false, false);
+        }
+        return VitalsChange.only(withoutTempHp);
+    }
+
+    /**
      * Healing. Hit points can't rise above the maximum, and temporary hit points are untouched, since healing
      * can't restore them. A dying or stable PC regains consciousness with both death save counts reset, and stays
      * prone. The dead can't regain hit points: only a revival, through {@link #setHp}, brings them back

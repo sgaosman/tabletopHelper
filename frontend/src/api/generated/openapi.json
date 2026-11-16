@@ -14660,6 +14660,11 @@
           "divineSmiteOffered": {
             "type": "boolean"
           },
+          "leftoverAtZero": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "ranged": {
             "type": "boolean",
             "nullable": true

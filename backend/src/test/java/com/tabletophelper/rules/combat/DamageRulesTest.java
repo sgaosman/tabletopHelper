@@ -39,6 +39,29 @@ class DamageRulesTest {
     }
 
     @Test
+    @DisplayName("Damage added to a hit at 0 HP adds no death save failure, and kills only when it and the hit's "
+            + "leftover reach the maximum (PHB p.197, D224)")
+    void damageAddedToHit() {
+        Vitals dying = new Vitals(0, 20, 0, LifeState.DYING, 0, 2, true);
+        assertEquals(VitalsChange.only(dying), DamageRules.takeDamageAddedToHit(dying, 4, true, 5));
+
+        VitalsChange killed = DamageRules.takeDamageAddedToHit(new Vitals(0, 20, 0, LifeState.DYING, 0, 0, true), 14,
+                false, 8);
+        assertEquals(LifeState.DEAD, killed.vitals().lifeState());
+        assertTrue(killed.died());
+        assertTrue(killed.massiveDamage());
+
+        // 13 + 6 = 19 falls short; temporary HP absorb first
+        Vitals shielded = new Vitals(0, 20, 3, LifeState.DYING, 0, 0, true);
+        assertEquals(new Vitals(0, 20, 0, LifeState.DYING, 0, 0, true),
+                DamageRules.takeDamageAddedToHit(shielded, 16, false, 6).vitals());
+
+        // A creature no longer at 0 takes it as any damage
+        assertEquals(new Vitals(6, 20, 0, LifeState.ALIVE, 0, 0, true),
+                DamageRules.takeDamageAddedToHit(pc(10, 0), 4, false, 8).vitals());
+    }
+
+    @Test
     @DisplayName("Damage to the dead changes nothing")
     void damageToTheDead() {
         Vitals dead = new Vitals(0, 20, 0, LifeState.DEAD, 0, 3, true);

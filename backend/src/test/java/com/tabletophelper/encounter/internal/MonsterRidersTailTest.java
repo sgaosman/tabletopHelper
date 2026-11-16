@@ -369,6 +369,17 @@ class MonsterRidersTailTest {
         }
 
         @Test
+        @DisplayName("A concentrating creature the medusa petrifies loses its concentration (PHB p.203, p.291, D224)")
+        void petrifiedEndsConcentration() {
+            fighter.setConcentration(com.tabletophelper.encounter.state.ConcentrationInstance.start("Bless", 1, 1,
+                    10));
+            act("Gaze", fighter, 9);
+            assertTrue(condition(fighter, "petrified").isPresent());
+            assertNull(fighter.getConcentration());
+            assertTrue(f.descriptions().stream().anyMatch(d -> d.contains("Bless")), f.descriptions().toString());
+        }
+
+        @Test
         @DisplayName("A shadow's Strength Drain lowers Strength, and the saves and checks with it, until a rest "
                 + "(MM p.269)")
         void strengthDrain() {

@@ -4,6 +4,7 @@ import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.Charge;
+import com.tabletophelper.rules.combat.Charm;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.EncounterRepository;
 import com.tabletophelper.encounter.EncounterService;
@@ -51,13 +52,16 @@ public class ConditionService {
         EncounterParticipant target = CombatAccess.participant(encounter, request.getTargetId());
         EncounterParticipant source = null;
         if (request.getSourceParticipantId() != null) {
-            // The source of a fear, so its disadvantage applies only while that creature is in sight (PHB p.290, D201)
-            if (!Fear.isFrightened(condition)) {
-                throw new ValidationException("Only frightened records the creature it is of");
+            // The source of a fear, so its disadvantage applies only while that creature is in sight (PHB p.290, D201),
+            // or the charmer, whom a charmed creature can't attack or target with harmful effects (PHB p.290, D224)
+            boolean charmed = Charm.isCharmed(condition);
+            if (!Fear.isFrightened(condition) && !charmed) {
+                throw new ValidationException("Only frightened and charmed record the creature they are of");
             }
             source = CombatAccess.target(encounter, request.getSourceParticipantId(), userId);
             if (source.getId().equals(target.getId())) {
-                throw new ValidationException("A creature can't be frightened of itself");
+                throw new ValidationException("A creature can't be " + (charmed ? "charmed by" : "frightened of")
+                        + " itself");
             }
         }
         effectApplier.addCondition(encounter, target, request.getCondition(), request.getDuration(), source);

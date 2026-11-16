@@ -147,6 +147,8 @@ public class MonsterActionService {
         CombatAccess.requireNotDead(targets);
         CombatAccess.requireReachable(monster, targets);
         requireTiming(encounter, monster, request.actionSource());
+        // A charmed creature can't attack its charmer or target it with harmful abilities (PHB p.290, D224)
+        Charms.enforce(encounter, monster, targets, userId, combatLog, CombatActionType.MONSTER_ACTION);
 
         if ("LEGENDARY".equals(request.actionSource())) {
             int cost = action.legendaryCost();
