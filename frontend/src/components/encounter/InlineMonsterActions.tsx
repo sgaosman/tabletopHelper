@@ -219,11 +219,13 @@ export default function InlineMonsterActions({
             const manual = !isAutomatable(a);
             const dmg = damageEffect(a);
             return (
-              <div
+              <button
+                type="button"
                 key={a.name}
-                aria-disabled={!lairReady}
+                disabled={!lairReady || (manual && executing)}
+                aria-pressed={manual ? undefined : selectedAction?.name === a.name}
                 title={lairReady ? undefined : lairReason}
-                className={`border p-3 transition-colors ${
+                className={`block w-full text-left border p-3 transition-colors ${
                   !lairReady ? 'opacity-40 cursor-not-allowed border-rule-light bg-card' :
                   selectedAction?.name === a.name
                     ? 'border-ink bg-page-alt cursor-pointer'
@@ -233,13 +235,13 @@ export default function InlineMonsterActions({
                   if (!lairReady) return;
                   if (manual) {
                     // One lair action at a time, as the other execute buttons
-                    if (!executing) void execute(a.name, 'LAIR');
+                    if (!executing) void execute(a.name, 'LAIR', { targetParticipantIds: targets });
                   } else {
                     selectAction(selectedAction?.name === a.name ? null : a);
                   }
                 }}
               >
-                <div className="flex items-center gap-2 mb-1">
+                <span className="flex items-center gap-2 mb-1">
                   <Castle className="w-4 h-4 text-cls-warlock flex-shrink-0" />
                   <span className="font-heading text-[15px] font-semibold tracking-[0.01em] text-ink">{a.name}</span>
                   {a.saveDC && <span className="font-heading text-[11px] font-semibold tracking-[0.02em] text-muted">DC {a.saveDC} {a.saveAbility?.toUpperCase()}</span>}
@@ -254,9 +256,9 @@ export default function InlineMonsterActions({
                   {!manual && selectedAction?.name === a.name && (
                     <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 bg-ink text-card ml-auto">Selected</span>
                   )}
-                </div>
-                <p className="font-body text-[15px] font-semibold text-muted leading-snug">{a.description}</p>
-              </div>
+                </span>
+                <span className="block font-body text-[15px] font-semibold text-muted leading-snug">{a.description}</span>
+              </button>
             );
           })}
         </div>
@@ -279,7 +281,8 @@ export default function InlineMonsterActions({
                   if (legendaryDepleted || legendaryOnOwnTurn || !recharged) return;
                   setMultiattackName(null);
                   if (manual) {
-                    void execute(a.name, TAB_SOURCE[tab]);
+                    // The DM resolves it: the server logs it with the targets chosen, or none
+                    void execute(a.name, TAB_SOURCE[tab], { targetParticipantIds: targets });
                   } else {
                     selectAction(selectedAction?.name === a.name ? null : a);
                   }
@@ -324,6 +327,7 @@ export default function InlineMonsterActions({
 
       {tab === 'actions' && multiattackName && (
         <MultiattackPicker
+          key={multiattackName}
           monster={participant}
           participants={participants}
           actionName={multiattackName}
@@ -373,6 +377,9 @@ export default function InlineMonsterActions({
             <AttackRollSources key={t.id} attacker={participant} target={t} named
               withinFiveFeet={!(selectedAction.attackType ?? '').toUpperCase().startsWith('RANGED')} />
           ))}
+          {targets.length === 0 && (
+            <p role="note" className="mb-1 font-body text-[13px] font-semibold text-faint">Choose a target first.</p>
+          )}
           <button
             disabled={targets.length === 0 || executing || (needsType && !damageType)
               || (tab === 'legendary' && (ownTurn || legendaryRemaining < (selectedAction.cost || 1)))

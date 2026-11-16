@@ -126,8 +126,10 @@ export const combatApi = {
     return api.put<Encounter>(`/encounters/${encounterId}/combat/spell-consent`, { participantId, consent });
   },
 
-  removeCondition(encounterId: string, targetId: string, condition: string) {
-    return api.post<Encounter>(`/encounters/${encounterId}/combat/condition/remove`, { targetId, condition });
+  // The entry's id removes only that entry, so a creature frightened by two sources keeps the other's (D201)
+  removeCondition(encounterId: string, targetId: string, condition: string, conditionId?: string) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/condition/remove`,
+      { targetId, condition, ...(conditionId ? { conditionId } : {}) });
   },
 
   rollDeathSave(encounterId: string, participantId: string) {

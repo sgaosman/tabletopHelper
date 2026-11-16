@@ -327,4 +327,18 @@ describe('useEncounterAction', () => {
     expect(cachedEncounter(queryClient)).toBe(loaded);
     expect(screen.getByText('Goblin Ambush, round 1')).toBeInTheDocument();
   });
+
+  it("marks each monster's action templates stale with each DM View state message, and nothing else per participant", async () => {
+    setupAuthToken();
+    const { client, queryClient } = await renderConnected('dm');
+    const actionsKey = queryKeys.encounters.monsterActions('enc-001', 'part-goblin');
+    const multiattackKey = queryKeys.encounters.multiattackOptions('enc-001', 'part-goblin');
+    queryClient.setQueryData(actionsKey, { actions: [] });
+    queryClient.setQueryData(multiattackKey, []);
+
+    act(() => client.emit(DM_STATE_TOPIC, makeMockEncounter({ roundNumber: 4 })));
+
+    await waitFor(() => expect(queryClient.getQueryState(actionsKey)?.isInvalidated).toBe(true));
+    expect(queryClient.getQueryState(multiattackKey)?.isInvalidated).toBe(false);
+  });
 });

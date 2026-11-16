@@ -185,6 +185,25 @@ describe('DM EncounterSessionPage', () => {
     expect(encounterRequests).toBe(1);
   });
 
+  it('starts the damage and healing forms empty for each target and mode, with labelled fields', async () => {
+    const user = userEvent.setup();
+    await renderLoaded();
+
+    await user.click(screen.getAllByRole('button', { name: 'Deal damage' })[0]);
+    await user.type(screen.getByLabelText('Amount'), '5');
+    await user.selectOptions(screen.getByLabelText('Type'), 'fire');
+    await user.click(screen.getAllByRole('button', { name: 'Deal damage' })[1]);
+
+    expect(screen.getByRole('heading', { name: 'Damage Gimli' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Amount')).toHaveValue(null);
+    expect(screen.getByLabelText('Type')).toHaveValue('');
+    await user.type(screen.getByLabelText('Amount'), '3');
+    await user.click(screen.getAllByRole('button', { name: 'Heal' })[1]);
+
+    expect(screen.getByRole('heading', { name: 'Heal Gimli' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Amount')).toHaveValue(null);
+  });
+
   it('advances the turn with one request and shows the state it answers with', async () => {
     let encounterRequests = 0;
     server.use(
@@ -324,6 +343,38 @@ describe('DM EncounterSessionPage', () => {
 
       await waitFor(() => expect(body).toEqual({ expectedCommandId: 'cmd-2', steps: 1 }));
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it('keeps what the dialog opened with when a player acts meanwhile, and the server refuses the stale undo', async () => {
+      let body: unknown;
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json({ ...encounterWith(), undo: UNDO })),
+        http.get('/api/encounters/:id/combat/log', () => HttpResponse.json(LOG)),
+        http.post('/api/encounters/:id/combat/undo', async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json({ error: 'The last action has changed since you reviewed it; review it again' },
+            { status: 409 });
+        }),
+      );
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getByRole('button', { name: 'Undo: DM deals 3 damage to Test Goblin' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Undo the last action?' });
+      const moved = {
+        commandId: 'cmd-3', kind: 'ATTACK', summary: 'Gimli hits Test Goblin again', entryCount: 1, stepsAvailable: 3,
+        recent: [{ commandId: 'cmd-3', kind: 'ATTACK', summary: 'Gimli hits Test Goblin again', entryCount: 1 }, ...UNDO.recent],
+      };
+      act(() => MockStompClient.latest().emit(DM_STATE_TOPIC, { ...encounterWith(), undo: moved }));
+
+      expect(await within(dialog).findByText('The log has moved on since you opened this.')).toBeInTheDocument();
+      expect(within(dialog).getByRole('region', { name: 'What will be undone' }))
+        .toHaveTextContent('DM deals 3 damage to Test Goblin');
+      expect(within(dialog).queryByText('Gimli hits Test Goblin again')).not.toBeInTheDocument();
+      await user.click(within(dialog).getByRole('button', { name: 'Undo' }));
+
+      await waitFor(() => expect(body).toEqual({ expectedCommandId: 'cmd-2', steps: 1 }));
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('review it again');
     });
 
     it('offers "Undo to here" on the first entry of each action undo can still take, dimming undone entries', async () => {
@@ -1006,7 +1057,7 @@ describe('DM EncounterSessionPage', () => {
 
       await user.click(screen.getByRole('button', { name: 'Lair (1)' }));
       expect(screen.getByText('Test Goblin isn\'t fighting in its lair.')).toBeInTheDocument();
-      expect(screen.getByText('Tremor').closest('[aria-disabled]')).toHaveAttribute('aria-disabled', 'true');
+      expect(screen.getByRole('button', { name: /Tremor/ })).toBeDisabled();
     });
 
     it('shows a death save due, and rolls a Repeat Save waiting on a player', async () => {

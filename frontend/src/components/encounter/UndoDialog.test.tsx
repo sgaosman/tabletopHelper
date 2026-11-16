@@ -75,4 +75,27 @@ describe('UndoDialog', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('review it again');
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it('keeps what it opened with when an update arrives, says the log moved on, and still names the frozen action', async () => {
+    const onUndo = vi.fn().mockRejectedValue(conflict('The last action has changed since you reviewed it; review it again'));
+    const { rerender } = render(<UndoDialog undo={UNDO} steps={2} log={LOG} onUndo={onUndo} onClose={vi.fn()} />);
+    expect(screen.queryByText(/log has moved on/)).not.toBeInTheDocument();
+
+    // A player acts: the live undo gains a newer command at the front
+    const moved: UndoInfo = {
+      commandId: 'cmd-4', kind: 'ATTACK', summary: 'Goblin attacks Vex', entryCount: 1, stepsAvailable: 4,
+      recent: [{ commandId: 'cmd-4', kind: 'ATTACK', summary: 'Goblin attacks Vex', entryCount: 1 }, ...UNDO.recent],
+    };
+    rerender(<UndoDialog undo={moved} steps={2} log={LOG} onUndo={onUndo} onClose={vi.fn()} />);
+
+    expect(screen.getByText('The log has moved on since you opened this.')).toBeInTheDocument();
+    const listed = screen.getByRole('region', { name: 'What will be undone' });
+    expect(listed).toHaveTextContent('Turn passes to Goblin (Round 1)');
+    expect(listed).toHaveTextContent('Vex casts Fireball');
+    expect(listed).not.toHaveTextContent('Goblin attacks Vex');
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Undo' }));
+    expect(onUndo).toHaveBeenCalledWith('cmd-3', 2);
+    expect(await screen.findByRole('alert')).toHaveTextContent('review it again');
+  });
 });

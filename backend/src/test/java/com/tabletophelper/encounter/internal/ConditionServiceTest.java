@@ -7,6 +7,7 @@ import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.shared.ForbiddenException;
+import com.tabletophelper.shared.ValidationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -124,5 +125,59 @@ class ConditionServiceTest {
 
         assertEquals("You do not have permission to perform this action", ex.getMessage());
         assertNull(cleric.getActiveConditions());
+    }
+
+    private static ConditionRequest removal(EncounterParticipant target, String condition, UUID conditionId) {
+        ConditionRequest request = request(target, condition, null);
+        request.setConditionId(conditionId);
+        return request;
+    }
+
+    @Test
+    @DisplayName("Removing one frightened entry by its id keeps the fear of the other source, and names the source")
+    void removeOneEntryById() {
+        EncounterParticipant fighter = f.player("Fighter", 30, 18);
+        EncounterParticipant dragon = f.monster("Dragon", 200, 19);
+        EncounterParticipant lich = f.monster("Lich", 135, 17);
+        ConditionEntry ofDragon = ConditionEntry.manual("frightened", null, 1, dragon.getId());
+        ConditionEntry ofLich = ConditionEntry.manual("frightened", null, 1, lich.getId());
+        fighter.setActiveConditions(new ArrayList<>(List.of(ofDragon, ofLich)));
+
+        f.conditionService.removeCondition(f.encounterId(), removal(fighter, "frightened", ofDragon.id()), f.dmUserId);
+
+        assertEquals(List.of(ofLich.id()), fighter.getActiveConditions().stream().map(ConditionEntry::id).toList());
+        assertEquals(List.of("Fighter loses condition: frightened of Dragon"), f.descriptions());
+    }
+
+    @Test
+    @DisplayName("Removing by name alone, as older clients ask, still removes every condition of the name")
+    void removeByNameRemovesAll() {
+        EncounterParticipant fighter = f.player("Fighter", 30, 18);
+        EncounterParticipant dragon = f.monster("Dragon", 200, 19);
+        EncounterParticipant lich = f.monster("Lich", 135, 17);
+        fighter.setActiveConditions(new ArrayList<>(List.of(
+                ConditionEntry.manual("frightened", null, 1, dragon.getId()),
+                ConditionEntry.manual("frightened", null, 1, lich.getId()))));
+
+        f.conditionService.removeCondition(f.encounterId(), removal(fighter, "frightened", null), f.dmUserId);
+
+        assertNull(fighter.getActiveConditions());
+    }
+
+    @Test
+    @DisplayName("An id whose entry is already gone changes nothing; one naming another condition is a 400")
+    void removeByUnknownOrMismatchedId() {
+        EncounterParticipant fighter = f.player("Fighter", 30, 18);
+        ConditionEntry prone = ConditionEntry.manual("prone", null, 1);
+        fighter.setActiveConditions(new ArrayList<>(List.of(prone)));
+
+        f.conditionService.removeCondition(f.encounterId(), removal(fighter, "prone", UUID.randomUUID()), f.dmUserId);
+        assertEquals(List.of("prone"), CombatFixture.conditionNames(fighter));
+        assertTrue(f.descriptions().isEmpty());
+
+        ValidationException ex = assertThrows(ValidationException.class, () -> f.conditionService.removeCondition(
+                f.encounterId(), removal(fighter, "poisoned", prone.id()), f.dmUserId));
+        assertEquals("That condition is prone, not poisoned", ex.getMessage());
+        assertEquals(List.of("prone"), CombatFixture.conditionNames(fighter));
     }
 }

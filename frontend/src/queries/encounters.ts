@@ -224,6 +224,19 @@ export function useEncounterResults() {
   });
 }
 
+/**
+ * Marks every monster's action templates in the encounter stale, so the shown ones load again: their legendary
+ * action, recharge and limited-use counts come from the server's pools, which any change to the encounter may move
+ * (a monster action, a turn passing and recharging, an undo). The other per-participant queries are left alone.
+ */
+export function invalidateMonsterActions(queryClient: QueryClient, encounterId: string) {
+  const prefix = queryKeys.encounters.dmParticipants(encounterId);
+  return queryClient.invalidateQueries({
+    queryKey: prefix,
+    predicate: query => query.queryKey.length === prefix.length + 2 && query.queryKey[prefix.length + 1] === 'actions',
+  });
+}
+
 /** A monster's action templates, with the current uses of its resource pools; DM only (D157). */
 export function useMonsterActionTemplates(participantId: string) {
   const { encounterId } = useLiveEncounter();
@@ -391,6 +404,14 @@ export function useEncounterAction() {
     // Answers with a result that carries the encounter state
     const resolve = <A extends unknown[], T extends { encounterState: Encounter }>(request: EncounterRequest<A, T>) =>
       (...args: A) => run(() => request(encounterId, ...args), result => result.encounterState);
+    // Moves monsters' pools, so the action templates showing their counts load again (the WebSocket message does
+    // this too, but may not arrive while the connection is down)
+    const withPools = <A extends unknown[], T>(request: (...args: A) => Promise<T>) =>
+      async (...args: A) => {
+        const result = await request(...args);
+        void invalidateMonsterActions(queryClient, encounterId);
+        return result;
+      };
     // Writes the encounter's results back to character sheets (D166), so the cached characters are fetched again
     const writeBack = <A extends unknown[]>(request: EncounterRequest<A, Encounter>) =>
       async (...args: A) => {
@@ -406,8 +427,8 @@ export function useEncounterAction() {
       end: writeBack(encounterApi.end),
       setVisibility: change(encounterApi.setVisibility),
       removeParticipant: writeBack(encounterApi.removeParticipant),
-      nextTurn: change(combatApi.advanceTurn),
-      previousTurn: change(combatApi.previousTurn),
+      nextTurn: withPools(change(combatApi.advanceTurn)),
+      previousTurn: withPools(change(combatApi.previousTurn)),
       reorderTie: change(encounterApi.reorderTie),
       setLairStatus: change(combatApi.setLairStatus),
       rollAttack: change(combatApi.rollAttack),
@@ -428,7 +449,7 @@ export function useEncounterAction() {
       restoreSpellSlot: change(combatApi.restoreSpellSlot),
       spendLegendaryResistance: change(combatApi.useLegendaryResistance),
       // The DM's undo of the newest commands (M14)
-      undo: change(combatApi.undo),
+      undo: withPools(change(combatApi.undo)),
       castSpell: resolve(combatApi.castSpell),
       repeatSpellEffect: resolve(combatApi.repeatSpellEffect),
       // Ends a Spell Effect by hand (M15)
@@ -436,7 +457,7 @@ export function useEncounterAction() {
       // The DM's record that a lasting spell is already going, and moving Hunter's Mark or Hex (D184)
       startActiveSpell: change(combatApi.startActiveSpell),
       moveSpellEffect: change(combatApi.moveSpellEffect),
-      monsterAction: resolve(combatApi.monsterAction),
+      monsterAction: withPools(resolve(combatApi.monsterAction)),
       // The DM's replacement of a participant's whole turn economy (D174)
       setTurnEconomy: change(combatApi.setTurnEconomy),
       // A pool used at the table, a standard action and an object interaction, each charged to the turn (D174)

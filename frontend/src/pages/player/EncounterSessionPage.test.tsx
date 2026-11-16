@@ -175,8 +175,32 @@ describe('Player EncounterSessionPage', () => {
     await userEvent.setup().click(await screen.findByRole('button', { name: /prone/ }));
 
     await waitFor(() => expect(screen.queryByRole('button', { name: /prone/ })).not.toBeInTheDocument());
-    expect(removal).toEqual({ targetId: 'part-gimli', condition: 'prone' });
+    expect(removal).toEqual({ targetId: 'part-gimli', condition: 'prone', conditionId: 'cond-prone' });
     expect(encounterRequests).toBe(1);
+  });
+
+  it('removes only the chip clicked when the character is frightened of two creatures', async () => {
+    let removal: unknown;
+    server.use(
+      http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+        participants: [legolas(), gimli({ activeConditions: [
+          makeMockCondition('frightened', { id: 'cond-fear-goblin', sourceParticipantId: 'part-goblin' }),
+          makeMockCondition('frightened', { id: 'cond-fear-bugbear', sourceParticipantId: 'part-bugbear' }),
+        ] }), goblin()],
+      }))),
+      http.post('/api/encounters/:id/combat/condition/remove', async ({ request }) => {
+        removal = await request.json();
+        return HttpResponse.json(makeMockEncounter({ participants: [legolas(), gimli(), goblin()] }));
+      }),
+    );
+    renderPage();
+
+    const chips = await screen.findAllByRole('button', { name: /frightened/ });
+    await userEvent.setup().click(chips[1]);
+
+    await waitFor(() => expect(removal).toEqual({
+      targetId: 'part-gimli', condition: 'frightened', conditionId: 'cond-fear-bugbear',
+    }));
   });
 
   describe('lifecycle (D166)', () => {
@@ -904,6 +928,27 @@ describe('Player EncounterSessionPage with summoned creatures (D182)', () => {
 
     expect(await screen.findByRole('button', { name: /Cast Spell/ })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: "Owl's attack (Pact of the Chain)" })).not.toBeInTheDocument();
+  });
+
+  it("starts the next summoned creature's turn with nothing chosen from the last one's", async () => {
+    server.use(http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json({
+      actions: [{ name: 'Dodge', deliveryMethod: 'SELF', automatable: true }],
+    })));
+    const commanded = skeleton({ summon: { ...skeleton().summon, commandedRound: 1 } });
+    serve(goblin(), owl({ isCurrentTurn: true }), gimli(), commanded);
+    const user = userEvent.setup();
+    renderPage();
+
+    const owlTurn = await screen.findByRole('region', { name: "Owl's turn" });
+    await user.click(await within(owlTurn).findByRole('button', { name: /Dodge/ }));
+    expect(within(owlTurn).getByRole('button', { name: /^Execute Dodge/ })).toBeInTheDocument();
+
+    act(() => MockStompClient.latest().emit('/topic/encounter/enc-001/state',
+      makeMockEncounter({ participants: [goblin(), owl(), gimli(), { ...commanded, isCurrentTurn: true }] })));
+
+    const skeletonTurn = await screen.findByRole('region', { name: "Skeleton's turn" });
+    expect(await within(skeletonTurn).findByRole('button', { name: /Dodge/ })).toBeInTheDocument();
+    expect(within(skeletonTurn).queryByRole('button', { name: /^Execute Dodge/ })).not.toBeInTheDocument();
   });
 
   it('tells the player an uncommanded skeleton only defends itself on its turn', async () => {

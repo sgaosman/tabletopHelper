@@ -193,6 +193,8 @@ export default function SpellCastModal({
     setSelectedSpell(spell);
     setCastOption(spell.castOptions?.[0] ?? null);
     setForms({});
+    // Choices about willing creatures belong to the spell they were made for
+    setConsents({});
     flow.setError('');
     const available = rowsFor(spell, caster.spellSlotsCurrent ?? {}).filter(row => row.available);
     if (nothingToChoose(available)) {

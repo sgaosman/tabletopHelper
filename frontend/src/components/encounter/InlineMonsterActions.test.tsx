@@ -335,3 +335,136 @@ describe('InlineMonsterActions: damage options (D207)', () => {
     }]));
   });
 });
+
+describe('InlineMonsterActions: review fixes', () => {
+  beforeEach(() => {
+    setupAuthToken();
+  });
+
+  /** Records each monster action request. */
+  function monsterActions() {
+    const requests: unknown[] = [];
+    server.use(http.post('/api/encounters/:id/combat/monster-action', async ({ request }) => {
+      requests.push(await request.json());
+      return HttpResponse.json({
+        resolved: true, description: 'Done.', totalDamage: 0, totalHealing: 0, targetResults: [],
+        requiresManualResolution: false, conditionsInflicted: [], legendaryResistanceAvailable: false,
+        legendaryResistanceRemaining: 0, encounterState: makeMockEncounter({ participants }),
+      } satisfies MonsterActionResponse);
+    }));
+    return requests;
+  }
+
+  const LAIR_TEMPLATES = {
+    actions: [],
+    lairActions: [{ name: 'Tremor', description: 'The ground shakes.', automatable: false }],
+  } satisfies MonsterActionTemplate;
+
+  it('loads the templates again after a monster action, so the legendary count shown follows the server', async () => {
+    let legendaryLeft = 3;
+    server.use(http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json({
+      actions: [],
+      legendaryActions: [{ name: 'Detect', description: 'The goblin makes a Wisdom (Perception) check.', automatable: false, cost: 1 }],
+      legendaryActionCount: 3,
+      resourcePools: { 'monster:legendary-actions': { currentUses: legendaryLeft } },
+    } satisfies MonsterActionTemplate & { resourcePools: Record<string, { currentUses: number }> })));
+    server.use(http.post('/api/encounters/:id/combat/monster-action', () => {
+      legendaryLeft -= 1;
+      return HttpResponse.json({
+        resolved: true, description: 'Test Goblin uses Detect.', totalDamage: 0, totalHealing: 0, targetResults: [],
+        requiresManualResolution: false, conditionsInflicted: [], legendaryResistanceAvailable: false,
+        legendaryResistanceRemaining: 0, encounterState: makeMockEncounter({ participants }),
+      } satisfies MonsterActionResponse);
+    }));
+    const user = await renderActions();
+
+    await user.click(await screen.findByRole('button', { name: 'Legendary (3)' }));
+    await user.click(screen.getByRole('button', { name: /Detect/ }));
+
+    expect(await screen.findByRole('button', { name: 'Legendary (2)' })).toBeInTheDocument();
+  });
+
+  it('logs a manual action with no target chosen, as the server takes it', async () => {
+    const requests = monsterActions();
+    server.use(http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json({
+      actions: [{ name: 'Shriek', description: 'The goblin shrieks.', automatable: false }],
+    } satisfies MonsterActionTemplate)));
+    const user = await renderActions();
+
+    await user.click(await screen.findByRole('button', { name: /Shriek/ }));
+
+    await waitFor(() => expect(requests).toEqual([{
+      monsterParticipantId: 'part-goblin', actionName: 'Shriek', actionSource: 'ACTION', targetParticipantIds: [],
+    }]));
+  });
+
+  it('says an automatable action waits for a target', async () => {
+    const user = await renderActions();
+
+    await user.click(await screen.findByRole('button', { name: /Scimitar/ }));
+
+    expect(screen.getByText('Choose a target first.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Execute Scimitar' })).toBeDisabled();
+  });
+
+  it('makes lair actions buttons the keyboard reaches, and logs a manual one with no target', async () => {
+    const requests = monsterActions();
+    server.use(http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json(LAIR_TEMPLATES)));
+    const user = userEvent.setup();
+    const { queryClient } = render(
+      <EncounterProvider encounterId="enc-001" view="dm">
+        <InlineMonsterActions participant={goblin} participants={participants} isLairTurn inLair />
+      </EncounterProvider>,
+    );
+    await waitFor(() => expect(queryClient.getQueryData(queryKeys.encounters.detail('enc-001', 'dm'))).toBeDefined());
+
+    await user.click(await screen.findByRole('button', { name: 'Lair (1)' }));
+    screen.getByRole('button', { name: /Tremor/ }).focus();
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => expect(requests).toEqual([{
+      monsterParticipantId: 'part-goblin', actionName: 'Tremor', actionSource: 'LAIR', targetParticipantIds: [],
+    }]));
+  });
+
+  it('disables lair actions off the Lair turn', async () => {
+    server.use(http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json(LAIR_TEMPLATES)));
+    const user = await renderActions();
+
+    await user.click(await screen.findByRole('button', { name: 'Lair (1)' }));
+
+    expect(screen.getByRole('button', { name: /Tremor/ })).toBeDisabled();
+  });
+
+  it('starts afresh when the DM switches from one multiattack to another', async () => {
+    server.use(
+      http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json({
+        actions: [
+          { name: 'Multiattack', isMultiattack: true, multiattackComponents: [], automatable: true },
+          { name: 'Multiattack (Ranged)', isMultiattack: true, multiattackComponents: [], automatable: true },
+        ],
+      } satisfies MonsterActionTemplate)),
+      http.get('/api/encounters/:id/combat/multiattack-options', () => HttpResponse.json([
+        { name: 'Multiattack', description: null, manualReason: null, components: [
+          { name: 'Bite', automated: true, manualReason: null, maxTargets: 1, damageOptions: [] },
+          { name: 'Claw', automated: true, manualReason: null, maxTargets: 1, damageOptions: [] },
+          { name: 'Claw', automated: true, manualReason: null, maxTargets: 1, damageOptions: [] },
+        ] },
+        { name: 'Multiattack (Ranged)', description: null, manualReason: null, components: [
+          { name: 'Longbow', automated: true, manualReason: null, maxTargets: 1, damageOptions: [] },
+        ] },
+      ] satisfies MultiattackOption[])),
+    );
+    const user = await renderActions();
+
+    await user.click(await screen.findByRole('button', { name: '⚔ Multiattack' }));
+    await user.click(within(await screen.findByRole('group', { name: 'Same target for every attack' }))
+      .getByRole('button', { name: 'Gimli' }));
+    expect(screen.getByRole('button', { name: 'Execute Multiattack (3 attacks)' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: '⚔ Multiattack (Ranged)' }));
+
+    expect(await screen.findByRole('button', { name: 'Execute Multiattack (Ranged) (0 attacks)' })).toBeDisabled();
+    expect(within(screen.getByRole('group', { name: 'Targets for 1. Longbow' })).getByRole('button', { name: 'Gimli' }))
+      .toHaveAttribute('aria-pressed', 'false');
+  });
+});

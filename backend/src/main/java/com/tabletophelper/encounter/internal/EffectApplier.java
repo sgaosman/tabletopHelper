@@ -975,20 +975,45 @@ public class EffectApplier {
      * what players remove (D162).
      */
     public void removeCondition(Encounter encounter, EncounterParticipant target, String condition) {
+        removeCondition(encounter, target, condition, null);
+    }
+
+    /**
+     * Removes a condition by hand: the one entry named by {@code conditionId} when given, so a creature frightened by
+     * two sources stays frightened of the other, or else every condition of the name, whatever its source, as older
+     * clients ask. An entry already gone changes nothing; an id whose entry has another name is a 400. Every removal
+     * is logged, so the DM sees what players remove (D162).
+     */
+    public void removeCondition(Encounter encounter, EncounterParticipant target, String condition, UUID conditionId) {
         String name = condition.trim().toLowerCase();
+        List<ConditionEntry> conditions = conditions(target);
+        ConditionEntry chosen = null;
+        if (conditionId != null) {
+            chosen = conditions.stream().filter(c -> conditionId.equals(c.id())).findFirst().orElse(null);
+            if (chosen == null) {
+                return;
+            }
+            if (!chosen.name().equalsIgnoreCase(name)) {
+                throw new ValidationException("That condition is " + chosen.name() + ", not " + name);
+            }
+        }
+        ConditionEntry only = chosen;
         // Removing the entry that carries a form, Wild Shape's or a spell's such as Polymorph's, ends the form, with the
         // creature's own hit points and AC back (D192)
-        if (WildShapeForm.entry(conditions(target)).filter(c -> c.name().equalsIgnoreCase(name)).isPresent()) {
+        if (WildShapeForm.entry(conditions)
+                .filter(c -> only != null ? only.id().equals(c.id()) : c.name().equalsIgnoreCase(name)).isPresent()) {
             endWildShape(encounter, target, "removed by hand");
             return;
         }
-        List<ConditionEntry> conditions = conditions(target);
-        if (!conditions.removeIf(c -> c.name().equalsIgnoreCase(name))) {
+        if (!conditions.removeIf(c -> only != null ? only.id().equals(c.id()) : c.name().equalsIgnoreCase(name))) {
             return;
         }
         target.setActiveConditions(conditions.isEmpty() ? null : conditions);
+        String source = only != null && only.sourceParticipantId() != null
+                ? participant(encounter, only.sourceParticipantId()).map(p -> " of " + p.getDisplayName()).orElse("")
+                : "";
         combatLog.write(encounter, CombatActionType.CONDITION_REMOVE,
-                target.getDisplayName() + " loses condition: " + name, null, target);
+                target.getDisplayName() + " loses condition: " + name + source, null, target);
         releaseFreed(encounter);
         endLinked(encounter);
     }

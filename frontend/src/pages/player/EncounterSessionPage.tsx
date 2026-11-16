@@ -363,8 +363,8 @@ function PlayerSessionView() {
             the form a spell gave it (D192) */}
         {isActive && showBeastActions && myCharacter && formOf(myCharacter) && myCharacter.lifeState === 'ALIVE' && (
           <div className="mb-4 border border-rule bg-card">
-            <InlineMonsterActions participant={myCharacter} participants={encounter.participants} isLairTurn={false}
-              inLair={false} />
+            <InlineMonsterActions key={`${myCharacter.id}-${formOf(myCharacter)?.monsterId}`} participant={myCharacter}
+              participants={encounter.participants} isLairTurn={false} inLair={false} />
           </div>
         )}
 
@@ -385,7 +385,7 @@ function PlayerSessionView() {
                 your turn.
               </p>
             ) : (
-              <InlineMonsterActions participant={summonOnTurn} participants={encounter.participants} isLairTurn={false}
+              <InlineMonsterActions key={summonOnTurn.id} participant={summonOnTurn} participants={encounter.participants} isLairTurn={false}
                 inLair={false} noAttacks={summonOnTurn.summon?.cannotAttack ?? false} />
             )}
           </section>
@@ -502,7 +502,7 @@ function PlayerSessionView() {
                 <ConditionChips
                   participant={p}
                   roundNumber={encounter.roundNumber}
-                  onRemove={isOwn && isActive ? c => actions.removeCondition(p.id, c.name) : undefined}
+                  onRemove={isOwn && isActive ? c => actions.removeCondition(p.id, c.name, c.id) : undefined}
                 />
                 {/* The player directs their own Spell Effects on their turn, and may end them on any (M15) */}
                 <ActiveSpells

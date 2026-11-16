@@ -33,6 +33,8 @@ export const queryKeys = {
     log: (encounterId: string, view: EncounterView) => ['encounters', encounterId, view, 'log'] as const,
     /** What ending the encounter would write back to each character sheet, which only the DM may read (D166). */
     results: (encounterId: string) => ['encounters', encounterId, 'dm', 'results'] as const,
+    /** Everything the DM View caches per participant, under which each monster's action templates sit. */
+    dmParticipants: (encounterId: string) => ['encounters', encounterId, 'dm', 'participants'] as const,
     /** A monster's action templates and current resource pools, which only the DM may read (D157). */
     monsterActions: (encounterId: string, participantId: string) =>
       ['encounters', encounterId, 'dm', 'participants', participantId, 'actions'] as const,

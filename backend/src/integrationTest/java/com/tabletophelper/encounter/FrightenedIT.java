@@ -203,6 +203,41 @@ class FrightenedIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("Frightened of two sources, removing one entry by its id keeps the other; by name alone removes both")
+    void removeOneOfTwoFears() {
+        expect(HttpStatus.OK, addCondition(ariaId, "frightened", dragonId, dm.accessToken()));
+        expect(HttpStatus.OK, addCondition(ariaId, "frightened", mageId, dm.accessToken()));
+        String ofDragon = null;
+        for (JsonNode condition : participant(dmState(), ariaId).get("activeConditions")) {
+            if (dragonId.equals(condition.get("sourceParticipantId").asString())) {
+                ofDragon = condition.get("id").asString();
+            }
+        }
+        assertThat(ofDragon).isNotNull();
+
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/condition/remove",
+                Map.of("targetId", ariaId, "condition", "frightened", "conditionId", ofDragon), player.accessToken()));
+        JsonNode left = participant(dmState(), ariaId).get("activeConditions");
+        assertThat(left).hasSize(1);
+        assertThat(left.get(0).get("sourceParticipantId").asString()).isEqualTo(mageId);
+        assertThat(participant(dmState(), ariaId).get("fears")).hasSize(1);
+        assertThat(log()).contains("Aria loses condition: frightened of Adult Red Dragon");
+
+        // A name whose entry is another condition is refused, and changes nothing
+        assertThat(exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/condition/remove",
+                Map.of("targetId", ariaId, "condition", "prone", "conditionId", left.get(0).get("id").asString()),
+                dm.accessToken()).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(participant(dmState(), ariaId).get("activeConditions")).hasSize(1);
+
+        // An older client's request, by name alone
+        expect(HttpStatus.OK, addCondition(ariaId, "frightened", dragonId, dm.accessToken()));
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/condition/remove",
+                Map.of("targetId", ariaId, "condition", "frightened"), dm.accessToken()));
+        JsonNode none = participant(dmState(), ariaId).get("activeConditions");
+        assertThat(none == null || none.isNull() || none.isEmpty()).isTrue();
+    }
+
+    @Test
     @DisplayName("A source is refused on another condition and on the creature itself; a hidden source is named "
             + "neither to players nor through the player's request")
     void refusalsAndPlayerView() {

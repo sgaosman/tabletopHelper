@@ -62,7 +62,8 @@ export default function MultiattackPicker({ monster, participants, actionName, d
     );
   }
 
-  const current = chosen ?? components.map(() => []);
+  // Choices made for a different list of attacks, such as another multiattack's, are dropped rather than read by index
+  const current = chosen && chosen.length === components.length ? chosen : components.map(() => []);
 
   // One target replaces another for an attack that takes one; otherwise up to the attack's limit, if it has one
   function toggle(index: number, targetId: string) {

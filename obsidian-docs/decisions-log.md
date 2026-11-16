@@ -4171,3 +4171,30 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D179, D196, D199; roadmap M18
 
 **Tests:** new `MetamagicSpellDataTest` (1,052 cases: every template against every option, with the deliberate departures listed and the hand-written tricky spells), `MetamagicResolutionTest` (12, with the shipped templates) and `SpellLoaderRangeTest` (9); updated `MetamagicEligibilityGoldenTest` and `MetamagicTest`; 4,553 backend unit, 541 integration and 1,208 frontend tests before the D208 merge; 4,586, 545 and 1,221 after it.
+
+
+## D213: Frontend Fixes from the Overnight Review
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration)
+
+**Context:** the code review of the user's overnight run of 2026-11-16 read the frontend end to end and confirmed ten defects; all were fixed with regression tests. Calls are the lead's, recorded for review.
+
+**Decision:**
+1. **Undo dialog** keeps the command id, the listed actions and the steps from the moment it opens; if a WebSocket update changes the newest action it says "The log has moved on since you opened this" and still sends the original id, so the server refuses with a 409 instead of undoing something the DM never saw ([[#D176]]).
+2. **Monster action counts** (legendary actions, recharges, limited uses) refetch after a monster action, a turn change and undo, and on every DM-view state message, through a new `dmParticipants` query key; they went stale before.
+3. **Multiattack picker** is keyed by the multiattack, so switching between two multiattacks no longer carries targets and damage types across or crashes, and drops saved choices that don't match the attack list.
+4. **A player's summon and Wild Shape panels** are keyed by creature (and form), so one wolf's selections don't carry to the next.
+5. **Manual and lair actions** fire with no target, as the server accepts; an automatable action's Execute button says "Choose a target first".
+6. **Lair action cards** are buttons, usable from the keyboard.
+7. **The DM's damage and healing form** resets when the target or mode changes, and its Amount and Type fields are labelled.
+8. **Removing one condition chip** removes only that entry: `ConditionRequest` gains an optional `conditionId` and `EffectApplier.removeCondition` removes just that entry (400 if it names another condition; an id already gone changes nothing; no id removes by name as before). The log names the source ("frightened of Dragon"). Two fears from different sources ([[#D201]]) are now removable one at a time.
+9. **The cast screen** clears spell-consent choices ([[#D198]]) when another spell is picked.
+
+**Rules calls (the lead's, to confirm):** monster action templates refetch on every DM-view state message, one extra request per open monster panel per update; a condition id on an add is ignored.
+
+**Key files:** `components/encounter/UndoDialog.tsx`, `InlineMonsterActions.tsx`, `MultiattackPicker.tsx`, `SpellCastModal.tsx`, `queries/encounters.ts`, `queries/keys.ts`, `context/EncounterContext.tsx`, `pages/dm/EncounterSessionPage.tsx`, `pages/player/EncounterSessionPage.tsx`, `api/combatApi.ts`, `encounter/dto/ConditionRequest.java`, `encounter/internal/EffectApplier.java`, `ConditionService.java`
+
+**Related:** D176, D181, D198, D201, D207
+
+**Tests:** regression tests beside each change, new `SpellCastModal.consent.test.tsx`, 3 more in `ConditionServiceTest`, a two-source case in `FrightenedIT`; 1,234 frontend, 4,589 backend unit and 546 integration tests.

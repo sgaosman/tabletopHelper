@@ -42,14 +42,22 @@ function CommandRow({ command, entries }: { command: UndoableCommand; entries: C
 export default function UndoDialog({ undo, steps, log, onUndo, onClose }: Props) {
   const [undoing, setUndoing] = useState(false);
   const [error, setError] = useState('');
-  const commands = undo.recent.slice(0, steps);
+  // What the DM is asked about is frozen when the dialog opens: an update arriving meanwhile mustn't change the list
+  // or the command it names, so the server can refuse an undo whose newest action is no longer the one shown
+  const [frozen] = useState(() => ({
+    commandId: undo.commandId,
+    commands: undo.recent.slice(0, steps),
+    stepsAvailable: undo.stepsAvailable,
+  }));
+  const commands = frozen.commands;
+  const logMovedOn = undo.commandId !== frozen.commandId;
   const undoesTurn = commands.some(command => command.kind === 'TURN_ADVANCE');
 
   async function handleUndo() {
     setUndoing(true);
     setError('');
     try {
-      await onUndo(undo.commandId, commands.length);
+      await onUndo(frozen.commandId, commands.length);
     } catch (err: unknown) {
       setError(apiErrorMessage(err));
       setUndoing(false);
@@ -91,7 +99,7 @@ export default function UndoDialog({ undo, steps, log, onUndo, onClose }: Props)
             recharges rolled. Previous Turn only moves the turn marker.
           </p>
         )}
-        {commands.length >= undo.stepsAvailable && (
+        {commands.length >= frozen.stepsAvailable && (
           <p className="font-body text-[14px] font-semibold text-muted">
             This is as far back as undo goes: nothing before the encounter&apos;s start, or before a creature was
             removed mid-fight, can be undone.
@@ -102,6 +110,11 @@ export default function UndoDialog({ undo, steps, log, onUndo, onClose }: Props)
           are rolled fresh. Undo can&apos;t be undone.
         </p>
 
+        {logMovedOn && (
+          <p role="status" className="font-body text-[14px] font-semibold text-debuff">
+            The log has moved on since you opened this.
+          </p>
+        )}
         {error && <p role="alert" className="text-debuff font-body text-[15px]">{error}</p>}
       </div>
     </Modal>

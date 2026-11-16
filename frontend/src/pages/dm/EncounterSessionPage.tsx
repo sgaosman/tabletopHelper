@@ -125,13 +125,13 @@ function HpChangeForm({ target, mode }: { target: EncounterParticipant; mode: 'd
       ) : (
         <>
           <div className="flex-1 min-w-24">
-            <label className={FIELD_LABEL}>Amount</label>
-            <input type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} className={FIELD_INPUT} autoFocus />
+            <label htmlFor="hp-change-amount" className={FIELD_LABEL}>Amount</label>
+            <input id="hp-change-amount" type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} className={FIELD_INPUT} autoFocus />
           </div>
           {mode === 'damage' && (
             <div className="flex-1 min-w-32">
-              <label className={FIELD_LABEL}>Type</label>
-              <select value={damageType} onChange={e => setDamageType(e.target.value)} className={FIELD_INPUT}>
+              <label htmlFor="hp-change-type" className={FIELD_LABEL}>Type</label>
+              <select id="hp-change-type" value={damageType} onChange={e => setDamageType(e.target.value)} className={FIELD_INPUT}>
                 <option value="">&#8212;</option>
                 {DAMAGE_TYPES.map(dt => <option key={dt} value={dt}>{dt}</option>)}
               </select>
@@ -178,7 +178,7 @@ function ActionPanel({
 
       {actionMode === 'attack' && <ManualAttackForm target={selectedTarget} onRoll={request => actions.rollAttack(request)} />}
       {(actionMode === 'damage' || actionMode === 'heal' || actionMode === 'set-hp') && (
-        <HpChangeForm target={selectedTarget} mode={actionMode} />
+        <HpChangeForm key={`${selectedTarget.id}-${actionMode}`} target={selectedTarget} mode={actionMode} />
       )}
       {actionMode === 'condition' && (
         <>
@@ -796,7 +796,7 @@ function DmSessionView() {
                   <ConditionChips
                     participant={p}
                     roundNumber={encounter.roundNumber}
-                    onRemove={isActive ? c => actions.removeCondition(p.id, c.name) : undefined}
+                    onRemove={isActive ? c => actions.removeCondition(p.id, c.name, c.id) : undefined}
                     showRepeatSave={isActive}
                     // The DM's mark that a fear's source is out of sight, there being no map (D201)
                     onToggleFearSight={isActive ? (c, outOfSight) => actions.markFearSight(p.id, c.id, outOfSight) : undefined}

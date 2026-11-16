@@ -8184,6 +8184,11 @@
             "minLength": 1,
             "type": "string"
           },
+          "conditionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "duration": {
             "type": "integer",
             "format": "int32",

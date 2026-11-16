@@ -2979,6 +2979,8 @@ export interface components {
         };
         ConditionRequest: {
             condition: string;
+            /** Format: uuid */
+            conditionId?: string | null;
             /** Format: int32 */
             duration?: number | null;
             /** Format: uuid */

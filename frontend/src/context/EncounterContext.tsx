@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiErrorMessage } from '../api/errors';
 import { useWebSocket } from '../hooks/useWebSocket';
-import { liveCombatLogQuery, liveEncounterQuery } from '../queries/encounters';
+import { invalidateMonsterActions, liveCombatLogQuery, liveEncounterQuery } from '../queries/encounters';
 import { queryKeys } from '../queries/keys';
 import type { CombatLogEntry } from '../types/combat';
 import type { EncounterView } from '../types/encounter';
@@ -28,6 +28,9 @@ export function EncounterProvider({ encounterId, view = 'player', children }: { 
     onStateUpdate: encounter => {
       socketMessages.current += 1;
       queryClient.setQueryData(queryKeys.encounters.detail(encounterId, view), encounter);
+      // A monster's legendary, recharge and limited-use counts live in its action templates, which the state
+      // doesn't carry, so the DM's shown ones load again
+      if (view === 'dm') void invalidateMonsterActions(queryClient, encounterId);
       setSocketError(null);
     },
     onLogUpdate: log => {

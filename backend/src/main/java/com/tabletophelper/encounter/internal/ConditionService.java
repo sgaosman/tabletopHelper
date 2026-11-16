@@ -89,7 +89,7 @@ public class ConditionService {
     public EncounterResponse removeCondition(UUID encounterId, ConditionRequest request, UUID userId) {
         Encounter encounter = access.beginFor(encounterId, request.getTargetId(), userId);
         effectApplier.removeCondition(encounter, CombatAccess.participant(encounter, request.getTargetId()),
-                request.getCondition());
+                request.getCondition(), request.getConditionId());
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 
