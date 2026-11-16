@@ -4379,4 +4379,4 @@ The plan's twelve questions were answered with its recommended answers when the 
 
 **Related:** D207, D212
 
-**Tests:** new resolver, Empowered (Ice Knife hit and miss, both blades with the weapon die untouched), damage-parts and range-text cases, a damage-parts helper test file, and two-type cases in `InlineMonsterActions.test.tsx` and `ResultView.test.tsx`; 4,705 backend unit, 571 integration and 1,265 frontend tests on its branch.
+**Tests:** new resolver, Empowered (Ice Knife hit and miss, both blades with the weapon die untouched), damage-parts and range-text cases, a damage-parts helper test file, and two-type cases in `InlineMonsterActions.test.tsx` and `ResultView.test.tsx`; 4,705 backend unit, 571 integration and 1,265 frontend tests on its branch; 4,721, 574 and 1,265 merged with the D216 review fixes.
