@@ -2,6 +2,7 @@ package com.tabletophelper.encounter.internal;
 
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.encounter.dto.DamagePart;
 import com.tabletophelper.encounter.dto.MonsterActionRequest;
 import com.tabletophelper.encounter.dto.MonsterActionResponse;
 import com.tabletophelper.encounter.dto.MultiattackOption;
@@ -112,6 +113,37 @@ class DamageOptionsTest {
         void critical() {
             act("Fang", "fire", 20, 4, 4, 4, 4);
             assertEquals(52, tiefling.getHpCurrent(), "4d4 of 16 fire, halved to 8");
+        }
+
+        @Test
+        @DisplayName("The result names each type a hit of two deals, after defences, as a djinni's Scimitar's 12 "
+                + "slashing + 4 of the type chosen (the quick result, D207)")
+        void damageParts() {
+            EncounterParticipant djinni = f.monster("Djinni", 161, 17);
+            djinni.getMonster().setActionTemplates(MonsterTemplates.parse("""
+                    {"actions": [{"name": "Scimitar", "deliveryMethod": "ATTACK_ROLL", "attackType": "MELEE_WEAPON",
+                      "attackBonus": 9, "effects": [
+                        {"effectType": "DAMAGE", "damageDice": "12", "damageType": "slashing", "flatDamage": true},
+                        {"effectType": "DAMAGE", "damageDice": "4", "damageType": "option", "flatDamage": true}],
+                      "damageOptions": ["fire", "lightning", "thunder"]}]}"""));
+
+            MonsterActionResponse lightning = act(new MonsterActionRequest(djinni.getId(), "Scimitar", "ACTION",
+                    List.of(tiefling.getId()), null, null, null, null, null, "lightning", null), 15);
+            MonsterActionResponse.TargetResult hit = lightning.targetResults().getFirst();
+            assertEquals(16, hit.damage());
+            assertEquals("slashing", hit.damageType());
+            assertEquals(List.of(new DamagePart("slashing", 12), new DamagePart("lightning", 4)), hit.damageParts());
+
+            // the tiefling resists fire: 4 halved to 2
+            MonsterActionResponse fire = act(new MonsterActionRequest(djinni.getId(), "Scimitar", "ACTION",
+                    List.of(tiefling.getId()), null, null, null, null, null, "fire", null), 15);
+            assertEquals(List.of(new DamagePart("slashing", 12), new DamagePart("fire", 2)),
+                    fire.targetResults().getFirst().damageParts());
+
+            // a miss takes nothing
+            MonsterActionResponse miss = act(new MonsterActionRequest(djinni.getId(), "Scimitar", "ACTION",
+                    List.of(tiefling.getId()), null, null, null, null, null, "fire", null), 1);
+            assertEquals(List.of(), miss.targetResults().getFirst().damageParts());
         }
 
         @Test

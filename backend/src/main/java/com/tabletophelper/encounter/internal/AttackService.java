@@ -218,12 +218,15 @@ public class AttackService {
      * damage added to its dice, so a critical hit doubles it too (PHB p.196). The cast has already been charged, so the
      * attack charges nothing; a hit can be followed by Divine Smite as any melee weapon hit can.
      *
-     * @param extra the spell's damage on the hit, as Green-Flame Blade's 1d8 fire from 5th level; empty for none
+     * @param extra         the spell's damage on the hit, as Green-Flame Blade's 1d8 fire from 5th level; empty for none
+     * @param empoweredDice the dice Empowered Spell rerolls (PHB p.102), from the spell's extra damage only, never the
+     *                      weapon's (D212); 0 without it
      * @throws ValidationException a caster that isn't a player character, without such a weapon, or with a ranged one
      */
     public EffectApplier.Applied spellWeaponAttack(Encounter encounter, EncounterParticipant caster,
                                                    EncounterParticipant target, String weaponName, String spellName,
-                                                   List<Effect.DamagePart> extra, Boolean advantage) {
+                                                   List<Effect.DamagePart> extra, Boolean advantage,
+                                                   int empoweredDice) {
         if (caster.getCharacter() == null) {
             throw new ValidationException(spellName + " makes a melee attack with a weapon its caster holds, and "
                     + caster.getDisplayName() + " has no weapons to choose from: the DM resolves it");
@@ -255,8 +258,9 @@ public class AttackService {
         effectApplier.markAttackedOrDamaged(caster);
         EffectApplier.Use use = new EffectApplier.Use(caster, caster.getDisplayName(), CombatActionType.ATTACK,
                 "uses " + withSpell.name(), "on", "", null);
+        // The weapon's own parts come first, so only the spell's after them are Empowered's to reroll
         List<Resolver.TargetOutcome> outcomes = resolver.resolve(withSpell, CreatureStats.side(caster),
-                List.of(stats.target(target, withSpell, caster)));
+                List.of(stats.target(target, withSpell, caster)), empoweredDice, effect.damage().size());
         List<EffectApplier.Applied> applied = effectApplier.apply(encounter, use, withSpell,
                 attack.halved() ? Enfeeblement.halved(outcomes) : outcomes);
         recordHit(encounter, caster, target, attack, applied.getFirst());

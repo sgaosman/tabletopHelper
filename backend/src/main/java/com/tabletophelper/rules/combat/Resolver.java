@@ -334,22 +334,33 @@ public final class Resolver {
      */
     public List<TargetOutcome> resolve(Effect effect, AttackRules.Side attacker, List<Target> targets,
                                        int empoweredDice) {
+        return resolve(effect, attacker, targets, empoweredDice, 0);
+    }
+
+    /**
+     * As {@link #resolve(Effect, AttackRules.Side, List, int)}, with only the Effect's damage parts from
+     * firstEmpowered on open to Empowered Spell's rerolls: those a spell adds to a weapon attack's own, as Green-Flame
+     * Blade's fire dice are added to its weapon's (TCE p.107), the weapon's dice not being the spell's (PHB p.102).
+     */
+    public List<TargetOutcome> resolve(Effect effect, AttackRules.Side attacker, List<Target> targets,
+                                       int empoweredDice, int firstEmpowered) {
         List<TargetOutcome> outcomes = new ArrayList<>();
         switch (effect.delivery()) {
             case Effect.Attack attack -> {
                 for (Target target : targets) {
-                    outcomes.add(attack(effect, attack, attacker, target, empoweredDice));
+                    outcomes.add(attack(effect, attack, attacker, target, empoweredDice, firstEmpowered));
                 }
             }
             case Effect.Save save -> {
-                List<Damage> damage = rollDamage(effect.damage(), false, empoweredDice);
+                List<Damage> damage = rollDamage(effect.damage(), false, empoweredDice, firstEmpowered);
                 int healing = rollHealing(effect.healing());
                 for (Target target : targets) {
                     outcomes.add(save(effect, save, target, damage, healing));
                 }
             }
-            case Effect.Automatic automatic -> outcomes.addAll(automatic(effect, targets, empoweredDice));
-            case Effect.Self self -> outcomes.addAll(automatic(effect, targets, empoweredDice));
+            case Effect.Automatic automatic -> outcomes.addAll(automatic(effect, targets, empoweredDice,
+                    firstEmpowered));
+            case Effect.Self self -> outcomes.addAll(automatic(effect, targets, empoweredDice, firstEmpowered));
         }
         return List.copyOf(outcomes);
     }
@@ -441,7 +452,7 @@ public final class Resolver {
     }
 
     private TargetOutcome attack(Effect effect, Effect.Attack attack, AttackRules.Side attacker, Target target,
-                                 int empoweredDice) {
+                                 int empoweredDice, int firstEmpowered) {
         RollModifiers modifiers = target.modifiers();
         AttackRules.Setup setup = AttackRules.setup(attack.attackerSources(), attacker, target.side(),
                 attack.withinFiveFeet(), modifiers.attackSources());
@@ -496,7 +507,7 @@ public final class Resolver {
                     List.of(), spent);
         }
         boolean critical = outcome == Outcome.CRITICAL;
-        List<Damage> damage = rollDamage(effect.damage(), critical, empoweredDice);
+        List<Damage> damage = rollDamage(effect.damage(), critical, empoweredDice, firstEmpowered);
         // The Ongoing Modifiers' extra damage on a hit, its dice doubled on a critical hit (PHB p.196, D184)
         String ownType = effect.damage().isEmpty() ? null : effect.damage().getFirst().type();
         List<RollModifiers.RolledDamage> riders = rollRiders(modifiers.hitDamage(), critical, ownType);
@@ -523,7 +534,7 @@ public final class Resolver {
         // as it isn't the attack's damage (PHB p.196)
         List<Damage> successDamage = damage;
         if (!hitSave.damage().isEmpty() && (!save.success() || hitSave.halfDamageOnSuccess())) {
-            List<Damage> guarded = rollDamage(hitSave.damage(), false, 0);
+            List<Damage> guarded = rollDamage(hitSave.damage(), false, 0, 0);
             List<Damage> onSuccess = hitSave.halfDamageOnSuccess() ? halved(guarded) : List.of();
             successDamage = combined(damage, onSuccess);
             damage = combined(damage, save.success() ? onSuccess : guarded);
@@ -633,8 +644,9 @@ public final class Resolver {
                 inspiration, false, null, target.namedSaveSources(), roll.bonuses(), List.of(), roll.spentOneShots());
     }
 
-    private List<TargetOutcome> automatic(Effect effect, List<Target> targets, int empoweredDice) {
-        List<Damage> damage = rollDamage(effect.damage(), false, empoweredDice);
+    private List<TargetOutcome> automatic(Effect effect, List<Target> targets, int empoweredDice,
+                                          int firstEmpowered) {
+        List<Damage> damage = rollDamage(effect.damage(), false, empoweredDice, firstEmpowered);
         int healing = rollHealing(effect.healing());
         return targets.stream()
                 .map(target -> new TargetOutcome(target.id(), Outcome.AUTOMATIC, List.of(), null, null,
@@ -643,9 +655,10 @@ public final class Resolver {
     }
 
     // Each part rolled once, its dice doubled on a critical hit and those it rerolls rolled again (Great Weapon
-    // Fighting), then up to empoweredDice of all the dice rolled again (Empowered Spell), and totalled by type in the
-    // parts' order
-    private List<Damage> rollDamage(List<Effect.DamagePart> parts, boolean critical, int empoweredDice) {
+    // Fighting), then up to empoweredDice of the dice of the parts from firstEmpowered on rolled again (Empowered
+    // Spell), and totalled by type in the parts' order
+    private List<Damage> rollDamage(List<Effect.DamagePart> parts, boolean critical, int empoweredDice,
+                                    int firstEmpowered) {
         List<Dice> dice = new ArrayList<>();
         List<int[]> rolls = new ArrayList<>();
         for (Effect.DamagePart part : parts) {
@@ -653,8 +666,9 @@ public final class Resolver {
             dice.add(rolled);
             rolls.add(rolled.rollEach(rng, part.rerollUpTo()));
         }
-        if (empoweredDice > 0) {
-            empower(dice, rolls, empoweredDice);
+        if (empoweredDice > 0 && firstEmpowered < parts.size()) {
+            int from = Math.max(0, firstEmpowered);
+            empower(dice.subList(from, dice.size()), rolls.subList(from, rolls.size()), empoweredDice);
         }
         Map<String, Integer> byType = new LinkedHashMap<>();
         for (int i = 0; i < parts.size(); i++) {

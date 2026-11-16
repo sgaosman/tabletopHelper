@@ -10,6 +10,8 @@ import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.dto.MetamagicChoice;
 import com.tabletophelper.rules.combat.Metamagic;
 import com.tabletophelper.rules.combat.Metamagic.Option;
+import com.tabletophelper.rules.combat.Outcome;
+import com.tabletophelper.rules.combat.Resolver;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.JacksonDefaults;
 import com.tabletophelper.shared.ValidationException;
@@ -180,6 +182,44 @@ class MetamagicResolutionTest {
 
         assertEquals(46, ogre.getHpCurrent());
         assertEquals(0, f.dice.remaining());
+    }
+
+    @Test
+    @DisplayName("Empowered on Ice Knife shares the CHA modifier's dice between the hit's piercing and the burst's "
+            + "cold, the hit first; a miss leaves them all to the burst (D212)")
+    void empoweredIceKnife() {
+        // 15 hits; the 1d10's 1 is rerolled to 9, leaving 2 dice; the burst's 1 and 2 are rerolled to 6 and 5; the
+        // ogre's save 5 fails: 9 piercing and 11 cold
+        cast("Ice Knife", 1, List.of(ogre), List.of(choice(Option.EMPOWERED)), 15, 1, 9, 1, 2, 6, 5, 5);
+        assertEquals(40, ogre.getHpCurrent());
+        assertEquals(0, f.dice.remaining());
+
+        // 2 misses AC 11 with +6; the burst has all 3 dice, but only its two low ones, 1 and 1, are rerolled, to 4 and 4
+        CombatFixture.newTurn(sorin);
+        cast("Ice Knife", 1, List.of(ogre), List.of(choice(Option.EMPOWERED)), 2, 1, 1, 4, 4, 5);
+        assertEquals(32, ogre.getHpCurrent());
+        assertEquals(0, f.dice.remaining());
+        assertEquals(18, points());
+    }
+
+    @Test
+    @DisplayName("Empowered's dice left for a follow-up: a hit's dice take theirs first, a critical hit's twice, a miss none")
+    void empoweredLeft() {
+        List<com.tabletophelper.rules.combat.Effect.DamagePart> parts = List.of(
+                new com.tabletophelper.rules.combat.Effect.DamagePart(com.tabletophelper.rules.Dice.parse("1d10"),
+                        "piercing"));
+        assertEquals(2, SpellCaster.empoweredLeft(3, parts, List.of(applied(Outcome.HIT))));
+        assertEquals(1, SpellCaster.empoweredLeft(3, parts, List.of(applied(Outcome.CRITICAL))));
+        assertEquals(3, SpellCaster.empoweredLeft(3, parts, List.of(applied(Outcome.MISS))));
+        assertEquals(0, SpellCaster.empoweredLeft(1, parts, List.of(applied(Outcome.CRITICAL))));
+        assertEquals(0, SpellCaster.empoweredLeft(0, parts, List.of(applied(Outcome.MISS))));
+    }
+
+    private EffectApplier.Applied applied(Outcome outcome) {
+        Resolver.TargetOutcome rolled = new Resolver.TargetOutcome(ogre.getId(), outcome, List.of(10), 10, 16,
+                com.tabletophelper.rules.combat.RollMode.NORMAL, false, List.of(), List.of(), 0, List.of(), null);
+        return new EffectApplier.Applied(ogre, rolled, 0, null, 0, List.of(), false, 0, "", null, null, false,
+                List.of());
     }
 
     @Test

@@ -12,9 +12,9 @@ describe('ResultView', () => {
         result={makeMockCastSpellResponse({
           spellName: 'Hold Person', slotLevelUsed: 2, resultSummary: 'Hold Person: one fails, one saves.',
           targets: [
-            { targetId: 'part-goblin', targetName: 'Test Goblin', outcome: 'failed', saveRoll: 9, conditionsApplied: ['paralyzed'] },
-            { targetId: 'part-orc', targetName: 'Orc', outcome: 'saved', saveRoll: 17, conditionsApplied: [] },
-            { targetId: 'part-legolas', targetName: 'Legolas', outcome: 'hit', healing: 8, conditionsApplied: [] },
+            { targetId: 'part-goblin', targetName: 'Test Goblin', outcome: 'failed', saveRoll: 9, conditionsApplied: ['paralyzed'], damageParts: [] },
+            { targetId: 'part-orc', targetName: 'Orc', outcome: 'saved', saveRoll: 17, conditionsApplied: [], damageParts: [] },
+            { targetId: 'part-legolas', targetName: 'Legolas', outcome: 'hit', healing: 8, conditionsApplied: [], damageParts: [] },
           ],
         })}
       />,
@@ -35,6 +35,20 @@ describe('ResultView', () => {
     expect(screen.getByText('Roll: 18')).toBeInTheDocument();
     expect(screen.getByText('7 dmg')).toBeInTheDocument();
     expect(screen.queryByText(/at level/)).not.toBeInTheDocument();
+  });
+
+  it("shows each damage type of a hit with two, as Green-Flame Blade's longsword and fire (D207)", () => {
+    render(
+      <ResultView
+        onClose={vi.fn()}
+        result={makeMockCastSpellResponse({
+          targets: [{ targetId: 'part-goblin', targetName: 'Test Goblin', outcome: 'hit', damage: 9, attackRoll: 18,
+            conditionsApplied: [], damageParts: [{ type: 'slashing', amount: 4 }, { type: 'fire', amount: 5 }] }],
+        })}
+      />,
+    );
+
+    expect(screen.getByText('4 slashing + 5 fire dmg')).toBeInTheDocument();
   });
 
   it('asks the DM to adjudicate, without target rows, when the server did not resolve it', () => {

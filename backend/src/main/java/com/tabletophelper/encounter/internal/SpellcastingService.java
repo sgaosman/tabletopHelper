@@ -206,7 +206,7 @@ public class SpellcastingService {
                 ? bladeCast(encounter, caster, casting.spellName(), targets, option, own.ability(),
                         attackBonus(own, request.getOverrideSpellAttackBonus()),
                         saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(),
-                        costNote + metamagic.note() + bladeEmpowered(metamagic))
+                        costNote + metamagic.note(), metamagic.empoweredDice())
                 : spellCaster.cast(encounter, caster, casting.spellName(), casting.castLevel(),
                 targets, own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
                 saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(),
@@ -290,10 +290,14 @@ public class SpellcastingService {
      * when it names none), and the attack is the caster's own weapon attack with the spell's damage added to its hit;
      * then the spell does what follows its hit, Green-Flame Blade's fire leaping to the second creature listed and
      * Booming Blade's sheathing. A monster's weapons are its actions, so for one the DM resolves the attack.
+     * Empowered Spell (PHB p.102) rerolls only the spell's dice rolled on the cast, never the weapon's: the extra dice
+     * on the hit first, then what is left on Green-Flame Blade's leap (D212). Booming Blade's thunder when the creature
+     * moves is rolled later, through its Spell Effect, so it isn't rerolled (rules call).
      */
     private SpellCaster.CastResult bladeCast(Encounter encounter, EncounterParticipant caster, String spellName,
                                              List<EncounterParticipant> targets, String weapon, String ability,
-                                             int attackBonus, int saveDc, Boolean advantage, String costNote) {
+                                             int attackBonus, int saveDc, Boolean advantage, String costNote,
+                                             int empoweredDice) {
         EffectApplier.Use use = new EffectApplier.Use(caster, caster.getDisplayName(), CombatActionType.SPELL_CAST,
                 "casts " + spellName + costNote, "at", spellName, null);
         String lead = caster.getDisplayName() + " casts " + spellName + costNote;
@@ -309,21 +313,16 @@ public class SpellcastingService {
         EncounterParticipant target = targets.getFirst();
         CombatAccess.requireNotDead(List.of(target));
         effectApplier.summary(encounter, use, lead + ".");
+        List<Effect.DamagePart> spellDice = spellEffects.weaponAttackDamage(spellName, caster);
         EffectApplier.Applied attack = attackService.spellWeaponAttack(encounter, caster, target, weapon, spellName,
-                spellEffects.weaponAttackDamage(spellName, caster), advantage);
+                spellDice, advantage, empoweredDice);
         String note = spellCaster.afterWeaponAttack(encounter, caster, spellName, use, attack,
-                targets.subList(1, targets.size()), ability, attackBonus, saveDc);
+                targets.subList(1, targets.size()), ability, attackBonus, saveDc,
+                SpellCaster.empoweredLeft(empoweredDice, spellDice, List.of(attack)));
         Effect attacked = new Effect(spellName, new Effect.Attack(0, RollMode.NORMAL, true, false), List.of(), null,
                 List.of(), false, null);
         return new SpellCaster.CastResult(spellName, 0, false, null, lead + ". " + attack.description() + note,
                 SpellCaster.outcomes(attacked, List.of(attack)));
-    }
-
-    // Empowered Spell on a weapon-attack cantrip: the weapon attack rolls the spell's dice with the weapon's, so the DM
-    // rerolls the spell's (PHB p.102)
-    private static String bladeEmpowered(MetamagicCasting.Plan metamagic) {
-        return metamagic.empoweredDice() > 0 ? " (Empowered Spell: the DM rerolls up to " + metamagic.empoweredDice()
-                + " of the spell's damage dice)" : "";
     }
 
     // Counterspell, whose counter is already resolved, or Dispel Magic on its one target, or on two when Twinned Spell

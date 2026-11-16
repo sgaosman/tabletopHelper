@@ -10,6 +10,7 @@ import MultiattackPicker from './MultiattackPicker';
 import { Select } from '../ui/Input';
 import { chargeBlock, type EconomyCost } from '../../utils/turnEconomy';
 import { isAttackAction } from '../../utils/summons';
+import { damageBreakdown } from '../../utils/damageParts';
 
 type ActionSource = MonsterActionRequest['actionSource'];
 type ActionTargets = Pick<MonsterActionRequest, 'targetParticipantIds' | 'componentTargetIds' | 'componentDamageTypes'>;
@@ -404,7 +405,7 @@ export default function InlineMonsterActions({
             <>
               {result.response.description}
               {result.response.targetResults?.map((tr, i) => (
-                <div key={`${tr.targetId}-${i}`}>{tr.targetName}: {tr.attackOutcome}{tr.damage > 0 ? ` — ${tr.damage} ${tr.damageType}` : ''}{(tr.conditionsApplied?.length ?? 0) > 0 ? ` — ${tr.conditionsApplied.join(', ')}` : ''}</div>
+                <div key={`${tr.targetId}-${i}`}>{tr.targetName}: {tr.attackOutcome}{tr.damage > 0 ? ` — ${damageBreakdown(tr.damage, tr.damageParts) ?? `${tr.damage} ${tr.damageType}`}` : ''}{(tr.conditionsApplied?.length ?? 0) > 0 ? ` — ${tr.conditionsApplied.join(', ')}` : ''}</div>
               ))}
             </>
           )}

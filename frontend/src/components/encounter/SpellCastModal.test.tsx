@@ -131,7 +131,7 @@ describe('SpellCastModal', () => {
     const requests = castRequests(makeMockCastSpellResponse({
       encounterState, spellName: 'Magic Missile', slotLevelUsed: 3, spellSource: 'SLOT',
       resultSummary: 'Five darts strike Test Goblin.',
-      targets: [{ targetId: 'part-goblin', targetName: 'Test Goblin', outcome: 'hit', damage: 17, conditionsApplied: [] }],
+      targets: [{ targetId: 'part-goblin', targetName: 'Test Goblin', outcome: 'hit', damage: 17, conditionsApplied: [], damageParts: [{ type: 'fire', amount: 17 }] }],
     }));
     const { user, cachedEncounter } = await renderModal();
 

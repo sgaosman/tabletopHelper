@@ -214,15 +214,25 @@ public class EffectApplier {
      * @param droppedToZero                its damage took the target from above 0 hit points to 0, dying, stable or
      *                                     dead, as a monster's "if this damage reduces the target to 0 hit points"
      *                                     asks (D204)
+     * @param damageParts                  each damage type that got through and its amount after the target's
+     *                                     defences, in the order rolled, each type once (D207's quick result);
+     *                                     empty when none did
      */
     public record Applied(EncounterParticipant target, Resolver.TargetOutcome outcome, int damageTaken,
                           String damageType, int healed, List<ConditionEntry> conditionsAdded,
                           boolean legendaryResistanceOffered, int legendaryResistanceRemaining,
                           String description, UUID logEntryId, ConcentrationCheck concentrationCheck,
-                          boolean droppedToZero) {
+                          boolean droppedToZero, List<Resolver.Damage> damageParts) {
 
         public List<String> conditionNames() {
             return conditionsAdded.stream().map(ConditionEntry::name).toList();
+        }
+
+        /** The damage parts as a response reports them, for the quick result under an action or cast (D207). */
+        public List<com.tabletophelper.encounter.dto.DamagePart> damagePartsTaken() {
+            return damageParts.stream()
+                    .map(part -> new com.tabletophelper.encounter.dto.DamagePart(part.type(), part.amount()))
+                    .toList();
         }
     }
 
@@ -331,7 +341,7 @@ public class EffectApplier {
                 List.of(), null, outcome.inspiration(), outcome.guidedStrike(), outcome.rerolledD20s(),
                 outcome.automaticSources());
         return new Applied(CombatAccess.participant(encounter, outcome.targetId()), missed, 0, null, 0, List.of(),
-                false, 0, description, null, null, false);
+                false, 0, description, null, null, false, List.of());
     }
 
     /*
@@ -598,7 +608,7 @@ public class EffectApplier {
                     damage.takenTypes());
         }
         return new Applied(target, outcome, dealt, damage.firstType(), healed, added, offered, remaining,
-                description, saved != null ? saved.getId() : null, check, droppedToZero);
+                description, saved != null ? saved.getId() : null, check, droppedToZero, damage.takenParts());
     }
 
     // The damage a floor lets through: none below it, as Harm's 1 hit point (PHB p.249, D188); all of it without one
@@ -4199,6 +4209,19 @@ public class EffectApplier {
         List<String> takenTypes() {
             return parts.stream().filter(part -> part.amount() > 0 && part.type() != null)
                     .map(DefendedPart::type).distinct().toList();
+        }
+
+        // Each type's damage that got through, merged by type in the order rolled (untyped damage as a null type)
+        List<Resolver.Damage> takenParts() {
+            Map<String, Integer> byType = new java.util.LinkedHashMap<>();
+            for (DefendedPart part : parts) {
+                if (part.amount() > 0) {
+                    byType.merge(part.type() != null ? part.type() : "", part.amount(), Integer::sum);
+                }
+            }
+            List<Resolver.Damage> taken = new ArrayList<>();
+            byType.forEach((type, amount) -> taken.add(new Resolver.Damage(type.isEmpty() ? null : type, amount)));
+            return List.copyOf(taken);
         }
     }
 

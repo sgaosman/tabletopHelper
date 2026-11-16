@@ -3065,6 +3065,11 @@ export interface components {
             /** Format: int32 */
             sp: number;
         };
+        DamagePart: {
+            /** Format: int32 */
+            amount: number;
+            type?: string | null;
+        };
         DamageRequest: {
             /** Format: int32 */
             amount: number;
@@ -4571,6 +4576,7 @@ export interface components {
             conditionsApplied: string[];
             /** Format: int32 */
             damage?: number | null;
+            damageParts: components["schemas"]["DamagePart"][];
             /** Format: int32 */
             healing?: number | null;
             outcome: string;
@@ -4585,6 +4591,7 @@ export interface components {
             conditionsApplied: string[];
             /** Format: int32 */
             damage: number;
+            damageParts: components["schemas"]["DamagePart"][];
             damageType?: string | null;
             /** Format: int32 */
             healing: number;
