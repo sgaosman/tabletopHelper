@@ -38,6 +38,9 @@ export type EncounterParticipant = Schemas['ParticipantResponse'];
 
 export type Encounter = Schemas['EncounterResponse'];
 
+/** An Active or Paused encounter in a campaign the DM runs, as the DM dashboard lists it (D236). */
+export type RunningEncounter = Schemas['RunningEncounterSummary'];
+
 /**
  * One of a participant's Spell Effects (M15): a lasting spell's weapon, beam or area, such as Spiritual Weapon or
  * Moonbeam, with how long it has left and how it is used. Its caster directs it on their turn at directedCost; its area

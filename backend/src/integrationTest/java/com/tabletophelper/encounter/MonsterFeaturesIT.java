@@ -121,7 +121,9 @@ class MonsterFeaturesIT extends IntegrationTest {
         JsonNode state = expect(HttpStatus.OK, usePool(ariaId, PALADIN_CD,
                 Map.of("option", "abjure-enemy", "targetIds", List.of(ogre))));
         assertThat(conditionNames(participant(state, ogre))).contains("frightened", "abjured");
-        assertThat(participant(state, ogre).get("speed").get("walk").asInt()).isZero();
+        // The player's response has no monster speed (D235): the DM's view does
+        assertThat(participant(state, ogre).get("speed").isNull()).isTrue();
+        assertThat(participant(dmView(), ogre).get("speed").get("walk").asInt()).isZero();
 
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/damage",
                 Map.of("targetId", ogre, "amount", 2), dm.accessToken()));
@@ -141,7 +143,7 @@ class MonsterFeaturesIT extends IntegrationTest {
         JsonNode state = expect(HttpStatus.OK, usePool(ariaId, PALADIN_CD,
                 Map.of("option", "abjure-enemy", "targetIds", List.of(ogre))));
         assertThat(conditionNames(participant(state, ogre))).containsExactly("abjured (half speed)");
-        assertThat(participant(state, ogre).get("speed").get("walk").asInt()).isEqualTo(20);
+        assertThat(participant(dmView(), ogre).get("speed").get("walk").asInt()).isEqualTo(20);
     }
 
     @Test

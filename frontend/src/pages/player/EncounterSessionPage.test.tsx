@@ -18,10 +18,13 @@ const LOG_TOPIC = '/topic/encounter/enc-001/log';
 
 // Monsters as the Player View sends them (D157): a Health Status instead of HP, unless the DM shows exact HP.
 // The server leaves out the bugbear while the DM hides it.
-// Nor a monster's turn economy, attacks or speed (D174).
-const HIDDEN_HP = { hpMax: null, hpCurrent: null, hpTemp: null, turnEconomy: null, attacksPerAction: null, speed: {} };
+// Nor a monster's turn economy, attacks (D174), AC, initiative modifier or speed (D235).
+const HIDDEN_HP = {
+  hpMax: null, hpCurrent: null, hpTemp: null, turnEconomy: null, attacksPerAction: null,
+  armourClass: null, initiativeModifier: null, speed: null,
+};
 const goblin = (overrides: Partial<EncounterParticipant> = {}) =>
-  makeMockParticipant('part-goblin', 'Test Goblin', 'MONSTER', { sortOrder: 1, ...HIDDEN_HP, healthStatus: 'UNHARMED', armourClass: 15, ...overrides });
+  makeMockParticipant('part-goblin', 'Test Goblin', 'MONSTER', { sortOrder: 1, ...HIDDEN_HP, healthStatus: 'UNHARMED', ...overrides });
 const bugbear = (overrides: Partial<EncounterParticipant> = {}) =>
   makeMockParticipant('part-bugbear', 'Hidden Bugbear', 'MONSTER', { sortOrder: 2, ...HIDDEN_HP, healthStatus: 'BLOODIED', ...overrides });
 // setupAuthToken signs in as user-001, so Gimli is the player's own character.
@@ -328,6 +331,9 @@ describe('Player EncounterSessionPage', () => {
 
       await user.click(await screen.findByRole('button', { name: 'Attack' }));
       expect(await screen.findByText('+5 to hit · 1d8 + 3 slashing')).toBeInTheDocument();
+      // The panel names the goblin without its AC, which is the DM's (D235)
+      expect(screen.getByText('Attack Test Goblin')).toBeInTheDocument();
+      expect(screen.queryByText(/\(AC/)).not.toBeInTheDocument();
       expect(screen.getByRole('option', { name: 'Unarmed Strike' })).toBeInTheDocument();
       expect(screen.queryByRole('option', { name: /enter the numbers/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Crit' })).not.toBeInTheDocument();

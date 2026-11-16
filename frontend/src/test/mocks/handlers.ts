@@ -12,7 +12,7 @@ import type {
 } from '../../types/combat';
 import type {
   CombatResultPreview, ConditionEntry, Encounter, EncounterParticipant, ParticipantType, ResourcePoolEntry, SpellEffect,
-  SummonOptions, TurnEntry,
+  RunningEncounter, SummonOptions, TurnEntry,
 } from '../../types/encounter';
 import type { Monster } from '../../types/monster';
 import type {
@@ -217,6 +217,8 @@ export const encounterHandlers = [
       makeMockEncounter({ id: 'enc-new', name: 'New Encounter', status: 'PREPARING', sessionCode: undefined, participants: [] }),
     );
   }),
+
+  http.get(`${BASE}/encounters/running`, async () => HttpResponse.json([] satisfies RunningEncounter[])),
 
   http.get(`${BASE}/encounters/join/:code`, async () => {
     return HttpResponse.json(

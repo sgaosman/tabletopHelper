@@ -126,6 +126,8 @@ public class EncounterResponse {
         private String displayName;
 
         private Integer initiative;
+
+        // Null in the Player View for a creature whose numbers it hides (D157, D235)
         private Integer initiativeModifier;
 
         // The participant's turn's place in turnOrder, counted again over the turns the view shows
@@ -143,7 +145,7 @@ public class EncounterResponse {
         @Schema(implementation = HealthStatus.class)
         private String healthStatus;
 
-        @Schema(requiredMode = REQUIRED)
+        // Null in the Player View for a creature whose numbers it hides: only the DM sees a monster's AC (D157, D235)
         private Integer armourClass;
 
         private List<ConditionEntry> activeConditions;
@@ -230,8 +232,8 @@ public class EncounterResponse {
         // The attacks one Attack action gives it (Extra Attack); null in the Player View for a monster
         private Integer attacksPerAction;
 
-        // Its speeds in feet by kind ("walk", "fly", "swim", "climb", "burrow"), walking first; empty when unknown
-        @Schema(requiredMode = REQUIRED)
+        // Its speeds in feet by kind ("walk", "fly", "swim", "climb", "burrow"), walking first; empty when unknown, and
+        // null in the Player View for a creature whose numbers it hides (D157, D235)
         private Map<String, Integer> speed;
 
         // A player character's Fighting Styles from the PHB, such as "Protection", chosen as its features (D159, M17),

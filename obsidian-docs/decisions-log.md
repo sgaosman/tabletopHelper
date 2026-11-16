@@ -4427,6 +4427,8 @@ The plan's twelve questions were answered with its recommended answers when the 
 
 **Open (not changed, for the user):** character creation still stores saving-throw proficiencies, expertise, damage resistances and known spells as the request gives them, so a player could create a character resistant to everything; deriving them on the server is a larger change. A WebSocket session outlives its access token and logout; it matters once members can be removed from a campaign. The Player View still shows monsters' AC, initiative modifier and speed, which [[#D157]] doesn't list as hidden. `AddParticipantRequest`'s HP, AC and initiative fields are unbounded (DM-only).
 
+**Update (2026-11-16):** the monster AC, initiative modifier and speed item is closed by [[#D235]]. The WebSocket item stays open for the user: a socket only receives broadcasts (every command goes over REST, which checks the token) and normal logout closes it, so the lead's recommendation is to close a user's sockets once members can be removed from a campaign.
+
 **Key files:** `EncounterService.java`, `EncounterResults.java`, `CombatResults.java`, `WriteBackService.java`, `AuthRateLimitFilter.java`, `config/RequestSizeFilter.java`, `AuthService.java`, `JwtTokenProvider.java`, `CharacterSheetService.java`, `CharacterService.java`, request DTOs, `frontend/Caddyfile`, `openapi.json`
 
 **Related:** D157, D166, D215, D218
@@ -4747,3 +4749,47 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D221, D222, D228, D230
 
 **Tests:** round trips through a long rest (Fighter 5 ends at 3/5 spent, multiclass largest dice first, Power Surge at 1/3), HP shortfall round trips (2/32 and 10/32 kept, 0 kept, a long rest in between giving the whole raise), encoded paths capped, the recording gone after commit; 4,967 backend unit and 597 integration tests pass.
+
+---
+
+## D235: Monster AC, Initiative Modifier and Speed Are the DM's Alone
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration)
+
+**Context:** [[#D221]] left open that the Player View still showed monsters' AC, initiative modifier and speed, which [[#D157]] doesn't list as hidden. The user decided: only the DM knows these numbers and reveals them by word of mouth if they choose; players are still told whether their attack hit or missed.
+
+**Decision:**
+- **Player payload:** a participant whose numbers are hidden (a monster, or a companion no player controls — the existing `numbersHidden` test from [[#D157]]) goes to players with `armourClass`, `initiativeModifier` and `speed` null. The rolled initiative total stays, as turn order needs it. The DM view is unchanged; a player's own character, summons and companions keep their numbers. `armourClass` and `speed` are no longer required in the API schema.
+- **Combat log and result texts:** the player log is redacted when it is built (stored rows are unchanged, so old rows are covered too). Where the entry's target is hidden: ` vs AC N` on attack rolls (players see "= 17 — hit"), Mirror Image's ` (AC N)` (10 + DEX, which also gave away the DEX), a polymorphed form's HP and AC, and the revert line's HP and AC; any other `AC <n>` left becomes `AC` as a safety net. Where the actor is hidden, "Shield raises X's AC to N" becomes "X's AC". A spell's result summary and a monster action's description lose AC numbers for players (a familiar's attack toast showed the goblin's AC). A monster attacking a player character still shows that character's AC. **(choice)** Text redaction rather than a stored player-facing description, since that would need a migration and the same wording also reaches the result texts.
+- **Player screens:** the attack heading ("Attack Goblin"), the spell target picker and the Wild Shape status leave out an AC that is null.
+- **Bestiary:** `/api/monsters/**` now needs the caller to be the DM of at least one campaign (403 "Only a campaign's DM can read the bestiary" otherwise). Nothing player-facing used it; Wild Shape, summon and familiar pickers use encounter endpoints. **(limit)** A user who DMs any campaign can still read every stat block, and a new user with no campaign gets the 403 on the Bestiary page.
+
+**Knock-on effects:** none on the DM's screens. **(limit)** Log rows about a participant since removed from the encounter keep their AC (it is no longer in the hidden set). Save entries still show a monster's save modifier ("+2 = 14 vs DC 15"), outside this decision's scope.
+
+**Key files:** `EncounterViews.java`, `dto/EncounterResponse.java`, `dto/MonsterActionResponse.java`, `AccessPolicy.java`, `CampaignRepository.java`, `MonsterController.java`, D235 comments in `EffectApplier`, `DefensiveSpells`, `FormSpells`, `ReactionAnswers`; frontend `EncounterSessionPage.tsx`, `TargetStep.tsx`, `WildShapeStatus.tsx`, `HpReadout.tsx`; `openapi.json`, `schema.d.ts`
+
+**Related:** D157, D221, D236
+
+**Tests:** `EncounterViewsTest`, `PlayerViewIT` (player payload and log free of monster AC, initiative modifier and speed while the DM's keep them, hit/miss wording kept), new `MonsterControllerIT` (403 for non-DMs), `MonsterFeaturesIT` reads speed from the DM view, frontend `TargetStep`, `HpReadout` and player session page tests. Checked on the rehearsal copy: a player's view of "Damage options" has null AC, initiative modifier and speed for all four monsters, the log reads "= 16 — miss" where the DM's reads "= 16 vs AC 17 — miss", and the bestiary returns 403.
+
+---
+
+## D236: Running Encounters on the DM Dashboard
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration)
+
+**Context:** [[#D229]] made a paused session reachable from the encounter builder but left the DM dashboard with no way back into a running encounter; the only list was `GET /api/encounters/campaign/{campaignId}`, one campaign at a time with full participant payloads, so a dashboard link would have meant N+1 heavy requests. The user asked for the endpoint.
+
+**Decision:**
+- **`GET /api/encounters/running`** returns the caller's ACTIVE and PAUSED encounters in campaigns they DM, as a lightweight `RunningEncounterSummary` (id, name, status, round, campaign id and name, participant count, updated at), from one JPQL query with a participant-count subquery. Ordered active first, then most recently updated. A player gets an empty list.
+- **Dashboard:** a "Running encounters" section above the navigation cards, one row per encounter (name, campaign, Active/Paused, round) with "Go to Session" linking to `/dm/encounter/{id}/session`, the builder's route. Hidden while loading or when there are none; a failed request shows a small alert.
+
+**Knock-on effects:** none on existing endpoints; `/running` is mapped above `/{encounterId}`. **(limit)** `updatedAt` only moves when the encounter row changes (status, turn), so "most recent" is approximate; the participant count includes monsters, summons and hidden participants.
+
+**Key files:** `dto/RunningEncounterSummary.java`, `EncounterRepository.java` (`findSummariesForDm`), `EncounterService.java`, `EncounterController.java`; frontend `DmDashboard.tsx`, `queries/encounters.ts`, `queries/keys.ts`, `api/encounterApi.ts`, `types/encounter.ts`, `openapi.json`, `schema.d.ts`
+
+**Related:** D229, D235
+
+**Tests:** `EncounterServiceTest`, new `EncounterControllerTest`, new `RunningEncountersIT` (own ACTIVE/PAUSED only, active first, another DM's left out, player gets `[]`, 401 without a token), new `DmDashboard.test.tsx`. With D235: 4,972 backend unit, 604 integration and 1,339 frontend tests pass. Checked on the rehearsal copy: the dashboard lists the QA DM's three active encounters and the link opens the DM session.

@@ -3795,6 +3795,7 @@ public class EffectApplier {
         creature.setArmourClass(taken.armourClass());
     }
 
+    // EncounterViews takes these HP and AC out of the players' log for a monster (D235): keep its phrasing in step
     private void writeReverted(Encounter encounter, EncounterParticipant druid, WildShapeForm beast, String why) {
         combatLog.write(encounter, CombatActionType.CONDITION_REMOVE, druid.getDisplayName() + " reverts from "
                 + beast.beastName() + " form to normal form (" + why + "), with " + druid.getHpCurrent() + "/"
@@ -4343,6 +4344,7 @@ public class EffectApplier {
                 if (!automatic.isEmpty()) {
                     description.append(" (").append(automatic).append(')');
                 }
+                // EncounterViews takes this AC out of the players' log for a monster (D235): keep its phrasing in step
                 description.append(": ").append(rerollText(outcome)).append(rolls(outcome))
                         .append(signed(attack.bonus()))
                         .append(bonusText(outcome.bonuses()))

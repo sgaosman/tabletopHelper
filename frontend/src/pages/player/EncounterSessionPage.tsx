@@ -63,7 +63,8 @@ function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClo
     <div className="bg-card border border-rule p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
         <div className="font-heading text-[15px] font-semibold tracking-[0.01em] text-ink">
-          {actionMode === 'attack' && <><Crosshair className="w-4 h-4 inline mr-1 text-cls-fighter" />Attack {target.displayName} (AC {target.armourClass})</>}
+          {/* A monster's AC is the DM's: the server sends none for it (D235) */}
+          {actionMode === 'attack' && <><Crosshair className="w-4 h-4 inline mr-1 text-cls-fighter" />Attack {target.displayName}{target.armourClass != null && ` (AC ${target.armourClass})`}</>}
           {actionMode === 'condition' && <><Zap className="w-4 h-4 inline mr-1 text-cls-monk" />Add Condition</>}
           {actionMode === 'concentration' && <><Swords className="w-4 h-4 inline mr-1 text-cls-warlock" />Set Concentration</>}
         </div>

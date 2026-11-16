@@ -27,6 +27,8 @@ export const queryKeys = {
     armourClassPreview: (request: unknown) => ['characters', 'armour-class-preview', request] as const,
   },
   encounters: {
+    /** The Active and Paused encounters in the campaigns the user runs, for the DM dashboard (D236). */
+    running: () => ['encounters', 'running'] as const,
     /** Everything cached for one encounter, in both views. */
     views: (encounterId: string) => ['encounters', encounterId] as const,
     /** A live encounter as the DM View or the Player View shows it (D157). */

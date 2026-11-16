@@ -18,10 +18,13 @@ export default function HpReadout({ participant: p }: { participant: EncounterPa
         </div>
         <HpBar participant={p} />
       </div>
-      <div className="flex items-center gap-1 w-12 justify-end flex-shrink-0">
-        <Shield className="w-4 h-4 text-muted" />
-        <span className="text-muted font-heading text-[13px] font-semibold">{p.armourClass}</span>
-      </div>
+      {/* The Player View sends no AC for a monster (D235) */}
+      {p.armourClass != null && (
+        <div className="flex items-center gap-1 w-12 justify-end flex-shrink-0">
+          <Shield className="w-4 h-4 text-muted" />
+          <span className="text-muted font-heading text-[13px] font-semibold">{p.armourClass}</span>
+        </div>
+      )}
     </>
   );
 }

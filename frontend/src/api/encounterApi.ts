@@ -1,7 +1,7 @@
 import api from './axiosConfig';
 import type {
   Encounter, EncounterCreateRequest, AddParticipantRequest, BulkInitiativeRequest, TieOrderRequest,
-  CombatResultPreview, EndEncounterRequest,
+  CombatResultPreview, EndEncounterRequest, RunningEncounter,
 } from '../types/encounter';
 
 export const encounterApi = {
@@ -11,6 +11,11 @@ export const encounterApi = {
 
   getByCampaign(campaignId: string) {
     return api.get<Encounter[]>(`/encounters/campaign/${campaignId}`);
+  },
+
+  /** The Active and Paused encounters in the campaigns the user runs, Active first (D236). */
+  getRunning() {
+    return api.get<RunningEncounter[]>('/encounters/running');
   },
 
   getById(id: string) {

@@ -43,6 +43,13 @@ public class EncounterController {
                 .toList());
     }
 
+    /** The Active and Paused encounters in the caller's own campaigns, for the DM's dashboard (D236). */
+    @GetMapping("/running")
+    public ResponseEntity<List<RunningEncounterSummary>> getRunningEncounters(Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(encounterService.getRunningEncounters(userId));
+    }
+
     @GetMapping("/{encounterId}")
     public ResponseEntity<EncounterResponse> getEncounter(
             @PathVariable UUID encounterId,

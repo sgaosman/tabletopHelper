@@ -82,6 +82,7 @@ public class ReactionAnswers {
             return;
         }
         int shielded = offer.armourClass() + 5;
+        // EncounterViews takes this AC out of the players' log for a monster (D235): keep its phrasing in step
         String lead = "Shield raises " + caster.getDisplayName() + "'s AC to " + shielded + " against "
                 + offer.triggerActorName() + "'s attack roll of " + offer.attackTotal();
         if (offer.critical()) {

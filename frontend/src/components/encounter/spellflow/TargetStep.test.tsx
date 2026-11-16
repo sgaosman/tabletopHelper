@@ -177,4 +177,22 @@ describe('TargetStep', () => {
       expect(screen.queryByRole('button', { name: /AC \d+/ })).not.toBeInTheDocument();
     });
   });
+
+  describe('in the Player View, which sends no AC for a monster (D235)', () => {
+    const unknownAc = { ...goblin, armourClass: null };
+
+    it('offers the monster without an AC, and the characters with theirs', () => {
+      renderStep({ participants: [cleric, legolas, unknownAc] });
+
+      expect(screen.getByRole('button', { name: /Test Goblin/ })).not.toHaveTextContent(/AC/);
+      expect(screen.getByRole('button', { name: /Legolas/ })).toHaveTextContent(/AC \d+/);
+    });
+
+    it("shares Magic Missile's darts with the monster without an AC", () => {
+      renderStep({ participants: [cleric, legolas, unknownAc], roles: { kind: 'darts', count: 3 } });
+
+      expect(screen.getByRole('group', { name: 'Darts at Test Goblin' })).not.toHaveTextContent(/AC/);
+      expect(screen.getByRole('group', { name: 'Darts at Legolas' })).toHaveTextContent(/AC \d+/);
+    });
+  });
 });

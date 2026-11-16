@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter;
 
+import com.tabletophelper.encounter.dto.RunningEncounterSummary;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -8,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,6 +19,21 @@ public interface EncounterRepository extends JpaRepository<Encounter, UUID> {
     List<Encounter> findByCampaignIdOrderByCreatedAtDesc(UUID campaignId);
 
     Optional<Encounter> findBySessionCode(String sessionCode);
+
+    /**
+     * The encounters with one of the statuses in the campaigns the user is the DM of, Active ones first and then the
+     * most recently changed (D236). One query: the campaign is joined and the participants counted in a subquery.
+     */
+    @Query("""
+            SELECT new com.tabletophelper.encounter.dto.RunningEncounterSummary(
+                e.id, e.name, e.status, e.roundNumber, c.id, c.name,
+                (SELECT COUNT(p) FROM EncounterParticipant p WHERE p.encounter = e), e.updatedAt)
+            FROM Encounter e JOIN e.campaign c
+            WHERE c.dm.id = :dmUserId AND e.status IN :statuses
+            ORDER BY CASE WHEN e.status = com.tabletophelper.encounter.EncounterStatus.ACTIVE THEN 0 ELSE 1 END,
+                e.updatedAt DESC NULLS LAST, e.id""")
+    List<RunningEncounterSummary> findSummariesForDm(
+            @Param("dmUserId") UUID dmUserId, @Param("statuses") Collection<EncounterStatus> statuses);
 
     // Reads only the foreign key, so the subscription check loads no entity and needs no transaction
     @Query("SELECT e.campaign.id FROM Encounter e WHERE e.id = :encounterId")

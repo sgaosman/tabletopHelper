@@ -174,6 +174,7 @@ public class DefensiveSpells {
         int duplicateAc = 10 + Ability.modifier(stats.abilityScore(target, Ability.DEX));
         boolean hit = hitsDuplicate(outcome.outcome(), outcome.d20(), outcome.total(), duplicateAc);
         int left = hit ? duplicates - 1 : duplicates;
+        // EncounterViews takes this AC out of the players' log for a monster (D235): keep its phrasing in step
         String text = lead + " - the attack targets a duplicate (AC " + duplicateAc + ")"
                 + (outcome.total() != null ? " with " + outcome.total() : "")
                 + (hit ? " and destroys it; " + (left == 0 ? "the last is gone and Mirror Image ends."

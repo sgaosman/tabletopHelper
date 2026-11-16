@@ -122,6 +122,7 @@ class TemplateJsonMappingIT extends IntegrationTest {
     @DisplayName("The API returns each template as the JSON stored, as it did when the columns were text")
     void apiReturnsTheStoredJson() throws Exception {
         String token = register("reader").accessToken();
+        createCampaign(token);
         UUID monsterId = saveKraken(TEMPLATES).getId();
         UUID spellId = spellRepository.save(Spell.builder().name("Fireball").level(3).source("PHB")
                 .effectTemplate(SpellTemplate.parse(FIREBALL)).build()).getId();
@@ -139,6 +140,7 @@ class TemplateJsonMappingIT extends IntegrationTest {
         String broken = "{\"actions\": [{\"name\": \"Bite\", \"attackBonus\": {\"melee\": 4}}]}";
         UUID id = saveKraken(broken).getId();
         String token = register("reader").accessToken();
+        createCampaign(token);
 
         Monster reloaded = monsterRepository.findById(id).orElseThrow();
         assertThat(reloaded.getActionTemplates().unreadable()).isNotNull();

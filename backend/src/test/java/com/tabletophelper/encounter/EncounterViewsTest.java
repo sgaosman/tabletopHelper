@@ -8,6 +8,7 @@ import com.tabletophelper.encounter.dto.CombatLogResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse.ParticipantResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse.TurnResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse;
+import com.tabletophelper.encounter.dto.MonsterActionResponse;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.encounter.state.WeaponHit;
@@ -47,6 +48,8 @@ class EncounterViewsTest {
                 .hpCurrent(hpCurrent)
                 .hpTemp(2)
                 .armourClass(15)
+                .initiative(14)
+                .initiativeModifier(2)
                 .activeConditions(PRONE)
                 .isVisibleToPlayers(true)
                 .lifeState(hpCurrent > 0 ? "ALIVE" : "DEAD")
@@ -88,6 +91,8 @@ class EncounterViewsTest {
                 .hpMax(30)
                 .hpCurrent(12)
                 .hpTemp(5)
+                .armourClass(18)
+                .initiativeModifier(1)
                 .isVisibleToPlayers(true)
                 .controlledByUserId(playerId)
                 .notes("Owes the innkeeper")
@@ -153,10 +158,13 @@ class EncounterViewsTest {
             // Q8, D157: the monster's turn economy is the DM's (D174)
             assertNull(goblin.getTurnEconomy());
             assertNull(goblin.getAttacksPerAction());
-            // What the table can see stays
+            // Its AC, initiative modifier and speed are the DM's (D235)
+            assertNull(goblin.getArmourClass());
+            assertNull(goblin.getInitiativeModifier());
+            assertNull(goblin.getSpeed());
+            // What the table can see stays, its rolled initiative included, as the turn order shows it
             assertEquals("Goblin", goblin.getDisplayName());
-            assertEquals(Map.of("walk", 30), goblin.getSpeed());
-            assertEquals(15, goblin.getArmourClass());
+            assertEquals(14, goblin.getInitiative());
             assertEquals(PRONE, goblin.getActiveConditions());
             // Its Spell Effects show, without the slot level that says what it spent (M15)
             assertEquals("Spiritual Weapon", goblin.getActiveEffects().getFirst().getSpell());
@@ -416,6 +424,26 @@ class EncounterViewsTest {
             assertEquals(2, forDm.getEncounterState().getParticipants().size());
             assertEquals(2, result.getEncounterState().getParticipants().size());
         }
+
+        @Test
+        @DisplayName("A player's spell summary and monster action description give no AC; the DM's keep them (D235)")
+        void resultTextsGiveNoArmourClassToPlayers() {
+            String text = "Aria casts Fire Bolt at Goblin: d20(15) +5 = 20 vs AC 15 — hit, 7 fire damage.";
+            var spell = CastSpellResponse.builder()
+                    .encounterState(encounter(false, goblin(5), gimli()))
+                    .spellName("Fire Bolt")
+                    .resultSummary(text)
+                    .build();
+            var action = new MonsterActionResponse(true, text, 7, 0, List.of(), false, null, List.of(), false, 0,
+                    encounter(false, goblin(5), gimli()));
+
+            String withoutAc = "Aria casts Fire Bolt at Goblin: d20(15) +5 = 20 — hit, 7 fire damage.";
+            assertEquals(withoutAc, EncounterViews.forUser(spell, playerId).getResultSummary());
+            assertEquals(text, EncounterViews.forUser(spell, dmId).getResultSummary());
+            assertEquals(withoutAc, EncounterViews.forUser(action, playerId).description());
+            assertEquals(text, EncounterViews.forUser(action, dmId).description());
+            assertNull(find(EncounterViews.forUser(action, playerId).encounterState(), goblinId).getArmourClass());
+        }
     }
 
     @Nested
@@ -554,6 +582,60 @@ class EncounterViewsTest {
         }
 
         @Test
+        @DisplayName("Gives no AC of a monster an entry is about: attack rolls, Mirror Image duplicates, spell forms, "
+                + "reverts and Shield (D235)")
+        void hidesAMonstersArmourClass() {
+            var log = List.of(
+                    entry("Gimli attacks Goblin with Longsword: d20(15) +5 = 20 vs AC 15 — hit, 9 slashing damage.",
+                            gimliId, goblinId),
+                    entry("Gimli attacks Goblin with Longsword: d20(1) +5 = 6 vs AC 15 — natural 1, miss.",
+                            gimliId, goblinId),
+                    entry("Gimli attacks Goblin with Longsword (advantage: target prone): d20(19, 20) +5 = 25 vs AC 15 — "
+                            + "critical hit, 18 slashing damage.", gimliId, goblinId),
+                    entry("Mirror Image: d20(14) against 8+ with 3 duplicates - the attack targets a duplicate (AC 12) "
+                            + "with 20 and destroys it; 2 left.", gimliId, goblinId),
+                    entry("Goblin becomes a Giant Ape (CR 7, 157/157 HP, AC 12) through Aria's Polymorph.", gimliId,
+                            goblinId).toBuilder().actionType("CONDITION_ADD").build(),
+                    entry("Goblin reverts from Giant Ape form to normal form (dropped to 0 HP), with 5/7 HP and AC 15",
+                            null, goblinId).toBuilder().actionType("CONDITION_REMOVE").build(),
+                    entry("Shield raises Goblin's AC to 20 against Gimli's attack roll of 18, which takes back the hit.",
+                            goblinId, null).toBuilder().actionType("SPELL_CAST").build(),
+                    entry("Goblin's new phrasing names AC 15", gimliId, goblinId));
+
+            var playerLog = EncounterViews.playerLog(log, hidden, Set.of(goblinId, bugbearId));
+
+            assertEquals(List.of(
+                    "Gimli attacks Goblin with Longsword: d20(15) +5 = 20 — hit, 9 slashing damage.",
+                    "Gimli attacks Goblin with Longsword: d20(1) +5 = 6 — natural 1, miss.",
+                    "Gimli attacks Goblin with Longsword (advantage: target prone): d20(19, 20) +5 = 25 — critical hit, "
+                            + "18 slashing damage.",
+                    "Mirror Image: d20(14) against 8+ with 3 duplicates - the attack targets a duplicate with 20 and "
+                            + "destroys it; 2 left.",
+                    "Goblin becomes a Giant Ape (CR 7) through Aria's Polymorph.",
+                    "Goblin reverts from Giant Ape form to normal form (dropped to 0 HP)",
+                    "Shield raises Goblin's AC against Gimli's attack roll of 18, which takes back the hit.",
+                    "Goblin's new phrasing names AC"), descriptions(playerLog));
+            assertEquals("Gimli attacks Goblin with Longsword: d20(15) +5 = 20 vs AC 15 — hit, 9 slashing damage.",
+                    log.getFirst().getDescription());
+        }
+
+        @Test
+        @DisplayName("Keeps the AC of a creature on the players' side: a monster's attack on a character, its Mirror "
+                + "Image, form and Shield (D235)")
+        void keepsACharactersArmourClass() {
+            var log = List.of(
+                    entry("Goblin attacks Gimli with Scimitar: d20(12) +4 = 16 vs AC 18 — miss.", goblinId, gimliId),
+                    entry("Mirror Image: d20(14) against 8+ with 3 duplicates - the attack targets a duplicate (AC 11) "
+                            + "with 16 and misses.", goblinId, gimliId),
+                    entry("Gimli becomes a Giant Ape (CR 7, 157/157 HP, AC 12) through Aria's Polymorph.", null,
+                            gimliId),
+                    entry("Shield raises Gimli's AC to 23 against Goblin's attack roll of 20, which takes back the hit.",
+                            gimliId, null));
+
+            assertEquals(descriptions(log), descriptions(EncounterViews.playerLog(log, hidden, Set.of(goblinId))));
+        }
+
+        @Test
         @DisplayName("With nothing hidden, every entry stays")
         void nothingHidden() {
             var log = List.of(entry("Gimli attacks Goblin", gimliId, goblinId), entry("Round 2 begins", null, null));
@@ -608,6 +690,7 @@ class EncounterViewsTest {
                     .isVisibleToPlayers(true)
                     .controlledByUserId(controller)
                     .turnEconomy(SPENT)
+                    .armourClass(13)
                     .speed(Map.of("walk", 20))
                     .build();
         }
@@ -623,6 +706,8 @@ class EncounterViewsTest {
             assertNull(seen.getMonsterId());
             assertNull(seen.getTurnEconomy());
             assertEquals("BLOODIED", seen.getHealthStatus());
+            assertNull(seen.getArmourClass());
+            assertNull(seen.getSpeed());
             assertTrue(EncounterViews.monsters(encounter(false, companion(dretch, null))).contains(dretch));
         }
 
@@ -635,6 +720,8 @@ class EncounterViewsTest {
             ParticipantResponse seen = find(view, wolf);
             assertEquals(9, seen.getHpCurrent());
             assertEquals(SPENT, seen.getTurnEconomy());
+            assertEquals(13, seen.getArmourClass());
+            assertEquals(Map.of("walk", 20), seen.getSpeed());
             assertFalse(EncounterViews.monsters(encounter(false, companion(wolf, playerId))).contains(wolf));
         }
     }

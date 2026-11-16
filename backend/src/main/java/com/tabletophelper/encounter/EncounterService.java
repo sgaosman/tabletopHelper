@@ -126,6 +126,15 @@ public class EncounterService {
                 .toList();
     }
 
+    /**
+     * The Active and Paused encounters in the campaigns the user runs, Active first and then the most recently changed,
+     * for the DM's dashboard (D236). Someone who runs no campaign gets an empty list.
+     */
+    @Transactional(readOnly = true)
+    public List<RunningEncounterSummary> getRunningEncounters(UUID userId) {
+        return encounterRepository.findSummariesForDm(userId, LIVE);
+    }
+
     @Transactional
     public EncounterResponse addParticipant(UUID encounterId, AddParticipantRequest request, UUID userId) {
         Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);

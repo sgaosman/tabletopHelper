@@ -32,6 +32,23 @@ public final class EncounterViews {
     private static final Pattern RESOURCE_TALLY = Pattern.compile(
             " \\((?:\\d+/\\d+(?: remaining)?|\\d+ remaining|unlimited)\\)|; (?:\\d+/\\d+ left|unlimited)$");
 
+    /*
+     * The numbers the log's text gives of an entry's target, which players don't see for a creature whose numbers the
+     * Player View hides (D235), each with what is left of the text: an attack roll's "= 17 vs AC 15" (EffectApplier), a
+     * Mirror Image duplicate's "(AC 12)" (DefensiveSpells), a spell form's "(CR 2, 15/15 HP, AC 11)" (FormSpells) and a
+     * revert's ", with 30/30 HP and AC 12" (EffectApplier). Any other "AC <n>" left in such an entry loses its number,
+     * so a new phrasing can't show it.
+     */
+    private static final List<Map.Entry<Pattern, String>> TARGET_NUMBERS = List.of(
+            Map.entry(Pattern.compile(" vs AC \\d+"), ""),
+            Map.entry(Pattern.compile(" \\(AC \\d+\\)"), ""),
+            Map.entry(Pattern.compile("(\\(CR [^,()]*), -?\\d+/\\d+ HP, AC \\d+\\)"), "$1)"),
+            Map.entry(Pattern.compile(", with -?\\d+/\\d+ HP and AC \\d+"), ""),
+            Map.entry(Pattern.compile("\\bAC \\d+"), "AC"));
+    // And of its actor: Shield cast as a reaction, "Shield raises Goblin's AC to 20 against ..." (ReactionAnswers)
+    private static final List<Map.Entry<Pattern, String>> ACTOR_NUMBERS = List.of(
+            Map.entry(Pattern.compile("('s AC) to \\d+"), "$1"));
+
     /** What players read for the DM's undo of a command about a participant hidden from them (D157, M14). */
     public static final String UNDID_HIDDEN = "The DM undid an action.";
 
@@ -62,22 +79,49 @@ public final class EncounterViews {
                 .build();
     }
 
-    /** As {@link #forUser(EncounterResponse, UUID)}, for the encounter state inside a spell result. */
+    /**
+     * As {@link #forUser(EncounterResponse, UUID)}, for the encounter state inside a spell result. A player's summary
+     * gives no AC (D235): it joins every target's text, a monster's among them, and a player sees the ACs of the
+     * creatures on their side on their rows anyway.
+     */
     public static CastSpellResponse forUser(CastSpellResponse response, UUID userId) {
+        boolean dm = userId.equals(response.getEncounterState().getDmUserId());
         return response.toBuilder()
                 .encounterState(forUser(response.getEncounterState(), userId))
+                .resultSummary(dm ? response.getResultSummary() : withoutArmourClasses(response.getResultSummary()))
                 .build();
     }
 
-    /** As {@link #forUser(EncounterResponse, UUID)}, for the encounter state inside a monster action result. */
+    /**
+     * As {@link #forUser(EncounterResponse, UUID)}, for the encounter state inside a monster action result, such as a
+     * familiar's attack; a player's description gives no AC, as a spell's summary (D235).
+     */
     public static MonsterActionResponse forUser(MonsterActionResponse response, UUID userId) {
-        return response.withEncounterState(forUser(response.encounterState(), userId));
+        boolean dm = userId.equals(response.encounterState().getDmUserId());
+        MonsterActionResponse shown = response.withEncounterState(forUser(response.encounterState(), userId));
+        return dm ? shown : shown.withDescription(withoutArmourClasses(response.description()));
+    }
+
+    /** The text without the ACs the log's phrasings give, as players read a result that may name a monster's (D235). */
+    static String withoutArmourClasses(String text) {
+        return redact(redact(text, TARGET_NUMBERS), ACTOR_NUMBERS);
+    }
+
+    private static String redact(String text, List<Map.Entry<Pattern, String>> phrasings) {
+        if (text == null) {
+            return null;
+        }
+        String redacted = text;
+        for (Map.Entry<Pattern, String> phrasing : phrasings) {
+            redacted = phrasing.getKey().matcher(redacted).replaceAll(phrasing.getValue());
+        }
+        return redacted;
     }
 
     /**
      * Leaves out participants hidden from players (a null flag counts as visible). Monsters lose
      * their notes, known spells, spell slots, spellcasting numbers, resource pools, turn economy and attacks per
-     * Attack action (D174), the slot levels of their Spell Effects (M15) and the ID of their bestiary entry, which would lead to the full stat block. Unless the campaign shows exact monster
+     * Attack action (D174), their AC, initiative modifier and speed (D235), the slot levels of their Spell Effects (M15) and the ID of their bestiary entry, which would lead to the full stat block. Unless the campaign shows exact monster
      * HP, their HP, temporary HP included, is replaced by a Health Status.
      * <p>
      * The turn order leaves out the hidden participants' turns, and the Lair's unless players can see a
@@ -154,7 +198,9 @@ public final class EncounterViews {
      * during a hidden participant's turn keeps its place without that participant's name. The DM's edit of a
      * monster's turn economy keeps its place as "The DM adjusts Goblin's turn.", without the changes, since players
      * don't see monsters' budgets (D157, D174). A monster's use of a pool, a spell slot or Legendary Resistance keeps
-     * its text without what the monster has left, as players don't see its pools or slots either. The entries of
+     * its text without what the monster has left, as players don't see its pools or slots either. An entry about a
+     * monster gives no AC of it, as an attack on it reads "= 17 — hit" rather than "= 17 vs AC 15 — hit" (D235). The
+     * entries of
      * commands the DM undid are left out, and the UNDO entry for a command about a hidden participant reads only
      * {@link #UNDID_HIDDEN} (M14). No entry keeps the command IDs.
      *
@@ -221,15 +267,23 @@ public final class EncounterViews {
                 .collect(Collectors.toMap(ParticipantResponse::getId, ParticipantResponse::getDisplayName));
     }
 
-    // The entry's text as players read it, without a monster's turn economy or what it has left of its resources
+    // The entry's text as players read it, without a monster's turn economy, what it has left of its resources or its
+    // AC (D235)
     private static String playerDescription(CombatLogResponse entry, Set<UUID> monsters) {
         if (monsterEconomyEdit(entry, monsters)) {
             return "The DM adjusts " + entry.getTargetName() + "'s turn.";
         }
-        if (monsterResourceUse(entry, monsters) && entry.getDescription() != null) {
-            return RESOURCE_TALLY.matcher(entry.getDescription()).replaceAll("");
+        String description = entry.getDescription();
+        if (monsterResourceUse(entry, monsters) && description != null) {
+            description = RESOURCE_TALLY.matcher(description).replaceAll("");
         }
-        return entry.getDescription();
+        if (entry.getTargetId() != null && monsters.contains(entry.getTargetId())) {
+            description = redact(description, TARGET_NUMBERS);
+        }
+        if (entry.getActorId() != null && monsters.contains(entry.getActorId())) {
+            description = redact(description, ACTOR_NUMBERS);
+        }
+        return description;
     }
 
     // A monster's use of a pool, a spell slot, an innate spell or Legendary Resistance, whose entry ends with what it
@@ -340,6 +394,11 @@ public final class EncounterViews {
                 .resourcePoolsCurrent(null)
                 .turnEconomy(null)
                 .attacksPerAction(null)
+                // Its AC, initiative modifier and speed are the DM's; its rolled initiative stays, as the turn order
+                // shows it (D235)
+                .armourClass(null)
+                .initiativeModifier(null)
+                .speed(null)
                 // Which spells a monster lets through its Limited Magic Immunity is the DM's, unless a player controls
                 // it (D198)
                 .spellConsentTrait(monster.getControlledByUserId() != null ? monster.getSpellConsentTrait() : null)

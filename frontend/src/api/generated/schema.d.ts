@@ -612,6 +612,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/running": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getRunningEncounters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}": {
         parameters: {
             query?: never;
@@ -3915,7 +3931,7 @@ export interface components {
             activeConditions?: components["schemas"]["ConditionEntry"][] | null;
             activeEffects: components["schemas"]["SpellEffectResponse"][];
             /** Format: int32 */
-            armourClass: number;
+            armourClass?: number | null;
             /** Format: int32 */
             attacksPerAction?: number | null;
             channelDivinityOptions?: string[] | null;
@@ -3972,9 +3988,9 @@ export interface components {
             resourcePoolsCurrent?: components["schemas"]["ResourcePoolEntry"][] | null;
             /** Format: int32 */
             sortOrder: number;
-            speed: {
+            speed?: {
                 [key: string]: number;
-            };
+            } | null;
             /** Format: int32 */
             spellAttackBonus?: number | null;
             spellConsent?: string | null;
@@ -4221,6 +4237,22 @@ export interface components {
             /** @enum {string} */
             mode: "NORMAL" | "ADVANTAGE" | "DISADVANTAGE";
             reason: string;
+        };
+        RunningEncounterSummary: {
+            /** Format: uuid */
+            campaignId: string;
+            campaignName: string;
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: int64 */
+            participantCount: number;
+            /** Format: int32 */
+            roundNumber?: number | null;
+            /** @enum {string} */
+            status: "PREPARING" | "ACTIVE" | "PAUSED" | "COMPLETED";
+            /** Format: date-time */
+            updatedAt?: string | null;
         };
         Scroll: {
             /** Format: int32 */
@@ -5856,6 +5888,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    getRunningEncounters: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunningEncounterSummary"][];
                 };
             };
         };

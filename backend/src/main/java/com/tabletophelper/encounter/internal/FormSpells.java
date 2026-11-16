@@ -217,6 +217,7 @@ public class FormSpells {
                              ConditionEntry entry, Monster form, ShapeSpells.Rules rules, boolean keepCurrentHp) {
         WildShapeForm taken = wildShapeEffects.spellForm(form, creature, rules);
         effectApplier.startForm(creature, entry.id(), taken, keepCurrentHp);
+        // EncounterViews takes these HP and AC out of the players' log for a monster (D235): keep its phrasing in step
         String note = creature.getDisplayName() + " becomes " + article(form.getName()) + " " + form.getName()
                 + " (CR " + form.getChallengeRating() + ", " + creature.getHpCurrent() + "/" + creature.getHpMax()
                 + " HP, AC " + creature.getArmourClass() + ") through " + caster.getDisplayName() + "'s "

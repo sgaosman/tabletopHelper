@@ -7,7 +7,7 @@ import { formOf } from '../../utils/formSpells';
  * own numbers while it lasts) and the druid's own, which come back when it reverts. `onEnd` offers reverting early, a
  * bonus action, to whoever may: the DM, or the druid's player. A creature a form spell transformed (D192) shows the
  * spell and its form the same way, with no End: the form lasts as long as the spell. Nothing shows for a creature in its
- * own form, or for a monster's form in the Player View, which the server leaves out.
+ * own form, or for a monster's form in the Player View, which the server leaves out with the monster's AC (D235).
  */
 export default function WildShapeStatus({ participant, onEnd, ending = false }: {
   participant: EncounterParticipant;
@@ -23,7 +23,7 @@ export default function WildShapeStatus({ participant, onEnd, ending = false }: 
         className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink">
         <span className="px-1 font-heading font-semibold text-card bg-buff">{spellForm.spell}: {spellForm.beastName}</span>
         <span className="tabular-nums">
-          Form HP {participant.hpCurrent ?? '?'}/{participant.hpMax ?? spellForm.hpMax}, AC {participant.armourClass}
+          Form HP {participant.hpCurrent ?? '?'}/{participant.hpMax ?? spellForm.hpMax}{participant.armourClass != null && `, AC ${participant.armourClass}`}
         </span>
         <span className="tabular-nums text-muted">
           Own HP {spellForm.normalHpCurrent}/{spellForm.normalHpMax}, AC {spellForm.normalArmourClass}
@@ -36,7 +36,7 @@ export default function WildShapeStatus({ participant, onEnd, ending = false }: 
       className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink" title={WILD_SHAPE_TEXT}>
       <span className="px-1 font-heading font-semibold text-card bg-buff">Wild Shape: {form.beastName}</span>
       <span className="tabular-nums">
-        Beast HP {participant.hpCurrent ?? '?'}/{participant.hpMax ?? form.hpMax}, AC {participant.armourClass}
+        Beast HP {participant.hpCurrent ?? '?'}/{participant.hpMax ?? form.hpMax}{participant.armourClass != null && `, AC ${participant.armourClass}`}
       </span>
       <span className="tabular-nums text-muted">
         Own HP {form.normalHpCurrent}/{form.normalHpMax}, AC {form.normalArmourClass}

@@ -35,6 +35,16 @@ public class AccessPolicy {
         }
     }
 
+    /**
+     * The DM of at least one campaign, as reading the bestiary needs: its stat blocks give monsters' AC, speed and
+     * every other number the Player View keeps from players (D235).
+     */
+    public void requireAnyCampaignDm(UUID userId) {
+        if (!campaignRepository.existsByDmId(userId)) {
+            throw new ForbiddenException("Only a campaign's DM can read the bestiary");
+        }
+    }
+
     /** Changing a character: its owner only, not even the DM, who changes it only through DM Adjustments (D158). */
     public void requireCharacterOwner(UUID ownerId, UUID userId) {
         if (!userId.equals(ownerId)) {

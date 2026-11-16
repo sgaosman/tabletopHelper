@@ -27,6 +27,12 @@ public record MonsterActionResponse(
                 legendaryResistanceAvailable, legendaryResistanceRemaining, state);
     }
 
+    public MonsterActionResponse withDescription(String text) {
+        return new MonsterActionResponse(resolved, text, totalDamage, totalHealing, targetResults,
+                requiresManualResolution, manualResolutionReason, conditionsInflicted,
+                legendaryResistanceAvailable, legendaryResistanceRemaining, encounterState);
+    }
+
     /**
      * One target's result. damage is what it took after its defences; savedSuccessfully is set when it made its
      * save, the one a hit calls for against its conditions included; legendaryResistanceAvailable is set on a

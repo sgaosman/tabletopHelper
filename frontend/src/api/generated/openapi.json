@@ -1467,6 +1467,29 @@
         ]
       }
     },
+    "/api/encounters/running": {
+      "get": {
+        "operationId": "getRunningEncounters",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RunningEncounterSummary"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}": {
       "delete": {
         "operationId": "deleteEncounter",
@@ -11515,7 +11538,6 @@
       "ParticipantResponse": {
         "required": [
           "activeEffects",
-          "armourClass",
           "deathSaveDue",
           "deathSaveFailures",
           "deathSaveSuccesses",
@@ -11526,7 +11548,6 @@
           "lifeState",
           "participantType",
           "sortOrder",
-          "speed",
           "spellModifiers"
         ],
         "type": "object",
@@ -11546,7 +11567,8 @@
           },
           "armourClass": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "nullable": true
           },
           "attacksPerAction": {
             "type": "integer",
@@ -11750,7 +11772,8 @@
             "additionalProperties": {
               "type": "integer",
               "format": "int32"
-            }
+            },
+            "nullable": true
           },
           "spellAttackBonus": {
             "type": "integer",
@@ -12719,6 +12742,56 @@
           },
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "RunningEncounterSummary": {
+        "required": [
+          "campaignId",
+          "campaignName",
+          "id",
+          "name",
+          "participantCount",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "campaignId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "campaignName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "participantCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "roundNumber": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PREPARING",
+              "ACTIVE",
+              "PAUSED",
+              "COMPLETED"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           }
         }
       },

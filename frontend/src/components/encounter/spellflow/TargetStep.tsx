@@ -104,7 +104,7 @@ export default function TargetStep({
                   <Target className={`w-3.5 h-3.5 ${taken > 0 ? 'text-ink' : 'text-faint'}`} />
                   <span className={`font-body text-[15px] font-semibold ${taken > 0 ? 'text-ink' : 'text-muted'}`}>{p.displayName}</span>
                   {p.id === caster.id && <span className="font-body text-[13px] font-semibold text-faint">(self)</span>}
-                  <span className="font-body text-[13px] font-semibold text-faint">AC {p.armourClass}</span>
+                  {p.armourClass != null && <span className="font-body text-[13px] font-semibold text-faint">AC {p.armourClass}</span>}
                 </div>
                 <div className="flex items-center gap-1">
                   <IconButton label={`One dart fewer at ${p.displayName}`} disabled={taken === 0}
@@ -153,7 +153,8 @@ export default function TargetStep({
                   )}
                 </div>
                 <div className="flex items-center gap-2 font-body text-[13px] font-semibold text-faint">
-                  <span>AC {p.armourClass}</span>
+                  {/* The Player View sends no AC for a monster (D235) */}
+                  {p.armourClass != null && <span>AC {p.armourClass}</span>}
                   {healthLabel(p) && <span>{healthLabel(p)}</span>}
                 </div>
               </button>

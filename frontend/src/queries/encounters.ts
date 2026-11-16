@@ -26,6 +26,14 @@ export function useCampaignEncounters(campaignId: string | undefined) {
   });
 }
 
+/** The Active and Paused encounters in the campaigns the user runs, Active first, for the DM dashboard (D236). */
+export function useRunningEncounters() {
+  return useQuery({
+    queryKey: queryKeys.encounters.running(),
+    queryFn: async () => (await encounterApi.getRunning()).data,
+  });
+}
+
 /**
  * Finds the encounter a session code opens. It is a mutation because it runs when the form is sent and
  * its result is only needed to open the session page.

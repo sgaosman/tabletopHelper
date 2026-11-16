@@ -1589,4 +1589,19 @@ class EncounterServiceTest {
         assertEquals("Participants can be removed only while the encounter is prepared or active", ex.getMessage());
         assertEquals(1, paused.getParticipants().size());
     }
+
+    @Test
+    @DisplayName("Running encounters are the user's Active and Paused ones, as the repository orders them (D236)")
+    void getRunningEncounters_asksForActiveAndPausedInTheUsersCampaigns() {
+        var summary = new RunningEncounterSummary(UUID.randomUUID(), "Goblin Ambush", EncounterStatus.ACTIVE, 3,
+                campaignId, "Test Campaign", 4, java.time.Instant.now());
+        when(encounterRepository.findSummariesForDm(dmUserId, EnumSet.of(EncounterStatus.ACTIVE, EncounterStatus.PAUSED)))
+                .thenReturn(List.of(summary));
+
+        List<RunningEncounterSummary> running = encounterService.getRunningEncounters(dmUserId);
+
+        assertEquals(List.of(summary), running);
+        verify(encounterRepository).findSummariesForDm(dmUserId,
+                EnumSet.of(EncounterStatus.ACTIVE, EncounterStatus.PAUSED));
+    }
 }

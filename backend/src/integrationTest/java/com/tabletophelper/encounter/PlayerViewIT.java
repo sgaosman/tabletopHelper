@@ -130,6 +130,43 @@ class PlayerViewIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("Players see no monster's AC, initiative modifier or speed, in the encounter or the log, but still "
+            + "whether their attack hit; the DM sees them all (D235)")
+    void monsterNumbersAreTheDms() {
+        // 15 hits the goblin's AC 12
+        dice.script(15);
+        JsonNode response = expect(HttpStatus.OK, exchange(HttpMethod.POST,
+                "/api/encounters/" + encounterId + "/combat/attack?actorId=" + characterId,
+                Map.of("targetId", goblinId, "attackBonus", 0, "damageDice", "4"), player.accessToken()));
+
+        JsonNode playerGoblin = participant(getEncounter(player.accessToken()), goblinId);
+        JsonNode dmGoblin = participant(getEncounter(dm.accessToken()), goblinId);
+        for (JsonNode goblin : List.of(playerGoblin, participant(response, goblinId))) {
+            assertThat(goblin.get("armourClass").isNull()).isTrue();
+            assertThat(goblin.get("initiativeModifier").isNull()).isTrue();
+            assertThat(goblin.get("speed").isNull()).isTrue();
+            // The rolled initiative stays: the turn order shows it
+            assertThat(goblin.get("initiative").asInt()).isEqualTo(10);
+        }
+        assertThat(dmGoblin.get("armourClass").asInt()).isEqualTo(12);
+        assertThat(dmGoblin.get("initiativeModifier").asInt()).isZero();
+        assertThat(dmGoblin.get("speed").get("walk").asInt()).isEqualTo(30);
+        // The player's own character keeps its numbers
+        JsonNode aria = participant(getEncounter(player.accessToken()), characterId);
+        assertThat(aria.get("armourClass").isNull()).isFalse();
+        assertThat(aria.get("speed").isNull()).isFalse();
+        assertThat(aria.get("initiativeModifier").isNull()).isFalse();
+
+        List<String> playerLog = descriptions(expect(HttpStatus.OK, exchange(HttpMethod.GET,
+                "/api/encounters/" + encounterId + "/combat/log", null, player.accessToken())));
+        List<String> dmLog = descriptions(expect(HttpStatus.OK, exchange(HttpMethod.GET,
+                "/api/encounters/" + encounterId + "/combat/log", null, dm.accessToken())));
+        assertThat(dmLog).anySatisfy(description -> assertThat(description).contains("= 15 vs AC 12 — hit"));
+        assertThat(playerLog).noneMatch(description -> description.contains("AC 12"))
+                .anySatisfy(description -> assertThat(description).contains("= 15 — hit"));
+    }
+
+    @Test
     @DisplayName("A player forces a critical hit only while the campaign allows Manual Modifiers, and can't target "
             + "the hidden monster (D157, D164)")
     void playerAttackLimits() {
@@ -318,7 +355,7 @@ class PlayerViewIT extends IntegrationTest {
     private String addMonster(String name, int hitPoints) {
         Monster monster = monsterRepository.save(Monster.builder()
                 .name(name).type("Humanoid").challengeRating("1").source("MM")
-                .hitPoints(hitPoints).armourClass(12).dexterity(10)
+                .hitPoints(hitPoints).armourClass(12).dexterity(10).speed("{\"walk\": 30}")
                 .build());
         return idOf(addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "MONSTER", "monsterId", monster.getId(), "displayName", name)), name);
