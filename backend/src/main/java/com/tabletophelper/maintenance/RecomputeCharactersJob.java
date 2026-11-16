@@ -11,6 +11,7 @@ import com.tabletophelper.character.state.DmAdjustment;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
+import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.rules.character.CurrentHitPoints;
 import com.tabletophelper.shared.ConflictException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -194,7 +195,16 @@ public class RecomputeCharactersJob implements MaintenanceJob {
             if (!texts.isEmpty()) {
                 characterService.storeFeatureTexts(pc);
             }
+            Integer current = pc.getHpCurrent();
+            Integer oldMaximum = pc.getHpMax();
             characterService.recalculate(pc);
+            // A repaired maximum only caps current hit points when it falls: a stored maximum the rules disagree with
+            // was never the character's to lose hit points from (D222)
+            if (current != null) {
+                pc.setHpCurrent(Math.min(Exhaustion.hitPointMaximum(pc.getHpMax(),
+                                Exhaustion.clamp(pc.getExhaustionLevel())),
+                        CurrentHitPoints.afterRepairedMaximum(current, oldMaximum, pc.getHpMax(), pc.isDead())));
+            }
             characterRepository.save(pc);
         }
     }
@@ -235,9 +245,10 @@ public class RecomputeCharactersJob implements MaintenanceJob {
     // Each stored stat the derivation would change, before and after
     private static List<String> differences(PlayerCharacter pc, DerivedStats derived) {
         List<String> diffs = new ArrayList<>();
-        // The rule CharacterStats.apply writes, so the dry run shows what the real run does, a dead character's 0 too
+        // The rule the real run writes for a repaired maximum (D222), so the dry run shows what it does, a dead
+        // character's 0 too
         int current = pc.getHpCurrent() != null ? pc.getHpCurrent() : derived.hpMax();
-        int newCurrent = CurrentHitPoints.afterMaximum(current, pc.getHpMax(), derived.hpMax(), pc.isDead());
+        int newCurrent = CurrentHitPoints.afterRepairedMaximum(current, pc.getHpMax(), derived.hpMax(), pc.isDead());
         if (!Objects.equals(pc.getHpMax(), derived.hpMax()) || current != newCurrent) {
             diffs.add("hit points: " + current + "/" + pc.getHpMax() + " → " + newCurrent + "/" + derived.hpMax());
         }

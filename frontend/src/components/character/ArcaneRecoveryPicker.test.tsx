@@ -7,10 +7,15 @@ import type { ArcaneRecoveryChoice } from '../../utils/classFeatures';
 
 const SLOTS = { 1: { max: 4, used: 3 }, 2: { max: 3, used: 1 }, 3: { max: 2, used: 0 }, 6: { max: 1, used: 1 } };
 
-function Harness({ onChange, usedToday = false }: { onChange: (choice: ArcaneRecoveryChoice) => void; usedToday?: boolean }) {
+function Harness({ onChange, usedToday = false, name, classLevel = 5 }: {
+  onChange: (choice: ArcaneRecoveryChoice) => void;
+  usedToday?: boolean;
+  name?: 'Arcane Recovery' | 'Natural Recovery';
+  classLevel?: number;
+}) {
   const [choice, setChoice] = useState<ArcaneRecoveryChoice>({});
   return (
-    <ArcaneRecoveryPicker wizardLevel={5} slots={SLOTS} usedToday={usedToday} choice={choice}
+    <ArcaneRecoveryPicker name={name} classLevel={classLevel} slots={SLOTS} usedToday={usedToday} choice={choice}
       onChange={next => { setChoice(next); onChange(next); }} />
   );
 }
@@ -21,19 +26,33 @@ describe('ArcaneRecoveryPicker (PHB p.115, M17)', () => {
     render(<Harness onChange={onChange} />);
     const user = userEvent.setup();
 
+    expect(screen.getByRole('region', { name: 'Arcane Recovery' })).toBeInTheDocument();
     expect(screen.queryByText('Level 3')).not.toBeInTheDocument();
     expect(screen.queryByText('Level 6')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Recover one more level 2 slot' }));
-    expect(screen.getByRole('button', { name: 'Recover one more level 2 slot' })).toBeDisabled();
-    await user.click(screen.getByRole('button', { name: 'Recover one more level 1 slot' }));
+    await user.click(screen.getByRole('button', { name: 'Arcane Recovery: recover one more level 2 slot' }));
+    expect(screen.getByRole('button', { name: 'Arcane Recovery: recover one more level 2 slot' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Arcane Recovery: recover one more level 1 slot' }));
 
     expect(onChange).toHaveBeenLastCalledWith({ 1: 1, 2: 1 });
     expect(screen.getByText('(3/3 slot levels)')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Recover one more level 1 slot' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Arcane Recovery: recover one more level 1 slot' })).toBeDisabled();
   });
 
   it('says it was used since the last long rest', () => {
     render(<Harness onChange={vi.fn()} usedToday />);
     expect(screen.getByText('Used since your last long rest.')).toBeInTheDocument();
+  });
+
+  it("is a Circle of the Land druid's Natural Recovery with the druid level (PHB p.68, D222)", async () => {
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} name="Natural Recovery" classLevel={3} />);
+    const user = userEvent.setup();
+
+    expect(screen.getByRole('region', { name: 'Natural Recovery' })).toBeInTheDocument();
+    expect(screen.getByText('(0/2 slot levels)')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Natural Recovery: recover one more level 2 slot' }));
+
+    expect(onChange).toHaveBeenLastCalledWith({ 2: 1 });
+    expect(screen.getByRole('button', { name: 'Natural Recovery: recover one more level 1 slot' })).toBeDisabled();
   });
 });

@@ -267,6 +267,34 @@ class ProgressionIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("A level removed and gained back leaves a hurt character's hit points and a spent pool as they were, "
+            + "through level_down_uses (V40, D222)")
+    void levelDownAndUpKeepsWhatWasSpent() {
+        String id = expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters", Map.of(
+                "name", "Aria", "raceId", insertRace("Human"), "classId", fighterId, "level", 2,
+                "strength", 16, "dexterity", 14, "constitution", 14, "intelligence", 10, "wisdom", 10,
+                "charisma", 10), player.accessToken())).get("id").asString();
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/characters/" + id + "/pools/spend",
+                Map.of("poolId", "class:fighter-action-surge"), player.accessToken()));
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/characters/" + id + "/hp",
+                Map.of("kind", "DAMAGE", "amount", 10), player.accessToken()));
+        JsonNode before = get(id);
+
+        JsonNode down = levelDown(id);
+        assertThat(down.get("resourcePools")).isEmpty();
+        assertThat(down.get("hpCurrent").asInt()).isEqualTo(before.get("hpCurrent").asInt()
+                - (before.get("hpMax").asInt() - down.get("hpMax").asInt()));
+        assertThat(jdbcTemplate.queryForObject("SELECT level_down_uses::text FROM player_characters WHERE id = ?::uuid",
+                String.class, id)).contains("\"characterLevel\": 2").contains("\"class:fighter-action-surge\": 1");
+
+        JsonNode up = levelUp(id, fighterId).get("character");
+        assertThat(up.get("hpCurrent").asInt()).isEqualTo(before.get("hpCurrent").asInt());
+        assertThat(up.get("resourcePools").get(0).get("currentUses").asInt()).isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT level_down_uses::text FROM player_characters WHERE id = ?::uuid",
+                String.class, id)).isEqualTo("[]");
+    }
+
+    @Test
     @DisplayName("A level-table pool (V27, D169): Rage follows the barbarian level, recompute-characters reports a stored copy the table disagrees with, and spending it at 20th is never refused")
     void levelTablePool() {
         CharacterClass barbarian = characterClassRepository.save(CharacterClass.builder().name("Barbarian")

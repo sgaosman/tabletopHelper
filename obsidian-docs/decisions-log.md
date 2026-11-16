@@ -4431,3 +4431,26 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D157, D166, D215, D218
 
 **Tests:** new HttpSecurityIT, AuthLimitsIT, CharacterCommandsIT, RequestSizeFilterTest and unit cases; the shared IT helper `addParticipant` now puts the character in the encounter's campaign first. 4,732 backend unit, 578 integration and 1,268 frontend tests pass.
+
+---
+
+## D222: Levelling Fixes from the Overnight Review
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (V40)
+
+**Context:** a rules review of the levelling subsystem during the user's overnight run of 2026-11-16 checked the spell slot tables, multiclass slot sums, prerequisites and proficiencies, the per-class known and prepared counts, choice levels, HP, proficiency bonus and rests against the 2014 PHB and found them right. It confirmed two ways a level-down and level-up round trip gave something back, breaking the rule that levelling up and down is lossless, and two gaps. The calls are the lead's, recorded for review.
+
+**Decision:**
+- **A lower maximum takes HP off, replacing [[#D167]]'s cap-only rule.** A higher maximum adds the difference to current HP; a lower one only capped it, so a Fighter 3 at 10/30 went to 17/37 and back to 17/30, a free heal repeatable at will (and 0 HP became 7). Now a lower maximum takes the whole drop off current HP, never below 0 and never marking the character dead, so the round trip is exact. The same rule covers Tough's removal, a lower Constitution and DM HP_MAX or CON adjustments, all of which go through `CharacterStats.apply`. **(choice)** The `recompute-characters` job, correcting a stored maximum the rules disagree with, keeps the old raise-or-cap rule (`CurrentHitPoints.afterRepairedMaximum`), since a wrong stored maximum was never HP the character had.
+- **Levelling back up doesn't refill what was spent.** A level-down dropped the pools, slot levels and Hit Dice pool its level gave, and they came back unspent: a Monk with no ki, a Wizard with spent 2nd-level slots and a multiclass's spent Hit Die all refilled through one down-and-up. V40's `level_down_uses` records the spent uses a level-down removed or capped, per character level; gaining that character level again spends them again on whatever comes back with the same pool, slot level or class. **(choice)** They apply whichever class takes the level back, closing a down-as-Wizard, up-as-Cleric route to fresh slots. A long rest drops every entry and a short rest the short-rest pools' and pact slots'; spending or restoring by hand in between doesn't clear them.
+- **Natural Recovery restores slots** (PHB p.68): a Circle of the Land druid's short rest may recover slots of combined level up to half the druid level rounded up, none 6th or higher, once until a long rest, with the same checks as Arcane Recovery (`Rests.slotRecoveryRefusal`). With both on one rest, Natural Recovery picks from the slots still expended after Arcane Recovery. The sheet shows a Natural Recovery picker beside Arcane Recovery's.
+- **Three PHB pools added:** Indomitable (Fighter 9; 2 uses at 13, 3 at 17; PHB p.73), Cleansing Touch (Paladin 14; Charisma modifier, minimum 1; PHB p.85) and Divine Intervention (Cleric 10, 1 use; its description notes the 7-day wait after a success that the app doesn't track, and the certain success at 20th; PHB p.59), all recharging on a long rest. Existing characters gain them with their next sheet command or the `recompute-characters` job.
+
+**Still open (from the review):** Song of Rest isn't applied; multiclassing into Bard, Ranger or Rogue gives no skill pick (PHB p.164); spell swaps on levels where Spells Known don't rise; the Arcane Trickster's cantrips needn't include Mage Hand.
+
+**Key files:** `rules/character/CurrentHitPoints.java`, `character/internal/CharacterStats.java`, new `LevelDownSpending` and `character/state/LevelDownUses.java`, `V40__level_down_uses.sql`, `ResourcePoolService.java`, `Rests.java`, `RestService.java`, `ShortRestRequest.java`, `resource-pools.json`, `ArcaneRecoveryPicker.tsx`, `CharacterSheetPage.tsx`, `openapi.json`
+
+**Related:** D158, D167, D221
+
+**Tests:** damaged-character, spent-pool, spent-slot, Hit Die, pact slot and rest-in-between round trips in `LevelProgressionTest` and `ProgressionIT`; Natural Recovery in `RestRulesTest`, `RestServiceTest` and `ArcaneRecoveryPicker.test.tsx`; the new pools in `PoolSizesGoldenTest` and `ContentLoadIT`. On its branch 4,748 backend unit, 576 integration and 1,270 frontend tests passed; merged with D221, 4,759, 580 and 1,270.

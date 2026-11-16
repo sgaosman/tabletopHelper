@@ -14,13 +14,21 @@ import java.util.List;
  * @param hitDice        the Hit Dice spent
  * @param arcaneRecovery a wizard's Arcane Recovery (PHB p.115), once a day: one spell level for each expended slot it
  *                       recovers, such as [2, 1]; left out or empty, it isn't used
+ * @param naturalRecovery a Circle of the Land druid's Natural Recovery (PHB p.68, D222), once until a long rest, in
+ *                        the same form; left out or empty, it isn't used
  */
 public record ShortRestRequest(@Size(max = 20) List<@Valid HitDieSpent> hitDice,
-                               @Size(max = 10) List<Integer> arcaneRecovery) {
+                               @Size(max = 10) List<Integer> arcaneRecovery,
+                               @Size(max = 10) List<Integer> naturalRecovery) {
 
-    /** A short rest without Arcane Recovery. */
+    /** A short rest without Arcane Recovery or Natural Recovery. */
     public ShortRestRequest(List<HitDieSpent> hitDice) {
-        this(hitDice, null);
+        this(hitDice, null, null);
+    }
+
+    /** A short rest without Natural Recovery. */
+    public ShortRestRequest(List<HitDieSpent> hitDice, List<Integer> arcaneRecovery) {
+        this(hitDice, arcaneRecovery, null);
     }
 
     /**

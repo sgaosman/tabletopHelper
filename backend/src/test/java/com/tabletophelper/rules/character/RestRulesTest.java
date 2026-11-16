@@ -1,12 +1,15 @@
 package com.tabletophelper.rules.character;
 
 import com.tabletophelper.rules.character.HitDice.Pool;
+import com.tabletophelper.rules.character.Rests.SlotRecovery;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -92,5 +95,27 @@ class RestRulesTest {
         assertThrows(IllegalArgumentException.class, () -> new Pool(8, 3, 4));
         assertThrows(IllegalArgumentException.class, () -> new Pool(8, 3, -1));
         assertThrows(IllegalArgumentException.class, () -> new Pool(8, -1, 0));
+    }
+
+    @Test
+    @DisplayName("Natural Recovery recovers expended slots adding up to half the druid level, rounded up, none above "
+            + "5th (PHB p.68, D222)")
+    void naturalRecovery() {
+        Map<Integer, Integer> expended = Map.of(1, 4, 2, 3, 3, 3, 5, 1, 6, 1);
+        SlotRecovery natural = SlotRecovery.NATURAL_RECOVERY;
+
+        assertEquals(Optional.empty(), Rests.slotRecoveryRefusal(natural, 5, List.of(2, 1), expended));
+        assertEquals(Optional.empty(), Rests.slotRecoveryRefusal(natural, 9, List.of(5), expended));
+        assertEquals(Optional.of("Natural Recovery recovers slots whose levels add up to 3 at most (half of druid "
+                        + "level 5, rounded up), not 4"),
+                Rests.slotRecoveryRefusal(natural, 5, List.of(3, 1), expended));
+        assertEquals(Optional.of("Natural Recovery recovers slots of 1st to 5th level, not 6"),
+                Rests.slotRecoveryRefusal(natural, 20, List.of(6), expended));
+        assertEquals(Optional.of("Only 1 level 5 spell slot is expended, not 2"),
+                Rests.slotRecoveryRefusal(natural, 20, List.of(5, 5), expended));
+        assertEquals(Optional.of("Natural Recovery is a Circle of the Land druid's feature"),
+                Rests.slotRecoveryRefusal(natural, 0, List.of(1), expended));
+        assertEquals(Optional.of("Arcane Recovery is a wizard's feature"),
+                Rests.arcaneRecoveryRefusal(0, List.of(1), expended));
     }
 }

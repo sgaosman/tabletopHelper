@@ -140,6 +140,12 @@ class PoolSizesGoldenTest {
                     "PHB p.51, Bardic Inspiration: a number of times equal to the Charisma modifier (a minimum of once)"),
             base("class:wizard-arcane-recovery", "Wizard", 1, flat(1),
                     "PHB p.115, Arcane Recovery: once per day, when finishing a short rest"),
+            base("class:fighter-indomitable", "Fighter", 9, (level, modifier) -> level >= 17 ? 3 : level >= 13 ? 2 : 1,
+                    "PHB p.73, Indomitable: once between long rests from 9th, twice from 13th, three times from 17th"),
+            base("class:paladin-cleansing-touch", "Paladin", 14, MODIFIER_AT_LEAST_ONCE,
+                    "PHB p.85, Cleansing Touch: a number of times equal to the Charisma modifier (a minimum of once)"),
+            base("class:cleric-divine-intervention", "Cleric", 10, flat(1),
+                    "PHB p.59, Divine Intervention: once, again after a long rest if the deity didn't intervene"),
             base("class:barbarian-rage", "Barbarian", 1, (level, modifier) -> RAGES[level - 1],
                     "PHB p.46, Rage: the Rages column of the Barbarian table, 2/3/4/5/6 at 1st/3rd/6th/12th/17th, unlimited at 20th"),
 

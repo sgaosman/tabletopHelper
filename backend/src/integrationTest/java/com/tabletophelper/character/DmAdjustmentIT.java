@@ -174,13 +174,13 @@ class DmAdjustmentIT extends IntegrationTest {
         assertThat(amulet.get("hpMax").asInt()).isEqualTo(23);
         assertThat(amulet.get("hpCurrent").asInt()).isEqualTo(17);
 
-        // A lower maximum caps current hit points, and lifting it again raises them by as much
+        // A lower maximum takes as much off current hit points, and lifting it again gives them back (D222)
         JsonNode cursed = adjust(bram, stat("HP_MAX", -10, "Curse of the hag"));
         assertThat(cursed.get("hpMax").asInt()).isEqualTo(13);
-        assertThat(cursed.get("hpCurrent").asInt()).isEqualTo(13);
+        assertThat(cursed.get("hpCurrent").asInt()).isEqualTo(7);
         JsonNode lifted = expect(HttpStatus.OK, remove(bram, cursed.get("dmAdjustments").get(1).get("id").asString(), dm));
         assertThat(lifted.get("hpMax").asInt()).isEqualTo(23);
-        assertThat(lifted.get("hpCurrent").asInt()).isEqualTo(23);
+        assertThat(lifted.get("hpCurrent").asInt()).isEqualTo(17);
 
         // DEX adjustments reach initiative through the modifier; initiative and speed ones add directly
         assertThat(adjust(bram, stat("DEX", 2, "Gloves of the cat")).get("initiativeBonus").asInt()).isEqualTo(3);

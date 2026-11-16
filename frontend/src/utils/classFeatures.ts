@@ -453,6 +453,23 @@ export function recoverableSlots(slots: Record<string, { max: number; used: numb
 /** The pool counting Arcane Recovery's one use a day (PHB p.115). */
 export const ARCANE_RECOVERY_POOL = 'class:wizard-arcane-recovery';
 
+/** The pool counting a Circle of the Land druid's Natural Recovery, once until a long rest (PHB p.68, D222). */
+export const NATURAL_RECOVERY_POOL = 'subclass:land-natural-recovery';
+
+/**
+ * The slots as a second recovery on the same rest sees them: those the first chose count as no longer expended, so
+ * Arcane Recovery and Natural Recovery never pick the same slot (D222).
+ */
+export function slotsAfterRecovery<S extends { max: number; used: number }>(
+  slots: Record<string, S> | null | undefined, choice: ArcaneRecoveryChoice): Record<string, S> {
+  const after: Record<string, S> = { ...(slots ?? {}) };
+  for (const [level, count] of Object.entries(choice)) {
+    const slot = after[level];
+    if (slot && count > 0) after[level] = { ...slot, used: Math.max(0, slot.used - count) };
+  }
+  return after;
+}
+
 /** The slots chosen for Arcane Recovery, by level: how many of each. */
 export type ArcaneRecoveryChoice = Record<number, number>;
 

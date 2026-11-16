@@ -90,8 +90,8 @@ class ContentLoadIT extends IntegrationTest {
                 .allSatisfy((loader, status) -> assertThat(status).as(loader).isEqualTo(ContentLoading.Status.LOADED));
         Map<String, List<String>> loaded = rows();
         assertThat(loaded.get("monsters")).hasSizeGreaterThan(2500);
-        assertThat(loaded.get("class_feature_pools")).hasSize(75);
-        assertThat(loaded.get("resource_pool_definitions")).hasSize(106);
+        assertThat(loaded.get("class_feature_pools")).hasSize(78);
+        assertThat(loaded.get("resource_pool_definitions")).hasSize(109);
         // The race pools (D208): each row of resource-pools.json's racePools names a race row the races loader wrote
         assertThat(loaded.get("race_feature_pools")).hasSize(39);
         assertThat(jdbcTemplate.queryForList("SELECT r.name || '|' || r.source FROM race_feature_pools p "
@@ -105,7 +105,7 @@ class ContentLoadIT extends IntegrationTest {
                 + "WHERE pool_id = 'class:barbarian-rage'", String.class))
                 .contains("\"levelOf\": \"Barbarian\"").contains("\"unlimited\": true");
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM resource_pool_definitions "
-                + "WHERE level_table IS NOT NULL", Integer.class)).isEqualTo(9);
+                + "WHERE level_table IS NOT NULL", Integer.class)).isEqualTo(10);
         // The pool-use command reads these (D174): Legendary Resistance costs nothing from the turn (MM p.11), and
         // Action Surge adds an action
         assertThat(jdbcTemplate.queryForList("SELECT DISTINCT spend_action_type FROM resource_pool_definitions",

@@ -33,7 +33,9 @@ import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import ArcaneRecoveryPicker from '../../components/character/ArcaneRecoveryPicker';
 import JournalTab from './sheet/JournalTab';
 import type { RunCommand } from './sheet/types';
-import { ARCANE_RECOVERY_POOL, arcaneRecoveryLevels, type ArcaneRecoveryChoice } from '../../utils/classFeatures';
+import {
+  ARCANE_RECOVERY_POOL, arcaneRecoveryLevels, NATURAL_RECOVERY_POOL, slotsAfterRecovery, type ArcaneRecoveryChoice,
+} from '../../utils/classFeatures';
 
 type Tab = 'Stats' | 'Actions' | 'Spells' | 'Inventory' | 'Features' | 'Journal';
 const TABS: { key: Tab; label: string; icon: typeof Shield }[] = [
@@ -110,6 +112,7 @@ export default function CharacterSheetPage() {
   const [shortRestDice, setShortRestDice] = useState<Record<string, number>>({});
   const [shortRestRolls, setShortRestRolls] = useState<Record<string, string[]>>({});
   const [arcaneRecovery, setArcaneRecovery] = useState<ArcaneRecoveryChoice>({});
+  const [naturalRecovery, setNaturalRecovery] = useState<ArcaneRecoveryChoice>({});
   const [hitPointDialog, setHitPointDialog] = useState<HitPointChange | null>(null);
   const [hitPointAmount, setHitPointAmount] = useState('');
   const [showLevelUp, setShowLevelUp] = useState(false);
@@ -163,6 +166,20 @@ export default function CharacterSheetPage() {
   }, [char?.multiclassEntries, char?.characterClass, char?.level]);
   const arcaneRecoveryUsed = useMemo(() => resourcePools.some(p => p.poolId === ARCANE_RECOVERY_POOL
     && p.currentUses < 1), [resourcePools]);
+  // A Circle of the Land druid's Natural Recovery, once until a long rest as a short rest ends (PHB p.68, D222): only
+  // such a druid from 2nd level has its pool
+  const naturalRecoveryPool = useMemo(() => resourcePools.find(p => p.poolId === NATURAL_RECOVERY_POOL),
+    [resourcePools]);
+  const druidLevel = useMemo(() => {
+    const entries = char?.multiclassEntries ?? [];
+    if (entries.length > 0) {
+      return entries.filter(e => e.className === 'Druid').reduce((sum, e) => sum + e.level, 0);
+    }
+    return char?.characterClass === 'Druid' ? (char.level ?? 0) : 0;
+  }, [char?.multiclassEntries, char?.characterClass, char?.level]);
+  // Natural Recovery sees the slots Arcane Recovery chose as no longer expended, so the two never pick the same one
+  const slotsForNaturalRecovery = useMemo(() => slotsAfterRecovery(spellSlots, arcaneRecovery),
+    [spellSlots, arcaneRecovery]);
   const showLongRestAbilities = longRestPools.length > 0;
 
   const classAccent = getClassColour(char?.characterClass);
@@ -244,15 +261,21 @@ export default function CharacterSheetPage() {
     setShortRestDice({});
     setShortRestRolls({});
     setArcaneRecovery({});
+    setNaturalRecovery({});
   }
 
   async function handleShortRest() {
     if (!char || diceToSpend === null) return;
     const before = char.hpCurrent;
     const recovered = arcaneRecoveryLevels(arcaneRecovery);
+    const naturallyRecovered = arcaneRecoveryLevels(naturalRecovery);
     const rested = await runCommand(shortRest.mutateAsync({
       characterId: char.id,
-      rest: { hitDice: diceToSpend, arcaneRecovery: recovered.length > 0 ? recovered : undefined },
+      rest: {
+        hitDice: diceToSpend,
+        arcaneRecovery: recovered.length > 0 ? recovered : undefined,
+        naturalRecovery: naturallyRecovered.length > 0 ? naturallyRecovered : undefined,
+      },
     }), result => shortRestMessage(before, result));
     if (rested) closeRestModal();
   }
@@ -689,8 +712,13 @@ export default function CharacterSheetPage() {
                 })}
               </div>
               {wizardLevel > 0 && (
-                <ArcaneRecoveryPicker wizardLevel={wizardLevel} slots={spellSlots} usedToday={arcaneRecoveryUsed}
+                <ArcaneRecoveryPicker classLevel={wizardLevel} slots={spellSlots} usedToday={arcaneRecoveryUsed}
                   choice={arcaneRecovery} onChange={setArcaneRecovery} />
+              )}
+              {naturalRecoveryPool && druidLevel > 0 && (
+                <ArcaneRecoveryPicker name="Natural Recovery" classLevel={druidLevel} slots={slotsForNaturalRecovery}
+                  usedToday={naturalRecoveryPool.currentUses < 1} choice={naturalRecovery}
+                  onChange={setNaturalRecovery} />
               )}
               {showShortRestAbilities && (
                 <div className="space-y-1">

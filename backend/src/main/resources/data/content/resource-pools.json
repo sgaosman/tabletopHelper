@@ -212,6 +212,55 @@
       "icon": "sparkles"
     },
     {
+      "poolId": "class:fighter-indomitable",
+      "displayName": "Indomitable",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "Reroll a saving throw that you fail; you must use the new roll. Once before a long rest, twice from 13th level and three times from 17th (PHB p.73).",
+      "icon": "shield-check",
+      "levelTable": {
+        "levelOf": "Fighter",
+        "rows": [
+          {
+            "level": 13,
+            "maxUses": "2"
+          },
+          {
+            "level": 17,
+            "maxUses": "3"
+          }
+        ]
+      }
+    },
+    {
+      "poolId": "class:paladin-cleansing-touch",
+      "displayName": "Cleansing Touch",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "max(1, charismaModifier)",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Use your action to end one spell on yourself or on one willing creature that you touch. A number of times equal to your Charisma modifier (a minimum of once), regaining them on a long rest (PHB p.85).",
+      "icon": "sun"
+    },
+    {
+      "poolId": "class:cleric-divine-intervention",
+      "displayName": "Divine Intervention",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Implore your deity to intervene: roll percentile dice, and if you roll a number equal to or lower than your cleric level, your deity intervenes, the DM choosing how. If it does, you can't use this feature again for 7 days, which the sheet can't track, so the DM keeps the pool spent; otherwise you can use it again after a long rest. From 20th level the call succeeds automatically, no roll required (PHB p.59).",
+      "icon": "sun"
+    },
+    {
       "poolId": "class:barbarian-rage",
       "displayName": "Rage",
       "sourceType": "CLASS",
@@ -599,7 +648,7 @@
       "resetAmount": null,
       "resetCheck": null,
       "spendActionType": "FREE",
-      "description": "During a short rest, recover expended spell slots of combined level up to half your druid level (rounded up).",
+      "description": "During a short rest, recover expended spell slots of combined level up to half your druid level (rounded up), none of 6th level or higher; once before a long rest. Used from the short rest dialog.",
       "icon": "paw-print"
     },
     {
@@ -1633,6 +1682,24 @@
       "classSource": "PHB",
       "minLevel": 1,
       "poolId": "class:wizard-arcane-recovery"
+    },
+    {
+      "class": "Fighter",
+      "classSource": "PHB",
+      "minLevel": 9,
+      "poolId": "class:fighter-indomitable"
+    },
+    {
+      "class": "Paladin",
+      "classSource": "PHB",
+      "minLevel": 14,
+      "poolId": "class:paladin-cleansing-touch"
+    },
+    {
+      "class": "Cleric",
+      "classSource": "PHB",
+      "minLevel": 10,
+      "poolId": "class:cleric-divine-intervention"
     },
     {
       "class": "Barbarian",
