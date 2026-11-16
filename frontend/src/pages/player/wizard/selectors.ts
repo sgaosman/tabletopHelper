@@ -286,6 +286,13 @@ export function skillsBeforeBackground(state: WizardState): Set<string> {
   return new Set([...raceSkills(state), ...state.selectedClassSkills.map(lower), ...multiclassSkillList(state).map(lower)]);
 }
 
+/** The languages the race gives, fixed and chosen, lower-cased: everything known before the background's. */
+export function languagesBeforeBackground(state: WizardState): Set<string> {
+  const race = state.selectedRace;
+  const fixed = race ? safeJsonParse<{ languages?: string[] }>(race.proficiencies, {}).languages ?? [] : [];
+  return new Set([...fixed, ...resolvedRaceChoices(state).languages].map(lower));
+}
+
 /** The skills a multiclass can't choose because the race, the first class or another multiclass gives them. */
 export function multiclassSkillsTaken(state: WizardState, classId: string): Set<string> {
   return new Set([

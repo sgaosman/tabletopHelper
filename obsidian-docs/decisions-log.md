@@ -4545,6 +4545,8 @@ The plan's twelve questions were answered with its recommended answers when the 
 - **Dialog errors show in the dialog.** A refused hit point change or rest showed its error in the header behind the open dialog; it now shows inside it.
 - **Smaller fixes:** the racial bonus buttons fit a 375-pixel phone; ability score labels are tied to their inputs, point-buy buttons are named ("Raise Strength"), and selectable chips and cards carry `aria-pressed`; the level-up dialog can't be closed while its request is in flight.
 
+- **Update (browser retest, same night):** the duplicate-skill picker showed as built (an Acolyte cleric with Insight offered every skill but Insight, Medicine and Religion). The background's language choices also offered languages the character already spoke (Common and Elvish for a Human who chose Elvish); the languages the race gives, fixed and chosen, are now left out too.
+
 **Still open:** Rogue Expertise isn't required to leave the Class step, and thieves' tools aren't offered for it.
 
 **Key files:** `CharacterCreateWizard.tsx`, `wizardReducer.ts`, `selectors.ts`, `RaceStep.tsx`, `ClassStep.tsx`, `BackgroundStep.tsx`, `AbilityScoresStep.tsx`, `StatsTab.tsx`, `CharacterSheetPage.tsx`, `LevelUpModal.tsx`

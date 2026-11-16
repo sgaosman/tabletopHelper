@@ -8,8 +8,11 @@ import type { WizardAction, WizardState } from './wizardReducer';
 import {
   bgChoiceReqs as choiceReqs, bgChoicesComplete as choicesComplete, bgFeatNames as featNames,
   bgReplacementOptions, bgSkillConflicts as skillConflicts, filteredBackgrounds as filterBackgrounds,
-  skillsBeforeBackground,
+  languagesBeforeBackground, skillsBeforeBackground,
 } from './selectors';
+
+// No held proficiencies to leave out, for tools
+const NONE: ReadonlySet<string> = new Set();
 
 export interface BackgroundStepProps {
   backgrounds: Background[];
@@ -25,6 +28,8 @@ export default function BackgroundStep({ backgrounds, state, dispatch }: Backgro
   const bgSkillConflicts = skillConflicts(state);
   // A skill the race or a class already gives isn't offered among the background's skills (D226)
   const heldBefore = skillsBeforeBackground(state);
+  // Nor a language the character already speaks
+  const knownBefore = languagesBeforeBackground(state);
   // The feats the background grants, one of which the character takes on its sheet after creation (D159)
   const bgFeatNames = featNames(selectedBackground);
   return (
@@ -86,8 +91,9 @@ export default function BackgroundStep({ backgrounds, state, dispatch }: Backgro
                   </p>
                   <div className="flex gap-1.5 flex-wrap">
                     {req.from
-                      .filter(option => !req.key.startsWith('skill_') || !heldBefore.has(option.toLowerCase())
-                        || (bgProfChoices[req.key] ?? []).includes(option))
+                      .filter(option => (bgProfChoices[req.key] ?? []).includes(option)
+                        || !(req.key.startsWith('skill_') ? heldBefore : req.key.startsWith('lang_') ? knownBefore : NONE)
+                          .has(option.toLowerCase()))
                       .map(option => (
                       <button
                         key={option}

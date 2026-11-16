@@ -64,4 +64,17 @@ describe('BackgroundStep: a background skill already held (PHB p.125, D226)', ()
     await user.click(arcana);
     expect(arcana).toHaveAttribute('aria-pressed', 'true');
   });
+
+  it("leaves languages the character already speaks out of the background's language choices", async () => {
+    const user = userEvent.setup();
+    const sage = background('bg-sage', 'Sage', { languageProficiencies: '[{"anyStandard":2}]' });
+    render(<Harness initial={athleteFighter} backgrounds={[sage]} />);
+
+    await user.click(screen.getByRole('button', { name: /^Sage/ }));
+
+    // The High Elf speaks Common and Elvish
+    expect(screen.queryByRole('button', { name: 'Common' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Elvish' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Dwarvish' })).toHaveAttribute('aria-pressed', 'false');
+  });
 });
