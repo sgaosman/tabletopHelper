@@ -4198,3 +4198,25 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D176, D181, D198, D201, D207
 
 **Tests:** regression tests beside each change, new `SpellCastModal.consent.test.tsx`, 3 more in `ConditionServiceTest`, a two-source case in `FrightenedIT`; 1,234 frontend, 4,589 backend unit and 546 integration tests.
+
+
+## D214: Combat Fixes from the Overnight Review
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration)
+
+**Context:** the code review of the user's overnight run of 2026-11-16 read the encounter engine and confirmed four defects, two of them in older undo code ([[#D176]]) that newer features rely on. All were fixed with unit and integration tests. Calls are the lead's, recorded for review.
+
+**Decision:**
+1. **Undo gives control back:** an undo snapshot recorded who controls a creature only for summons, but [[#D187]]'s `takeControl` also moves non-summoned creatures (Dominate Person, Monster and Beast; a ghost's Possession, [[#D204]]). Undoing a possession left the player's character with the DM and the player locked out; undoing a Dominate left the player with the monster. Snapshots now record every creature's controller with a `controllerKept` flag and always restore it, the DM's included; older snapshots without the flag keep the old behaviour.
+2. **Undoing a Counterspell brings the summons back:** a successful Counterspell ([[#D196]]) takes back the countered command, which deleted that command's summoned creatures, so undoing the Counterspell left the caster concentrating on a summoning with no creatures. A reverted summoning inside another command now dismisses its creatures (hidden, out of the turn order, as [[#D182]]'s dismissed summons are) instead of deleting them; undoing the Counterspell restores them with the same ids, state, initiative and owning effect. A plain undo still deletes them.
+3. **Pool features respect total cover:** `FeatureEffects.plan` now checks every target a pool use names with `CombatAccess.requireReachable` before anything is spent, covering racial features ([[#D208]]), Lay on Hands, Bardic Inspiration, Channel Divinity, Wild Shape and spell-healing pools. A swallowed dragonborn can no longer breathe on the party outside, nor can Lay on Hands reach into Otiluke's Resilient Sphere ([[#D185]]); acting on oneself is still allowed.
+4. **Racial features use the pool asked for:** `FeatureEffects.Plan` carries the requested pool id, so a creature with two pools of the same effect spends the right one; with no id the first pool of that effect is used as before.
+
+**Rules calls (the lead's, to confirm):** Turn Undead doesn't reach creatures behind total cover, as spells don't; a countered summoning's creatures stay as hidden dismissed rows until the encounter ends.
+
+**Key files:** `encounter/state/ParticipantCombatState.java`, `encounter/internal/UndoService.java`, `FeatureEffects.java`, `RaceFeatureEffects.java`
+
+**Related:** D176, D182, D185, D187, D196, D204, D208
+
+**Tests:** `UndoServiceTest` (controller both ways, old snapshots, a reverted summoning coming back), `CommandRecorderTest`, `FeatureEffectsTest`, `RaceFeatureEffectsTest`, and over HTTP `MonsterRidersTailIT` (a ghost's possession undone), `FifthLevelSpellsIT` (Dominate Person undone), `SummonIT` (Conjure Animals counterspelled, the Counterspell undone, then the cast), `RacialPoolsIT` and `FeatureEffectsIT`; 4,595 backend unit and 550 integration tests on its branch.
