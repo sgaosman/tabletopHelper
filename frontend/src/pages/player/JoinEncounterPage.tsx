@@ -35,6 +35,7 @@ export default function JoinEncounterPage() {
             type="text"
             value={code}
             onChange={e => setCode(e.target.value.toUpperCase())}
+            aria-label="Session code"
             placeholder="Session code"
             required
             maxLength={8}

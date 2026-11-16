@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { apiErrorMessage } from '../api/errors';
 
 export default function RegisterPage() {
   const [username, setUsername] = useState('');
@@ -25,8 +26,9 @@ export default function RegisterPage() {
         displayName: displayName || undefined,
       });
       navigate('/select-role');
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Registration failed');
+    } catch (err) {
+      // The server's message, or the network message when it could not be reached (D229)
+      setError(apiErrorMessage(err));
     } finally {
       setLoading(false);
     }

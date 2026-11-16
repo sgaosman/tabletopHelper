@@ -44,4 +44,9 @@ describe('JoinEncounterPage', () => {
     expect(screen.getByRole('button', { name: 'Join' })).toBeEnabled();
     expect(window.location.pathname).toBe('/player/encounter/join');
   });
+
+  it('gives the session code box an accessible name (D229)', () => {
+    render(<JoinEncounterPage />);
+    expect(screen.getByRole('textbox', { name: 'Session code' })).toBeInTheDocument();
+  });
 });

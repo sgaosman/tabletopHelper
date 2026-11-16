@@ -1,10 +1,14 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { screen, waitFor } from '../../test/test-utils';
 import userEvent from '@testing-library/user-event';
 import { render, setupAuthToken } from '../../test/test-utils';
 import CampaignManagePage from './CampaignManagePage';
 
 describe('CampaignManagePage', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     setupAuthToken();
   });
@@ -130,5 +134,34 @@ describe('CampaignManagePage', () => {
     await waitFor(() => screen.getByText('Test Campaign'));
     expect(screen.getByText('Test User')).toBeInTheDocument();
     expect(screen.getByText('DM')).toBeInTheDocument();
+  });
+
+  // D229: "copied" only once the browser has taken the code, and a toast when it refuses
+  it('says the invite code was copied once the clipboard has it', async () => {
+    const user = userEvent.setup();
+    render(<CampaignManagePage />);
+    await user.click(await screen.findByRole('button', { name: 'Copy invite code for Test Campaign' }));
+
+    expect(await screen.findByRole('button', { name: 'Invite code copied' })).toBeInTheDocument();
+    expect(await navigator.clipboard.readText()).toBe('ABC123XY');
+  });
+
+  it('shows the code in an error toast, and no "copied", when the browser refuses the clipboard', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new DOMException('Denied', 'NotAllowedError'));
+    render(<CampaignManagePage />);
+    await user.click(await screen.findByRole('button', { name: 'Copy invite code for Test Campaign' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not copy the invite code. It is ABC123XY.');
+    expect(screen.queryByRole('button', { name: 'Invite code copied' })).not.toBeInTheDocument();
+  });
+
+  it('labels the create form fields (D229)', async () => {
+    const user = userEvent.setup();
+    render(<CampaignManagePage />);
+    await user.click(await screen.findByText('New Campaign'));
+
+    expect(screen.getByLabelText('Campaign Name')).toHaveAttribute('id', 'campaign-name');
+    expect(screen.getByLabelText(/Description/)).toHaveAttribute('id', 'campaign-description');
   });
 });

@@ -47,6 +47,29 @@ class EncounterLifecycleIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("Adding a monster takes a quantity of 1 to 20: 0 and 21 are refused with a 400 that adds nothing, and "
+            + "20 adds twenty (D229)")
+    void quantityIsOneToTwenty() {
+        Monster kobold = monsterRepository.save(Monster.builder()
+                .name("Kobold").type("Humanoid").challengeRating("1/8").source("MM")
+                .hitPoints(5).armourClass(12).dexterity(15)
+                .build());
+        String path = "/api/encounters/" + encounterId + "/participants";
+
+        for (int quantity : new int[] {0, 21}) {
+            ResponseEntity<String> refused = exchange(HttpMethod.POST, path, Map.of("participantType", "MONSTER",
+                    "monsterId", kobold.getId(), "displayName", "Kobold", "quantity", quantity), dm.accessToken());
+            assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThat(refused.getBody()).contains("quantity");
+        }
+        assertThat(encounter().get("participants")).hasSize(1);
+
+        JsonNode added = expect(HttpStatus.OK, exchange(HttpMethod.POST, path, Map.of("participantType", "MONSTER",
+                "monsterId", kobold.getId(), "displayName", "Kobold", "quantity", 20), dm.accessToken()));
+        assertThat(added.get("participants")).hasSize(21);
+    }
+
+    @Test
     @DisplayName("Starting puts the encounter on round 1 before any Next Turn, in the start's response and when read")
     void startIsRoundOne() {
         JsonNode started = startEncounter(dm.accessToken(), encounterId);

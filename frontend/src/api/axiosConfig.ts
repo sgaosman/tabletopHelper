@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { apiErrorStatus } from './errors';
 import { clearAccessToken, getAccessToken, refreshAccessToken } from './tokenStore';
 
 const api = axios.create({
@@ -38,7 +39,11 @@ api.interceptors.response.use(
         const { accessToken } = await refreshAccessToken();
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return api(originalRequest);
-      } catch {
+      } catch (refreshError) {
+        // Only a 401 from the refresh means the session is over. A network failure or a 5xx says nothing about
+        // the session, so the user stays signed in and the request fails with the refresh's error: the page then
+        // shows the network (or server) message rather than the expired token's 401 (D229).
+        if (apiErrorStatus(refreshError) !== 401) return Promise.reject(refreshError);
         clearAccessToken();
         window.location.href = '/login';
         return new Promise(() => {});

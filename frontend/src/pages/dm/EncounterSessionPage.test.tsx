@@ -555,6 +555,26 @@ describe('DM EncounterSessionPage', () => {
       expectNoCombatControls();
     });
 
+    it("pausing and resuming mark the builder's list of the campaign's encounters stale, so it shows the new status (D229)", async () => {
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(busyTable('ACTIVE'))),
+        http.post('/api/encounters/:id/pause', () => HttpResponse.json(busyTable('PAUSED'))),
+        http.post('/api/encounters/:id/resume', () => HttpResponse.json(busyTable('ACTIVE'))),
+      );
+      const user = userEvent.setup();
+      const { queryClient } = await renderLoaded();
+      const listKey = ['campaigns', 'camp-001', 'encounters'];
+      queryClient.setQueryData(listKey, [busyTable('ACTIVE')]);
+      expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(false);
+
+      await user.click(screen.getByRole('button', { name: /Pause/ }));
+      await waitFor(() => expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(true));
+
+      queryClient.setQueryData(listKey, [busyTable('PAUSED')]);
+      await user.click(await screen.findByRole('button', { name: /Resume/ }));
+      await waitFor(() => expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(true));
+    });
+
     it('a pause pushed over the WebSocket, as from another DM tab, hides the combat controls', async () => {
       server.use(http.get('/api/encounters/:id', () => HttpResponse.json(busyTable('ACTIVE'))));
       await renderLoaded();

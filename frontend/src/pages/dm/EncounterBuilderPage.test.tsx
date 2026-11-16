@@ -384,4 +384,134 @@ describe('EncounterBuilderPage', () => {
     await waitFor(() => expect(requests).toHaveLength(1));
     expect(requests[0]).toEqual({ participantType: 'MONSTER', monsterId: 'mon-001', displayName: 'Goblin', quantity: 1 });
   });
+
+  // D229: the quantity box holds what is typed, so it can be cleared and retyped
+  it('lets the DM clear the quantity and type another, sending what was typed', async () => {
+    const { user, requests } = await searchMonsters(null);
+    const quantity = screen.getByRole('spinbutton', { name: 'How many Goblin to add' });
+    expect(quantity).toHaveValue(1);
+    const goblinRow = quantity.closest('div.flex.items-center.justify-between') as HTMLElement;
+
+    await user.clear(quantity);
+    expect(quantity).toHaveValue(null);
+    expect(within(goblinRow).getByRole('button', { name: 'Add' })).toBeDisabled();
+
+    await user.type(quantity, '4');
+    expect(quantity).toHaveValue(4);
+    await user.click(within(goblinRow).getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]).toEqual({ participantType: 'MONSTER', monsterId: 'mon-001', displayName: 'Goblin', quantity: 4 });
+  });
+
+  it('keeps the quantity it sends within 1 to 20 (D229)', async () => {
+    const { user, requests } = await searchMonsters(null);
+    const quantity = screen.getByRole('spinbutton', { name: 'How many Goblin to add' });
+    const goblinRow = quantity.closest('div.flex.items-center.justify-between') as HTMLElement;
+
+    await user.clear(quantity);
+    await user.type(quantity, '25');
+    await user.click(within(goblinRow).getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]).toMatchObject({ quantity: 20 });
+  });
+
+  it('offers Go to Session for a paused encounter as well as an active one (D229)', async () => {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    const { makeMockEncounter } = await import('../../test/mocks/handlers');
+    server.use(
+      http.get('/api/encounters/campaign/:campaignId', () => HttpResponse.json([
+        makeMockEncounter({ id: 'enc-paused', name: 'Paused Fight', status: 'PAUSED' }),
+        makeMockEncounter({ id: 'enc-done', name: 'Finished Fight', status: 'COMPLETED' }),
+      ])),
+    );
+    render(<EncounterBuilderPage />);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByText('Finished Fight'));
+    expect(screen.queryByRole('button', { name: /Go to Session/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByText('Paused Fight'));
+    expect(screen.getByRole('button', { name: /Go to Session/ })).toBeInTheDocument();
+  });
+
+  it('sends initiatives saved in quick succession one at a time, so an older answer never overwrites a newer (D229)', async () => {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse, delay } = await import('msw');
+    const { makeMockEncounter, makeMockParticipant } = await import('../../test/mocks/handlers');
+    const initiatives: Record<string, number | undefined> = {};
+    const encounter = () => makeMockEncounter({
+      status: 'PREPARING', sessionCode: undefined,
+      participants: [
+        makeMockParticipant('part-a', 'Goblin A', 'MONSTER', { initiative: initiatives['part-a'] }),
+        makeMockParticipant('part-b', 'Goblin B', 'MONSTER', { initiative: initiatives['part-b'] }),
+      ],
+    });
+    let inFlight = 0;
+    let mostInFlight = 0;
+    let requestCount = 0;
+    server.use(
+      http.get('/api/encounters/campaign/:campaignId', () => HttpResponse.json([encounter()])),
+      http.post('/api/encounters/:id/initiatives', async ({ request }) => {
+        inFlight += 1;
+        mostInFlight = Math.max(mostInFlight, inFlight);
+        requestCount += 1;
+        const first = requestCount === 1;
+        const body = await request.json() as { initiatives: { participantId: string; initiative: number }[] };
+        for (const i of body.initiatives) initiatives[i.participantId] = i.initiative;
+        // The encounter as this request left it; the first answers slowly
+        const answer = encounter();
+        if (first) await delay(100);
+        inFlight -= 1;
+        return HttpResponse.json(answer);
+      }),
+    );
+    render(<EncounterBuilderPage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('Goblin Ambush'));
+    const [first, second] = screen.getAllByPlaceholderText('—');
+
+    await user.type(first, '12');
+    await user.click(second);
+    await user.type(second, '7');
+    await user.tab();
+
+    await waitFor(() => expect(requestCount).toBe(2));
+    await waitFor(() => expect(inFlight).toBe(0));
+    expect(mostInFlight).toBe(1);
+    await waitFor(() => {
+      const [a, b] = screen.getAllByPlaceholderText('—');
+      expect(a).toHaveValue(12);
+      expect(b).toHaveValue(7);
+    });
+  });
+
+  it('gives the campaign picker, the new encounter form and the monster search accessible names (D229)', async () => {
+    render(<EncounterBuilderPage />);
+    const user = userEvent.setup();
+    expect(await screen.findByRole('combobox', { name: 'Campaign' })).toBeInTheDocument();
+    await user.click(await screen.findByText('Goblin Ambush'));
+    await user.click(screen.getByText('New'));
+    expect(screen.getByRole('textbox', { name: 'Encounter name' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Encounter description' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Search monsters' })).toBeInTheDocument();
+  });
+
+  it('stacks the encounter list above the builder on a phone and scrolls the participants table sideways (D229)', async () => {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    const { makeMockEncounter } = await import('../../test/mocks/handlers');
+    server.use(
+      http.get('/api/encounters/campaign/:campaignId', () =>
+        HttpResponse.json([makeMockEncounter({ status: 'PREPARING', sessionCode: undefined })])),
+    );
+    render(<EncounterBuilderPage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('Goblin Ambush'));
+
+    const list = screen.getByRole('heading', { name: 'Encounters', level: 2 }).closest('div.w-full') as HTMLElement;
+    expect(list).toHaveClass('w-full', 'lg:w-80');
+    expect(list.parentElement).toHaveClass('flex-col', 'lg:flex-row');
+    expect(screen.getByRole('table').parentElement).toHaveClass('overflow-x-auto');
+  });
 });

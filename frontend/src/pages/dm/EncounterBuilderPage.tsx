@@ -34,6 +34,9 @@ const STATUS_STYLES: Record<string, { text: string; bg: string; border: string }
   COMPLETED: { text: 'var(--color-faint)', bg: 'var(--color-page-alt)', border: 'var(--color-rule-light)' },
 };
 
+/** The most of one monster added at once; the server refuses more (AddParticipantRequest, D229). */
+const MAX_MONSTER_QUANTITY = 20;
+
 export default function EncounterBuilderPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -50,7 +53,8 @@ export default function EncounterBuilderPage() {
 
   const [monsterSearch, setMonsterSearch] = useState('');
   const [monsterSearchTerm, setMonsterSearchTerm] = useState('');
-  const [monsterQuantities, setMonsterQuantities] = useState<Record<string, number>>({});
+  // How many of each monster to add, as typed, so the box can be cleared and retyped; 1 until changed (D229)
+  const [monsterQuantities, setMonsterQuantities] = useState<Record<string, string>>({});
   // A hydra's heads as the DM sets them before adding it, the stat block's count until changed (D206)
   const [monsterHeads, setMonsterHeads] = useState<Record<string, string>>({});
 
@@ -149,9 +153,18 @@ export default function EncounterBuilderPage() {
     return Number.isNaN(heads) ? stated : Math.min(20, Math.max(1, heads));
   }
 
+  // How many of a monster to add: 1 until the box is changed, then the whole number typed, kept within the server's
+  // 1 to 20; undefined while the box is empty or holds no whole number, which disables Add (D229)
+  function chosenQuantity(typed: string | undefined): number | undefined {
+    if (typed === undefined) return 1;
+    if (!/^\s*\d+\s*$/.test(typed)) return undefined;
+    return Math.min(MAX_MONSTER_QUANTITY, Math.max(1, parseInt(typed, 10)));
+  }
+
   async function handleAddMonster(monster: Monster) {
     if (!selectedEncounter) return;
-    const qty = monsterQuantities[monster.id] || 1;
+    const qty = chosenQuantity(monsterQuantities[monster.id]);
+    if (qty == null) return;
     await attempt(() => addParticipant.mutateAsync({
       encounter: selectedEncounter,
       request: {
@@ -278,6 +291,7 @@ export default function EncounterBuilderPage() {
           <>
             <div className="mb-6">
               <select
+                aria-label="Campaign"
                 value={selectedCampaignId}
                 onChange={e => selectCampaign(e.target.value)}
                 className="px-4 py-2.5 bg-card border border-rule font-body text-[16px] font-semibold text-ink focus:outline-none focus:border-muted"
@@ -288,9 +302,10 @@ export default function EncounterBuilderPage() {
             </div>
 
             {selectedCampaignId && (
-              <div className="flex gap-6">
+              // Stacked on a phone, side by side from lg up (D229)
+              <div className="flex flex-col lg:flex-row gap-6">
                 {/* Encounter list */}
-                <div className="w-80 flex-shrink-0">
+                <div className="w-full lg:w-80 lg:flex-shrink-0">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="font-heading text-[16px] font-semibold text-ink">Encounters</h2>
                     <button
@@ -305,6 +320,7 @@ export default function EncounterBuilderPage() {
                     <form onSubmit={handleCreate} className="bg-card border border-rule p-4 mb-3">
                       <input
                         type="text"
+                        aria-label="Encounter name"
                         value={newName}
                         onChange={e => setNewName(e.target.value)}
                         placeholder="Encounter name"
@@ -312,6 +328,7 @@ export default function EncounterBuilderPage() {
                         className="w-full px-3 py-2 bg-page border border-rule font-body text-[16px] font-semibold text-ink mb-2 placeholder-faint focus:outline-none focus:border-muted"
                       />
                       <textarea
+                        aria-label="Encounter description"
                         value={newDesc}
                         onChange={e => setNewDesc(e.target.value)}
                         placeholder="Description (optional)"
@@ -367,7 +384,7 @@ export default function EncounterBuilderPage() {
                 {/* Encounter builder panel */}
                 {selectedEncounter && (
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                       <div>
                         <h2 className="font-heading text-[19px] font-semibold text-ink">{selectedEncounter.name}</h2>
                         {selectedEncounter.description && (
@@ -384,7 +401,8 @@ export default function EncounterBuilderPage() {
                             </IconButton>
                           </div>
                         )}
-                        {selectedEncounter.status === 'ACTIVE' && (
+                        {/* A paused encounter is resumed from its session page, so it needs the way there too (D229) */}
+                        {(selectedEncounter.status === 'ACTIVE' || selectedEncounter.status === 'PAUSED') && (
                           <button
                             onClick={() => navigate(`/dm/encounter/${selectedEncounter.id}/session`)}
                             className="px-4 py-2 font-body text-[15px] font-semibold text-card flex items-center gap-2"
@@ -469,6 +487,7 @@ export default function EncounterBuilderPage() {
                               <Search className="absolute left-3 top-2 text-faint" size={16} />
                               <input
                                 type="text"
+                                aria-label="Search monsters"
                                 value={monsterSearch}
                                 onChange={e => setMonsterSearch(e.target.value)}
                                 placeholder="Search monsters (fuzzy)..."
@@ -509,14 +528,15 @@ export default function EncounterBuilderPage() {
                                     <input
                                       type="number"
                                       min={1}
-                                      max={20}
-                                      value={monsterQuantities[m.id] || 1}
-                                      onChange={e => setMonsterQuantities(q => ({ ...q, [m.id]: parseInt(e.target.value) || 1 }))}
+                                      max={MAX_MONSTER_QUANTITY}
+                                      aria-label={`How many ${m.name} to add`}
+                                      value={monsterQuantities[m.id] ?? '1'}
+                                      onChange={e => setMonsterQuantities(q => ({ ...q, [m.id]: e.target.value }))}
                                       className="w-12 px-2 py-1 bg-card border border-rule font-body text-[15px] font-semibold text-ink text-center focus:outline-none focus:border-muted"
                                     />
                                     <button
                                       onClick={() => handleAddMonster(m)}
-                                      disabled={builderBusy}
+                                      disabled={builderBusy || chosenQuantity(monsterQuantities[m.id]) == null}
                                       className="px-2.5 py-1 text-card font-heading text-[11px] font-semibold tracking-[0.02em] disabled:opacity-50 disabled:cursor-wait"
                                       style={{ backgroundColor: 'var(--color-monster)' }}
                                     >
@@ -583,7 +603,7 @@ export default function EncounterBuilderPage() {
                       {selectedEncounter.participants.length === 0 ? (
                         <p className="font-body text-[15px] text-faint">Add characters and monsters above.</p>
                       ) : (
-                        <div className="bg-card border border-rule overflow-hidden">
+                        <div className="bg-card border border-rule overflow-x-auto">
                           <table className="w-full">
                             <thead>
                               <tr className="border-b border-rule text-left">

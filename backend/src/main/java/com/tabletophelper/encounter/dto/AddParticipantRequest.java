@@ -35,6 +35,10 @@ public class AddParticipantRequest {
 
     private UUID controlledByUserId;
 
+    // How many of the creature to add at once, 1 when left out; the builder offers 1 to 20 and the server refuses
+    // more, so a stray keystroke can't add hundreds of monsters (D229)
+    @Min(1)
+    @Max(20)
     private Integer quantity;
 
     // A COMPANION a summoning spell brought (D182): the caster's participant, and the spell, slot level, option,

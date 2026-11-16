@@ -4,6 +4,7 @@ import { server } from '../test/mocks/server';
 import { setupAuthToken } from '../test/test-utils';
 import type { AuthResponse } from '../types/auth';
 import api from './axiosConfig';
+import { apiErrorMessage, NETWORK_ERROR_MESSAGE } from './errors';
 import { getAccessToken, setAccessToken } from './tokenStore';
 
 const REFRESHED = {
@@ -168,6 +169,35 @@ describe('axiosConfig', () => {
 
     expect(loginHeaders).toEqual(['Bearer test-access-token']);
     expect(refreshCalls).toEqual([]);
+  });
+
+  it('keeps the session and rejects with a network error when the refresh cannot reach the server', async () => {
+    setupAuthToken();
+    protectedEndpoint(401);
+    const refreshCalls = refreshEndpoint(() => HttpResponse.error());
+    const location = { href: 'http://localhost/dm' };
+    vi.stubGlobal('location', location);
+
+    // D229: a network failure says nothing about the session, and the page shows the network message
+    const error = await api.get('/protected').catch((e: unknown) => e);
+
+    expect(apiErrorMessage(error)).toBe(NETWORK_ERROR_MESSAGE);
+    expect(refreshCalls).toHaveLength(1);
+    expect(location.href).toBe('http://localhost/dm');
+    expect(getAccessToken()).toBe('test-access-token');
+  });
+
+  it('keeps the session and rejects with the server error when the refresh answers 503', async () => {
+    setupAuthToken();
+    protectedEndpoint(401);
+    refreshEndpoint(() => new HttpResponse(null, { status: 503 }));
+    const location = { href: 'http://localhost/dm' };
+    vi.stubGlobal('location', location);
+
+    await expect(api.get('/protected')).rejects.toMatchObject({ response: { status: 503 } });
+
+    expect(location.href).toBe('http://localhost/dm');
+    expect(getAccessToken()).toBe('test-access-token');
   });
 
   it('passes other errors on without a refresh', async () => {

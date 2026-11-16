@@ -144,6 +144,10 @@ function useEncounterChange<TVariables extends { encounter: EncounterRef }>(
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (variables: TVariables) => (await change(variables)).data,
+    // The builder's changes run one at a time, in the order made, so the encounter each writes to the cache is never
+    // older than the one before it: two initiatives saved in quick succession could otherwise answer out of order and
+    // the older answer overwrite the newer (D229)
+    scope: { id: 'encounter-builder' },
     onSuccess: encounter => writeEncounter(queryClient, encounter),
     onError: (error, { encounter }) =>
       invalidateOnConflict(queryClient, error, queryKeys.campaigns.encounters(encounter.campaignId)),
@@ -426,18 +430,26 @@ export function useEncounterAction() {
         if (socketMessages.current === messagesBefore) void invalidateMonsterActions(queryClient, encounterId);
         return result;
       };
+    // Changes the encounter's status or participants, which the builder's list shows, so the campaign's list of
+    // encounters is fetched again (D229)
+    const listed = <A extends unknown[]>(request: EncounterRequest<A, Encounter>) =>
+      async (...args: A) => {
+        const encounter = await change(request)(...args);
+        void queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.encounters(encounter.campaignId) });
+        return encounter;
+      };
     // Writes the encounter's results back to character sheets (D166), so the cached characters are fetched again
     const writeBack = <A extends unknown[]>(request: EncounterRequest<A, Encounter>) =>
       async (...args: A) => {
-        const encounter = await change(request)(...args);
+        const encounter = await listed(request)(...args);
         void queryClient.invalidateQueries({ queryKey: queryKeys.characters.mine() });
         void queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.characters(encounter.campaignId) });
         return encounter;
       };
 
     return {
-      pause: change(encounterApi.pause),
-      resume: change(encounterApi.resume),
+      pause: listed(encounterApi.pause),
+      resume: listed(encounterApi.resume),
       end: writeBack(encounterApi.end),
       setVisibility: change(encounterApi.setVisibility),
       removeParticipant: writeBack(encounterApi.removeParticipant),

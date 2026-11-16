@@ -83,4 +83,19 @@ describe('RegisterPage', () => {
       expect(window.location.pathname).toBe('/select-role');
     });
   });
+
+  it('shows the network message when the server cannot be reached (D229)', async () => {
+    const { server } = await import('../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    const { NETWORK_ERROR_MESSAGE } = await import('../api/errors');
+    server.use(http.post('/api/auth/register', () => HttpResponse.error()));
+    render(<RegisterPage />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Username'), 'newuser');
+    await user.type(screen.getByLabelText('Email'), 'new@test.com');
+    await user.type(screen.getByLabelText('Password'), 'password123');
+    await user.click(screen.getByRole('button', { name: /create account/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(NETWORK_ERROR_MESSAGE);
+  });
 });

@@ -5,6 +5,7 @@ import { apiErrorMessage } from '../../api/errors';
 import { useCampaigns, useCreateCampaign } from '../../queries/campaigns';
 import NavBar from '../../components/common/NavBar';
 import IconButton from '../../components/ui/IconButton';
+import { useToast } from '../../hooks/useToast';
 
 export default function CampaignManagePage() {
   const { data: campaigns, error: loadError, isPending } = useCampaigns();
@@ -14,6 +15,7 @@ export default function CampaignManagePage() {
   const [description, setDescription] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const navigate = useNavigate();
+  const toast = useToast();
 
   function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -32,10 +34,16 @@ export default function CampaignManagePage() {
     setShowCreate(show);
   }
 
-  function copyInviteCode(code: string) {
-    navigator.clipboard.writeText(code);
-    setCopiedCode(code);
-    setTimeout(() => setCopiedCode(null), 2000);
+  // Says "copied" only once the browser has taken the code (D229)
+  async function copyInviteCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 2000);
+    } catch {
+      // The browser refused the clipboard: the code is still on screen to copy by hand
+      toast.error(`Could not copy the invite code. It is ${code}.`);
+    }
   }
 
   return (
@@ -57,19 +65,19 @@ export default function CampaignManagePage() {
           <form onSubmit={handleCreate} className="bg-card border border-rule p-6 mb-6 space-y-4">
             <h2 className="font-heading text-[17px] font-semibold text-ink">Create Campaign</h2>
             <div>
-              <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">Campaign Name</label>
+              <label htmlFor="campaign-name" className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">Campaign Name</label>
               <input
-                type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={200}
+                id="campaign-name" type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={200}
                 className="w-full px-3 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
                 placeholder="e.g. Curse of Strahd"
               />
             </div>
             <div>
-              <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">
+              <label htmlFor="campaign-description" className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">
                 Description <span className="text-faint normal-case tracking-normal font-body">(optional)</span>
               </label>
               <textarea
-                value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
+                id="campaign-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
                 className="w-full px-3 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none resize-none"
                 placeholder="A brief description of your campaign"
               />

@@ -4604,3 +4604,28 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D202, D205, D207, D209, D220
 
 **Tests:** `MonsterActionCorrectionsDataTest` (45 cases) and updated data counts; on its branch 4,856 backend unit, 581 integration and 1,279 frontend tests passed; merged with D226 and D228, 4,858, 585 and 1,307.
+
+---
+
+## D229: DM Pages Fixes from the Overnight Review
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration)
+
+**Context:** a review of the DM-facing frontend during the user's overnight run of 2026-11-16 (encounter builder, campaign pages, session controls, the join flow, sign-in and token refresh) found the single-flight token refresh, route guards, double-submit guards, the End dialog and campaign settings sound, and confirmed the defects below. The calls are the lead's, recorded for review.
+
+**Decision:**
+- **A paused encounter can be reached.** The builder's "Go to Session" showed only for an active encounter and nothing else links to a session, so a DM who paused and went to the builder couldn't get back to resume or end it. It now shows for a paused one too.
+- **Monster quantity can be typed.** The quantity box snapped an empty value back to 1, so clearing it and typing 4 made 14, and typed values had no limit (200 goblins). The box keeps what is typed, Add is disabled until it is a whole number, and the quantity is kept to 1–20; the server refuses anything else (`AddParticipantRequest.quantity` `@Min(1) @Max(20)`).
+- **The builder's list follows the session.** Pausing, resuming, ending or removing a participant on the session page now refreshes the campaign's encounter list, which showed the old status for up to 30 seconds.
+- **Only a refused refresh signs the user out.** Any failed token refresh, a dropped connection or a restarting server included, sent the user to the login page mid-fight. Only a 401 from the refresh does now; anything else shows its own error and keeps the user signed in.
+- **Builder changes run in order.** Initiative saves sent one after another could answer out of order, an older answer overwriting a newer one and blanking an initiative. The builder's changes now go through one ordered queue (TanStack Query's mutation scope), so Start just waits for a save in flight.
+- **Smaller:** copying an invite code on the Campaigns page is awaited and says so when it fails; the builder fits a phone (stacked layout, the participant table scrolls sideways); the builder's, campaign page's and join page's fields have accessible names; login and registration show the network message when the server can't be reached.
+
+**Not done:** a link on the DM dashboard to sessions under way would need an endpoint listing a DM's running encounters.
+
+**Key files:** `EncounterBuilderPage.tsx`, `queries/encounters.ts`, `CampaignManagePage.tsx`, `api/axiosConfig.ts`, `JoinEncounterPage.tsx`, `LoginPage.tsx`, `RegisterPage.tsx`, `AddParticipantRequest.java`, `openapi.json`
+
+**Related:** D171, D213
+
+**Tests:** builder, session page, campaign page, axios refresh, login and register cases, and `EncounterLifecycleIT.quantityIsOneToTwenty`; 4,858 backend unit, 586 integration and 1,322 frontend tests pass.
