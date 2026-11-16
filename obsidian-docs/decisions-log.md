@@ -4578,3 +4578,29 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D166, D171, D216, D218
 
 **Tests:** `WriteBackIT` (a start waiting on a rest and copying its HP, a rest queued behind a start refused), `ReactionPromptsIT` (responses' offers and undo match what's stored), `EncounterServiceTest` lock order, `EncounterBroadcasterTest` isolation and stripe order; 4,812 backend unit and 585 integration tests pass.
+
+---
+
+## D227: Monster Action Data Fixes from the Overnight Audit
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration; the monster-actions loader reloads because its data file changed)
+
+**Context:** an audit during the user's overnight run of 2026-11-16 checked all 9,007 actions of 2,657 monsters in `monster-action-definitions.json` against their 5eTools stat blocks. Attack bonuses and save DCs matched everywhere; 449 flags, all in hand-built entries (the rider pass of [[#D202]]–[[#D209]] leaves a hand-built attack's own damage alone by design), were hand-verified. General fixes are new generator passes that mark what they change as the earlier passes do, so re-runs are idempotent and `--check` passes; one-off fixes are made in the data, which re-runs keep. After the fixes 108 flags remain, almost all audit false positives. The calls are the lead's, recorded for review.
+
+**Decision:**
+- **Monster Manual dice:** the Druid's Quarterstaff dealt its three alternatives at once (now 1d6, the two-handed and shillelagh options in its note); the Mummy Lord's Rotting Fist is 3d6 + 4, the Oni's Glaive 2d10 + 4, the Fire Elemental's and Magmin's Touch their hit damage with the ignite damage in the note, the orc spears gain Gruumsh's Fury d8, the Bugbear's and Bugbear Chief's javelins deal their melee damage.
+- **Breath weapons split** (31 merged actions become 62): the metallic dragons at every age, the Moonstone dragons, the metallic greatwyrms, Aspect of Bahamut and Pazrodine each get their two breaths as separate actions with their own save and area, built from the stat block; the gold dragons gain Weakening Breath, and sleep breaths last 10 minutes and end on damage. **(engine change)** A recharge pool was keyed by action name, so two actions couldn't share one recharge; a new `rechargeGroup` lets both breaths spend one pool. A monster already in a live encounter whose recharge action was renamed gets one fresh pool when it next uses it.
+- **Half damage on a success** for 103 hand-built save actions whose stat block halves it in a separate sentence (the gem dragons' and greatwyrms' breaths among them), and the Marid's Water Jet.
+- **Mummy Lord's Dreadful Glare** applies frightened only, with paralysis on a failure by 5 or more left to the DM in a note, as the Mummy's is; the engine supports "fails by 5" only in counted saves.
+- **Multiattacks:** 119 rebuilt from the text, only where the count matches a stated total and never dropping a component, leaving [[#D205]]'s choose-any multiattacks alone; 11 more by hand.
+- **Damage put right** on 123 attacks ("X piercing plus Y fire" stored as one part, a hit replaced by its secondary damage, alternatives stacked), 8 attacks given the damage they lacked, and the six save actions with wrong dice (Elder Brain Dragon, Dragonborn of Sardior, Eater of Hope, Yuan-ti Nightmare Speaker, Leviathan, Gallows Speaker) and the Ender Dragon's breath.
+- **Smaller:** the Drow Matron Mother's and Illithilich's "1–3 actions" spellcasting become three entries costing 1, 2 and 3; the Witchstalker's howl is a Wisdom save; the IMR Demogorgon's Gaze is the DM's, with its Beguiling and Hypnotic Gazes as save actions; 43 save actions aimed at one creature target one; 104 action names lose a stray recharge digit ("Fire Breath 5").
+
+**Still open:** a charge's extra damage after moving 20 feet still comes with every hit ([[#D202]]); form-dependent damage (the wereraven's beak) is unchanged; versatile damage isn't shown to the DM.
+
+**Key files:** `backend/scripts/generate_monster_actions.py`, `monster-action-definitions.json`, `MonsterTemplates.java`, `MonsterPools.java`, `InlineMonsterActions.tsx`, new `MonsterActionCorrectionsDataTest`
+
+**Related:** D202, D205, D207, D209, D220
+
+**Tests:** `MonsterActionCorrectionsDataTest` (45 cases) and updated data counts; on its branch 4,856 backend unit, 581 integration and 1,279 frontend tests passed; merged with D226 and D228, 4,858, 585 and 1,307.

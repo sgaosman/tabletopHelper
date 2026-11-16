@@ -174,7 +174,8 @@ export default function InlineMonsterActions({
 
   const isRecharged = (action: MonsterAction) => {
     if (!action.recharge) return true;
-    const kebab = action.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    // Actions sharing a recharge, as a metallic dragon's two breath weapons, share its pool (D227)
+    const kebab = (action.rechargeGroup || action.name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
     const pool = pools[`monster:recharge:${kebab}`];
     return !pool || pool.currentUses > 0;
   };

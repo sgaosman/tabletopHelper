@@ -63,6 +63,16 @@ action's damage in a sentence of its own that isn't the save's, as the flesh col
 in its chest (BGG), goes to the DM. The rider pass puts the option part in place of a hand-built attack's damage of the
 same dice, which had one of the types or "variable", and adds damageOptions as an action key.
 
+Corrections of the hand-built entries' own numbers (D227), each marked as the riders are, so a re-run restores and
+re-applies them: an attack's damage where the entry misread the hit's first sentence (dice the stat block doesn't
+give, alternatives stacked as more damage, the wrong type, its own damage missing beside the extra damage, or damage
+the stat block deals only each turn while burning or engulfed; base_correction); a save action's halfOnSave where its
+stat block halves the damage on a success in either wording (save_half); a save action aimed at one creature but built
+as a sphere (save_single); and a multiattack's components where they don't make what its text says (multiattack_
+components). An attack with no effects at all gets the list, so its "1 piercing damage" can be added. Fixes the rules
+can't reach (alternatives the DM chooses between, form-dependent damage, the metallic dragons' breath weapons split in
+two, each with its own save and area and a shared rechargeGroup) were made in the data itself, which the passes keep.
+
 Then a rider pass gives every hand-built entry's attacks what their stat block's hit gives beyond their own parts,
 leaving their attack bonus and damage alone, and marks each change so the next run takes it away first (rider_pass);
 its saving throw actions get the immunity and exemptions their stat block gives (D203).
@@ -1535,6 +1545,8 @@ def read_attack(raw):
     Medium or smaller creature the toad is grappling" keeps the action for a grappled target, of that size."""
     head, _, hit = raw.partition('{@h}')
     reading = read_hit(hit)
+    # The hit's words as the stat block gives them, which base_correction checks the entry's damage against (D227)
+    reading['hit'] = hit
     match = HEAD_GRAPPLED.search(strip_tags(head))
     swallowed = [p for p in reading['effects'] if p.get('condition') == 'swallowed']
     if match and swallowed:
@@ -1544,11 +1556,23 @@ def read_attack(raw):
     return reading
 
 
+# Extra dice inside the damage's brackets, "11 ({@damage 1d6 + 3} plus {@damage 1d8}) piercing damage", as the orcs of
+# Gruumsh write their Gruumsh's Fury (MM p.247, p.246), read as the damage plus extra damage of the same type (D227)
+PLUS_INSIDE = re.compile(r'(\d+) \(\{@damage ([^}]+)\} plus \{@damage ([^}]+)\}\) ([a-z]+) damage')
+
+
+def plus_inside(match):
+    first, extra, kind = match.group(2), match.group(3), match.group(4)
+    return '%d ({@damage %s}) %s damage plus %d ({@damage %s}) %s damage' % (
+        int(average(first) or 0), first, kind, int(average(extra) or 0), extra, kind)
+
+
 def read_hit(hit):
     """What a hit's text gives (D202): its effects, whether a choice is left to the DM, its first sentence, the clauses
     the effects don't say, and its versatile damage. Damage of a type the monster chooses is a part of damageType
     "option", with the types in the action's damageOptions (D207)."""
     hit, damage_options = chosen_types(hit)
+    hit = PLUS_INSIDE.sub(plus_inside, hit)
     sentences = SENTENCE.split(hit.strip())
     first, rest = sentences[0], sentences[1:]
     versatile = VERSATILE.search(first)
@@ -1784,7 +1808,9 @@ def saving_throw(action, raw, description):
     action['deliveryMethod'] = 'SAVING_THROW'
     action['saveDC'] = dc
     action['saveAbility'] = ability
-    action['halfOnSave'] = bool(re.search(r'half as much|half damage', raw)) or halved(effects, success_damage)
+    # "takes half the bludgeoning damage" on a success too, as the marid's Water Jet (MM p.146, D227)
+    action['halfOnSave'] = bool(re.search(r'half as much|half damage', raw) or HALF_ON_SUCCESS.search(plain(raw))) \
+        or halved(effects, success_damage)
     text = strip_tags(raw)
     for pattern, kind in AREAS:
         area = pattern.search(text)
@@ -2049,7 +2075,9 @@ RIDER_STATS = ('attacks matched', 'attacks changed', 'damage given a save', 'dam
                'dmNotes added', 'dmNotes extended', 'lasting riders added', 'conditions linked',
                'conditions given an exemption', 'turn damage moved off the hit', 'grapple limits added',
                'save actions matched', 'save actions given an immunity or exemption', 'actions rebuilt',
-               'multiattacks given heads or a follow-up', 'damage given options', 'swallows added')
+               'multiattacks given heads or a follow-up', 'damage given options', 'swallows added',
+               'save actions given half on a success', 'damage put right', 'multiattacks put right',
+               'save actions given one target')
 # The keys of a condition that tie it to another or keep it from some creatures (D203)
 LINK_KEYS = ('endsWith', 'exemptTypes', 'endsOnDamage')
 LASTING_TYPES = ('HP_MAX_REDUCTION', 'LIFE_DRAIN', 'EXHAUSTION', 'MODIFIER', 'ONGOING_DAMAGE', 'COUNTED_SAVES',
@@ -2134,6 +2162,121 @@ def covered(clause, held):
     return not unread_words(re.sub(r'until this grapple ends,?', ' ', plain(clause)))
 
 
+# The 13 damage types (PHB p.196), the only ones a correction of an entry's damage puts in (D227)
+DAMAGE_TYPES = {'acid', 'bludgeoning', 'cold', 'fire', 'force', 'lightning', 'necrotic', 'piercing', 'poison', 'psychic',
+                'radiant', 'slashing', 'thunder'}
+
+
+def dice_norm(dice):
+    return re.sub(r'\s+', '', str(dice or '')).lower()
+
+
+def alternative_dice(hit, dice):
+    """Whether these dice appear in the hit's first sentence only as an alternative to its damage: after "or" ("or 6
+    (1d8 + 2) bludgeoning damage with shillelagh", "in melee or 5 (1d6 + 2) piercing damage at range") or as the damage
+    "if wielded with two hands" (D227)."""
+    first = SENTENCE.split(hit.strip())[0]
+    found = False
+    for match in re.finditer(r'(\d+)\s*\((?:\{@damage )?([^)}]+)\}?\)', first):
+        if dice_norm(match.group(2)) != dice_norm(dice):
+            continue
+        found = True
+        before = first[:match.start()]
+        after = first[match.end():match.end() + 80]
+        if not (re.search(r'\bor\s*$', before) or re.match(r'\s*(?:[a-z]+ )?damage,? (?:if|when) (?:wielded|used) '
+                                                            r'with (?:two|both) hands', after)):
+            return False
+    return found
+
+
+def base_correction(action, reading, built, original, stats):
+    """Puts right a hand-built attack's own damage where it misread the stat block's first sentence (D227): dice the
+    stat block doesn't give, as the mummy lord's 2d6 + 4 Rotting Fist for 3d6 + 4 (MM p.229); the alternatives "if
+    wielded with two hands" or after "or" stacked as more damage, as the druid's Quarterstaff dealing 1d6, 1d8 and
+    1d8 + 2 on every hit (MM p.346); the wrong type, as "8 (1d8 + 4) slashing damage plus 13 (3d8) radiant damage"
+    stored as one radiant part; and the hit's own damage missing beside its extra damage, as "21 (3d8 + 8) piercing damage
+    plus 10 (3d6) acid damage" stored as the acid alone. Each part taken away is kept in "_riderRemoved" and each put in
+    is "_rider": "added", so a re-run restores the entry first. Damage the entry deals that the stat block gives
+    elsewhere is left, and so is every hit whose first sentence leaves a choice, an alternative the app tells apart or a
+    type it chooses. The parts taken away."""
+    if reading['choice'] or reading['action'].get('damageOptions') or not reading.get('hit'):
+        return []
+    hit = reading['hit']
+    # A hit that is two attacks ("Or Ranged Weapon Attack: ...", Mirt's dagger, WDH) or whose damage depends on a form
+    # ("1 piercing damage in raven form, or 4 (1d4 + 2) piercing damage in hybrid form") stays as the entry has it
+    if re.search(r'\{@atk|Weapon Attack:', hit) or re.search(r'\bform\b', SENTENCE.split(hit.strip())[0], re.I):
+        return []
+    damage = [p for p in built if p['effectType'] == 'DAMAGE']
+    if any(p.get('replacesDamage') for p in damage):
+        return []
+    read = [p for p in damage if 'saveDC' not in p and 'onlyIf' not in p]
+    if not read or any(p.get('damageType') not in DAMAGE_TYPES for p in read):
+        return []
+    # Dice the hit deals only on a failed save, under a condition or each turn belong to those parts
+    held = {dice_norm(p.get('damageDice')) for p in built if p['effectType'] != 'DAMAGE' or p not in read}
+    effects = action['effects']
+    own = [p for p in effects if any(p is o for o in original) and p.get('effectType') == 'DAMAGE'
+           and not any(p.get(k) is not None for k in DAMAGE_RIDER_KEYS) and dice_key(p)[1] not in ('option',)]
+    plain_own = [p for p in own if dice_norm(p.get('damageDice')) not in held]
+    unmatched = list(read)
+    extra = []
+    for part in plain_own:
+        same = next((r for r in unmatched if dice_key(r) == dice_key(part)), None)
+        if same is not None:
+            unmatched.remove(same)
+        else:
+            extra.append(part)
+    unmatched = [r for r in unmatched if not any(dice_key(p) == dice_key(r) for p in own)]
+    text = dice_norm(strip_tags(hit))
+    later = dice_norm(strip_tags(' '.join(SENTENCE.split(hit.strip())[1:])))
+    removed = []
+    for part in extra:
+        dice = dice_norm(part.get('damageDice'))
+        retyped = next((r for r in unmatched if dice_norm(r['damageDice']) == dice
+                        and not any(r is x.get('_for') for x in removed)), None)
+        misread = '(' + dice + ')' not in text and '{@damage' + dice + '}' not in dice_norm(hit)
+        # An alternative is taken away only as often as the entry deals it beyond the later sentences' damage of the
+        # same dice, as the elkhorn's 1d10 against a Large target (WBtW)
+        alternative = alternative_dice(hit, part.get('damageDice')) and sum(
+            1 for p in extra if dice_norm(p.get('damageDice')) == dice) - sum(
+            1 for r in removed if dice_norm(r['part'].get('damageDice')) == dice) > later.count('(' + dice + ')')
+        # Damage the stat block deals only each turn while the target burns, as a fire elemental's "the target takes 5
+        # (1d10) fire damage at the start of each of its turns" until doused (MM p.125), which the dmNote keeps
+        each_turn = dice not in held and all(
+            re.search(r'\bat the (?:start|end) of each of\b', s) for s in SENTENCE.split(strip_tags(hit).strip())[1:]
+            if '(' + dice + ')' in dice_norm(s)) and '(' + dice + ')' in later \
+            and '(' + dice + ')' not in dice_norm(strip_tags(SENTENCE.split(hit.strip())[0]))
+        if retyped is not None or misread or alternative or each_turn:
+            removed.append({'part': part, '_for': retyped})
+    removed = [r['part'] for r in removed]
+    if not removed and not unmatched:
+        return []
+    for part in removed:
+        index = next(i for i, p in enumerate(effects) if p is part)
+        action.setdefault('_riderRemoved', []).append({'at': index, 'part': part})
+        del effects[index]
+    # Each part put in goes after the entry's part of the stat block's damage before it, or first
+    kept = [p for p in plain_own if not any(p is r for r in removed)]
+    previous = None
+    for part in read:
+        mine = next((p for p in kept if dice_key(p) == dice_key(part)), None)
+        if mine is not None:
+            kept.remove(mine)
+            previous = mine
+            continue
+        if not any(part is u for u in unmatched):
+            continue
+        if previous is not None:
+            at = next(i for i, p in enumerate(effects) if p is previous) + 1
+        else:
+            at = next((i for i, p in enumerate(effects) if p.get('effectType') == 'DAMAGE'), len(effects)) \
+                if isinstance(effects, list) else 0
+        previous = dict({k: v for k, v in part.items() if k != 'flatDamage' or v}, _rider='added')
+        effects.insert(at, previous)
+    stats['damage put right'] += 1
+    return removed
+
+
 def add_riders(action, reading, stats):
     """Adds to a hand-built attack what its stat block's hit gives beyond its own parts (D202). Damage its stat block
     deals only on a failed save or under a condition gets that save or onlyIf, rather than coming with every hit; a
@@ -2150,6 +2293,9 @@ def add_riders(action, reading, stats):
     dropped, clauses = unanchored(reading, names)
     reading = dict(reading, leftover=reading['leftover'] + clauses)
     built = [p for p in reading['effects'] if not any(p is d for d in dropped)]
+    # The hit's own damage put right where the entry misread it (D227); the parts taken away are no longer the entry's
+    removed = base_correction(action, reading, built, original, stats)
+    original = [p for p in original if not any(p is r for r in removed)]
     # Damage of a type the monster chooses (D207) takes the place of the entry's damage of the same dice, which had one
     # of the types, or none the app knows, as the kobold scale sorcerer's acid Chromatic Bolt (MPMM) or the reigar's
     # "variable" one (BAM); the entry's options come with it
@@ -2356,6 +2502,59 @@ def save_pass(actions, stat, raw, stats):
     if keys and add_action_keys(action, keys):
         stats['save actions given an immunity or exemption'] += 1
     save_options(action, raw, stats)
+    save_half(action, raw, stats)
+    save_single(action, raw, stats)
+
+
+# A save action on one creature, "the mummy targets one creature it can see within 60 feet of it" (MM p.228), "one
+# creature the yeti can see" (D227)
+SINGLE_TARGET = re.compile(r"\b(?:targets|target|chooses?) one creature\b|\bone creature (?:it|that it|(?:the |that "
+                           r"the )?[a-z' -]+?) can see\b")
+
+
+def save_single(action, raw, stats):
+    """A hand-built saving throw action its stat block aims at one creature, built as a sphere around the monster as
+    the mummy's Dreadful Glare and the yeti's Chilling Gaze were, targets one creature (targetCount 1) and loses the
+    area, which "_riderActionReplaced" keeps, so a re-run restores it first (D227). An action that also reaches each
+    creature in an area, or more creatures, keeps its area."""
+    if action.get('targetType') != 'AOE_SPHERE' or action.get('targetCount') not in (None, 1):
+        return
+    text = plain(raw)
+    if not SINGLE_TARGET.search(text) or re.search(r"\beach (?:other )?creature\b|\bup to (?:two|three|four|five|six)"
+                                                     r"\b|\bcreatures (?:in|within)\b", text):
+        return
+    replaced = action.setdefault('_riderActionReplaced', {})
+    for k in ('targetType', 'aoeSize'):
+        if k in action:
+            replaced[k] = action.pop(k)
+    if 'targetCount' not in action:
+        add_action_keys(action, {'targetCount': 1})
+    stats['save actions given one target'] += 1
+
+
+# A success that halves the damage, in a sentence of its own or after the failure's damage (D227): "On a successful
+# save, the creature takes half as much damage", "On a success, a target takes half the bludgeoning damage", "it takes
+# half damage", "taking 45 (13d6) fire damage on a failed save, or half as much damage on a successful one". Half of
+# something else, as a dolgaunt's hit points "equal to half the necrotic damage taken", isn't read.
+HALF_ON_SUCCESS = re.compile(r"\bon a success(?:ful (?:save|saving throw|one))?,[^.]*?\btakes? (?:only )?half (?:as much|"
+                             r"the (?:[a-z]+ )?damage|damage)\b|\bor half as much(?: damage)? on a successful (?:one|save|"
+                             r"saving throw)\b")
+
+
+def save_half(action, raw, stats):
+    """A hand-built saving throw action with damage whose stat block halves it on a success gets halfOnSave, as the gem
+    dragons' breaths (FTD) and the marid's Water Jet (MM p.146) lacked, marked in "_riderActionReplaced" with the value
+    it had, so a re-run restores it first (D227)."""
+    if action.get('halfOnSave') is not False or 'halfOnSave' in action.get('_riderActionReplaced', {}):
+        return
+    if not any(isinstance(p, dict) and p.get('effectType') == 'DAMAGE' and p.get('saveDC') is None
+               for p in action.get('effects') or []):
+        return
+    if not HALF_ON_SUCCESS.search(plain(raw)):
+        return
+    action.setdefault('_riderActionReplaced', {})['halfOnSave'] = False
+    action['halfOnSave'] = True
+    stats['save actions given half on a success'] += 1
 
 
 # The start of a hand-written note that the type of the damage is the DM's to choose, stale once the options are read
@@ -2577,12 +2776,55 @@ def all_hit(raw, action, actions):
     return None
 
 
+# "makes three attacks", "makes two melee attacks", the number of attacks a multiattack's text says it makes (D227)
+STATED_TOTAL = re.compile(r'\bmakes (' + '|'.join(k for k in COUNTS if k not in ('a', 'an')) + r') (?:(?!and\b)'
+                          r"[a-z'-]+ ){0,2}attacks\b")
+
+
+def multiattack_components(action, monster, actions, raw, stats):
+    """Puts right a hand-built multiattack's components where they don't make what its text says (D227): "one bite and
+    two claws" read as six bites and a claw (Iymrith, SKT), "two attacks: one with its bite and one with its claws" as
+    four bites and a claw (the lava child, WDMM), "two attacks with its longbow" as one (the archer, VGM), an attack
+    missing, as the ice troll's two claws (IDRotF). The text is read as the 188 entries of D205 read theirs, and the
+    reading is taken only when it makes as many attacks as the text says it does, or the text says no number. A
+    multiattack with alternatives or options the DM chooses among (D205), a note, heads or a sentence that only replaces
+    an attack is left as it is. The components it had are kept in "_riderActionReplaced"."""
+    if any(k in action for k in ('multiattackAlternative', 'multiattackOptions', '_multiattackNote', 'heads',
+                                 'hasUnresolvedComponents')) or 'multiattackComponents' in action.get(
+            '_riderActionReplaced', {}):
+        return
+    text = strip_tags(raw)
+    lowered = text.lower()
+    if re.search(r'\bor\b|\binstead\b|\breplace|\bin place of\b|\bas many\b|\balternatively\b|\bif\b|\bonly one of '
+                 r'which\b|\bcombination\b|\beither\b|\bany\b|\badditional\b', lowered):
+        return
+    # The monster's own name isn't an attack's, as the hook horror's "makes two hook attacks" (MM p.189)
+    own = re.sub(re.escape(monster.get('name', '')), 'it', raw, flags=re.I) if monster.get('name') else raw
+    read = multiattack({'entries': [own]}, actions, True, monster).get('multiattackComponents') or []
+    current = action.get('multiattackComponents') or []
+    # Only what the entry's components leave out or repeat wrongly is put right: a reading that drops one of them, as
+    # "one Hooves attack" for a Hoof, isn't taken
+    if not read or sorted(read) == sorted(current) or not set(current) <= set(read):
+        return
+    kinds = {a.get('name'): a.get('deliveryMethod') for a in actions}
+    attacks = [c for c in read if kinds.get(c) == 'ATTACK_ROLL']
+    stated = STATED_TOTAL.search(lowered)
+    if stated and len(attacks) != COUNTS[stated.group(1)]:
+        return
+    if not stated and not re.search(r'\b(?:' + '|'.join(k for k in COUNTS if k not in ('a', 'an')) + r')\b', lowered):
+        return
+    action.setdefault('_riderActionReplaced', {})['multiattackComponents'] = current
+    action['multiattackComponents'] = read
+    stats['multiattacks put right'] += 1
+
+
 def multiattack_pass(monster, actions, raw, stats):
     """A hand-built multiattack gets its heads (a hydra's, MM p.190) and what follows when all of one attack's hits
     land on the same creature (a shambling mound's grapple and Engulf, MM p.270), marked as action keys (D206)."""
     action = next((a for a in actions if a.get('isMultiattack')), None)
     if action is None:
         return
+    multiattack_components(action, monster, actions, raw, stats)
     keys = {}
     heads = heads_of(monster, strip_tags(raw), actions)
     if heads is not None:
@@ -2651,7 +2893,14 @@ def rider_pass(entry, monster, stats):
                 continue
             action = hand_built(actions, parse_name(stat['name'])[0])
             if action is None or action.get('deliveryMethod') != 'ATTACK_ROLL' or action.get('automatable') is False \
-                    or not isinstance(action.get('effects'), list) or not HIT.search(raw.partition('{@h}')[0]):
+                    or not HIT.search(raw.partition('{@h}')[0]):
+                continue
+            # An attack the entry gave no effects at all, as the space hamster's Bite and its "1 piercing damage" (BAM),
+            # gets the list as an action key, which a re-run takes away first (D227)
+            if 'effects' not in action:
+                action['effects'] = []
+                action.setdefault('_riderActionKeys', []).append('effects')
+            if not isinstance(action.get('effects'), list):
                 continue
             stats['attacks matched'] += 1
             add_riders(action, read_attack(raw), stats)
