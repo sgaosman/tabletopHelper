@@ -286,11 +286,27 @@ public class RestService {
         character.setResourcePools(new ArrayList<>(resourcePoolService.resetPools(pools, "shortRest", context).pools()));
     }
 
-    // Every pool comes back in full, innate and feat uses included (D127, D158, D165)
-    private static void resetAllPools(PlayerCharacter character) {
-        character.setResourcePools(new ArrayList<>(orEmpty(character.getResourcePools()).stream()
-                .map(pool -> pool.withCurrentUses(pool.maxUses()))
+    // Every pool comes back in full, innate and feat uses included (D127, D158, D165), but a magic item's charges come
+    // back by its own rule, its dice of them or none for one that never recharges (D210); so do the spent charges an
+    // inventory entry records for an item without a pool, as one unattuned
+    private void resetAllPools(PlayerCharacter character) {
+        List<ResourcePoolEntry> pools = orEmpty(character.getResourcePools());
+        Map<String, Integer> context = resourcePoolService.buildCharacterContext(character);
+        List<ResourcePoolEntry> items = pools.stream().filter(RestService::magicItem).toList();
+        Map<String, ResourcePoolEntry> rechargedItems = new LinkedHashMap<>();
+        if (!items.isEmpty()) {
+            resourcePoolService.resetPools(items, "longRest", context).pools()
+                    .forEach(pool -> rechargedItems.put(pool.poolId(), pool));
+        }
+        character.setResourcePools(new ArrayList<>(pools.stream()
+                .map(pool -> magicItem(pool) ? rechargedItems.getOrDefault(pool.poolId(), pool)
+                        : pool.withCurrentUses(pool.maxUses()))
                 .toList()));
+        character.setEquipment(resourcePoolService.afterLongRest(character, context));
+    }
+
+    private static boolean magicItem(ResourcePoolEntry pool) {
+        return pool != null && "MAGIC_ITEM".equals(pool.sourceType());
     }
 
     private static <K, V> Map<K, V> orEmptyMap(Map<K, V> map) {

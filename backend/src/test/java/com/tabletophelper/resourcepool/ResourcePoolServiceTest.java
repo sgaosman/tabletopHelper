@@ -675,6 +675,20 @@ class ResourcePoolServiceTest {
         assertEquals("none", never.resetOn());
     }
 
+    @Test
+    @DisplayName("The Robe of Stars' stars, whose data gives 1d6 back with no time, reappear on a long rest (\"daily at dusk\", DMG p.194); \"special\" with an amount stays the DM's (D210)")
+    void amountWithoutRechargeIsDaily() {
+        ResourcePoolEntry robe = ResourcePoolEntry.magicItem("Robe of Stars", 6, null, "1d6").withCurrentUses(0);
+        ResourcePoolEntry special = ResourcePoolEntry.magicItem("Odd Staff", 6, "special", "1d6").withCurrentUses(0);
+
+        assertEquals("longRest", robe.resetOn());
+        assertEquals("currentUses + (1d6)", robe.resetAmount());
+        int stars = findPool(service.resetPools(List.of(robe), "longRest", Map.of()).pools(), "item:robe-of-stars")
+                .currentUses();
+        assertTrue(stars >= 1 && stars <= 6, "1d6 stars reappear, not " + stars);
+        assertEquals("none", special.resetOn());
+    }
+
     private static com.tabletophelper.reference.Item wand(boolean attunement) {
         return com.tabletophelper.reference.Item.builder().id(UUID.randomUUID()).name("Wand of Magic Missiles")
                 .source("DMG").charges(7).recharge("dawn").rechargeAmount("1d6 + 1").requiresAttunement(attunement)

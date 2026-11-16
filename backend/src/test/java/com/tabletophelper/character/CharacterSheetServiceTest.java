@@ -387,6 +387,114 @@ class CharacterSheetServiceTest {
                     .hasMessage("Only a spell scroll holds a spell: link Rope to its spell scroll");
         }
 
+        @Test
+        @DisplayName("An attuned entry of two rings counts as two items attuned to: with two others it is a 400 (DMG p.138, D210)")
+        void attunementCountsEachItemCarried() {
+            PlayerCharacter pc = fighter(1);
+            List<Item> items = List.of(attunable("Ring of Protection"), attunable("Cloak of Protection"),
+                    attunable("Amulet of Health"));
+            items.forEach(this::stub);
+            InventoryItem twoRings = new InventoryItem(items.get(0).getName(), 2, null, items.get(0).getId(), null,
+                    true);
+
+            assertThatThrownBy(() -> f.sheet.updateInventory(pc.getId(), inventory(twoRings, attuned(items.get(1)),
+                    attuned(items.get(2))), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("A character can be attuned to no more than 3 magic items at a time (DMG p.138), not 4");
+            assertThat(f.sheet.updateInventory(pc.getId(), inventory(twoRings, attuned(items.get(1))), f.userId)
+                    .getEquipment()).hasSize(2);
+        }
+
+        @Test
+        @DisplayName("Spent charges survive unattuning and attuning again: a Wand of Fireballs at 1 of 7 comes back at 1 of 7, not refilled (D210)")
+        void chargesSurviveUnattuning() {
+            PlayerCharacter pc = fighter(1);
+            Item wand = charged("Wand of Fireballs", true);
+
+            List<InventoryItem> sheet = f.sheet.updateInventory(pc.getId(), inventory(attuned(wand)), f.userId)
+                    .getEquipment();
+            assertThat(itemPool(pc, wand).currentUses()).isEqualTo(7);
+            spend(pc, wand, 6);
+
+            // The client sends the entries back as the sheet gave them, changing only the one toggled
+            sheet = f.sheet.updateInventory(pc.getId(), new InventoryRequest(List.of(
+                    withAttuned(sheet.getFirst(), false)), Currency.NONE), f.userId).getEquipment();
+            assertThat(pc.getResourcePools()).noneMatch(pool -> pool.poolId().startsWith("item:"));
+            assertThat(sheet.getFirst().chargesSpent()).isEqualTo(6);
+
+            f.sheet.updateInventory(pc.getId(), new InventoryRequest(List.of(withAttuned(sheet.getFirst(), true)),
+                    Currency.NONE), f.userId);
+            assertThat(itemPool(pc, wand).currentUses()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("Spent charges survive unlinking and linking again: a Wand of Magic Missiles at 1 of 7 comes back at 1 of 7 (D210)")
+        void chargesSurviveUnlinking() {
+            PlayerCharacter pc = fighter(1);
+            Item wand = charged("Wand of Magic Missiles", false);
+
+            f.sheet.updateInventory(pc.getId(), inventory(linked(wand, false)), f.userId);
+            spend(pc, wand, 6);
+
+            List<InventoryItem> sheet = f.sheet.updateInventory(pc.getId(), inventory(new InventoryItem(wand.getName(),
+                    1, null, null, false, null)), f.userId).getEquipment();
+            assertThat(pc.getResourcePools()).noneMatch(pool -> pool.poolId().startsWith("item:"));
+            assertThat(sheet.getFirst().chargesSpent()).isEqualTo(6);
+
+            InventoryItem relinked = new InventoryItem(wand.getName(), 1, null, wand.getId(), false, null, null,
+                    sheet.getFirst().chargesSpent());
+            f.sheet.updateInventory(pc.getId(), inventory(relinked), f.userId);
+            assertThat(itemPool(pc, wand).currentUses()).isEqualTo(1);
+
+            // Spent charges recorded on an entry don't count while the pool is there: the pool's own do
+            spend(pc, wand, -6);
+            f.sheet.updateInventory(pc.getId(), inventory(relinked), f.userId);
+            assertThat(itemPool(pc, wand).currentUses()).isEqualTo(7);
+            assertThat(pc.getEquipment().getFirst().chargesSpent()).isNull();
+        }
+
+        @Test
+        @DisplayName("The inventory can't change while the character is in an Active or Paused encounter, which reads it: a 409 that changes nothing (D210)")
+        void refusedDuringAnEncounter() {
+            PlayerCharacter pc = fighter(1);
+            pc.setEquipment(List.of(new InventoryItem("Potion of Healing", 2, null, null, null, null)));
+            when(f.liveEncounters.includes(pc.getId())).thenReturn(true);
+
+            assertThatThrownBy(() -> f.sheet.updateInventory(pc.getId(), inventory(
+                    new InventoryItem("Potion of Healing", 5, null, null, null, null)), f.userId))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Aria is in an encounter that is under way, so can't change their inventory until "
+                            + "it ends");
+            assertThat(pc.getEquipment()).containsExactly(new InventoryItem("Potion of Healing", 2, null, null, null,
+                    null));
+        }
+
+        private Item charged(String name, boolean attunement) {
+            Item wand = Item.builder().id(UUID.randomUUID()).name(name).source("DMG").requiresAttunement(attunement)
+                    .charges(7).recharge("dawn").rechargeAmount("1d6 + 1").build();
+            stub(wand);
+            when(f.itemRepository.findAllById(any())).thenReturn(List.of(wand));
+            return wand;
+        }
+
+        private static ResourcePoolEntry itemPool(PlayerCharacter pc, Item item) {
+            return pc.getResourcePools().stream()
+                    .filter(pool -> pool.poolId().equals(ResourcePoolEntry.itemPoolId(item.getName())))
+                    .findFirst().orElseThrow();
+        }
+
+        private static void spend(PlayerCharacter pc, Item item, int charges) {
+            pc.setResourcePools(pc.getResourcePools().stream()
+                    .map(pool -> pool.poolId().equals(ResourcePoolEntry.itemPoolId(item.getName()))
+                            ? pool.withCurrentUses(pool.currentUses() - charges) : pool)
+                    .toList());
+        }
+
+        private static InventoryItem withAttuned(InventoryItem entry, boolean attuned) {
+            return new InventoryItem(entry.name(), entry.quantity(), entry.description(), entry.itemId(),
+                    entry.equipped(), attuned, entry.spell(), entry.chargesSpent());
+        }
+
         private void stub(Item item) {
             when(f.itemRepository.existsById(item.getId())).thenReturn(true);
             when(f.itemRepository.findById(item.getId())).thenReturn(Optional.of(item));

@@ -132,10 +132,13 @@ public class SpellCounters {
             var pools = caster.getResourcePoolsCurrent() != null
                     ? new ArrayList<>(caster.getResourcePoolsCurrent()) : null;
             var economy = caster.getTurnEconomy();
+            // A scroll read for it stays used up, as a potion would (D210)
+            var itemsUsed = caster.getItemsUsed() != null ? new ArrayList<>(caster.getItemsUsed()) : null;
             undoService.revert(encounter, countered.command(), userId);
             caster.setSpellSlotsCurrent(slots);
             caster.setResourcePoolsCurrent(pools);
             caster.setTurnEconomy(economy);
+            caster.setItemsUsed(itemsUsed);
         }
         combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.SPELL_CAST, text),
                         counterer, countered.caster())

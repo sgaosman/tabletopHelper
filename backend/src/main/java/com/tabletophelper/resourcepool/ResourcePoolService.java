@@ -172,12 +172,16 @@ public class ResourcePoolService {
         }
 
         // A magic item's charges (D210): a linked item the character carries with charges, attuned to when it requires
-        // attunement (DMG p.136); one pool for each item, however many are carried
+        // attunement (DMG p.136); one pool for each item, however many are carried. A pool that comes back, the item
+        // attuned or linked again, starts with the charges its inventory entry recorded as spent when it went
         for (Item item : chargedItems(character)) {
             String poolId = ResourcePoolEntry.itemPoolId(item.getName());
             if (!desiredPoolIds.add(poolId)) continue;
+            ResourcePoolEntry existing = byPoolId.get(poolId);
+            int current = existing != null ? keptUses(existing, item.getCharges())
+                    : Math.max(0, item.getCharges() - recordedSpent(character, poolId, item));
             byPoolId.put(poolId, ResourcePoolEntry.magicItem(item.getName(), item.getCharges(), item.getRecharge(),
-                    item.getRechargeAmount()).withCurrentUses(keptUses(byPoolId.get(poolId), item.getCharges())));
+                    item.getRechargeAmount()).withCurrentUses(current));
         }
 
         // Remove orphaned pools (source no longer present)
@@ -247,6 +251,101 @@ public class ResourcePoolService {
             charged.add(item);
         }
         return charged;
+    }
+
+    // The charges an inventory entry for the item recorded as spent when its pool went: the first entry linked to it,
+    // or named as it is, with a count
+    private static int recordedSpent(PlayerCharacter character, String poolId, Item item) {
+        return orEmpty(character.getEquipment()).stream()
+                .filter(entry -> entry != null && entry.chargesSpent() != null && entry.chargesSpent() > 0)
+                .filter(entry -> item.getId() != null && item.getId().equals(entry.itemId())
+                        || entry.name() != null && poolId.equals(ResourcePoolEntry.itemPoolId(entry.name())))
+                .mapToInt(InventoryItem::chargesSpent)
+                .findFirst()
+                .orElse(0);
+    }
+
+    /**
+     * The inventory with each entry for a magic item that has a charge pool among {@code pools} recording that pool's
+     * spent charges (D210), and every other entry as it is. A sheet's inventory change calls this with the pools the
+     * sheet had before, so an item unattuned, unlinked or no longer carried, whose pool then goes, keeps its spent
+     * charges on its entry and gets them back as spent when its pool returns, rather than refilling. An entry is the
+     * item's when linked to it or, unlinked, named as it is.
+     */
+    public List<InventoryItem> withChargesRecorded(List<InventoryItem> equipment, List<ResourcePoolEntry> pools) {
+        Map<String, ResourcePoolEntry> itemPools = orEmpty(pools).stream()
+                .filter(pool -> pool != null && pool.poolId() != null && pool.poolId().startsWith("item:"))
+                .collect(Collectors.toMap(ResourcePoolEntry::poolId, pool -> pool, (a, b) -> a));
+        if (itemPools.isEmpty() || equipment == null) return equipment;
+        Map<UUID, Item> linked = linkedItems(equipment);
+        List<InventoryItem> recorded = new ArrayList<>();
+        for (InventoryItem entry : equipment) {
+            Item item = entry.itemId() != null ? linked.get(entry.itemId()) : null;
+            String name = item != null ? item.getName() : entry.name();
+            ResourcePoolEntry pool = name != null ? itemPools.get(ResourcePoolEntry.itemPoolId(name)) : null;
+            recorded.add(pool == null ? entry
+                    : entry.withChargesSpent(Math.max(0, pool.maxUses() - pool.currentUses())));
+        }
+        return recorded;
+    }
+
+    /**
+     * The inventory after a long rest (D210): an entry recording spent charges for an item that has no pool on the
+     * sheet, being unattuned or unlinked, regains them as its pool would, by the item's dice or in full, and one that
+     * never recharges keeps them. An unlinked entry is matched to its item by name; one matching none keeps its count.
+     */
+    public List<InventoryItem> afterLongRest(PlayerCharacter character, Map<String, Integer> context) {
+        List<InventoryItem> equipment = character.getEquipment();
+        if (equipment == null || equipment.stream().noneMatch(e -> e != null && e.chargesSpent() != null)) {
+            return equipment;
+        }
+        Set<String> onSheet = orEmpty(character.getResourcePools()).stream()
+                .filter(Objects::nonNull).map(ResourcePoolEntry::poolId).collect(Collectors.toSet());
+        Map<UUID, Item> linked = linkedItems(equipment);
+        Map<String, Item> byName = new HashMap<>();
+        List<String> unlinkedNames = equipment.stream()
+                .filter(e -> e != null && e.itemId() == null && e.chargesSpent() != null && e.name() != null)
+                .map(e -> lower(e.name())).distinct().toList();
+        if (!unlinkedNames.isEmpty()) {
+            for (Item item : itemRepository.findByLowerNames(unlinkedNames)) {
+                byName.putIfAbsent(lower(item.getName()), item);
+            }
+        }
+        List<InventoryItem> rested = new ArrayList<>();
+        for (InventoryItem entry : equipment) {
+            if (entry == null || entry.chargesSpent() == null) {
+                rested.add(entry);
+                continue;
+            }
+            Item item = entry.itemId() != null ? linked.get(entry.itemId())
+                    : entry.name() != null ? byName.get(lower(entry.name())) : null;
+            if (item == null || item.getCharges() == null || item.getCharges() <= 0
+                    || onSheet.contains(ResourcePoolEntry.itemPoolId(item.getName()))) {
+                rested.add(entry);
+                continue;
+            }
+            ResourcePoolEntry pool = ResourcePoolEntry.magicItem(item.getName(), item.getCharges(), item.getRecharge(),
+                    item.getRechargeAmount()).withCurrentUses(Math.max(0, item.getCharges() - entry.chargesSpent()));
+            ResourcePoolEntry after = resetPools(List.of(pool), "longRest", context).pools().getFirst();
+            rested.add(entry.withChargesSpent(after.maxUses() - after.currentUses()));
+        }
+        return rested;
+    }
+
+    private static String lower(String name) {
+        return name.trim().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    // The items the inventory's entries are linked to, by ID
+    private Map<UUID, Item> linkedItems(List<InventoryItem> equipment) {
+        List<UUID> ids = equipment.stream().filter(e -> e != null && e.itemId() != null).map(InventoryItem::itemId)
+                .distinct().toList();
+        Map<UUID, Item> byId = new HashMap<>();
+        if (ids.isEmpty()) return byId;
+        for (Item item : itemRepository.findAllById(ids)) {
+            byId.put(item.getId(), item);
+        }
+        return byId;
     }
 
     // The row of the definition's level table at the level of the class it names, or null without one

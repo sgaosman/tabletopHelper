@@ -79,7 +79,7 @@ interface ChoiceRun {
  * A character's sheet. Every change is a command to the server (D158), and the character it returns replaces the
  * cached one, so the sheet shows it without loading the character again. The sheet works nothing out itself: rests,
  * hit points, slots and pools are the server's. While the character is in an encounter that is under way, resting,
- * levelling and making choices wait for it to end, and the sheet is fetched again every 10 seconds, so it shows what
+ * levelling, making choices and changing the inventory wait for it to end, and the sheet is fetched again every 10 seconds, so it shows what
  * the encounter writes back when the DM ends it (D166). A character who died can't rest, change its hit points or
  * level until the DM revives it.
  *
@@ -383,7 +383,7 @@ export default function CharacterSheetPage() {
         </div>
         {waitingForEncounter && (
           <p className="max-w-5xl mx-auto mt-2 font-body text-[13px] font-semibold text-muted text-right">
-            In an encounter that is under way: resting, levelling and choices wait until it ends.
+            In an encounter that is under way: resting, levelling, choices and the inventory wait until it ends.
           </p>
         )}
       </header>
@@ -524,7 +524,8 @@ export default function CharacterSheetPage() {
         )}
         {activeTab === 'Inventory' && (
           <InventoryTab characterId={char.id} equipment={equipment} currency={currency}
-            armourEntries={char.armourClassBreakdown.armourEntries} runCommand={runCommand} />
+            armourEntries={char.armourClassBreakdown.armourEntries} runCommand={runCommand}
+            locked={waitingForEncounter} />
         )}
         {activeTab === 'Features' && (
           <FeaturesTab features={features} char={char} />

@@ -6,10 +6,12 @@ import com.tabletophelper.character.dto.ShortRestRequest.HitDieSpent;
 import com.tabletophelper.character.dto.ShortRestResponse;
 import com.tabletophelper.character.dto.ShortRestResponse.HitDieRoll;
 import com.tabletophelper.character.state.HitDicePool;
+import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.Item;
 import com.tabletophelper.reference.FeatEffects;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
@@ -434,6 +436,52 @@ class RestServiceTest {
                     .extracting(ResourcePoolEntry::poolId, ResourcePoolEntry::currentUses)
                     .containsExactly(tuple("class:fighter-action-surge", 1), tuple("feat:lucky", 3),
                             tuple("innate:faerie-fire", 1));
+        }
+
+        @Test
+        @DisplayName("A long rest gives a magic item's pool its own dice of charges back, and leaves one that never recharges (D210)")
+        void itemPoolsRechargeByTheirRule() {
+            PlayerCharacter pc = f.create(f.human, CON_14, f.fighter, 5);
+            Item wand = item("Wand of Web", "dawn", "3");
+            Item ring = item("Ring of Three Wishes", null, null);
+            when(f.itemRepository.findAllById(any())).thenReturn(List.of(wand, ring));
+            pc.setEquipment(List.of(entry(wand, null), entry(ring, null)));
+            f.characterStats.apply(pc);
+            uses(pc, ResourcePoolEntry.itemPoolId(wand.getName()), 1);
+            uses(pc, ResourcePoolEntry.itemPoolId(ring.getName()), 2);
+
+            CharacterResponse response = f.rests.longRest(pc.getId(), f.userId);
+
+            assertThat(response.getResourcePools())
+                    .extracting(ResourcePoolEntry::poolId, ResourcePoolEntry::currentUses)
+                    .contains(tuple("item:wand-of-web", 4), tuple("item:ring-of-three-wishes", 2));
+        }
+
+        @Test
+        @DisplayName("A long rest recharges the spent charges an unattuned item's entry records, as its pool would, and then the item attuned again has them (D210)")
+        void unattunedItemRecharges() {
+            PlayerCharacter pc = f.create(f.human, CON_14, f.fighter, 5);
+            Item wand = item("Wand of Web", "dawn", "3");
+            Item ring = item("Ring of Three Wishes", null, null);
+            when(f.itemRepository.findAllById(any())).thenReturn(List.of(wand, ring));
+            pc.setEquipment(List.of(entry(wand, 6), entry(ring, 2)));
+            f.characterStats.apply(pc);
+            assertThat(pc.getResourcePools()).noneMatch(pool -> pool.poolId().startsWith("item:"));
+
+            CharacterResponse response = f.rests.longRest(pc.getId(), f.userId);
+
+            assertThat(response.getEquipment()).extracting(InventoryItem::chargesSpent).containsExactly(3, 2);
+        }
+
+        private static Item item(String name, String recharge, String rechargeAmount) {
+            return Item.builder().id(UUID.randomUUID()).name(name).source("DMG").requiresAttunement(true).charges(7)
+                    .recharge(recharge).rechargeAmount(rechargeAmount).build();
+        }
+
+        // An entry for the item, attuned when it records no spent charges, else unattuned with them
+        private static InventoryItem entry(Item item, Integer chargesSpent) {
+            return new InventoryItem(item.getName(), 1, null, item.getId(), null, chargesSpent == null, null,
+                    chargesSpent);
         }
 
         @Test

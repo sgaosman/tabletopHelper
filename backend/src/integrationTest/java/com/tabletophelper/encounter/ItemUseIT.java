@@ -3,6 +3,7 @@ package com.tabletophelper.encounter;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.CharacterClassRepository;
 import com.tabletophelper.reference.Item;
@@ -21,6 +22,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import tools.jackson.databind.JsonNode;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,7 +36,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Item use in combat end to end (D210): a player's fighter, Kriv, drinks potions of healing as actions, undo gives one
  * back and Write-back takes the rest off the sheet; a Wand of Fireballs he is attuned to brings its charges into the
  * encounter and casts Fireball at 4th level for 2 charges at its own DC 15; and a wizard, Ilse, reads a scroll of
- * Fireball, a level above what she can cast, after a DC 13 Intelligence check.
+ * Fireball, a level above what she can cast, after a DC 13 Intelligence check. A mage counters her scroll's Fireball,
+ * and her scroll of Counterspell, read with a failed check, counters nothing. The inventory waits while the encounter is
+ * under way, and the wand's spent charges stay spent through unattuning it.
  */
 class ItemUseIT extends IntegrationTest {
 
@@ -61,6 +66,7 @@ class ItemUseIT extends IntegrationTest {
     private String krivId;
     private String ilseId;
     private String ogreId;
+    private String mageId;
 
     @BeforeEach
     void setUpTable() {
@@ -88,12 +94,15 @@ class ItemUseIT extends IntegrationTest {
                 .build());
         scroll = itemRepository.save(Item.builder().name("Spell Scroll (3rd Level)").source("DMG").type("Scroll")
                 .spellScrollLevel(3).build());
+        spellRepository.save(Spell.builder().name("Counterspell").level(3).source("PHB").castingTime("1 reaction")
+                .classes("[\"Sorcerer\", \"Warlock\", \"Wizard\"]").effectTemplate(shipped("Counterspell")).build());
 
         kriv = create("Kriv", human.getId(), fighter.getId(), 5, 16, 8);
         ilse = create("Ilse", human.getId(), wizard.getId(), 3, 8, 16);
         inventory(kriv, List.of(entry("Potion of Healing", 2, null, null, null),
                 entry("Wand of Fireballs", 1, wand.getId(), true, null)));
-        inventory(ilse, List.of(entry("Spell Scroll (3rd Level)", 1, scroll.getId(), null, "fireball")));
+        inventory(ilse, List.of(entry("Spell Scroll (3rd Level)", 1, scroll.getId(), null, "fireball"),
+                entry("Spell Scroll (3rd Level)", 1, scroll.getId(), null, "counterspell")));
         Monster ogre = monsterRepository.save(Monster.builder().name("Ogre").type("Giant").challengeRating("2")
                 .source("MM").hitPoints(59).armourClass(11).dexterity(8).build());
 
@@ -104,10 +113,18 @@ class ItemUseIT extends IntegrationTest {
                 Map.of("participantType", "PLAYER", "characterId", ilse, "displayName", "Ilse")), "Ilse");
         ogreId = idOf(addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "MONSTER", "monsterId", ogre.getId(), "displayName", "Ogre")), "Ogre");
+        Monster mage = monsterRepository.save(Monster.builder().name("Mage").type("Humanoid").challengeRating("6")
+                .source("MM").hitPoints(40).armourClass(12).dexterity(14).intelligence(17)
+                .actionTemplates(MonsterTemplates.parse("""
+                        {"spellcasting": {"innateSpells": true, "ability": "INT", "saveDC": 14,
+                         "atWillSpells": ["fireball", "counterspell"]}}""")).build());
+        mageId = idOf(addParticipant(dm.accessToken(), encounterId,
+                Map.of("participantType", "MONSTER", "monsterId", mage.getId(), "displayName", "Mage")), "Mage");
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/initiatives",
                 Map.of("initiatives", List.of(
                         Map.of("participantId", krivId, "initiative", 20),
                         Map.of("participantId", ilseId, "initiative", 15),
+                        Map.of("participantId", mageId, "initiative", 10),
                         Map.of("participantId", ogreId, "initiative", 5))),
                 dm.accessToken()));
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/start", null,
@@ -176,7 +193,18 @@ class ItemUseIT extends IntegrationTest {
         assertThat(pool(sheet(kriv), WAND_POOL).get("currentUses").asInt()).isEqualTo(5);
 
         inventory(kriv, List.of(entry("Wand of Fireballs", 1, wand.getId(), false, null)));
-        assertThat(sheet(kriv).get("resourcePools").toString()).doesNotContain(WAND_POOL);
+        JsonNode unattuned = sheet(kriv);
+        assertThat(unattuned.get("resourcePools").toString()).doesNotContain(WAND_POOL);
+        assertThat(unattuned.get("equipment").get(0).get("chargesSpent").asInt()).isEqualTo(2);
+
+        // Attuned again, as the sheet sends its entries back, the wand has the charges it had, not 7
+        inventory(kriv, List.of(with(unattuned.get("equipment").get(0), "attuned", true)));
+        assertThat(pool(sheet(kriv), WAND_POOL).get("currentUses").asInt()).isEqualTo(5);
+
+        // A long rest gives back 1d6 + 1 of the 2 spent, up to 7
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/characters/" + kriv + "/long-rest", null,
+                player.accessToken()));
+        assertThat(pool(sheet(kriv), WAND_POOL).get("currentUses").asInt()).isEqualTo(7);
     }
 
     @Test
@@ -198,14 +226,125 @@ class ItemUseIT extends IntegrationTest {
 
         assertThat(cast.get("spellSource").asString()).isEqualTo("SCROLL");
         assertThat(participant(dmView(), ogreId).get("hpCurrent").asInt()).isEqualTo(59 - 8);
-        assertThat(usable(ilseId).get("scrolls")).isEmpty();
+        assertThat(scrollSpells(ilseId)).containsExactly("Counterspell");
 
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/end",
                 Map.of("applyResults", true), dm.accessToken()));
-        assertThat(sheet(ilse).get("equipment")).isEmpty();
+        assertThat(sheet(ilse).get("equipment")).hasSize(1);
+        assertThat(sheet(ilse).get("equipment").get(0).get("spell").asString()).isEqualTo("Counterspell");
+    }
+
+    @Test
+    @DisplayName("Counterspell read from a scroll with a failed check counters nothing: the mage's Fireball stands and "
+            + "the scroll is lost (DMG p.200)")
+    void counterspellScrollFailedCheck() {
+        nextTurn();
+        nextTurn();
+        int hp = participant(dmView(), krivId).get("hpCurrent").asInt();
+        // 8d6 of 3s = 24 fire, and Kriv's DEX save of 1 + 1 fails against 14
+        dice.script(3, 3, 3, 3, 3, 3, 3, 3, 1);
+        castBy(mageId, "Fireball", krivId);
+        assertThat(participant(dmView(), krivId).get("hpCurrent").asInt()).isEqualTo(hp - 24);
+
+        // The check, d20 2 + INT 3 = 5 against 13, fails
+        dice.script(2);
+        JsonNode cast = expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/cast-spell?actorId=" + ilseId, Map.of("spellName", "Counterspell", "spellSource", "SCROLL",
+                "itemName", "Spell Scroll (3rd Level)", "slotLevel", 3, "targetIds", List.of(mageId)),
+                dm.accessToken()));
+
+        assertThat(cast.get("resultSummary").asString()).contains("the spell disappears from the scroll with no effect");
+        assertThat(participant(dmView(), krivId).get("hpCurrent").asInt()).isEqualTo(hp - 24);
+        assertThat(log()).noneMatch(line -> line.contains("counters"));
+        assertThat(scrollSpells(ilseId)).containsExactly("Fireball");
+    }
+
+    @Test
+    @DisplayName("A mage countering the Fireball Ilse read from a scroll takes the Fireball back but not the scroll, "
+            + "which stays used up (PHB p.228, DMG p.200)")
+    void counteredScrollStaysUsed() {
+        nextTurn();
+        dice.script(12, 1, 1, 1, 1, 1, 1, 1, 1, 10);
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/cast-spell?actorId=" + ilseId, Map.of("spellName", "Fireball", "spellSource", "SCROLL",
+                "itemName", "Spell Scroll (3rd Level)", "slotLevel", 3, "targetIds", List.of(ogreId)),
+                player.accessToken()));
+        assertThat(participant(dmView(), ogreId).get("hpCurrent").asInt()).isEqualTo(59 - 8);
+
+        castBy(mageId, "Counterspell", ilseId);
+
+        assertThat(participant(dmView(), ogreId).get("hpCurrent").asInt()).isEqualTo(59);
+        assertThat(log()).anyMatch(line -> line.startsWith("Mage counters Ilse's Fireball"));
+        assertThat(scrollSpells(ilseId)).containsExactly("Counterspell");
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/end",
+                Map.of("applyResults", true), dm.accessToken()));
+        assertThat(sheet(ilse).get("equipment")).hasSize(1);
+        assertThat(sheet(ilse).get("equipment").get(0).get("spell").asString()).isEqualTo("Counterspell");
+    }
+
+    @Test
+    @DisplayName("The inventory can't change while the encounter is under way, which reads it: a 409 that changes "
+            + "nothing (D210)")
+    void inventoryWaitsForTheEncounter() {
+        ResponseEntity<String> refused = exchange(HttpMethod.PUT, "/api/characters/" + kriv + "/inventory",
+                Map.of("equipment", List.of(entry("Potion of Healing", 9, null, null, null)),
+                        "currency", Map.of("cp", 0, "sp", 0, "ep", 0, "gp", 0, "pp", 0)), player.accessToken());
+
+        assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(refused.getBody()).contains("Kriv is in an encounter that is under way, so can't change their "
+                + "inventory until it ends");
+        assertThat(names(sheet(kriv).get("equipment"))).containsExactly("Potion of Healing", "Wand of Fireballs");
+        assertThat(usable(krivId).get("potions").get(0).get("left").asInt()).isEqualTo(2);
     }
 
     // ── Helpers ──────────────────────────────────────────────────
+
+    // The entry as the sheet gave it, with one field changed, as the inventory tab sends it back
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> with(JsonNode entry, String field, Object value) {
+        Map<String, Object> changed = new LinkedHashMap<>(objectMapper.convertValue(entry, Map.class));
+        changed.put(field, value);
+        return changed;
+    }
+
+    private void nextTurn() {
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/turn/next", null,
+                dm.accessToken()));
+    }
+
+    // A monster's innate spell, cast by the DM
+    private void castBy(String monsterId, String spell, String targetId) {
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/cast-spell?actorId="
+                + monsterId, Map.of("spellName", spell, "slotLevel", 0, "targetIds", List.of(targetId)),
+                dm.accessToken()));
+    }
+
+    private List<String> scrollSpells(String participantId) {
+        List<String> spells = new ArrayList<>();
+        usable(participantId).get("scrolls").forEach(scroll -> spells.add(scroll.get("spell").get("name").asString()));
+        return spells;
+    }
+
+    private List<String> log() {
+        List<String> lines = new ArrayList<>();
+        expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId + "/combat/log", null,
+                dm.accessToken())).forEach(entry -> lines.add(entry.get("description").asString()));
+        return lines;
+    }
+
+    // A spell's template as the game data ships it
+    private SpellTemplate shipped(String name) {
+        try (InputStream in = getClass().getResourceAsStream("/data/spell-effects/spell-effect-definitions.json")) {
+            for (JsonNode definition : objectMapper.readTree(in)) {
+                if (name.equals(definition.path("spellName").asString(null))) {
+                    return SpellTemplate.of(definition);
+                }
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+        throw new AssertionError(name + " has no shipped template");
+    }
 
     private String create(String name, UUID race, UUID classId, int level, int strength, int intelligence) {
         Map<String, Object> body = new LinkedHashMap<>(Map.of("name", name, "raceId", race, "classId", classId,

@@ -168,22 +168,23 @@ public class SpellcastingService {
         // Counterspell takes back the spell its target has just cast, before its own cost is spent (PHB p.228, D196)
         SpellCounters.Countered countered = SpellCounters.COUNTERSPELL.equalsIgnoreCase(casting.spellName())
                 ? spellCounters.countered(encounter, targets) : null;
-        String counterNote = countered == null ? null : spellCounters.counter(encounter, caster, countered,
-                casting.castLevel(), own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()), userId);
+        // A scroll of a spell above what its reader can cast takes a check first; on a failure the spell is lost with
+        // the scroll, and nothing else happens (DMG p.200, D210): a Counterspell read from it counters nothing, so the
+        // check comes before the counter
+        String scrollFailed = payment.source() == SpellSource.SCROLL ? scrollCheck(encounter, caster, payment, own)
+                : null;
+        String counterNote = countered == null || scrollFailed != null ? null : spellCounters.counter(encounter,
+                caster, countered, casting.castLevel(), own.ability(),
+                attackBonus(own, request.getOverrideSpellAttackBonus()), userId);
         economy.charge(encounter, caster,
                 Charge.spell(cost, kind, EncounterTurns.isCurrentTurn(encounter, caster.getId())), tooLong, userId,
                 new ActionEconomyKeeper.Command(CombatActionType.SPELL_CAST,
                         caster.getDisplayName() + "'s " + payment.spellName() + costNote));
 
         casterSpells.spend(encounter, caster, payment);
-        // A scroll of a spell above what its reader can cast takes a check first; on a failure the spell is lost with
-        // the scroll, and nothing else happens (DMG p.200, D210)
-        if (payment.source() == SpellSource.SCROLL) {
-            String failed = scrollCheck(encounter, caster, payment, own);
-            if (failed != null) {
-                return response(encounter, new SpellCaster.CastResult(payment.spellName(), payment.spellLevel(), false,
-                        null, failed, List.of()), payment.castLevel(), payment.source());
-            }
+        if (scrollFailed != null) {
+            return response(encounter, new SpellCaster.CastResult(payment.spellName(), payment.spellLevel(), false,
+                    null, scrollFailed, List.of()), payment.castLevel(), payment.source());
         }
         metamagicCasting.spend(caster, metamagic);
         manualModifiers.log(encounter, CombatActionType.SPELL_CAST, caster,

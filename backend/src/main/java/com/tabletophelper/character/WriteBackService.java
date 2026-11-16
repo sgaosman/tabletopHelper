@@ -203,7 +203,7 @@ public class WriteBackService {
                     after.remove(i--);
                 } else {
                     after.set(i, new InventoryItem(entry.name(), left, entry.description(), entry.itemId(),
-                            entry.equipped(), entry.attuned(), entry.spell()));
+                            entry.equipped(), entry.attuned(), entry.spell(), entry.chargesSpent()));
                 }
             }
         });

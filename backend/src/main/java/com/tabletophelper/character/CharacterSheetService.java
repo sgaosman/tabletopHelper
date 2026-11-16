@@ -38,8 +38,9 @@ import static com.tabletophelper.character.CharacterUpdates.orEmpty;
  * The commands a player gives their character's sheet between rests and levels (D158): its details, its campaign
  * and inventory, damage, healing and temporary hit points, and the spell slots and pool uses it spends and gets
  * back. Each starts in CharacterCommands, which checks that the user owns the character and locks its row, and each
- * answers with the character as the server then works it out. None is refused during an encounter: combat changes the
- * participant, not the sheet, and Write-back applies its changes when the encounter ends (D166). The hit point commands
+ * answers with the character as the server then works it out. None but the inventory is refused during an encounter:
+ * combat changes the participant, not the sheet, and Write-back applies its changes when the encounter ends (D166); the
+ * inventory, which combat reads from the sheet, waits for it to end (D210). The hit point commands
  * are refused for a character who died, until the DM revives it.
  */
 @Service
@@ -50,6 +51,7 @@ public class CharacterSheetService {
     private final CampaignRepository campaignRepository;
     private final AccessPolicy accessPolicy;
     private final InventoryChecks inventoryChecks;
+    private final ResourcePoolService resourcePoolService;
 
     // ── Details, campaign and inventory ──────────────────────────
 
@@ -89,14 +91,23 @@ public class CharacterSheetService {
         });
     }
 
-    /** Replaces the character's inventory and coins (D164: an entry's item link must name an item). */
+    /**
+     * Replaces the character's inventory and coins (D164: an entry's item link must name an item). Refused while the
+     * character is in an Active or Paused encounter, which reads the sheet's items as it is used (D210): what it
+     * carries, attuned to and has used up there. A magic item's entry records the charges spent from its pool, so
+     * unattuning or unlinking it and back doesn't refill them (D210).
+     *
+     * @throws ConflictException while the character is in an encounter that is under way
+     */
     @Transactional
     public CharacterResponse updateInventory(UUID characterId, InventoryRequest request, UUID userId) {
-        return characterCommands.run(characterId, userId, character -> {
-            List<InventoryItem> equipment = inventoryChecks.checked(request.equipment());
-            character.setCurrency(InventoryChecks.checked(request.currency()));
-            character.setEquipment(equipment);
-        });
+        PlayerCharacter character = characterCommands.beginOutsideEncounters(characterId, userId,
+                "change their inventory");
+        List<InventoryItem> equipment = resourcePoolService.withChargesRecorded(
+                inventoryChecks.checked(request.equipment()), character.getResourcePools());
+        character.setCurrency(InventoryChecks.checked(request.currency()));
+        character.setEquipment(equipment);
+        return characterCommands.finish(character);
     }
 
     // ── Hit points ───────────────────────────────────────────────

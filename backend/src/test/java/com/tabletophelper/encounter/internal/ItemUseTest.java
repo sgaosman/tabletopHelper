@@ -302,6 +302,47 @@ class ItemUseTest {
                     f.spellcasting.castSpell(f.encounterId(), request, aria.getId(), f.dmUserId))).getMessage())
                     .isEqualTo("glitterdust isn't in the spells table, so the DM resolves Odd Wand's spell");
         }
+
+        @Test
+        @DisplayName("A Wand of Wonder's spell comes from its d100 table (DMG p.212), so the player can't pick Fireball from it: none of its spells is offered or cast, its charges left to its pool for the DM")
+        void randomTableItems() {
+            Item wonder = item(Item.builder().id(UUID.randomUUID()).name("Wand of Wonder").source("DMG").charges(7)
+                    .recharge("dawn").rechargeAmount("1d6 + 1").requiresAttunement(true)
+                    .attachedSpells("{\"charges\":{\"1\":[\"fireball\",\"slow\"]}}")
+                    .description("This wand has 7 charges. While holding it, you can use an action to expend 1 of its "
+                            + "charges and choose a target within 120 feet of you. The target can be a creature, an "
+                            + "object, or a point in space. Roll d100 and consult the following table to discover what "
+                            + "happens.\n[Table]")
+                    .build());
+            carry(aria, new InventoryItem("Wand of Wonder", 1, null, wonder.getId(), null, true));
+            aria.setResourcePoolsCurrent(new ArrayList<>(List.of(
+                    ResourcePoolEntry.magicItem("Wand of Wonder", 7, "dawn", "1d6 + 1"))));
+            CastSpellRequest request = new CastSpellRequest();
+            request.setSpellName("Fireball");
+            request.setSpellSource(SpellSource.ITEM);
+            request.setItemName("Wand of Wonder");
+            request.setSlotLevel(0);
+            request.setTargetIds(List.of(ogre.getId()));
+
+            assertThat(f.itemUse.usableItems(f.encounterId(), aria.getId(), f.dmUserId).chargedItems()).isEmpty();
+            assertEquals("Wand of Wonder doesn't cast Fireball", assertThrows(ValidationException.class,
+                    () -> f.inTransaction(() -> f.spellcasting.castSpell(f.encounterId(), request, aria.getId(),
+                            f.dmUserId))).getMessage());
+            assertEquals(7, ItemSpells.pool(aria, wonder).currentUses());
+        }
+
+        @Test
+        @DisplayName("Chance picks the spell of an item that casts \"at random\" or from a d100 table, and of no ordinary wand")
+        void randomSpellDetection() {
+            assertThat(ItemSpells.randomSpell(Item.builder().description("While holding it, you can use an action to "
+                    + "expend 1 or more of its charges to cast either a green-flamed fireball or a blue lightning bolt "
+                    + "at random from it (save DC 15).").build())).isTrue();
+            assertThat(ItemSpells.randomSpell(Item.builder().description("Roll d100 and consult the following table "
+                    + "to discover what happens.").build())).isTrue();
+            assertThat(ItemSpells.randomSpell(wand)).isFalse();
+            assertThat(ItemSpells.randomSpell(Item.builder().description("If you have multiple possible targets, you "
+                    + "attack one at random.").build())).isFalse();
+        }
     }
 
     @Nested

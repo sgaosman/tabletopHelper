@@ -15,15 +15,19 @@ import type { RunCommand } from './types';
  * which weapon attacks match before the entry's name (D164). An entry the server reads as armour or a shield can be
  * equipped or taken off, which changes the AC (M13.5); the server refuses a second armour or shield, and the sheet shows
  * why. A linked item that requires attunement can be attuned to, three at most (DMG p.138), which its charges need, and
- * a linked spell scroll records the spell it holds, which the Use an Item dialog reads it with (D210).
+ * a linked spell scroll records the spell it holds, which the Use an Item dialog reads it with (D210). Each item carried
+ * counts towards the three, so an attuned entry of two rings is two. While the character is in an encounter that is
+ * under way the inventory can't change, since the encounter reads it (D210): the tab shows it without its controls.
  */
-export default function InventoryTab({ characterId, equipment, currency, armourEntries = [], runCommand }: {
+export default function InventoryTab({ characterId, equipment, currency, armourEntries = [], runCommand, locked = false }: {
   characterId: string;
   equipment: InventoryItem[];
   currency: Currency;
   /** The positions of the entries the server reads as armour or a shield. */
   armourEntries?: number[];
   runCommand: RunCommand;
+  /** True while the character is in an encounter that is under way, when the inventory waits for it to end. */
+  locked?: boolean;
 }) {
   const updateInventory = useUpdateInventory();
   const [editCurrency, setEditCurrency] = useState(false);
@@ -66,7 +70,8 @@ export default function InventoryTab({ characterId, equipment, currency, armourE
       `${entry.name} ${equipped ? 'equipped' : 'taken off'}`);
   }
 
-  const attunedCount = equipment.filter(entry => entry.attuned).length;
+  // Each item carried counts, as the server counts them (DMG p.138)
+  const attunedCount = equipment.filter(entry => entry.attuned).reduce((sum, entry) => sum + carried(entry), 0);
 
   function toggleAttuned(index: number) {
     const entry = equipment[index];
@@ -81,14 +86,22 @@ export default function InventoryTab({ characterId, equipment, currency, armourE
       spell.trim() ? `${entry.name} holds ${spell.trim()}` : undefined);
   }
 
+  // Unlinking an item ends attunement to it, which only a linked item can have
   async function link(index: number, item: Item | null) {
-    if (await setEntry(index, { ...equipment[index], itemId: item?.id ?? null })) setLinking(null);
+    const entry = { ...equipment[index], itemId: item?.id ?? null };
+    if (!item) delete entry.attuned;
+    if (await setEntry(index, entry)) setLinking(null);
   }
 
-  const busy = updateInventory.isPending;
+  const busy = updateInventory.isPending || locked;
 
   return (
     <div className="space-y-6">
+      {locked && (
+        <p role="status" className="font-body text-[13px] font-semibold text-muted">
+          In an encounter that is under way: the inventory can't change until it ends.
+        </p>
+      )}
       {/* Currency */}
       <div className="bg-card border border-rule p-4">
         <div className="flex items-center justify-between mb-3">
@@ -193,13 +206,13 @@ export default function InventoryTab({ characterId, equipment, currency, armourE
           <p className="font-body text-[15px] text-faint">No equipment recorded.</p>
         )}
 
-        <form className="flex items-end gap-2 mt-4" onSubmit={e => { e.preventDefault(); void addItem(); }}>
+        {!locked && <form className="flex items-end gap-2 mt-4" onSubmit={e => { e.preventDefault(); void addItem(); }}>
           <Input label="New item" value={newName} onChange={e => setNewName(e.target.value)} className="flex-1"
             placeholder="Rope, hempen (50 feet)" />
           <Input label="Quantity" type="number" min={0} value={newQuantity} onChange={e => setNewQuantity(e.target.value)}
             className="w-24" />
-          <Button type="submit" disabled={!canAdd} loading={busy}>Add</Button>
-        </form>
+          <Button type="submit" disabled={!canAdd} loading={updateInventory.isPending}>Add</Button>
+        </form>}
       </div>
     </div>
   );
@@ -224,7 +237,7 @@ function MagicItemControls({ entry, busy, attunedCount, onToggleAttuned, onSpell
   const attunable = item.requiresAttunement;
   const scroll = item.spellScrollLevel != null;
   if (!attunable && !scroll) return null;
-  const full = !entry.attuned && attunedCount >= 3;
+  const full = !entry.attuned && attunedCount + carried(entry) > 3;
 
   return (
     <div className="flex flex-wrap items-end gap-2 mt-1.5">
@@ -236,7 +249,8 @@ function MagicItemControls({ entry, busy, attunedCount, onToggleAttuned, onSpell
             {entry.attuned ? 'Attuned' : 'Attune'}
           </Button>
           <span className="font-body text-[12.5px] font-semibold text-faint">
-            {full ? 'Already attuned to 3 items (DMG p.138)'
+            {full ? (attunedCount >= 3 ? 'Already attuned to 3 items (DMG p.138)'
+              : `Attuning to ${carried(entry)} more would pass 3 items (DMG p.138)`)
               : `Requires attunement${item.attunementCondition ? ` ${item.attunementCondition}` : ''}`}
           </span>
         </>
@@ -252,6 +266,11 @@ function MagicItemControls({ entry, busy, attunedCount, onToggleAttuned, onSpell
       )}
     </div>
   );
+}
+
+// How many of the entry are carried: one without a quantity, as the server reads it
+function carried(entry: InventoryItem) {
+  return entry.quantity != null ? Math.max(0, entry.quantity) : 1;
 }
 
 /** Finds an item in the items list for an inventory entry to be linked to. */

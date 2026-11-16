@@ -508,7 +508,7 @@ Phase 3 — Multiclass at creation:
 - [x] DM's turn economy edit — `PUT /combat/turn-economy`, for Haste, Slow, surprise or a correction
 
 **Frontend tasks:**
-- [ ] Reaction prompt: when an event triggers a possible reaction (e.g., creature leaves reach), inline combat log prompt with available reactions — moved out of M13 (see below); `ReactionMenu` lets a player or the DM take a reaction by hand instead
+- [x] Reaction prompt: when an event triggers a possible reaction (e.g., creature leaves reach), inline combat log prompt with available reactions — moved out of M13 (see below); `ReactionMenu` lets a player or the DM take a reaction by hand instead — done: hits, damage and spells prompt the reactions the app resolves (D216)
 - [x] Reaction counter display per participant — `TurnEconomyBar`
 - [x] Bonus action modal: show available bonus actions (bonus action spells, class abilities like Cunning Action) — the spell flow's casting-time badges, `StandardActionMenu`'s bonus-action versions and the pool menus
 - [x] Standard action buttons: Dodge, Help, Hide, Dash in a burger menu — `StandardActionMenu`

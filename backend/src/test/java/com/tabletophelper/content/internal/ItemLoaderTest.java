@@ -124,6 +124,36 @@ class ItemLoaderTest {
     }
 
     @Test
+    @DisplayName("An item's DC given beside one of its spells counts: the Ring of Animal Influence's list gives 13 (DMG p.191), the Wand of Fear's \"as with the command spell\" 15 (DMG p.210)")
+    void dcBesideItsSpells() {
+        assertThat(items.get("Ring of Animal Influence|DMG").getSpellSaveDc()).isEqualTo(13);
+        assertThat(items.get("Wand of Fear|DMG").getSpellSaveDc()).isEqualTo(15);
+    }
+
+    @Test
+    @DisplayName("Every item casting spells whose text says \"your spell save DC\" or \"your spell attack bonus\" keeps the wielder's: no DC or attack bonus of its own")
+    void wieldersOwnNumbersStayNull() throws java.io.IOException {
+        ObjectMapper objectMapper = JacksonDefaults.mapper();
+        int checked = 0;
+        try (var in = getClass().getResourceAsStream("/data/5etools/items.json")) {
+            for (tools.jackson.databind.JsonNode raw : objectMapper.readTree(in).get("item")) {
+                if (!raw.has("attachedSpells")) continue;
+                String text = raw.path("entries").toString();
+                Item item = items.get(raw.get("name").asString() + "|" + raw.get("source").asString());
+                if (item == null) continue;
+                if (text.contains("your spell save DC")) {
+                    assertThat(item.getSpellSaveDc()).as(item.getName()).isNull();
+                    checked++;
+                }
+                if (text.contains("your spell attack bonus")) {
+                    assertThat(item.getSpellAttackBonus()).as(item.getName()).isNull();
+                }
+            }
+        }
+        assertThat(checked).isGreaterThan(10);
+    }
+
+    @Test
     @DisplayName("Spell scrolls keep their level, a Staff of Power its 20 charges regaining 2d8 + 4, and a potion has none of these")
     void scrollsStaffAndPotion() {
         assertThat(items.get("Spell Scroll (3rd Level)|DMG").getSpellScrollLevel()).isEqualTo(3);

@@ -58,10 +58,11 @@ public class ItemLoader implements ContentLoader {
     }
 
     // Version 2 writes the armour columns (M13.5) and reads "stealth": false as no disadvantage; 3 the charges, recharge,
-    // attached spells, scroll level and the item's own spell DC and attack bonus (D210, V38)
+    // attached spells, scroll level and the item's own spell DC and attack bonus (D210, V38); 4 also reads that DC or
+    // bonus from a passage naming one of the item's spells, or a bracketed "(save DC N)", as a Ring of Animal Influence's
     @Override
     public int version() {
-        return 3;
+        return 4;
     }
 
     // A dice formula in 5etools markup, such as {@dice 1d6 + 1}
@@ -154,9 +155,10 @@ public class ItemLoader implements ContentLoader {
                 .rechargeAmount(rechargeAmount(i.get("rechargeAmount")))
                 .attachedSpells(i.has("attachedSpells") ? objectMapper.writeValueAsString(i.get("attachedSpells")) : null)
                 .spellScrollLevel(i.path("spellScrollLevel").isIntegralNumber() ? i.path("spellScrollLevel").asInt(0) : null)
-                .spellSaveDc(i.has("attachedSpells") ? ownNumber(i.get("entries"), DC_MARKUP, "your spell save DC") : null)
+                .spellSaveDc(i.has("attachedSpells") ? ownSaveDc(i.get("entries"), i.get("attachedSpells")) : null)
                 .spellAttackBonus(i.has("attachedSpells")
-                        ? ownNumber(i.get("entries"), HIT_MARKUP, "your spell attack bonus") : null)
+                        ? ownNumber(i.get("entries"), HIT_MARKUP, "your spell attack bonus", i.get("attachedSpells"))
+                        : null)
                 .source(i.path("source").asString(null))
                 .isHomebrew(false)
                 .build();
@@ -219,24 +221,90 @@ public class ItemLoader implements ContentLoader {
         return text.isEmpty() ? null : text;
     }
 
+    // A save DC given in brackets after a spell or effect, as "(save {@dc 13})"
+    private static final Pattern BRACKETED_SAVE = Pattern.compile("\\(save \\{@dc (\\d{1,2})}\\)");
+    // A spell named in the text, as "{@spell command}" or "{@spell Animal friendship|PHB}"
+    private static final Pattern SPELL_MARKUP = Pattern.compile("\\{@spell ([^}|]+)");
+
     /**
-     * The number the item's own text gives the spells cast from it, as "(save {@dc 15})" on a Wand of Fireballs: the
-     * first such number in a passage about casting. Null when any passage says the wielder's own is used ("using your
-     * spell save DC"), as a Staff of Power's does, or none gives one.
+     * The save DC the item's own text gives the spells cast from it: as {@link #ownNumber}, and failing that the first
+     * bracketed "(save {@dc N})" in its text, unless it says the wielder's own is used.
      */
-    static Integer ownNumber(JsonNode entries, Pattern number, String wieldersOwn) {
+    static Integer ownSaveDc(JsonNode entries, JsonNode attachedSpells) {
+        Integer own = ownNumber(entries, DC_MARKUP, "your spell save DC", attachedSpells);
+        if (own != null) return own;
         List<String> passages = new ArrayList<>();
         passages(entries, passages);
-        if (passages.stream().anyMatch(passage -> passage.toLowerCase(Locale.ROOT).contains(wieldersOwn.toLowerCase(Locale.ROOT)))) {
+        if (wieldersOwn(passages, "your spell save DC")) return null;
+        for (String passage : passages) {
+            Matcher found = BRACKETED_SAVE.matcher(passage);
+            if (found.find()) return Integer.parseInt(found.group(1));
+        }
+        return null;
+    }
+
+    /**
+     * The number the item's own text gives the spells cast from it, as "(save {@dc 15})" on a Wand of Fireballs: the
+     * first such number in a passage about casting or naming one of the spells it casts, as a Ring of Animal
+     * Influence's list of spells or a Wand of Fear's "as with the command spell (save DC 15)". Null when any passage
+     * says the wielder's own is used ("using your spell save DC"), as a Staff of Power's does, or none gives one.
+     *
+     * @param attachedSpells the item's spells as the data lists them; null for none
+     */
+    static Integer ownNumber(JsonNode entries, Pattern number, String wieldersOwn, JsonNode attachedSpells) {
+        List<String> passages = new ArrayList<>();
+        passages(entries, passages);
+        if (wieldersOwn(passages, wieldersOwn)) {
             return null;
         }
+        Set<String> spells = attachedSpellNames(attachedSpells);
         for (String passage : passages) {
             Matcher found = number.matcher(passage);
-            if (passage.toLowerCase(Locale.ROOT).contains("cast") && found.find()) {
+            if ((passage.toLowerCase(Locale.ROOT).contains("cast") || namesSpell(passage, spells)) && found.find()) {
                 return Integer.parseInt(found.group(1));
             }
         }
         return null;
+    }
+
+    static Integer ownNumber(JsonNode entries, Pattern number, String wieldersOwn) {
+        return ownNumber(entries, number, wieldersOwn, null);
+    }
+
+    private static boolean wieldersOwn(List<String> passages, String wieldersOwn) {
+        String own = wieldersOwn.toLowerCase(Locale.ROOT);
+        return passages.stream().anyMatch(passage -> passage.toLowerCase(Locale.ROOT).contains(own));
+    }
+
+    private static boolean namesSpell(String passage, Set<String> spells) {
+        if (spells.isEmpty()) return false;
+        Matcher named = SPELL_MARKUP.matcher(passage);
+        while (named.find()) {
+            if (spells.contains(named.group(1).trim().toLowerCase(Locale.ROOT))) return true;
+        }
+        return false;
+    }
+
+    // The names of the spells the data attaches to the item, lower case and without a level such as "#5", from any of
+    // its lists: by charges, daily, at will and the rest
+    private static Set<String> attachedSpellNames(JsonNode attachedSpells) {
+        Set<String> names = new java.util.HashSet<>();
+        List<String> strings = new ArrayList<>();
+        strings(attachedSpells, strings);
+        for (String name : strings) {
+            int level = name.indexOf('#');
+            names.add((level >= 0 ? name.substring(0, level) : name).trim().toLowerCase(Locale.ROOT));
+        }
+        return names;
+    }
+
+    private static void strings(JsonNode node, List<String> out) {
+        if (node == null || node.isNull()) return;
+        if (node.isString()) {
+            out.add(node.asString(""));
+        } else if (node.isArray() || node.isObject()) {
+            for (JsonNode child : node) strings(child, out);
+        }
     }
 
     // Every string among the entries, nested entries and list items included

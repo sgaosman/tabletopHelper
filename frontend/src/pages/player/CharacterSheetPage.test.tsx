@@ -246,7 +246,7 @@ describe('CharacterSheetPage', () => {
     server.use(http.get('/api/characters/:id', () => HttpResponse.json({ ...hurtFighter, inLiveEncounter: true })));
     renderSheet();
 
-    expect(await screen.findByText('In an encounter that is under way: resting, levelling and choices wait until it ends.'))
+    expect(await screen.findByText('In an encounter that is under way: resting, levelling, choices and the inventory wait until it ends.'))
       .toBeInTheDocument();
     for (const name of ['Short Rest', 'Long Rest', 'Level Up', 'Level Down']) {
       expect(screen.getByRole('button', { name })).toBeDisabled();

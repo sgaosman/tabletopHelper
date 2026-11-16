@@ -231,6 +231,50 @@ describe('InventoryTab', () => {
     expect(screen.getByText('Already attuned to 3 items (DMG p.138)')).toBeInTheDocument();
   });
 
+  it('counts each item carried towards the three: two attuned rings and a cloak leave no room for a fourth (DMG p.138, D210)', async () => {
+    linkedItems({
+      rings: { name: 'Ring of Protection', requiresAttunement: true },
+      cloak: { name: 'Cloak of Protection', requiresAttunement: true },
+      amulet: { name: 'Amulet of Health', requiresAttunement: true },
+    });
+    renderTab([
+      { name: 'Ring of Protection', quantity: 2, itemId: 'rings', attuned: true },
+      { name: 'Cloak of Protection', quantity: 1, itemId: 'cloak', attuned: true },
+      { name: 'Amulet of Health', quantity: 1, itemId: 'amulet' },
+    ]);
+
+    expect(await screen.findByRole('button', { name: 'Attune to Amulet of Health' })).toBeDisabled();
+    expect(screen.getByText('Already attuned to 3 items (DMG p.138)')).toBeInTheDocument();
+  });
+
+  it('ends attunement when an item is unlinked, and sends the charges the sheet recorded as spent back as they were (D210)', async () => {
+    const sent = recordInventories();
+    linkedItems({ wand: { name: 'Wand of Fireballs', requiresAttunement: true } });
+    renderTab([{ name: 'Wand of Fireballs', quantity: 1, itemId: 'wand', attuned: true, chargesSpent: 6 }]);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Unlink Wand of Fireballs from its item' }));
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].equipment[0]).toEqual({ name: 'Wand of Fireballs', quantity: 1, itemId: null, chargesSpent: 6 });
+  });
+
+  it('shows the inventory without its controls while the character is in an encounter under way (D210)', async () => {
+    linkedItems({ wand: { name: 'Wand of Fireballs', requiresAttunement: true } });
+    render(<InventoryTab characterId="char-001" currency={currency} runCommand={runCommand} locked
+      equipment={[...equipment, { name: 'Wand of Fireballs', quantity: 1, itemId: 'wand', attuned: true }]} />);
+
+    expect(screen.getByText("In an encounter that is under way: the inventory can't change until it ends."))
+      .toBeInTheDocument();
+    expect(screen.getByText('Healing Potion')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'One more Healing Potion' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Remove Longsword' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Link Longsword to an item' })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: 'End attunement to Wand of Fireballs' })).toBeDisabled();
+    expect(screen.queryByLabelText('New item')).not.toBeInTheDocument();
+  });
+
   it('records the spell a linked spell scroll holds (D210)', async () => {
     const sent = recordInventories();
     linkedItems({ scroll: { name: 'Spell Scroll (1st Level)', type: 'Scroll', spellScrollLevel: 1 } });

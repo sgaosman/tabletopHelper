@@ -3490,6 +3490,8 @@ export interface components {
         InspirationUse: "ON_FAILED_SAVE" | "KEEP" | "ROLL";
         InventoryItem: {
             attuned?: boolean | null;
+            /** Format: int32 */
+            chargesSpent?: number | null;
             description?: string | null;
             equipped?: boolean | null;
             /** Format: uuid */

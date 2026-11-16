@@ -115,7 +115,7 @@ class CharacterFixture {
             raceRepository, classRepository, subclassRepository, backgroundRepository, mapper, objectMapper,
             accessPolicy, characterStats, commands, liveEncounters, inventoryChecks, choices, classTables);
     final CharacterSheetService sheet = new CharacterSheetService(commands, campaignRepository, accessPolicy,
-            inventoryChecks);
+            inventoryChecks, resourcePoolService);
     final RestService rests = new RestService(commands, resourcePoolService, rng);
     final WriteBackService writeBack = new WriteBackService(commands, characterRepository);
 

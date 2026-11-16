@@ -66,6 +66,9 @@ class ItemSpells {
     private static final Pattern DATA_SPELL = Pattern.compile("^([^#|]+)(?:\\|[^#]*)?(?:#(\\d))?$");
     private static final Pattern PER_LEVEL = Pattern.compile(
             "charges? per spell level(?:, up to (\\d)(?:st|nd|rd|th))?", Pattern.CASE_INSENSITIVE);
+    // An item whose text has chance pick the spell it casts: "cast ... at random", or a d100 table to consult
+    private static final Pattern RANDOM_SPELL = Pattern.compile(
+            "\\bcast\\b[^.\\n]*\\bat random\\b|\\broll (?:a )?d100 and consult\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern EACH_ADDITIONAL = Pattern.compile("for each additional charge", Pattern.CASE_INSENSITIVE);
 
     // A spell scroll's save DC and attack bonus by spell level, cantrip first (DMG p.200)
@@ -182,8 +185,11 @@ class ItemSpells {
         return spells;
     }
 
-    // The spells the item's data lists by charge cost
+    // The spells the item's data lists by charge cost; none for an item whose spell is chosen at random, as a Wand of
+    // Wonder's d100 table or a Failed Experiment Wand's "at random": its charges are spent from its pool, and the DM
+    // resolves what happens
     List<ItemSpell> spellsOf(String entryName, Item item) {
+        if (randomSpell(item)) return List.of();
         JsonNode byCharges = attachedSpells(item).path("charges");
         if (!byCharges.isObject()) return List.of();
         List<ItemSpell> spells = new ArrayList<>();
@@ -219,6 +225,14 @@ class ItemSpells {
             }
         }
         return listed == 1 && EACH_ADDITIONAL.matcher(text).find() ? 9 : baseLevel;
+    }
+
+    /**
+     * Whether chance picks the spell the item casts, as a Wand of Wonder's d100 table (DMG p.212) or a Failed Experiment
+     * Wand's "at random": the player then chooses none of its spells (D210).
+     */
+    static boolean randomSpell(Item item) {
+        return item.getDescription() != null && RANDOM_SPELL.matcher(item.getDescription()).find();
     }
 
     private JsonNode attachedSpells(Item item) {

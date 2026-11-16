@@ -57,8 +57,11 @@ class InventoryChecks {
             if (spell != null) {
                 spell = scrollSpell(name, linked, spell);
             }
+            // The charges spent from the item's pool, kept while it has none (D210); a negative count is none
+            Integer chargesSpent = entry.chargesSpent() != null && entry.chargesSpent() > 0 ? entry.chargesSpent()
+                    : null;
             checked.add(new InventoryItem(name, entry.quantity(), entry.description(), entry.itemId(), entry.equipped(),
-                    entry.attuned(), spell));
+                    entry.attuned(), spell, chargesSpent));
         }
         requireOneOfEach(checked);
         requireAttunementLimit(checked);
@@ -79,9 +82,11 @@ class InventoryChecks {
         }
     }
 
-    // A creature can be attuned to no more than three magic items at a time (DMG p.138)
+    // A creature can be attuned to no more than three magic items at a time (DMG p.138): an attuned entry of two rings
+    // is two items attuned to, and one with none carried is none
     private static void requireAttunementLimit(List<InventoryItem> inventory) {
-        long attuned = inventory.stream().filter(entry -> Boolean.TRUE.equals(entry.attuned())).count();
+        long attuned = inventory.stream().filter(entry -> Boolean.TRUE.equals(entry.attuned()))
+                .mapToLong(InventoryItem::carried).sum();
         if (attuned > MAX_ATTUNED) {
             throw new ValidationException("A character can be attuned to no more than " + MAX_ATTUNED
                     + " magic items at a time (DMG p.138), not " + attuned);

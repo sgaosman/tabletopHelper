@@ -162,11 +162,14 @@ public record ResourcePoolEntry(
      * data's dice, as a Wand of Magic Missiles' 1d6 + 1. One that never does, or does by its own rule ("special"), keeps
      * them through every rest, the DM restoring them.
      *
-     * @param recharge       when the item regains its charges, as the items table has it; null for never
+     * @param recharge       when the item regains its charges, as the items table has it; null for never, unless it
+     *                       has a rechargeAmount: the data then leaves the time out, as the Robe of Stars' stars that
+     *                       reappear "daily at dusk", which counts as daily
      * @param rechargeAmount how many it regains, such as "1d6 + 1"; null for all of them
      */
     public static ResourcePoolEntry magicItem(String itemName, int charges, String recharge, String rechargeAmount) {
-        boolean daily = recharge != null && DAILY.contains(recharge);
+        boolean hasAmount = rechargeAmount != null && !rechargeAmount.isBlank();
+        boolean daily = recharge != null ? DAILY.contains(recharge) : hasAmount;
         String resetAmount = daily && rechargeAmount != null && !rechargeAmount.isBlank()
                 ? "currentUses + (" + rechargeAmount.trim() + ")" : null;
         Map<String, Object> metadata = new java.util.LinkedHashMap<>();

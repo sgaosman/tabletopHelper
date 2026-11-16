@@ -4285,3 +4285,62 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D181, D208, D210
 
 **Tests:** checked in the browser at 375 pixels: the DM and player encounter pages and the character sheet no longer scroll sideways, and the sheet's tabs get 343 pixels; at desktop width the layout is unchanged. 1,244 frontend tests, type check and lint pass.
+
+
+## D216: Reaction Prompts
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (migration V39)
+
+**Context:** [[#D174]] left reactions to the players and the DM: "nothing prompts for a reaction automatically", and roadmap M13's reaction prompt stayed open. The app has no map, so only triggers the server sees can prompt: a creature hit or damaged, and a spell cast. Built during the user's overnight run of 2026-11-16; the calls are the lead's, recorded for review.
+
+**Decision:**
+- **Offers:** V39 adds `encounters.reaction_offers`. When a hit, damage or a spell happens, `ReactionOffers` records an offer for each creature that could react: the trigger (attack total and AC, damage and types, or spell and level), the command it came from, who triggered it, and options that each name the existing endpoint taking them (cast-spell, use-pool or monster-action) with what to send. Offers are judged on reactions left, incapacitation and resources; a problem working one out is logged and the offer left out, never failing the command.
+- **Who sees them:** the DM sees every offer; a player sees offers for creatures on their side, a hidden attacker shown as "A hidden creature" with options aimed at it removed. `ReactionPrompt` shows them inline on both encounter pages, one card per offer with a button per option, a slot-level select, notes and Skip (`POST /combat/dismiss-reaction`).
+- **Expiry:** any combat command that isn't a reaction clears all offers, turn changes included; a reaction removes only its reactor's. Undo clears offers, and a command taken back inside another removes the offers it raised.
+- **Shield** (PHB p.275) resolves: cast with `reactionOfferId`, it takes the hit back as Counterspell takes back a spell ([[#D196]]) when the +5 turns the roll into a miss, it isn't a critical, the attack is still the newest command and touched only the attacker and the wizard, and it was the wizard's only hit; the attacker keeps what it spent. Otherwise the log says it still hits, or that the DM restores the damage. Undoing the Shield brings the hit back.
+- **Counterspell** resolves through [[#D196]]'s path, offered only to the other side. **Hellish Rebuke** and **Stone's Endurance** ([[#D208]]) resolve. **Absorb Elements** is advisory: its resistance goes on and the log asks the DM to restore half the damage already taken. A monster's **Parry**, **Uncanny Dodge** and **Deflect Missile** are advisory monster reactions.
+- **Not wired:** a character's Uncanny Dodge, Deflect Missiles and Battle Master Parry, which don't resolve anywhere in the app yet, and Shield against Magic Missile, which needs a trigger for being targeted.
+
+**Rules calls (the lead's, to confirm):**
+- Shield is judged on the wizard's state just before the hit, so a wizard dropped to 0 is still offered it if it would miss; every other reaction is judged after the damage.
+- Blinded creatures get no Counterspell, Hellish Rebuke or monster Uncanny Dodge or Parry; invisible casters, Subtle Spell and Counterspell itself raise no Counterspell offer; allies aren't offered Counterspell.
+- Hellish Rebuke isn't offered for damage the DM enters by hand, which has no creature to rebuke.
+- No Shield offer while Shield is already up; one offer per reactor per event; offers show only while the encounter is active, and undoing a turn change doesn't bring old offers back.
+
+**Real database:** V39 applies on its next start, an additive column with a default.
+
+**Key files:** `db/migration/V39__reaction_offers.sql`, `encounter/internal/ReactionOffers.java`, `ReactionAnswers.java`, `ReactionOfferService.java`, `encounter/state/ReactionOffer.java`, `CommandRecorder.java`, `EffectApplier.java`, `SpellcastingService.java`, `UndoService.java`, `EncounterViews.java`, `components/encounter/ReactionPrompt.tsx`, both `EncounterSessionPage.tsx`
+
+**Related:** D174, D176, D196, D208; roadmap M13
+
+**Tests:** `ReactionOffersTest` (25), `ReactionPromptsIT` (5: a goblin's hit on a wizard taken back by Shield and restored by undo, a Shield that still hits, an archmage's Counterspell offered to the DM and countering, offers expiring, undo and dismissal), `ReactionPrompt.test.tsx` (10) and a player-page filter test; 4,680 backend unit, 568 integration and 1,255 frontend tests on its branch.
+
+
+## D218: Item Use Fixes from Review
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration; item loader version 4)
+
+**Context:** a review of [[#D210]]'s code during the overnight run of 2026-11-16 confirmed eight defects, and fixing the first found a ninth. All were fixed with regression tests. Calls are the lead's, recorded for review.
+
+**Decision:**
+1. **Charges no longer refill by un-attuning or unlinking:** an inventory entry gains `chargesSpent`, copied from its item pool whenever the inventory is saved, so a pool that comes back starts at its charges less those spent.
+2. **Long rests follow each item's recharge:** the sheet's long rest refilled every pool to full; item pools now regain their dice of charges (none for items that never recharge), and entries whose item is unattuned or unlinked recharge the same way.
+3. **A failed scroll can't counter:** for a scroll, the reading check (DMG p.200) is rolled before Counterspell is resolved; on a failure nothing is countered and the scroll is spent.
+4. **Countering a scroll spell keeps the scroll spent:** `SpellCounters` keeps the countered caster's used items through its undo, as it keeps slots and pools ([[#D196]]).
+5. **No inventory edits mid-fight:** the inventory endpoint answers 409 while the character is in an encounter under way, as rests and levelling do; the inventory tab shows the locked state. Preparing an encounter doesn't lock it, so wands are linked and attuned before the fight.
+6. **An item's own DC from more of its text:** the item loader (version 4) also reads a DC or attack bonus from a passage naming one of the item's spells, then the first bracketed "(save DC N)", unless the item says "your spell save DC". Eight items gained a DC: Ring of Animal Influence 13, Wand of Fear 15, Necklace of Fireballs 15, Potion of Mind Reading 13, Truth Serum 11, Bridle of Capturing 17, Ivana's Whisper 18, Thessaltoxin 15.
+7. **Random-table items:** an item whose spell is rolled ("cast … at random", "Roll d100 and consult") offers no spell to pick; the Wand of Wonder and Failed Experiment Wand keep their charge pools for the DM.
+8. **Robe of Stars** and any item with a recharge amount but no recharge time regain charges on a long rest.
+9. **Attunement counts items:** an attuned entry of two rings counts as two of the three (DMG p.138).
+
+**Rules calls (the lead's, to confirm):** unlinking an item also ends its attunement; attunement is counted per item carried rather than refusing attuned entries above one.
+
+**Real database:** no migration; items reload at loader version 4; sheets get the corrected long rest at once.
+
+**Key files:** `character/state/InventoryItem.java`, `resourcepool/ResourcePoolService.java`, `character/RestService.java`, `character/CharacterSheetService.java`, `character/InventoryChecks.java`, `encounter/internal/SpellcastingService.java`, `SpellCounters.java`, `ItemSpells.java`, `content/internal/ItemLoader.java`, `character/state/ResourcePoolEntry.java`, `pages/player/sheet/InventoryTab.tsx`
+
+**Related:** D196, D210
+
+**Tests:** 11 new backend unit, 3 new integration (with `ItemUseIT` extended by a mage and a Counterspell scroll) and 3 new frontend tests; 4,666 backend unit, 565 integration and 1,247 frontend tests.
