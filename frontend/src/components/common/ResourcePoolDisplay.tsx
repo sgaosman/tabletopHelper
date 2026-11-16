@@ -153,7 +153,7 @@ const OWN_CONTROLS: string[] = ['lay-on-hands', 'bardic-inspiration', 'arcane-re
 
 const USE_BUTTON = 'ml-1 px-1.5 py-0.5 font-heading text-[11px] font-semibold tracking-[0.02em] bg-ink/10 hover:bg-ink/20 '
   + 'text-ink disabled:opacity-40 disabled:hover:bg-ink/10';
-const SMALL_FIELD = 'px-1 py-0.5 bg-page-alt border border-rule font-body text-[13px] text-ink';
+const SMALL_FIELD = 'max-w-full min-w-0 px-1 py-0.5 bg-page-alt border border-rule font-body text-[13px] text-ink';
 
 /**
  * The pools at the table (D174): each shows what a use costs from the participant's turn, as its spendActionType says,
@@ -212,7 +212,7 @@ function EncounterPools({ pools, participant, onUse, asDm, targets, onFlexibleCa
           const reasonId = `pool-reason-${participant.id}-${entry.poolId}`;
           return (
             <li key={entry.poolId}
-              className={`flex flex-col gap-0.5 rounded px-2 py-1 text-sm ${refusal ? 'bg-rule-light text-muted' : 'bg-page-alt text-ink'}`}>
+              className={`flex flex-col gap-0.5 min-w-0 max-w-full rounded px-2 py-1 text-sm ${refusal ? 'bg-rule-light text-muted' : 'bg-page-alt text-ink'}`}>
               <div className="inline-flex items-center gap-1.5">
                 <span className="text-xs opacity-60">{iconChar(entry.icon)}</span>
                 <span className="font-semibold">{entry.displayName}</span>

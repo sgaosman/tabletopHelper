@@ -699,7 +699,7 @@ function DmSessionView() {
 
                       {/* Quick action buttons */}
                       {isActive && (
-                        <div className="flex flex-wrap items-center gap-1 flex-shrink-0 sm:ml-2">
+                        <div className="flex flex-wrap items-center gap-1 min-w-0 max-w-full sm:flex-shrink-0 sm:ml-2">
                           {/* Monster actions toggle (M12), a druid in Wild Shape's beast actions (PHB p.67), and a
                               form spell's form's actions (D192) */}
                           {(hasStatBlock || inForm) && (

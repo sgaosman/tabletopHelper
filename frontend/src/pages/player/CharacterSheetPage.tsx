@@ -471,8 +471,8 @@ export default function CharacterSheetPage() {
 
       {/* Tabs */}
       <div className="max-w-5xl mx-auto px-4">
-        <div className="flex items-center border-b border-rule">
-          <div className="flex gap-1 overflow-x-auto flex-1" role="tablist" aria-label="Character sheet tabs">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center border-b border-rule">
+          <div className="flex gap-1 overflow-x-auto flex-1 min-w-0" role="tablist" aria-label="Character sheet tabs">
             {TABS.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
@@ -495,7 +495,7 @@ export default function CharacterSheetPage() {
             onChange={e => handleCampaignChange(e.target.value)}
             disabled={setCampaign.isPending}
             aria-busy={setCampaign.isPending || undefined}
-            className="ml-2 px-2 py-1.5 bg-page-alt border border-rule font-body text-[14px] font-semibold text-muted focus:outline-none focus:border-muted shrink-0"
+            className="self-end mb-2 sm:mb-0 sm:ml-2 px-2 py-1.5 bg-page-alt border border-rule font-body text-[14px] font-semibold text-muted focus:outline-none focus:border-muted shrink-0"
           >
             <option value="">No campaign</option>
             {campaigns.map(c => (

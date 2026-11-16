@@ -4266,3 +4266,22 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D125, D158, D169, D178, D208
 
 **Tests:** `FeatEffectResolverTest`, `PendingChoicesIT`, `FeatPicker.test.tsx`, `ResourcePoolServiceTest`, `ChannelDivinityEffectsTest`, `ChannelDivinityIT`, `classFeatures.test.ts`, new `AuthLimitsIT`, `LoadContextTest`, `RecomputeCharactersJob` tests and creation-check cases; 4,614 backend unit, 552 integration and 1,223 frontend tests on its branch; 4,626, 558 and 1,236 merged with D213 and D214.
+
+
+## D217: Phone-Width Fixes from the Browser Retest
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration)
+
+**Context:** the browser retest of the user's overnight run of 2026-11-16 loaded the encounter and character pages at 375 pixels wide ([[#D181]]'s phone-width target). The DM's encounter page scrolled sideways to 507 pixels once a character carried racial and item pools ([[#D208]], [[#D210]]), and the character sheet's tab strip showed only 220 of its 558 pixels beside the campaign selector.
+
+**Decision:**
+- The DM page's quick-action icon row may shrink and wraps on phones (`min-w-0 max-w-full`, no `flex-shrink-0` below the `sm` breakpoint).
+- A resource pool card and its small selects (Breath Weapon's ancestry, and the other per-pool fields) are held to their container's width.
+- The character sheet puts the campaign selector on its own line above the tabs on phones, so the tabs use the full width; from the `sm` breakpoint it stays in the tab row as before.
+
+**Key files:** `pages/dm/EncounterSessionPage.tsx`, `components/common/ResourcePoolDisplay.tsx`, `pages/player/CharacterSheetPage.tsx`
+
+**Related:** D181, D208, D210
+
+**Tests:** checked in the browser at 375 pixels: the DM and player encounter pages and the character sheet no longer scroll sideways, and the sheet's tabs get 343 pixels; at desktop width the layout is unchanged. 1,244 frontend tests, type check and lint pass.
