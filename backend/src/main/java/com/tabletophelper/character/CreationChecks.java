@@ -286,6 +286,22 @@ final class CreationChecks {
         return ProficiencyLists.SKILLS.stream().anyMatch(skill -> skill.equalsIgnoreCase(name.trim()));
     }
 
+    /**
+     * Skill names as the PHB writes them, each once (D232): the wizard's class lists say "Sleight Of Hand", and
+     * Expertise is stored as the skills are, so the two lists agree.
+     */
+    static List<String> skillNames(List<String> names) {
+        return names == null ? null : distinct(distinct(names).stream().map(CreationChecks::canonicalSkill).toList());
+    }
+
+    /**
+     * Proficiency names, each once whatever its case (D232): a rogue with the Criminal background gets thieves' tools
+     * from both, and carries them once.
+     */
+    static List<String> once(List<String> names) {
+        return names == null ? null : distinct(names);
+    }
+
     // A skill as the PHB names it, "Sleight of Hand" for "sleight of hand"; any other name as given, trimmed
     private static String canonicalSkill(String name) {
         return ProficiencyLists.SKILLS.stream().filter(skill -> skill.equalsIgnoreCase(name.trim())).findFirst()

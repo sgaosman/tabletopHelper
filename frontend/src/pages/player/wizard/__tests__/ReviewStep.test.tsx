@@ -3,6 +3,7 @@ import { render, screen } from '../../../../test/test-utils';
 import ReviewStep from '../ReviewStep';
 import { initialWizardState, type WizardState } from '../wizardReducer';
 import type { CharacterClassRef } from '../../../../types/reference';
+import { soldier } from './fixtures';
 
 function mockClassRef(overrides: Partial<CharacterClassRef> = {}): CharacterClassRef {
   return {
@@ -31,6 +32,12 @@ function renderStep(overrides: Partial<WizardState> = {}) {
 }
 
 describe('ReviewStep', () => {
+  it('shows a duplicate background skill as the skill chosen in its place (PHB p.125, D226)', () => {
+    renderStep({ selectedClassSkills: ['Athletics', 'Survival'], selectedBackground: soldier, bgSkillReplacements: { Athletics: 'Stealth' } });
+
+    expect(screen.getByText(/Stealth \(in place of Athletics\)/)).toBeInTheDocument();
+  });
+
   it("lists a level 1 Fighter's Fighting Style to choose on the sheet (D159)", () => {
     renderStep();
 

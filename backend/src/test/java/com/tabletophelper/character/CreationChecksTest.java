@@ -224,4 +224,25 @@ class CreationChecksTest {
             assertThat(CreationChecks.skillProficiencies(objectMapper, human, List.of(), null, null)).isNull();
         }
     }
+
+    @Nested
+    @DisplayName("Names stored once, in PHB casing (D232)")
+    class Names {
+
+        @Test
+        @DisplayName("Expertise is stored in the skills' PHB casing, so \"Sleight Of Hand\" from a class list matches its skill")
+        void expertiseCasing() {
+            assertThat(CreationChecks.skillNames(List.of("Sleight Of Hand", "stealth", "Stealth")))
+                    .containsExactly("Sleight of Hand", "Stealth");
+            assertThat(CreationChecks.skillNames(null)).isNull();
+        }
+
+        @Test
+        @DisplayName("A tool both the class and the background give, as a criminal rogue's thieves' tools, is kept once")
+        void toolsOnce() {
+            assertThat(CreationChecks.once(List.of("Thieves' tools", "Dice Set", "Thieves' Tools")))
+                    .containsExactly("Thieves' tools", "Dice Set");
+            assertThat(CreationChecks.once(null)).isNull();
+        }
+    }
 }

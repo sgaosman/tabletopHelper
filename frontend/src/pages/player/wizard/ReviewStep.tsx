@@ -102,7 +102,7 @@ export default function ReviewStep({ state, error, kits }: ReviewStepProps) {
             <h3 className="font-heading text-[13px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Background Proficiencies</h3>
             <div className="grid grid-cols-2 gap-4">
               {resolvedBgProfs.skills.length > 0 && (
-                <ReviewField label="Skills" value={resolvedBgProfs.skills.join(', ')} />
+                <ReviewField label="Skills" value={resolvedBgProfs.skills.map(s => state.bgSkillReplacements[s] ? `${state.bgSkillReplacements[s]} (in place of ${s})` : s).join(', ')} />
               )}
               {resolvedBgProfs.tools.length > 0 && (
                 <ReviewField label="Tools" value={resolvedBgProfs.tools.join(', ')} />
