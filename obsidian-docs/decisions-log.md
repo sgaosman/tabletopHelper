@@ -4709,3 +4709,20 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D158, D159, D208, D221, D226, D231
 
 **Tests:** `CreationChecksTest`, `CreationRequestTest` (wizard-built requests accepted, crafted ones refused) and `CreationChecksIT`, with older tests adjusted to send what the rules give; 4,952 backend unit and 596 integration tests pass.
+
+---
+
+## D233: Content Loads Before the Server Accepts Requests
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration)
+
+**Context:** [[#D169]]'s content loaders ran from `ContentStartup`, a `CommandLineRunner`, which Spring Boot calls after the web server has opened its port. For the seconds the loaders took after a restart, the API served the old reference data and `/actuator/health` answered UP; on the rehearsal copy during the user's overnight run of 2026-11-16, a monster added seconds after a start got its old action templates. The call is the lead's, recorded for review.
+
+**Decision:** `ContentStartup` is a `SmartLifecycle` one step (1,024) below the web server's start phase, so the loaders finish before Tomcat opens its connectors; Flyway still runs first, as every bean is built before any lifecycle starts. Nothing else changes: `content.mode` (apply, preview, off), maintenance starts forcing content off, a failing loader logged and its dependants skipped, and, with `content.fail-on-error` (prod), startup aborting. Content loads once per start, not again if the context is stopped and started. `ContextRefreshedEvent` was rejected (published after the lifecycles start) and `SmartInitializingSingleton` too (no ordering against Spring's own setup at that point).
+
+**Key files:** `content/ContentStartup.java`, `ContentStartupTest.java`, new `ContentStartupOrderIT.java`
+
+**Related:** D155, D169
+
+**Tests:** `ContentStartupTest` (phase below the web server's, loads once, fail-on-error stops the start) and `ContentStartupOrderIT` (the port stays closed while content loads and opens after); 4,957 backend unit and 597 integration tests pass.
