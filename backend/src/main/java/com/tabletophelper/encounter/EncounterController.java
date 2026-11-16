@@ -82,6 +82,10 @@ public class EncounterController {
         if (newName == null || newName.isBlank()) {
             throw new ValidationException("displayName is required");
         }
+        // As AddParticipantRequest's limit (D221)
+        if (newName.length() > 200) {
+            throw new ValidationException("displayName must be at most 200 characters");
+        }
         EncounterResponse response = encounterService.renameParticipant(encounterId, participantId, newName, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }

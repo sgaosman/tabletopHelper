@@ -775,6 +775,10 @@ public class CharacterService {
     @Transactional(readOnly = true)
     public CharacterResponse getCharacter(UUID characterId, UUID userId) {
         PlayerCharacter character = loadCharacter(characterId);
+        // A deleted character is gone for its owner and DM alike, as the lists hide it (D221); nothing restores one
+        if (Boolean.FALSE.equals(character.getIsActive())) {
+            throw new NotFoundException("Character not found");
+        }
         UUID campaignId = character.getCampaign() != null ? character.getCampaign().getId() : null;
         accessPolicy.requireOwnerOrDm(character.getUser().getId(), campaignId, userId);
 

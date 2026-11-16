@@ -6,9 +6,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.RequestEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
 
@@ -75,6 +78,49 @@ class AuthLimitsIT extends IntegrationTest {
         assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
         assertThat(refused.getHeaders().getFirst("Retry-After")).isEqualTo("60");
         assertThat(json(refused).get("error").asString()).startsWith("Too many attempts");
+    }
+
+    @Test
+    @DisplayName("A login to an encoded path is counted as the login it reaches, so encoding the path doesn't get past "
+            + "the limit (D221)")
+    void encodedLoginPathIsLimited() {
+        register("gimli");
+        rateLimitFilter.useLimits(new AuthRateLimitFilter.Limits(100, 2, 100, Duration.ofMinutes(1)));
+
+        // Sent as written: a URI keeps its %6C, which a String path would encode again
+        expect(HttpStatus.OK, raw("/api/auth/%6Cogin", "{\"username\":\"gimli\",\"password\":\"password123\"}"));
+        expect(HttpStatus.OK, raw("/api/auth/%6c%6F%67in", "{\"username\":\"gimli\",\"password\":\"password123\"}"));
+
+        assertThat(raw("/api/auth/%6Cogin", "{\"username\":\"gimli\",\"password\":\"password123\"}")
+                .getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(login("gimli", "password123").getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    @Test
+    @DisplayName("A login body over 4 KB is a 413, and any API body over 1 MB is a 413 (D221)")
+    void bodiesAreCapped() {
+        register("gimli");
+
+        ResponseEntity<String> login = raw("/api/auth/login",
+                "{\"username\":\"gimli\",\"password\":\"" + "a".repeat(5000) + "\"}");
+        assertThat(login.getStatusCode()).isEqualTo(HttpStatus.CONTENT_TOO_LARGE);
+        assertThat(json(login).get("error").asString()).isEqualTo("The request is too large");
+
+        String token = register("balin").accessToken();
+        ResponseEntity<String> campaign = restTemplate.exchange(RequestEntity
+                .post(URI.create("http://localhost:" + port + "/api/campaigns"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + token)
+                .body("{\"name\":\"Lost Mine\",\"description\":\"" + "a".repeat(1024 * 1024) + "\"}"),
+                String.class);
+        assertThat(campaign.getStatusCode()).isEqualTo(HttpStatus.CONTENT_TOO_LARGE);
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM campaigns", Integer.class)).isZero();
+    }
+
+    // A POST to the path exactly as written, without encoding it again
+    private ResponseEntity<String> raw(String path, String body) {
+        return restTemplate.exchange(RequestEntity.post(URI.create("http://localhost:" + port + path))
+                .contentType(MediaType.APPLICATION_JSON).body(body), String.class);
     }
 
     @Test

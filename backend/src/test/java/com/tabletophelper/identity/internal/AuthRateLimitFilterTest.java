@@ -91,6 +91,38 @@ class AuthRateLimitFilterTest {
     }
 
     @Test
+    @DisplayName("Any encoding of the login path counts against the same limits, as the controller mapping decodes it (D221)")
+    void encodedPathsCount() throws Exception {
+        assertEquals(200, send(post("/api/auth/%6Cogin", "{\"username\":\"nori\"}", "10.0.4.1")).getStatus());
+        assertEquals(200, send(post("/api/auth/login;jsessionid=1", "{\"username\":\"nori\"}", "10.0.4.2"))
+                .getStatus());
+
+        MockHttpServletResponse refused = send(post("//api/auth/%6c%6F%67in", "{\"username\":\"nori\"}",
+                "10.0.4.3"));
+
+        assertEquals(429, refused.getStatus());
+        assertEquals(200, send(post("/api/auth/%72egister", "{}", "10.0.4.9")).getStatus());
+        assertEquals(429, send(post(AuthRateLimitFilter.REGISTER, "{}", "10.0.4.9")).getStatus());
+    }
+
+    @Test
+    @DisplayName("A login or registration body over 4 KB is a 413 that never reaches the controller; 4 KB passes (D221)")
+    void bodyCapped() throws Exception {
+        String padding = "x".repeat(AuthRateLimitFilter.MAX_BODY_BYTES);
+        MockFilterChain chain = new MockFilterChain();
+        MockHttpServletResponse tooLarge = new MockHttpServletResponse();
+
+        filter.doFilter(post(AuthRateLimitFilter.LOGIN, "{\"username\":\"oin\",\"p\":\"" + padding + "\"}",
+                "10.0.5.1"), tooLarge, chain);
+
+        assertEquals(413, tooLarge.getStatus());
+        assertTrue(tooLarge.getContentAsString().contains("\"error\":\"The request is too large\""));
+        assertNull(chain.getRequest(), "the controller never sees it");
+        assertEquals(413, send(post(AuthRateLimitFilter.REGISTER, padding + "!", "10.0.5.2")).getStatus());
+        assertEquals(200, send(post(AuthRateLimitFilter.LOGIN, padding, "10.0.5.3")).getStatus());
+    }
+
+    @Test
     @DisplayName("Turned off, nothing is counted")
     void disabled() throws Exception {
         AuthRateLimitFilter off = new AuthRateLimitFilter(JacksonDefaults.mapper(), false, Duration.ofMinutes(1),

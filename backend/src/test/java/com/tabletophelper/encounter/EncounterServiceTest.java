@@ -275,7 +275,7 @@ class EncounterServiceTest {
         PlayerCharacter thorin = PlayerCharacter.builder()
                 .id(characterId)
                 .name("Thorin")
-                .user(playerUser)
+                .user(playerUser).campaign(campaign)
                 .strength(16).dexterity(14).constitution(14)
                 .intelligence(10).wisdom(12).charisma(8)
                 .hpMax(45).hpCurrent(45)
@@ -321,7 +321,7 @@ class EncounterServiceTest {
         User playerUser = User.builder().id(UUID.randomUUID()).username("player1").email("player1@test.com")
                 .passwordHash("hash").build();
         PlayerCharacter thorin = PlayerCharacter.builder()
-                .id(UUID.randomUUID()).name("Thorin").user(playerUser)
+                .id(UUID.randomUUID()).name("Thorin").user(playerUser).campaign(campaign)
                 .strength(16).dexterity(14).constitution(14).intelligence(10).wisdom(12).charisma(8)
                 .hpMax(45).hpCurrent(0).armourClass(18)
                 .build();
@@ -354,7 +354,7 @@ class EncounterServiceTest {
     void addPcParticipant_keepsWhatItJoinedWith() {
         User playerUser = User.builder().id(UUID.randomUUID()).username("player1").build();
         PlayerCharacter thorin = PlayerCharacter.builder()
-                .id(UUID.randomUUID()).name("Thorin").user(playerUser)
+                .id(UUID.randomUUID()).name("Thorin").user(playerUser).campaign(campaign)
                 .hpMax(45).hpCurrent(40).hpTemp(5).armourClass(18)
                 .spellSlots(Map.of("1", new SpellSlot(2, 1)))
                 .resourcePools(List.of(rage(1)))
@@ -377,11 +377,47 @@ class EncounterServiceTest {
     }
 
     @Test
+    @DisplayName("A character of another campaign, or a deleted one, can't join, even when its owner is a member (D221)")
+    void addPcParticipant_refusesAnotherCampaignsOrDeletedCharacter() {
+        User playerUser = User.builder().id(UUID.randomUUID()).username("player1").build();
+        Campaign elsewhere = Campaign.builder().id(UUID.randomUUID()).name("Elsewhere").build();
+        PlayerCharacter thorin = PlayerCharacter.builder()
+                .id(UUID.randomUUID()).name("Thorin").user(playerUser).campaign(elsewhere)
+                .hpMax(45).hpCurrent(45).armourClass(18)
+                .build();
+        PlayerCharacter deleted = PlayerCharacter.builder()
+                .id(UUID.randomUUID()).name("Brom").user(playerUser).campaign(campaign).isActive(false)
+                .hpMax(45).hpCurrent(45).armourClass(18)
+                .build();
+        Encounter encounter = encounterIn(EncounterStatus.PREPARING);
+        lenient().when(campaignMemberRepository.existsByCampaignIdAndUserId(any(), any())).thenReturn(true);
+        when(characterRepository.findById(thorin.getId())).thenReturn(Optional.of(thorin));
+        when(characterRepository.findById(deleted.getId())).thenReturn(Optional.of(deleted));
+
+        AddParticipantRequest request = new AddParticipantRequest();
+        request.setParticipantType("PLAYER");
+        request.setCharacterId(thorin.getId());
+        ValidationException other = assertThrows(ValidationException.class,
+                () -> encounterService.addParticipant(encounter.getId(), request, dmUserId));
+        assertEquals("Thorin isn't in this encounter's campaign", other.getMessage());
+
+        thorin.setCampaign(null);
+        assertThrows(ValidationException.class,
+                () -> encounterService.addParticipant(encounter.getId(), request, dmUserId));
+
+        request.setCharacterId(deleted.getId());
+        ValidationException gone = assertThrows(ValidationException.class,
+                () -> encounterService.addParticipant(encounter.getId(), request, dmUserId));
+        assertEquals("Character not found", gone.getMessage());
+        assertTrue(encounter.getParticipants().isEmpty());
+    }
+
+    @Test
     @DisplayName("A dead character can't join an encounter until the DM revives them (D166)")
     void addPcParticipant_refusesTheDead() {
         User playerUser = User.builder().id(UUID.randomUUID()).username("player1").build();
         PlayerCharacter thorin = PlayerCharacter.builder()
-                .id(UUID.randomUUID()).name("Thorin").user(playerUser)
+                .id(UUID.randomUUID()).name("Thorin").user(playerUser).campaign(campaign)
                 .hpMax(45).hpCurrent(0).armourClass(18).dead(true)
                 .build();
         Encounter encounter = encounterIn(EncounterStatus.PREPARING);
@@ -517,7 +553,7 @@ class EncounterServiceTest {
         User playerUser = User.builder().id(UUID.randomUUID()).username("player1").email("player1@test.com")
                 .passwordHash("hash").build();
         PlayerCharacter elara = PlayerCharacter.builder()
-                .id(UUID.randomUUID()).name("Elara").user(playerUser)
+                .id(UUID.randomUUID()).name("Elara").user(playerUser).campaign(campaign)
                 .hpMax(30).hpCurrent(30).armourClass(12).initiativeBonus(1)
                 // A used count above the maximum, which the sheet allows, is capped
                 .spellSlots(Map.of("1", new SpellSlot(4, 1), "2", new SpellSlot(2, 5), "pact_2", new SpellSlot(2, 0)))
@@ -920,12 +956,12 @@ class EncounterServiceTest {
     }
 
     @Test
-    @DisplayName("A character whose owner has not joined the campaign cannot be added")
+    @DisplayName("A character of the campaign whose owner is no longer a member of it cannot be added")
     void addPcParticipant_refusesCharacterOfNonMember() {
         UUID encounterId = UUID.randomUUID();
         User outsider = User.builder().id(UUID.randomUUID()).username("outsider").build();
         PlayerCharacter stray = PlayerCharacter.builder()
-                .id(UUID.randomUUID()).name("Stray").user(outsider)
+                .id(UUID.randomUUID()).name("Stray").user(outsider).campaign(campaign)
                 .hpMax(10).hpCurrent(10).armourClass(12).initiativeBonus(0)
                 .build();
         Encounter encounter = Encounter.builder()

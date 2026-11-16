@@ -13,9 +13,10 @@ import java.util.UUID;
  * {@link WriteBackService} applies it inside that transaction, so the dependency runs from encounter to character only
  * (D151). It also drives the End dialog's preview.
  *
+ * @param campaignId the encounter's campaign: results reach only the characters still in it and not deleted (D221)
  * @param characters one entry for each player participant, in the encounter's order
  */
-public record CombatResults(UUID encounterId, List<CharacterResult> characters) {
+public record CombatResults(UUID encounterId, UUID campaignId, List<CharacterResult> characters) {
 
     public CombatResults {
         characters = List.copyOf(characters);

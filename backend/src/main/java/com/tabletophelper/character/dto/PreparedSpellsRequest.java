@@ -2,6 +2,7 @@ package com.tabletophelper.character.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
@@ -13,7 +14,7 @@ import java.util.List;
  * @param className the class, as its class entry names it
  */
 public record PreparedSpellsRequest(
-        @NotBlank String className,
-        @NotNull List<@NotBlank String> spells
+        @NotBlank @Size(max = 200) String className,
+        @NotNull @Size(max = 500) List<@NotBlank @Size(max = 200) String> spells
 ) {
 }

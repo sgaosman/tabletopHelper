@@ -69,7 +69,7 @@ class EncounterResults {
             characters.add(new CharacterResult(participant.getCharacter().getId(), participant.getJoinedWith(),
                     endedWith(participant), participant.getLifeState()));
         }
-        return new CombatResults(encounter.getId(), characters);
+        return new CombatResults(encounter.getId(), encounter.getCampaign().getId(), characters);
     }
 
     // A druid still in Wild Shape ends with its own hit points, which the beast form left alone: the beast's are never

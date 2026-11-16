@@ -54,7 +54,8 @@ public class WriteBackService {
     public List<CombatResultPreview> preview(CombatResults results) {
         List<CombatResultPreview> previews = new ArrayList<>();
         byCharacter(results).forEach((characterId, characterResults) ->
-                characterRepository.findById(characterId).ifPresent(character -> {
+                characterRepository.findById(characterId).filter(character -> receives(results, character))
+                        .ifPresent(character -> {
                     Sheet before = Sheet.of(character);
                     previews.add(preview(character, characterResults.getLast().lifeState(), before,
                             before.after(characterResults)));
@@ -72,6 +73,11 @@ public class WriteBackService {
     public void apply(CombatResults results) {
         Map<UUID, List<CharacterResult>> byCharacter = byCharacter(results);
         for (PlayerCharacter character : characterCommands.beginWriteBack(byCharacter.keySet())) {
+            if (!receives(results, character)) {
+                log.warn("Encounter {} wrote nothing back to character {}: it has left the encounter's campaign {} or "
+                        + "been deleted since it joined", results.encounterId(), character.getId(), results.campaignId());
+                continue;
+            }
             Sheet before = Sheet.of(character);
             Sheet after = before.after(byCharacter.get(character.getId()));
             after.writeTo(character);
@@ -117,6 +123,16 @@ public class WriteBackService {
         character.setHpTemp(0);
         log.info("DM {} revived character {} at {} hit points", userId, characterId, hitPoints);
         return characterCommands.finish(character);
+    }
+
+    /**
+     * Whether an encounter's results may reach the character (D221): only while it is still in the encounter's campaign
+     * and not deleted, checked again under its lock, since a character can leave the campaign or be deleted between
+     * joining and the end. The preview leaves out the same characters, so the End dialog shows what applying does.
+     */
+    private static boolean receives(CombatResults results, PlayerCharacter character) {
+        return !Boolean.FALSE.equals(character.getIsActive()) && character.getCampaign() != null
+                && character.getCampaign().getId().equals(results.campaignId());
     }
 
     // Each character's results in the order they come, the first character first

@@ -76,19 +76,26 @@ public class CharacterSheetService {
         });
     }
 
-    /** Puts the character in a campaign its owner has joined, or takes it out of the one it is in. */
+    /**
+     * Puts the character in a campaign its owner has joined, or takes it out of the one it is in. Refused while the
+     * character is in an Active or Paused encounter (D221), as the inventory is (D218): the encounter's results reach
+     * only a character still in its campaign, so moving mid-fight would lose them.
+     *
+     * @throws ConflictException while the character is in an encounter that is under way
+     */
     @Transactional
     public CharacterResponse setCampaign(UUID characterId, CharacterCampaignRequest request, UUID userId) {
-        return characterCommands.run(characterId, userId, character -> {
-            if (request.campaignId() == null) {
-                character.setCampaign(null);
-                return;
-            }
+        PlayerCharacter character = characterCommands.beginOutsideEncounters(characterId, userId,
+                "change campaign");
+        if (request.campaignId() == null) {
+            character.setCampaign(null);
+        } else {
             Campaign campaign = campaignRepository.findById(request.campaignId())
                     .orElseThrow(() -> new ValidationException("Campaign not found"));
             accessPolicy.requireMember(campaign.getId(), userId);
             character.setCampaign(campaign);
-        });
+        }
+        return characterCommands.finish(character);
     }
 
     /**

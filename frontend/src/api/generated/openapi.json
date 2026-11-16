@@ -6424,6 +6424,8 @@
         "type": "object",
         "properties": {
           "description": {
+            "maxLength": 10000,
+            "minLength": 0,
             "type": "string",
             "nullable": true
           },
@@ -6955,6 +6957,8 @@
             "nullable": true
           },
           "equipment": {
+            "maxItems": 500,
+            "minItems": 0,
             "type": "array",
             "nullable": true,
             "items": {
@@ -7090,20 +7094,27 @@
             "nullable": true
           },
           "bonds": {
+            "maxLength": 10000,
+            "minLength": 0,
             "type": "string",
             "nullable": true
           },
           "experiencePoints": {
+            "maximum": 10000000,
             "minimum": 0,
             "type": "integer",
             "format": "int32",
             "nullable": true
           },
           "flaws": {
+            "maxLength": 10000,
+            "minLength": 0,
             "type": "string",
             "nullable": true
           },
           "ideals": {
+            "maxLength": 10000,
+            "minLength": 0,
             "type": "string",
             "nullable": true
           },
@@ -7114,10 +7125,14 @@
             "nullable": true
           },
           "notes": {
+            "maxLength": 50000,
+            "minLength": 0,
             "type": "string",
             "nullable": true
           },
           "personalityTraits": {
+            "maxLength": 10000,
+            "minLength": 0,
             "type": "string",
             "nullable": true
           },
@@ -8752,6 +8767,8 @@
             "type": "string"
           },
           "target": {
+            "maxLength": 200,
+            "minLength": 0,
             "type": "string",
             "nullable": true
           }
@@ -8802,6 +8819,8 @@
             "format": "uuid"
           },
           "description": {
+            "maxLength": 10000,
+            "minLength": 0,
             "type": "string",
             "nullable": true
           },
@@ -10073,6 +10092,7 @@
         "type": "object",
         "properties": {
           "amount": {
+            "maximum": 1000,
             "minimum": 1,
             "type": "integer",
             "format": "int32"
@@ -10111,6 +10131,8 @@
             "nullable": true
           },
           "description": {
+            "maxLength": 10000,
+            "minLength": 0,
             "type": "string",
             "nullable": true
           },
@@ -10124,6 +10146,8 @@
             "nullable": true
           },
           "name": {
+            "maxLength": 200,
+            "minLength": 0,
             "type": "string"
           },
           "quantity": {
@@ -10132,6 +10156,8 @@
             "nullable": true
           },
           "spell": {
+            "maxLength": 200,
+            "minLength": 0,
             "type": "string",
             "nullable": true
           }
@@ -10148,6 +10174,8 @@
             "$ref": "#/components/schemas/Currency"
           },
           "equipment": {
+            "maxItems": 500,
+            "minItems": 0,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/InventoryItem"
@@ -11919,13 +11947,15 @@
         "type": "object",
         "properties": {
           "amount": {
+            "maximum": 1000,
             "minimum": 1,
             "type": "integer",
             "format": "int32",
             "nullable": true
           },
           "poolId": {
-            "minLength": 1,
+            "maxLength": 200,
+            "minLength": 0,
             "type": "string"
           }
         }
@@ -11982,13 +12012,17 @@
         "type": "object",
         "properties": {
           "className": {
-            "minLength": 1,
+            "maxLength": 200,
+            "minLength": 0,
             "type": "string"
           },
           "spells": {
+            "maxItems": 500,
+            "minItems": 0,
             "type": "array",
             "items": {
-              "minLength": 1,
+              "maxLength": 200,
+              "minLength": 0,
               "type": "string"
             }
           }
@@ -12718,6 +12752,8 @@
             }
           },
           "hitDice": {
+            "maxItems": 20,
+            "minItems": 0,
             "type": "array",
             "nullable": true,
             "items": {
@@ -13352,10 +13388,12 @@
         "type": "object",
         "properties": {
           "spells": {
-            "minItems": 1,
+            "maxItems": 500,
+            "minItems": 0,
             "type": "array",
             "items": {
-              "minLength": 1,
+              "maxLength": 200,
+              "minLength": 0,
               "type": "string"
             }
           }

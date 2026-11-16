@@ -23,7 +23,7 @@ import jakarta.validation.constraints.Size;
  */
 public record DmAdjustmentRequest(
         @NotNull DmAdjustment.Kind kind,
-        String target,
+        @Size(max = 200) String target,
         @Min(-100) @Max(100) Integer amount,
         DamageRules.Defence defence,
         ApplyChoicesRequest.AsiChoice feat,

@@ -5,6 +5,11 @@
 :80 {
 	encode gzip
 
+	# The backend refuses API bodies over 1 MB too (D221); this stops larger ones at the edge
+	request_body {
+		max_size 2MB
+	}
+
 	handle /api/* {
 		reverse_proxy backend:8080
 	}

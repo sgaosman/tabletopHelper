@@ -165,7 +165,16 @@ public abstract class IntegrationTest {
         return UUID.fromString(character.get("id").asString());
     }
 
+    /**
+     * Adds a participant as the DM. A player character is first put in the encounter's campaign, since only a
+     * character of that campaign may join (D221); tests that check the refusal call the endpoint themselves.
+     */
     protected JsonNode addParticipant(String dmToken, UUID encounterId, Map<String, Object> request) {
+        if ("PLAYER".equals(request.get("participantType")) && request.get("characterId") != null) {
+            jdbcTemplate.update("UPDATE player_characters SET campaign_id = "
+                    + "(SELECT campaign_id FROM encounters WHERE id = ?) WHERE id = ?",
+                    encounterId, UUID.fromString(request.get("characterId").toString()));
+        }
         return expect(HttpStatus.OK, exchange(HttpMethod.POST,
                 "/api/encounters/" + encounterId + "/participants", request, dmToken));
     }

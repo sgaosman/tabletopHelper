@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Size;
 
 import java.util.UUID;
 
@@ -13,6 +14,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * An entry in a character's inventory, {@code player_characters.equipment} (D168). Equipped and attuned replace
  * the separate {@code equipped_items} and {@code attuned_items} lists, which nothing used and V29 dropped. A field an entry doesn't
  * have is left out.
+ *
+ * <p>A request's entries are checked against the text limits when validated (D221); the stored ones never are.
  *
  * @param quantity how many are carried; an entry recorded with none left isn't carried
  * @param itemId   the item it is, when linked to the items table (D164)
@@ -27,13 +30,13 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record InventoryItem(
-        @Schema(requiredMode = REQUIRED) String name,
+        @Schema(requiredMode = REQUIRED) @Size(max = 200) String name,
         Integer quantity,
-        String description,
+        @Size(max = 10_000) String description,
         UUID itemId,
         Boolean equipped,
         Boolean attuned,
-        String spell,
+        @Size(max = 200) String spell,
         Integer chargesSpent
 ) {
 

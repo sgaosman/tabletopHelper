@@ -4405,3 +4405,29 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D207, D209, D210, D216, D218, D219
 
 **Tests:** `DamageOptionsDataTest` expects 29 actions on 25 monsters; new taken-back, last-potion and lock-mid-edit frontend tests; 4,721 backend unit and 1,268 frontend tests pass.
+
+---
+
+## D221: Security Fixes from the Overnight Review
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration)
+
+**Context:** a security and access-control review of the backend during the user's overnight run of 2026-11-16 found no account takeover, but the gaps below. The calls are the lead's, recorded for review. Encounter commands, the player/DM view split ([[#D157]], [[#D216]]'s offers), WebSocket subscriptions, refresh-token rotation, password hashing, CORS, actuator and Springdoc exposure were checked and found sound.
+
+**Decision:**
+- **A player character joins only its own campaign's encounters.** `addPlayerParticipant` checked only that the character's owner was a member of the encounter's campaign, so a DM could add a member's character from another campaign (seeing its whole sheet, and writing results back to it on End), or a deleted one. It now refuses a character that isn't in the encounter's campaign or is deleted (400). End's write-back ([[#D166]]) checks again under each character's lock and skips one that has since left the campaign or been deleted; the End dialog's preview leaves it out too.
+- **The login limit matches the decoded path.** [[#D215]]'s `AuthRateLimitFilter` compared the raw URI, so `/api/auth/%6Cogin` reached the login unthrottled. It now matches the decoded, normalised path the request mapping uses.
+- **Request bodies are capped.** Login and registration bodies are read before authentication and are now capped at 4 KB (413 beyond). A new `RequestSizeFilter` refuses any API body over 1 MB (413 by Content-Length; a chunked body is cut off at 1 MB, a 400). Caddy refuses bodies over 2 MB at the edge. Free-text and list fields gain `@Size` limits **(choice)**: personality fields 10,000 characters, notes 50,000, inventory 500 entries with names 200 and descriptions 10,000, campaign and encounter descriptions 10,000, prepared spells and spellbook 500; hit-point changes and pool uses 1–1,000; experience points at most 10,000,000.
+- **No campaign change mid-encounter.** Moving a character to another campaign is refused (409) while it is in an Active or Paused encounter, as other sheet edits are ([[#D218]]).
+- **Registration doesn't confirm an email exists.** A taken username, a registered email and the race between them all answer "That username or email is already in use".
+- **The dev JWT secret can't run outside dev.** `JwtTokenProvider` refuses to start with the secret committed in `application-dev.yml` unless the `dev` or `test` profile is active.
+- **A deleted character is a 404** to its owner and DM, as the lists already hide it; nothing restores one.
+
+**Open (not changed, for the user):** character creation still stores saving-throw proficiencies, expertise, damage resistances and known spells as the request gives them, so a player could create a character resistant to everything; deriving them on the server is a larger change. A WebSocket session outlives its access token and logout; it matters once members can be removed from a campaign. The Player View still shows monsters' AC, initiative modifier and speed, which [[#D157]] doesn't list as hidden. `AddParticipantRequest`'s HP, AC and initiative fields are unbounded (DM-only).
+
+**Key files:** `EncounterService.java`, `EncounterResults.java`, `CombatResults.java`, `WriteBackService.java`, `AuthRateLimitFilter.java`, `config/RequestSizeFilter.java`, `AuthService.java`, `JwtTokenProvider.java`, `CharacterSheetService.java`, `CharacterService.java`, request DTOs, `frontend/Caddyfile`, `openapi.json`
+
+**Related:** D157, D166, D215, D218
+
+**Tests:** new HttpSecurityIT, AuthLimitsIT, CharacterCommandsIT, RequestSizeFilterTest and unit cases; the shared IT helper `addParticipant` now puts the character in the encounter's campaign first. 4,732 backend unit, 578 integration and 1,268 frontend tests pass.

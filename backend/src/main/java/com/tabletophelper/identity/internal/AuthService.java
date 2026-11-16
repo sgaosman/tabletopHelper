@@ -44,6 +44,8 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private volatile String dummyHash;
 
+    static final String IN_USE = "That username or email is already in use";
+
     @Transactional
     public AuthResult register(RegisterRequest request) {
         // BCrypt reads only the first 72 bytes, and Spring Security's encoder refuses more
@@ -51,11 +53,11 @@ public class AuthService {
             throw new ValidationException("Password must be at most " + MAX_PASSWORD_BYTES
                     + " bytes; letters outside plain English, such as accented letters or emoji, take 2 to 4 each");
         }
-        if (userRepository.existsByUsername(request.getUsername())) {
-            throw new ConflictException("Username already taken");
-        }
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new ConflictException("Email already registered");
+        // One message for a taken username and a registered email, so the form doesn't say which emails have
+        // accounts (D221)
+        if (userRepository.existsByUsername(request.getUsername())
+                || userRepository.existsByEmail(request.getEmail())) {
+            throw new ConflictException(IN_USE);
         }
 
         User user = User.builder()
@@ -70,7 +72,7 @@ public class AuthService {
         try {
             user = userRepository.saveAndFlush(user);
         } catch (DataIntegrityViolationException e) {
-            throw new ConflictException("Username or email already registered");
+            throw new ConflictException(IN_USE);
         }
 
         return startSession(user);

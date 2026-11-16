@@ -44,6 +44,8 @@ class WriteBackServiceTest {
 
     private static final String SURGE = "class:fighter-action-surge";
 
+    private static final Campaign PARTY = Campaign.builder().id(UUID.randomUUID()).name("Lost Mine").build();
+
     private final CharacterFixture f = new CharacterFixture();
 
     @Test
@@ -374,14 +376,54 @@ class WriteBackServiceTest {
         assertThat(aria.getEquipment()).isEmpty();
     }
 
+    @Test
+    @DisplayName("Results skip a character that left the encounter's campaign or was deleted since joining, and the preview leaves it out (D221)")
+    void resultsReachOnlyTheCampaignsActiveCharacters() {
+        PlayerCharacter moved = f.create(f.human, CharacterFixture.scores(), f.fighter, 2);
+        PlayerCharacter deleted = withId(f.create(f.human, CharacterFixture.scores(), f.fighter, 2),
+                "00000000-0000-0000-0000-000000000002");
+        PlayerCharacter stayed = withId(f.create(f.human, CharacterFixture.scores(), f.fighter, 2),
+                "00000000-0000-0000-0000-000000000003");
+        CombatResults results = results(
+                new CharacterResult(moved.getId(), totals(18, 0, Map.of(), Map.of()), totals(5, 0, Map.of(), Map.of()),
+                        LifeState.ALIVE),
+                new CharacterResult(deleted.getId(), totals(18, 0, Map.of(), Map.of()),
+                        totals(5, 0, Map.of(), Map.of()), LifeState.ALIVE),
+                new CharacterResult(stayed.getId(), totals(18, 0, Map.of(), Map.of()),
+                        totals(5, 0, Map.of(), Map.of()), LifeState.ALIVE));
+        moved.setCampaign(Campaign.builder().id(UUID.randomUUID()).name("Elsewhere").build());
+        deleted.setIsActive(false);
+
+        assertThat(f.writeBack.preview(results)).extracting(CombatResultPreview::characterId)
+                .containsExactly(stayed.getId());
+        f.writeBack.apply(results);
+
+        assertThat(moved.getHpCurrent()).isEqualTo(18);
+        assertThat(deleted.getHpCurrent()).isEqualTo(18);
+        assertThat(stayed.getHpCurrent()).isEqualTo(5);
+    }
+
     /** The character stored again under this ID. */
     private PlayerCharacter withId(PlayerCharacter pc, String id) {
         pc.setId(UUID.fromString(id));
         return f.characterRepository.save(pc);
     }
 
-    private static CombatResults results(CharacterResult... characters) {
-        return new CombatResults(UUID.randomUUID(), List.of(characters));
+    /**
+     * An encounter's results, from the campaign of its first character, which every character without one joins, as
+     * only a character in the encounter's campaign receives them (D221).
+     */
+    private CombatResults results(CharacterResult... characters) {
+        Campaign campaign = java.util.Arrays.stream(characters).map(r -> f.stored(r.characterId()))
+                .filter(pc -> pc != null && pc.getCampaign() != null).map(PlayerCharacter::getCampaign)
+                .findFirst().orElse(PARTY);
+        for (CharacterResult result : characters) {
+            PlayerCharacter pc = f.stored(result.characterId());
+            if (pc != null && pc.getCampaign() == null) {
+                pc.setCampaign(campaign);
+            }
+        }
+        return new CombatResults(UUID.randomUUID(), campaign.getId(), List.of(characters));
     }
 
     private static CombatTotals totals(int hp, int temporary, Map<String, Integer> slotsUsed,

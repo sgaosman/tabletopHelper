@@ -109,6 +109,30 @@ class JwtTokenProviderTest {
         assertDoesNotThrow(() -> new JwtTokenProvider("a".repeat(32), ACCESS_TOKEN_EXPIRY_MS));
     }
 
+    @Test
+    @DisplayName("The development secret committed in application-dev.yml starts only under the dev or test profile (D221)")
+    void constructor_refusesDevSecretOutsideDev() throws Exception {
+        String devYaml;
+        try (var in = getClass().getResourceAsStream("/application-dev.yml")) {
+            assertNotNull(in, "application-dev.yml is on the classpath");
+            devYaml = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertTrue(devYaml.contains("secret: " + JwtTokenProvider.DEV_SECRET),
+                "DEV_SECRET is the secret application-dev.yml commits");
+
+        String secret = JwtTokenProvider.DEV_SECRET;
+        IllegalStateException prod = assertThrows(IllegalStateException.class,
+                () -> new JwtTokenProvider(secret, ACCESS_TOKEN_EXPIRY_MS, new String[]{"prod"}));
+        assertTrue(prod.getMessage().contains("JWT_SECRET"));
+        assertThrows(IllegalStateException.class,
+                () -> new JwtTokenProvider(secret, ACCESS_TOKEN_EXPIRY_MS, new String[0]));
+        assertThrows(IllegalStateException.class, () -> new JwtTokenProvider(secret, ACCESS_TOKEN_EXPIRY_MS));
+
+        assertDoesNotThrow(() -> new JwtTokenProvider(secret, ACCESS_TOKEN_EXPIRY_MS, new String[]{"dev"}));
+        assertDoesNotThrow(() -> new JwtTokenProvider(secret, ACCESS_TOKEN_EXPIRY_MS, new String[]{"prod", "test"}));
+        assertDoesNotThrow(() -> new JwtTokenProvider(TEST_SECRET, ACCESS_TOKEN_EXPIRY_MS, new String[]{"prod"}));
+    }
+
     private static String signedToken(String type) {
         Date now = new Date();
         var builder = Jwts.builder()

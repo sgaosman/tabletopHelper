@@ -4,12 +4,16 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.Set;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -25,13 +29,34 @@ public class JwtTokenProvider {
     static final int MIN_SECRET_BYTES = 32;
     static final String TYPE_CLAIM = "type";
     static final String ACCESS_TYPE = "access";
+    /**
+     * The secret committed in application-dev.yml. Anyone can read it, so it signs tokens only under the dev or test
+     * profile; anywhere else startup fails (D221). JwtTokenProviderTest checks it still matches the file.
+     */
+    static final String DEV_SECRET = "dev-only-jwt-secret-for-local-development-never-used-in-production";
+    private static final Set<String> DEV_SECRET_PROFILES = Set.of("dev", "test");
 
     private final SecretKey key;
     private final long accessTokenExpirationMs;
 
+    @Autowired
     public JwtTokenProvider(
             @Value("${app.jwt.secret}") String secret,
-            @Value("${app.jwt.access-token-expiration-ms}") long accessTokenExpirationMs) {
+            @Value("${app.jwt.access-token-expiration-ms}") long accessTokenExpirationMs,
+            Environment environment) {
+        this(secret, accessTokenExpirationMs, environment.getActiveProfiles());
+    }
+
+    /** A provider outside Spring, under no profile, so the dev secret is refused. */
+    public JwtTokenProvider(String secret, long accessTokenExpirationMs) {
+        this(secret, accessTokenExpirationMs, new String[0]);
+    }
+
+    JwtTokenProvider(String secret, long accessTokenExpirationMs, String[] activeProfiles) {
+        if (DEV_SECRET.equals(secret) && Arrays.stream(activeProfiles).noneMatch(DEV_SECRET_PROFILES::contains)) {
+            throw new IllegalStateException("app.jwt.secret is the development secret committed in "
+                    + "application-dev.yml, which only the dev or test profile may use; set JWT_SECRET");
+        }
         byte[] secretBytes = secret == null ? new byte[0] : secret.getBytes(StandardCharsets.UTF_8);
         if (secretBytes.length < MIN_SECRET_BYTES) {
             throw new IllegalStateException("JWT_SECRET must be set to at least " + MIN_SECRET_BYTES

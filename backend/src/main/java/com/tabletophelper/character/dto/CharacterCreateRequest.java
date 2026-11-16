@@ -5,6 +5,7 @@ import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Currency;
 import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.KnownSpell;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -80,7 +81,9 @@ public class CharacterCreateRequest {
     // No features: the class's come from the class data, and feats only through Pending Choices and DM Adjustments
     // (D158), so a request can't add a feat it never took
     private List<String> damageResistances;
-    private List<InventoryItem> equipment;
+    // The inventory's limits, as InventoryRequest's (D221)
+    @Size(max = 500)
+    private List<@Valid InventoryItem> equipment;
     private Currency currency;
 
     // Each class and its level, for a character created in more than one class; only classId, subclassId and level

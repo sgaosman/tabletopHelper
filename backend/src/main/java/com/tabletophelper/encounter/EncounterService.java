@@ -163,8 +163,17 @@ public class EncounterService {
         }
         PlayerCharacter character = characterRepository.findById(request.getCharacterId())
                 .orElseThrow(() -> new ValidationException("Character not found"));
+        // Only a character of the encounter's own campaign joins, and not a deleted one (D221): the owner's membership
+        // alone would let a DM pull in a character the player keeps in another campaign
+        UUID campaignId = encounter.getCampaign().getId();
+        if (Boolean.FALSE.equals(character.getIsActive())) {
+            throw new ValidationException("Character not found");
+        }
+        if (character.getCampaign() == null || !campaignId.equals(character.getCampaign().getId())) {
+            throw new ValidationException(character.getName() + " isn't in this encounter's campaign");
+        }
         CombatSnapshot snapshot = CombatSnapshot.of(character);
-        accessPolicy.requireOwnerIsMember(encounter.getCampaign().getId(), snapshot.ownerId());
+        accessPolicy.requireOwnerIsMember(campaignId, snapshot.ownerId());
         if (snapshot.dead()) {
             throw new ConflictException(snapshot.name() + " is dead, so can't join an encounter until the DM revives them");
         }

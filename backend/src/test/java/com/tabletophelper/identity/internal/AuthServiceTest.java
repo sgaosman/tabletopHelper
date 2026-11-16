@@ -97,9 +97,26 @@ class AuthServiceTest {
         ConflictException ex = assertThrows(ConflictException.class,
                 () -> authService.register(request));
 
-        assertEquals("Username already taken", ex.getMessage());
+        assertEquals("That username or email is already in use", ex.getMessage());
         verify(userRepository, never()).saveAndFlush(any());
         verifyNoInteractions(refreshTokenRepository);
+    }
+
+    @Test
+    @DisplayName("Register refuses an email already registered with the same message as a taken username, so it doesn't say which emails have accounts (D221)")
+    void register_failsOnDuplicateEmailWithoutSaying() {
+        RegisterRequest request = new RegisterRequest();
+        request.setUsername("bilbo");
+        request.setEmail("thorin@shire.com");
+        request.setPassword("Mithril123!");
+
+        when(userRepository.existsByUsername("bilbo")).thenReturn(false);
+        when(userRepository.existsByEmail("thorin@shire.com")).thenReturn(true);
+
+        ConflictException ex = assertThrows(ConflictException.class, () -> authService.register(request));
+
+        assertEquals("That username or email is already in use", ex.getMessage());
+        verify(userRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -149,7 +166,7 @@ class AuthServiceTest {
 
         ConflictException ex = assertThrows(ConflictException.class, () -> authService.register(request));
 
-        assertEquals("Username or email already registered", ex.getMessage());
+        assertEquals("That username or email is already in use", ex.getMessage());
         verifyNoInteractions(refreshTokenRepository);
     }
 

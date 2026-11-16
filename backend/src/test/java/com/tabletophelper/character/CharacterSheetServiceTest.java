@@ -235,6 +235,19 @@ class CharacterSheetServiceTest {
         }
 
         @Test
+        @DisplayName("The campaign can't change while the character is in an Active or Paused encounter: a 409 that changes nothing (D221)")
+        void refusedDuringAnEncounter() {
+            PlayerCharacter pc = fighter(1);
+            pc.setCampaign(campaign);
+            when(f.liveEncounters.includes(pc.getId())).thenReturn(true);
+
+            assertThatThrownBy(() -> f.sheet.setCampaign(pc.getId(), new CharacterCampaignRequest(null), f.userId))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Aria is in an encounter that is under way, so can't change campaign until it ends");
+            assertThat(pc.getCampaign()).isSameAs(campaign);
+        }
+
+        @Test
         @DisplayName("A campaign that doesn't exist is a 400")
         void unknownCampaignIs400() {
             PlayerCharacter pc = fighter(1);

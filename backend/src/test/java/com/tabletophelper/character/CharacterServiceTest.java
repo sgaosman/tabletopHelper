@@ -699,6 +699,20 @@ class CharacterServiceTest {
         }
 
         @Test
+        @DisplayName("A deleted character is a NotFoundException for its owner and the DM, as the lists hide it (D221)")
+        void deletedCharacterIsNotFound() {
+            PlayerCharacter pc = characterInCampaign();
+            pc.setIsActive(false);
+
+            assertThatThrownBy(() -> f.service.getCharacter(pc.getId(), f.userId))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasMessage("Character not found");
+            assertThatThrownBy(() -> f.service.getCharacter(pc.getId(), dmUserId))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasMessage("Character not found");
+        }
+
+        @Test
         @DisplayName("An unknown character is a NotFoundException")
         void unknownCharacterIsNotFound() {
             assertThatThrownBy(() -> f.service.getCharacter(UUID.randomUUID(), f.userId))

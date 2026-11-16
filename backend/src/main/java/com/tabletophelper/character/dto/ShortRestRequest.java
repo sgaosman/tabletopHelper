@@ -15,7 +15,8 @@ import java.util.List;
  * @param arcaneRecovery a wizard's Arcane Recovery (PHB p.115), once a day: one spell level for each expended slot it
  *                       recovers, such as [2, 1]; left out or empty, it isn't used
  */
-public record ShortRestRequest(List<@Valid HitDieSpent> hitDice, @Size(max = 10) List<Integer> arcaneRecovery) {
+public record ShortRestRequest(@Size(max = 20) List<@Valid HitDieSpent> hitDice,
+                               @Size(max = 10) List<Integer> arcaneRecovery) {
 
     /** A short rest without Arcane Recovery. */
     public ShortRestRequest(List<HitDieSpent> hitDice) {

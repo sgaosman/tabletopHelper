@@ -295,7 +295,10 @@ class HttpSecurityIT extends IntegrationTest {
         var dm = register("dungeonmaster");
         var player = register("aria");
         UUID characterId = createCharacter(player.accessToken(), insertRace("Human"), insertClass("Fighter", 10));
-        UUID encounterId = createEncounter(dm.accessToken(), campaignId(dm));
+        UUID campaignId = campaignId(dm);
+        UUID encounterId = createEncounter(dm.accessToken(), campaignId);
+        // The character is the campaign's, as one whose owner has since left it is
+        jdbcTemplate.update("UPDATE player_characters SET campaign_id = ? WHERE id = ?", campaignId, characterId);
 
         var response = exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/participants",
                 Map.of("participantType", "PLAYER", "characterId", characterId, "displayName", "Aria"),
@@ -303,6 +306,45 @@ class HttpSecurityIT extends IntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(error(response)).isEqualTo("This character's owner is not a member of this campaign");
+    }
+
+    @Test
+    @DisplayName("The DM of one campaign cannot add a player's character from another campaign, nor a deleted one (D221)")
+    void addingCharacterToEncounterNeedsTheEncountersCampaign() {
+        var dm = register("dungeonmaster");
+        var otherDm = register("othermaster");
+        var player = register("aria");
+        var campaignX = createCampaign(dm.accessToken());
+        var campaignY = createCampaign(otherDm.accessToken());
+        join(player.accessToken(), campaignX);
+        join(player.accessToken(), campaignY);
+        UUID raceId = insertRace("Human");
+        UUID classId = insertClass("Fighter", 10);
+        UUID inY = createCharacter(player.accessToken(), raceId, classId);
+        expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + inY + "/campaign",
+                Map.of("campaignId", campaignY.get("id").asString()), player.accessToken()));
+        UUID deleted = createCharacter(player.accessToken(), raceId, classId);
+        expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + deleted + "/campaign",
+                Map.of("campaignId", campaignX.get("id").asString()), player.accessToken()));
+        assertThat(exchange(HttpMethod.DELETE, "/api/characters/" + deleted, null, player.accessToken())
+                .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        UUID encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaignX.get("id").asString()));
+
+        var fromY = exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/participants",
+                Map.of("participantType", "PLAYER", "characterId", inY, "displayName", "Aria"), dm.accessToken());
+        var deletedOne = exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/participants",
+                Map.of("participantType", "PLAYER", "characterId", deleted, "displayName", "Aria"), dm.accessToken());
+
+        assertThat(fromY.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(error(fromY)).isEqualTo("Aria isn't in this encounter's campaign");
+        assertThat(deletedOne.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(error(deletedOne)).isEqualTo("Character not found");
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM encounter_participants", Integer.class)).isZero();
+        // A deleted character is gone for its owner and the DM too, as the lists hide it
+        assertThat(exchange(HttpMethod.GET, "/api/characters/" + deleted, null, player.accessToken()).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(exchange(HttpMethod.GET, "/api/characters/" + deleted, null, dm.accessToken()).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test

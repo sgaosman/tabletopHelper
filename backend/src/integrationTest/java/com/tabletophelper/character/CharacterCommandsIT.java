@@ -257,6 +257,29 @@ class CharacterCommandsIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("Text, lists and amounts past their limits are a 400 that changes nothing (D221)")
+    void requestLimits() {
+        int version = version(aria);
+
+        assertThat(command(HttpMethod.PATCH, aria, "/details", Map.of("notes", "a".repeat(50_001))).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(command(HttpMethod.PATCH, aria, "/details", Map.of("bonds", "a".repeat(10_001))).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(command(HttpMethod.POST, aria, "/hp", Map.of("kind", "DAMAGE", "amount", 1001)).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        Map<String, Object> coins = Map.of("cp", 0, "sp", 0, "ep", 0, "gp", 0, "pp", 0);
+        assertThat(command(HttpMethod.PUT, aria, "/inventory", Map.of("currency", coins, "equipment",
+                List.of(Map.of("name", "Rope", "description", "a".repeat(10_001))))).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(command(HttpMethod.PUT, aria, "/inventory", Map.of("currency", coins, "equipment",
+                java.util.Collections.nCopies(501, Map.of("name", "Torch")))).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+
+        assertThat(version(aria)).isEqualTo(version);
+        assertThat(hp("HEALING", 1000).get("hpCurrent").asInt()).isEqualTo(28);
+    }
+
+    @Test
     @DisplayName("Rests and levelling wait while the character is in an Active or Paused encounter, which the sheet shows; other commands go on")
     void restsAndLevellingWaitForEncounters() {
         UUID encounterId = createEncounter(dm.accessToken(), campaignId);
@@ -289,6 +312,12 @@ class CharacterCommandsIT extends IntegrationTest {
                 dm.accessToken()));
         assertThat(error(command(HttpMethod.POST, aria, "/long-rest", null), HttpStatus.CONFLICT))
                 .isEqualTo("Aria is in an encounter that is under way, so can't take a long rest until it ends");
+        // Leaving the campaign mid-fight would lose the encounter's results, which reach only its campaign (D221)
+        Map<String, Object> noCampaign = new HashMap<>();
+        noCampaign.put("campaignId", null);
+        assertThat(error(command(HttpMethod.PUT, aria, "/campaign", noCampaign), HttpStatus.CONFLICT))
+                .isEqualTo("Aria is in an encounter that is under way, so can't change campaign until it ends");
+        assertThat(get(aria).get("campaignId").asString()).isEqualTo(campaignId.toString());
 
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/end", null,
                 dm.accessToken()));
