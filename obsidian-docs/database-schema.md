@@ -417,6 +417,7 @@ What each content loader last loaded (V25, D169). One row per loader.
 | expanded_spell_list | JSONB | `@JsonRawValue` |
 | additional_proficiencies | JSONB | `@JsonRawValue`. Filled since 2026-11-09 (D178) from `data/content/subclass-proficiencies.json`, the fixed grants of 23 subclasses such as Life Domain's heavy armour (the 5etools data has them only in feature text); choice-based grants are left out. Granted when the subclass is chosen and recorded on that level's `proficienciesGained` |
 | effects | JSONB | What the subclass changes in the rules, from `subclass-effects.json` (V28, R7, D167): `{"hpPerClassLevel": 1}` for the Draconic Bloodline. NULL for most. Not sent by the API |
+| granted_spells | JSONB | The spells the subclass grants outside its always-prepared list (V41, D231), written by the class loader from the 5eTools additionalSpells: `known`, the spells it teaches by class level (known as `subclass:<name>`, not counted against Spells Known), and `options`, for a subclass whose player picks one of several named lists (a Circle of the Land druid's terrain, a Divine Soul's affinity), each list's name with its always-prepared and known spells by class level. NULL for a subclass with neither |
 | created_at | TIMESTAMPTZ | |
 
 **Count:** 124 subclasses
@@ -723,6 +724,7 @@ These foreign keys stay unindexed because no query filters on them: `campaigns.d
 | V29 | `V29__drop_deprecated_character_columns.sql` | Drops `player_characters.hit_dice_total`, `hit_dice_remaining`, `hit_dice_map`, `feat_resources`, `prepared_spells`, `attuned_items` and `equipped_items`, which nothing reads; `hit_dice` holds the hit dice. Destructive: archive the values first (D168) |
 | V30 | `V30__turn_economy.sql` | `encounter_participants.turn_economy` JSONB NOT NULL with the fresh budget, filled from the three action flags, which are then dropped; the combat log types gain POOL_USE, STANDARD_ACTION, OBJECT_INTERACTION, TURN_ECONOMY_SET and REACTION_TAKEN. No DO blocks (D174) |
 | V40 | `V40__level_down_uses.sql` | `player_characters.level_down_uses` JSONB NOT NULL DEFAULT `'[]'`, the uses a level-down took away, so levelling back up doesn't refill them; existing characters start with none, and the file has no DO blocks (D222). V31–V39 are recorded in their decisions (D188–D219) |
+| V41 | `V41__subclass_granted_spells.sql` | `subclasses.granted_spells` JSONB, nullable, filled by the class loader (version 9) on its next run (D231) |
 
 V4 and V6 force a re-seed by clearing data. D169 replaces that pattern with hash-based re-seeding.
 

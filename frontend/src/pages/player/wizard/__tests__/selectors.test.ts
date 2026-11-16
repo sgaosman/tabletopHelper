@@ -375,6 +375,18 @@ describe('spellsKnown', () => {
     expect(spellsKnown({ ...state, level: 3 })).toHaveLength(2);
     expect(spellsKnown(withClass(fighter))).toBeUndefined();
   });
+
+  it("keeps a race spell's short-rest reset, as a VGM firbolg's detect magic (VGM p.107, D231)", () => {
+    const firbolg = race('race-firbolg', 'Firbolg', {
+      additionalSpells: JSON.stringify({ fixedSpells: [
+        { name: 'Detect Magic', level: 1, atWill: false, usesPerLongRest: 1, usesResetOn: 'shortRest', unlocksAtLevel: 1 },
+      ] }),
+    });
+    const state = reduce(withClass(fighter), { type: 'selectRace', race: firbolg });
+
+    expect(spellsKnown(state)).toEqual([{ name: 'Detect Magic', level: 1, source: 'race:Firbolg', usesPerLongRest: 1,
+      usesResetOn: 'shortRest', unlocksAtLevel: 1 }]);
+  });
 });
 
 describe('buildCreateRequest', () => {

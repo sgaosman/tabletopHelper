@@ -4654,3 +4654,30 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D167, D208, D222
 
 **Tests:** `ClassMovementTest`, `AbilityChecksTest`, and cases in `CharacterStatsTest`, `ArmourClassTest`, `TurnEconomiesTest`, `ResourcePoolServiceTest`, `RestServiceTest`, `EffectsOverlayTest` and `StatsTab`; on its branch, and merged with D229, 4,906 backend unit, 586 integration and 1,323 frontend tests passed.
+
+---
+
+## D231: Subclass and Racial Spell Grants from the Overnight Data Audit
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (V41; class loader version 9, race loader version 3)
+
+**Context:** the same audit as [[#D230]] found the content loaders dropping or misreading spells that subclasses and races grant. The calls are the lead's, recorded for review.
+
+**Decision:**
+- **Circle of the Land chooses its terrain** (PHB p.68–69). The loader wrote each terrain's circle spells over the last, so every Land druid had the Underdark's. Each subclass's named spell lists are now kept as options (V41's `subclasses.granted_spells`), and taking such a subclass owes a new `SUBCLASS_OPTION` Pending Choice, answered in a new Terrain dialog listing each terrain's spells; the circle spells come from the chosen terrain, and a druid with none chosen has none. The same choice gives a Divine Soul sorcerer its affinity spell (XGE p.50).
+- **Fixed subclass cantrips are granted:** Light Domain's *light*, Way of Shadow's *minor illusion*, Grave Domain's and Undying's *spare the dying*, the Celestial's *sacred flame* and *light*, Spores' *chill touch*, Stars' and College of Spirits' *guidance*, Swarmkeeper's *mage hand*, Drakewarden's *thaumaturgy* and Aberrant Mind's *mind sliver*, none counting against cantrips known; Arcana Domain owes two wizard cantrips and Death Domain one necromancy cantrip of any list (a new `school` on the choice).
+- **Subclass known spells are taught** at their class levels, as `subclass:<name>`, not counted against Spells Known and forgotten on level-down: the XGE and TCE ranger subclasses' magic, Aberrant Mind, Clockwork Soul, Lunar Sorcery and Shadow Magic's *darkness*. **(not done)** Aberrant Mind's and Clockwork Soul's swap on level-up; Circle of the Moon's at-will *alter self*.
+- **Order Domain** gains its Intimidation-or-Persuasion pick (TCE p.31).
+- **Racial spells:** a levelled racial spell is once per long rest unless its data says at will (the Hexblood's, the dragonmarks', the EEPC genasi's and the DMG deep gnome's were free at will; *nondetection* and the yuan-ti's *animal friendship* stay at will); spells that return on a short or long rest (Firbolg, Eladrin, Mark of Handling, Mark of Scribing) load with a short-rest reset (`KnownSpell.usesResetOn`). **(choice)** Racial innate spells with no use count (Mark of Healing, Detection and Finding, MPMM aarakocra and firbolg) become once per long rest; the MPMM races' proficiency-bonus uses are approximated as one.
+- **Spell names with a source suffix** ("summon elemental|tce") now match their spells.
+
+**Existing characters:** `recompute-characters` grants the new fixed cantrips and subclass spells, puts at-will racial spells to once per rest and adds missing racial spells, including those unlocked after creation (a tiefling's *hellish rebuke* from 3rd level); `backfill-pending-choices` owes the terrain, affinity, Arcana and Death Domain cantrip and Order Domain skill choices.
+
+**Still open:** spell-list membership isn't per terrain (a Land druid may prepare another terrain's spells), the Genie's expanded spells merge all four patrons, and the Fathomless's *Evard's black tentacles* isn't granted.
+
+**Key files:** `CharacterClassLoader.java`, `RaceLoader.java`, `SpellLoader.java`, new `SubclassSpells`, `PendingChoiceService.java`, `PendingChoice`, `LevelChoices`, `KnownSpell`, `CharacterMapper.java`, `CasterSpells.java`, `subclass-proficiencies.json`, `V41__subclass_granted_spells.sql`, new `SubclassOptionModal.tsx`, `ChoiceDialog`, `SpellsTab.tsx`, `openapi.json`
+
+**Related:** D178, D186, D208, D223, D230
+
+**Tests:** `SubclassAndRaceSpellsTest`, `RaceLoaderIT`, and cases in `CharacterClassLoaderTest`, `CharacterClassLoaderIT`, `PendingChoicesIT`, `FlywayMigrationIT`, `RecomputeCharactersJobTest` and the frontend choice, spells-tab and wizard tests; on its branch 4,876 backend unit, 593 integration and 1,328 frontend tests passed; merged with D230, 4,924, 593 and 1,329.

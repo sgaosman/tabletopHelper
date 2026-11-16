@@ -637,6 +637,63 @@ class PendingChoicesIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("D231: a Circle of the Land druid owes its terrain on Druid 2 and has only that terrain's circle "
+            + "spells always prepared (PHB p.68-69); the backfill owes it to a Land druid made before")
+    void landTerrain() {
+        UUID druidId = insertCaster("Druid", 8, "WIS", false);
+        jdbcTemplate.update("UPDATE character_classes SET subclass_level = 2 WHERE id = ?", druidId);
+        UUID landId = subclassRepository.save(Subclass.builder().name("Circle of the Land").source("PHB")
+                .characterClass(characterClassRepository.findById(druidId).orElseThrow())
+                .grantedSpells("{\"options\": [{\"name\": \"Arctic\", \"prepared\": {\"3\": [\"hold person\"]}}, "
+                        + "{\"name\": \"Underdark\", \"prepared\": {\"3\": [\"web\"]}}]}")
+                .build()).getId();
+
+        JsonNode created = create(Map.of("classId", druidId, "level", 2, "subclassId", landId));
+        String aria = created.get("id").asString();
+        JsonNode owed = choice(created, "SUBCLASS_OPTION", 2);
+        assertThat(owed.get("options").toString()).isEqualTo("[\"Arctic\",\"Underdark\"]");
+        assertThat(created.path("subclassAlwaysPreparedSpells").isEmpty()).isTrue();
+        assertThat(error(apply(aria, Map.of("choiceId", owed.get("id").asString(), "subclassOption", "Swamp")),
+                HttpStatus.BAD_REQUEST)).isEqualTo("Choose one of Arctic, Underdark, not Swamp");
+
+        JsonNode made = applied(aria, Map.of("choiceId", owed.get("id").asString(), "subclassOption", "Underdark"));
+        assertThat(made.get("levelHistory").get(1).get("choices").get("subclassOption").asString())
+                .isEqualTo("Underdark");
+        assertThat(made.get("subclassAlwaysPreparedSpells").toString())
+                .isEqualTo("{\"Circle of the Land\":{\"3\":[\"web\"]}}");
+
+        // A Land druid made before terrains were chosen
+        jdbcTemplate.update("UPDATE player_characters SET level_history = jsonb_set(level_history, "
+                + "'{1,choices}', (level_history->1->'choices') - 'subclassOption') WHERE id = ?", UUID.fromString(aria));
+        assertThat(get(aria).path("subclassAlwaysPreparedSpells").isEmpty()).isTrue();
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> backfillPendingChoicesJob.run(true));
+        assertThat(described(get(aria))).containsOnlyOnce("2 SUBCLASS_OPTION");
+    }
+
+    @Test
+    @DisplayName("D231: a Gloom Stalker learns disguise self at Ranger 3 as the subclass's (XGE p.42), and levelling "
+            + "down past Ranger 3 forgets it")
+    void gloomStalkerSpells() {
+        UUID rangerId = insertCaster("Ranger", 10, "WIS", false);
+        jdbcTemplate.update("UPDATE character_classes SET subclass_level = 3 WHERE id = ?", rangerId);
+        spellRepository.save(Spell.builder().name("Disguise Self").level(1).school("Illusion").source("PHB")
+                .classes("[\"Sorcerer\",\"Wizard\"]").build());
+        UUID stalkerId = subclassRepository.save(Subclass.builder().name("Gloom Stalker").source("XGE")
+                .characterClass(characterClassRepository.findById(rangerId).orElseThrow())
+                .grantedSpells("{\"known\": {\"3\": [\"disguise self\"]}}")
+                .build()).getId();
+
+        JsonNode created = create(Map.of("classId", rangerId, "level", 3, "subclassId", stalkerId,
+                "dexterity", 14, "wisdom", 14));
+        String aria = created.get("id").asString();
+        assertThat(names(created, "subclass:Gloom Stalker")).containsExactly("Disguise Self");
+        assertThat(created.get("levelHistory").get(2).get("choices").get("subclassSpells").toString())
+                .isEqualTo("[\"Disguise Self\"]");
+
+        assertThat(names(levelDown(aria), "subclass:Gloom Stalker")).isEmpty();
+    }
+
+    @Test
     @DisplayName("A kensei chooses a melee and a ranged kensei weapon on Monk 3 and another on Monk 6 (XGE p.34), "
             + "gaining proficiency only with those it lacked; the sheet lists them, and levelling down takes the "
             + "Monk 6 weapon away")

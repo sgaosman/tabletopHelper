@@ -295,6 +295,39 @@ class RecomputeCharactersJobTest {
     }
 
     @Test
+    @DisplayName("D231: a subclass's spells the sheet lacks and race spells whose casting the data now gives otherwise "
+            + "are reported, and stored only with apply")
+    void subclassAndRaceSpells() {
+        PlayerCharacter stalker = barbarian("Stalker");
+        PlayerCharacter hexblood = barbarian("Hexblood");
+        PlayerCharacter none = barbarian("None");
+        when(characterRepository.findAll()).thenReturn(List.of(hexblood, none, stalker));
+        when(characterService.derivedStats(any())).thenReturn(derived(65, 2, List.of(RAGE), List.of()));
+        when(characterService.missingSubclassSpells(stalker)).thenReturn(List.of(
+                new PendingChoiceService.MissingSubclassSpell("Gloom Stalker", "disguise self", "Ranger", 3, 2)));
+        when(characterService.outdatedRaceSpells(hexblood)).thenReturn(List.of(
+                new CharacterService.RaceSpellChange("Hex", "level 0, at will", "level 1, 1/long rest")));
+
+        MaintenanceReport dryRun = job().run(false);
+
+        assertThat(dryRun.changes()).hasSize(2);
+        assertThat(dryRun.changes().get(0)).startsWith("Hexblood (")
+                .contains("race spell: Hex, level 0, at will → level 1, 1/long rest");
+        assertThat(dryRun.changes().get(1)).startsWith("Stalker (")
+                .contains("subclass spell: + disguise self (Gloom Stalker, recorded on Ranger 3)");
+        verify(characterService, never()).storeMissingSubclassSpells(any());
+        verify(characterService, never()).storeRaceSpells(any());
+
+        job().run(true);
+
+        verify(characterService).storeMissingSubclassSpells(stalker);
+        verify(characterService).storeRaceSpells(hexblood);
+        verify(characterService, never()).storeMissingSubclassSpells(hexblood);
+        verify(characterService, never()).storeRaceSpells(none);
+        verify(characterRepository, never()).save(none);
+    }
+
+    @Test
     @DisplayName("A subclass that can't be found is a warning, and the character's other changes go ahead")
     void subclassProficienciesSkipped() {
         PlayerCharacter lost = barbarian("Lost");

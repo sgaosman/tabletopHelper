@@ -2387,6 +2387,7 @@ export interface components {
             spells?: string[] | null;
             /** Format: uuid */
             subclassId?: string | null;
+            subclassOption?: string | null;
             swap?: components["schemas"]["SpellSwap"] | null;
         };
         ArmourClassBreakdown: {
@@ -3618,6 +3619,7 @@ export interface components {
             unlocksAtLevel?: number | null;
             /** Format: int32 */
             usesPerLongRest?: number | null;
+            usesResetOn?: string | null;
         };
         LairStatusRequest: {
             monsterIds?: string[] | null;
@@ -3641,6 +3643,8 @@ export interface components {
             spells?: components["schemas"]["SpellsLearned"] | null;
             subclass?: components["schemas"]["SubclassChosen"] | null;
             subclassCantrips?: string[] | null;
+            subclassOption?: string | null;
+            subclassSpells?: string[] | null;
         };
         LevelHistoryEntry: {
             abilityIncreases?: components["schemas"]["AbilityBonus"][] | null;
@@ -4007,12 +4011,13 @@ export interface components {
             maxSpellLevel?: number | null;
             options?: string[] | null;
             proficiencyOptions?: components["schemas"]["ProficienciesGained"] | null;
+            school?: string | null;
             /** @enum {string} */
             source: "LEVEL_UP" | "CREATION" | "RACE" | "BACKGROUND";
             spellList?: string | null;
             swap?: boolean | null;
             /** @enum {string} */
-            type: "SUBCLASS" | "FIGHTING_STYLE" | "METAMAGIC" | "PROFICIENCY" | "SUBCLASS_CANTRIP" | "ASI" | "FEAT" | "DRACONIC_ANCESTRY" | "EXPERTISE" | "CANTRIPS" | "SPELLS" | "MYSTIC_ARCANUM";
+            type: "SUBCLASS" | "SUBCLASS_OPTION" | "FIGHTING_STYLE" | "METAMAGIC" | "PROFICIENCY" | "SUBCLASS_CANTRIP" | "ASI" | "FEAT" | "DRACONIC_ANCESTRY" | "EXPERTISE" | "CANTRIPS" | "SPELLS" | "MYSTIC_ARCANUM";
         };
         PlaceSummonRequest: {
             creatureType?: string | null;
@@ -4509,6 +4514,7 @@ export interface components {
             createdAt?: string | null;
             expandedSpellList?: string | null;
             features?: string | null;
+            grantedSpells?: string | null;
             /** Format: uuid */
             id: string;
             name: string;

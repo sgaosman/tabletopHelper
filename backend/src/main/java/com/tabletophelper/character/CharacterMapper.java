@@ -1,8 +1,6 @@
 package com.tabletophelper.character;
 
 import com.tabletophelper.rules.Exhaustion;
-import tools.jackson.core.JacksonException;
-import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.ArmourClassBreakdown;
 import com.tabletophelper.character.dto.BaseAbilityScores;
@@ -13,7 +11,6 @@ import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
-import com.tabletophelper.shared.ConflictException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -36,8 +33,6 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 public class CharacterMapper {
-
-    private static final TypeReference<Map<String, List<String>>> SPELLS_BY_CLASS_LEVEL = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
     private final SubclassRepository subclassRepository;
@@ -141,7 +136,8 @@ public class CharacterMapper {
         Map<String, Map<String, List<String>>> combined = new LinkedHashMap<>();
 
         if (c.getSubclassRef() != null) {
-            alwaysPreparedSpells(c.getSubclassRef()).ifPresent(spells -> combined.put(c.getSubclassRef().getName(), spells));
+            alwaysPreparedSpells(c, c.getSubclassRef())
+                    .ifPresent(spells -> combined.put(c.getSubclassRef().getName(), spells));
         }
 
         if (c.getMulticlassEntries() != null) {
@@ -150,23 +146,19 @@ public class CharacterMapper {
                 if (scId == null) continue;
                 if (c.getSubclassRef() != null && scId.equals(c.getSubclassRef().getId())) continue;
                 subclassRepository.findById(scId).ifPresent(sc ->
-                        alwaysPreparedSpells(sc).ifPresent(spells -> combined.put(sc.getName(), spells)));
+                        alwaysPreparedSpells(c, sc).ifPresent(spells -> combined.put(sc.getName(), spells)));
             }
         }
 
         return combined.isEmpty() ? null : combined;
     }
 
-    // A subclass's always-prepared spells by the class level they come at, as the reference data stores them; data
-    // that can't be read is a 409 rather than a sheet without them (D155)
-    private Optional<Map<String, List<String>>> alwaysPreparedSpells(Subclass subclass) {
-        if (subclass.getAlwaysPreparedSpells() == null) return Optional.empty();
-        try {
-            return Optional.ofNullable(objectMapper.readValue(subclass.getAlwaysPreparedSpells(), SPELLS_BY_CLASS_LEVEL));
-        } catch (JacksonException e) {
-            log.warn("Failed to parse always-prepared spells for subclass {}", subclass.getName(), e);
-            throw new ConflictException("The always-prepared spells of the subclass " + subclass.getName()
-                    + " can't be read");
-        }
+    // A subclass's always-prepared spells by the class level they come at, as the reference data stores them, with
+    // those of the option the character picked, such as a Land druid's terrain (D231); data that can't be read is a
+    // 409 rather than a sheet without them (D155)
+    private Optional<Map<String, List<String>>> alwaysPreparedSpells(PlayerCharacter c, Subclass subclass) {
+        UUID classId = subclass.getCharacterClass() != null ? subclass.getCharacterClass().getId() : null;
+        return Optional.ofNullable(SubclassSpells.alwaysPrepared(objectMapper, subclass,
+                SubclassSpells.optionOf(c, classId)));
     }
 }

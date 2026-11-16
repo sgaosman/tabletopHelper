@@ -5886,6 +5886,10 @@
             "format": "uuid",
             "nullable": true
           },
+          "subclassOption": {
+            "type": "string",
+            "nullable": true
+          },
           "swap": {
             "nullable": true,
             "allOf": [
@@ -10434,6 +10438,10 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          },
+          "usesResetOn": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -10548,6 +10556,17 @@
             ]
           },
           "subclassCantrips": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "subclassOption": {
+            "type": "string",
+            "nullable": true
+          },
+          "subclassSpells": {
             "type": "array",
             "nullable": true,
             "items": {
@@ -11870,6 +11889,10 @@
               }
             ]
           },
+          "school": {
+            "type": "string",
+            "nullable": true
+          },
           "source": {
             "type": "string",
             "enum": [
@@ -11891,6 +11914,7 @@
             "type": "string",
             "enum": [
               "SUBCLASS",
+              "SUBCLASS_OPTION",
               "FIGHTING_STYLE",
               "METAMAGIC",
               "PROFICIENCY",
@@ -13791,6 +13815,10 @@
             "nullable": true
           },
           "features": {
+            "type": "string",
+            "nullable": true
+          },
+          "grantedSpells": {
             "type": "string",
             "nullable": true
           },

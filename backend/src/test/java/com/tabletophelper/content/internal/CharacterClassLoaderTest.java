@@ -280,21 +280,20 @@ class CharacterClassLoaderTest {
         assertThatThrownBy(() -> loader.cantrips("Key", json(
                 "[{\"count\": 1, \"spells\": [\"Druidcraft\"], \"spellList\": \"Druid\"}]")))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageEndingWith("Key's cantrip choice 1 names either its spells or its spellList");
+                .hasMessageEndingWith("Key's cantrip choice 1 names either its spells, or its spellList or school, or a grant");
         assertThatThrownBy(() -> loader.cantrips("Key", json("[{\"count\": 1}]")))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageEndingWith("Key's cantrip choice 1 names either its spells or its spellList");
+                .hasMessageEndingWith("Key's cantrip choice 1 names either its spells, or its spellList or school, or a grant");
         assertThatThrownBy(() -> loader.cantrips("Key", json("[{\"count\": 1, \"spellList\": \"Druid\", "
                 + "\"level\": 3}]")))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("has level, which isn't count");
     }
 
     @Test
-    @DisplayName("A cantrip granted unless known needs one name, a count of 1 and a spell list for the choice owed "
-            + "otherwise")
+    @DisplayName("A cantrip granted unless known needs one name and a count of 1, and names no spells or school")
     void badGrantedCantrip() {
-        String message = "Key's cantrip choice 1's grant names one cantrip, with a count of 1 and a spellList for the "
-                + "choice owed when it is known";
+        String message = "Key's cantrip choice 1's grant names one cantrip, with a count of 1 and, for a choice owed "
+                + "when it is known, a spellList";
         assertThatThrownBy(() -> loader.cantrips("Key", json(
                 "[{\"count\": 2, \"grant\": \"Minor Illusion\", \"spellList\": \"Wizard\"}]")))
                 .isInstanceOf(IllegalStateException.class).hasMessageEndingWith(message);
@@ -304,5 +303,112 @@ class CharacterClassLoaderTest {
         assertThatThrownBy(() -> loader.cantrips("Key", json(
                 "[{\"count\": 1, \"grant\": \"Minor Illusion\", \"spells\": [\"Light\"]}]")))
                 .isInstanceOf(IllegalStateException.class).hasMessageEndingWith(message);
+        assertThatThrownBy(() -> loader.cantrips("Key", json(
+                "[{\"count\": 1, \"grant\": \"Light\", \"school\": \"Evocation\"}]")))
+                .isInstanceOf(IllegalStateException.class).hasMessageEndingWith(message);
+        assertThatThrownBy(() -> loader.cantrips("Key", json("[{\"count\": 1, \"school\": \" \"}]")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageEndingWith("Key's cantrip choice 1's spellList and school are names");
+    }
+
+    @Test
+    @DisplayName("D231: a cantrip granted without a fallback, as the Light Domain's light (PHB p.60), and a choice by "
+            + "school from any list, as the Death Domain's necromancy cantrip (DMG p.96), are taken")
+    void grantsWithoutFallbackAndSchoolChoices() {
+        assertThat(loader.cantrips("Key", json("[{\"count\": 1, \"grant\": \"Light\"}]")))
+                .isEqualTo(json("[{\"count\": 1, \"grant\": \"Light\"}]"));
+        assertThat(loader.cantrips("Key", json("[{\"count\": 1, \"school\": \"Necromancy\"}]")))
+                .isEqualTo(json("[{\"count\": 1, \"school\": \"Necromancy\"}]"));
+    }
+
+    @Test
+    @DisplayName("D231: the file grants the fixed subclass cantrips (Light, Grave, Celestial, Undying, Way of Shadow, "
+            + "Spores, Stars, Swarmkeeper, Drakewarden, Spirits, Aberrant Mind), the Arcana Domain's two wizard cantrips "
+            + "(SCAG p.125), the Death Domain's necromancy cantrip (DMG p.96) and the Order Domain's Intimidation or "
+            + "Persuasion (TCE p.31)")
+    void d231SubclassCantripsAndOrderDomain() {
+        var rows = loader.subclassProficiencies(new LoadContext(objectMapper));
+        java.util.Map<String, String> grants = new java.util.LinkedHashMap<>();
+        grants.put("Cleric|PHB|Light Domain|PHB", "Light");
+        grants.put("Cleric|PHB|Grave Domain|XGE", "Spare the Dying");
+        grants.put("Warlock|PHB|The Undying|SCAG", "Spare the Dying");
+        grants.put("Monk|PHB|Way of Shadow|PHB", "Minor Illusion");
+        grants.put("Druid|PHB|Circle of Spores|TCE", "Chill Touch");
+        grants.put("Druid|PHB|Circle of Stars|TCE", "Guidance");
+        grants.put("Ranger|PHB|Swarmkeeper|TCE", "Mage Hand");
+        grants.put("Ranger|PHB|Drakewarden|FTD", "Thaumaturgy");
+        grants.put("Bard|PHB|College of Spirits|VRGR", "Guidance");
+        grants.put("Sorcerer|PHB|Aberrant Mind|TCE", "Mind Sliver");
+        grants.forEach((key, cantrip) -> assertThat(json(rows.get(key)).path("cantrips"))
+                .as(key).isEqualTo(json("[{\"count\": 1, \"grant\": \"" + cantrip + "\"}]")));
+        assertThat(json(rows.get("Warlock|PHB|The Celestial|XGE")).path("cantrips")).isEqualTo(json(
+                "[{\"count\": 1, \"grant\": \"Sacred Flame\"}, {\"count\": 1, \"grant\": \"Light\"}]"));
+        assertThat(json(rows.get("Cleric|PHB|Arcana Domain|SCAG")).path("cantrips")).isEqualTo(json(
+                "[{\"count\": 2, \"spellList\": \"Wizard\"}]"));
+        assertThat(json(rows.get("Cleric|PHB|Death Domain|DMG")).path("cantrips")).isEqualTo(json(
+                "[{\"count\": 1, \"school\": \"Necromancy\"}]"));
+        assertThat(json(rows.get("Cleric|PHB|Order Domain|TCE")).path("choices")).isEqualTo(json(
+                "[{\"count\": 1, \"skills\": [\"Intimidation\", \"Persuasion\"]}]"));
+        assertThat(json(rows.get("Cleric|PHB|Order Domain|TCE")).path("armor")).isEqualTo(json("[\"heavy\"]"));
+    }
+
+    // The Circle of the Land's spells as the 5etools druid file gives them, two terrains of eight, each with the
+    // druid cantrip choice and its circle spells
+    private static final String LAND = """
+            {"name": "Circle of the Land", "additionalSpells": [
+              {"name": "Arctic", "known": {"1": {"_": [{"choose": "level=0|class=Druid"}]}},
+               "prepared": {"3": ["hold person", "spike growth"], "5": ["sleet storm", "slow"]}},
+              {"name": "Underdark", "known": {"1": {"_": [{"choose": "level=0|class=Druid"}]}},
+               "prepared": {"3": ["spider climb", "web"], "5": ["gaseous form", "stinking cloud"]}}]}""";
+
+    @Test
+    @DisplayName("D231: each Circle of the Land terrain keeps its own circle spells as an option, and none is every "
+            + "member's always-prepared list, where the Underdark's used to overwrite the rest (PHB p.68-69)")
+    void landTerrainsAreOptions() throws Exception {
+        JsonNode land = json(LAND);
+
+        assertThat(loader.parseAlwaysPreparedSpells(land)).isNull();
+        assertThat(json(loader.parseGrantedSpells(land, "Druid"))).isEqualTo(json("""
+                {"options": [
+                  {"name": "Arctic", "prepared": {"3": ["hold person", "spike growth"], "5": ["sleet storm", "slow"]}},
+                  {"name": "Underdark",
+                   "prepared": {"3": ["spider climb", "web"], "5": ["gaseous form", "stinking cloud"]}}]}"""));
+    }
+
+    @Test
+    @DisplayName("D231: a subclass's known spells by class level leave out its cantrips and choices and lose their "
+            + "|source suffix: a Gloom Stalker's (XGE p.42), Aberrant Mind's (TCE p.66), and a Divine Soul's affinity "
+            + "spells as options (XGE p.50); a prepared caster's, as the Circle of the Moon's alter self, are none")
+    void knownSpellsAndOptions() throws Exception {
+        assertThat(json(loader.parseGrantedSpells(json("""
+                {"additionalSpells": [{"known": {"3": ["disguise self"], "5": ["rope trick"]}}]}"""), "Ranger")))
+                .isEqualTo(json("{\"known\": {\"3\": [\"disguise self\"], \"5\": [\"rope trick\"]}}"));
+        assertThat(json(loader.parseGrantedSpells(json("""
+                {"additionalSpells": [{"known": {"1": ["mind sliver|tce#c", "arms of Hadar"],
+                  "7": ["Evard's black tentacles", "summon aberration|TCE"]}}]}"""), "Sorcerer")))
+                .isEqualTo(json("{\"known\": {\"1\": [\"arms of Hadar\"], "
+                        + "\"7\": [\"Evard's black tentacles\", \"summon aberration\"]}}"));
+        assertThat(json(loader.parseGrantedSpells(json("""
+                {"additionalSpells": [
+                  {"name": "Good", "known": {"1": ["cure wounds"]}, "expanded": {"1": [{"all": "level=1|class=Cleric"}]}},
+                  {"name": "Evil", "known": {"1": ["inflict wounds"]}}]}"""), "Sorcerer")))
+                .isEqualTo(json("{\"options\": [{\"name\": \"Good\", \"known\": {\"1\": [\"cure wounds\"]}}, "
+                        + "{\"name\": \"Evil\", \"known\": {\"1\": [\"inflict wounds\"]}}]}"));
+        assertThat(loader.parseGrantedSpells(json("{\"additionalSpells\": [{\"known\": {\"14\": [\"alter self\"]}}]}"),
+                "Druid")).isNull();
+        // A single named list is every member's, as Lunar Sorcery's
+        assertThat(json(loader.parseGrantedSpells(json(
+                "{\"additionalSpells\": [{\"name\": \"Full Moon\", \"known\": {\"1\": [\"shield\"]}}]}"), "Sorcerer")))
+                .isEqualTo(json("{\"known\": {\"1\": [\"shield\"]}}"));
+    }
+
+    @Test
+    @DisplayName("D231: a spell's |source suffix and #c mark are dropped, so the Fathomless's \"summon elemental|tce\" "
+            + "(TCE p.72) and PSA Zeal's \"fire shield|\" match their spells")
+    void spellNamesLoseTheirSourceSuffix() {
+        assertThat(CharacterClassLoader.spellName("summon elemental|tce")).isEqualTo("summon elemental");
+        assertThat(CharacterClassLoader.spellName("fire shield|")).isEqualTo("fire shield");
+        assertThat(CharacterClassLoader.spellName("mind sliver|tce#c")).isEqualTo("mind sliver");
+        assertThat(CharacterClassLoader.spellName("Nystul's magic aura")).isEqualTo("Nystul's magic aura");
     }
 }

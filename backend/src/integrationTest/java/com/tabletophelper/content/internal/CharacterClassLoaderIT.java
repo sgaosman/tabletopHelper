@@ -147,12 +147,14 @@ class CharacterClassLoaderIT extends IntegrationTest {
     @Test
     @DisplayName("After loading, subclasses carry the bonus proficiencies of subclass-proficiencies.json: a Life "
             + "Domain's heavy armour, a War Domain's heavy armour and martial weapons, a Nature Domain's heavy armour "
-            + "and its choice of skill, a Knowledge Domain's choices, and none for a Light Domain")
+            + "and its choice of skill, a Knowledge Domain's choices, and for a Light Domain its light cantrip alone "
+            + "(PHB p.60, D231)")
     void subclassProficienciesComeFromTheOverlay() {
         load();
 
+        // 43, and since D231 the ten subclasses whose only row is a fixed cantrip
         assertThat(subclassRepository.findAll()).filteredOn(subclass -> subclass.getAdditionalProficiencies() != null)
-                .hasSize(43);
+                .hasSize(53);
         // The Arcane Trickster's Mage Hand, one of its Cantrips Known at Rogue 3 (PHB p.98, D223)
         assertThat(proficienciesOf("Arcane Trickster")).isEqualTo(objectMapper.readTree("{\"cantrips\": [{\"count\": 1, "
                 + "\"grant\": \"Mage Hand\", \"spellList\": \"Wizard\", \"ofCantripsKnown\": true}]}"));
@@ -167,7 +169,8 @@ class CharacterClassLoaderIT extends IntegrationTest {
         assertThat(proficienciesOf("Knowledge Domain").path("choices").get(0).path("languages")).hasSize(16);
         assertThat(proficienciesOf("College of Valor")).isEqualTo(objectMapper.readTree(
                 "{\"armor\": [\"medium\", \"shields\"], \"weapons\": [\"martial\"]}"));
-        assertThat(cleric("Light Domain").getAdditionalProficiencies()).isNull();
+        assertThat(proficienciesOf("Light Domain")).isEqualTo(objectMapper.readTree(
+                "{\"cantrips\": [{\"count\": 1, \"grant\": \"Light\"}]}"));
     }
 
     @Test
@@ -286,5 +289,57 @@ class CharacterClassLoaderIT extends IntegrationTest {
                 .findFirst()
                 .orElseThrow();
         return objectMapper.readTree(subclass.getAdditionalProficiencies());
+    }
+
+    // The options' names, in their order
+    private static java.util.List<String> names(tools.jackson.databind.JsonNode options) {
+        java.util.List<String> names = new java.util.ArrayList<>();
+        options.forEach(option -> names.add(option.path("name").asString()));
+        return names;
+    }
+
+    private Subclass subclassNamed(String name) {
+        return subclassRepository.findAll().stream().filter(subclass -> subclass.getName().equals(name))
+                .findFirst().orElseThrow();
+    }
+
+    @Test
+    @DisplayName("D231: the Circle of the Land's eight terrains are options, each with its own circle spells, and no "
+            + "terrain's are every Land druid's (PHB p.68-69)")
+    void landTerrainsAreOptions() {
+        load();
+
+        Subclass land = subclassNamed("Circle of the Land");
+        assertThat(land.getAlwaysPreparedSpells()).isNull();
+        var options = objectMapper.readTree(land.getGrantedSpells()).path("options");
+        assertThat(names(options)).containsExactly("Arctic", "Coast", "Desert", "Forest", "Grassland", "Mountain",
+                "Swamp", "Underdark");
+        assertThat(options.get(0).path("prepared").path("3"))
+                .isEqualTo(objectMapper.readTree("[\"hold person\", \"spike growth\"]"));
+        assertThat(options.get(7).path("prepared").path("9"))
+                .isEqualTo(objectMapper.readTree("[\"cloudkill\", \"insect plague\"]"));
+    }
+
+    @Test
+    @DisplayName("D231: subclasses' known spells by class level, without cantrips or |source suffixes: the Gloom "
+            + "Stalker's (XGE p.42), Shadow Magic's darkness (XGE p.51), Aberrant Mind's (TCE p.66); a Divine Soul's "
+            + "five affinities (XGE p.50); and the Fathomless's summon elemental on its expanded list (TCE p.72)")
+    void knownSpellsAndSuffixes() {
+        load();
+
+        assertThat(objectMapper.readTree(subclassNamed("Gloom Stalker").getGrantedSpells())).isEqualTo(
+                objectMapper.readTree("{\"known\": {\"3\": [\"disguise self\"], \"5\": [\"rope trick\"], "
+                        + "\"9\": [\"fear\"], \"13\": [\"greater invisibility\"], \"17\": [\"seeming\"]}}"));
+        assertThat(objectMapper.readTree(subclassNamed("Shadow Magic").getGrantedSpells()))
+                .isEqualTo(objectMapper.readTree("{\"known\": {\"3\": [\"darkness\"]}}"));
+        var aberrant = objectMapper.readTree(subclassNamed("Aberrant Mind").getGrantedSpells()).path("known");
+        assertThat(aberrant.path("1")).isEqualTo(objectMapper.readTree("[\"arms of Hadar\", \"dissonant whispers\"]"));
+        assertThat(aberrant.path("7")).isEqualTo(objectMapper.readTree(
+                "[\"Evard's black tentacles\", \"summon aberration\"]"));
+        assertThat(names(objectMapper.readTree(subclassNamed("Divine Soul").getGrantedSpells()).path("options")))
+                .containsExactly("Good", "Evil", "Law", "Chaos", "Neutrality");
+        assertThat(subclassNamed("The Fathomless").getExpandedSpellList()).contains("\"summon elemental\"")
+                .doesNotContain("|tce");
+        assertThat(subclassNamed("Circle of the Moon").getGrantedSpells()).isNull();
     }
 }

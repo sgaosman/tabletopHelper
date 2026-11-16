@@ -472,11 +472,12 @@ export function spellsKnown(state: WizardState): SpellEntry[] | undefined {
     }
   }
   if (selectedRace?.additionalSpells) {
-    const raceSpells = safeJsonParse<{ fixedSpells?: Array<{ name: string; level: number; atWill?: boolean; usesPerLongRest?: number; unlocksAtLevel?: number }> }>(selectedRace.additionalSpells, {});
+    const raceSpells = safeJsonParse<{ fixedSpells?: Array<{ name: string; level: number; atWill?: boolean; usesPerLongRest?: number; usesResetOn?: string; unlocksAtLevel?: number }> }>(selectedRace.additionalSpells, {});
     const raceSource = `race:${selectedRace.name}`;
     for (const s of raceSpells.fixedSpells ?? []) {
       if (!s.unlocksAtLevel || s.unlocksAtLevel <= state.level) {
-        entries.push({ name: s.name, level: s.level ?? 0, source: raceSource, ...(s.atWill ? { atWill: true } : {}), ...(s.usesPerLongRest ? { usesPerLongRest: s.usesPerLongRest } : {}), ...(s.unlocksAtLevel ? { unlocksAtLevel: s.unlocksAtLevel } : {}) });
+        // usesResetOn: "shortRest" for uses that come back on a short or long rest, as a firbolg's (VGM p.107, D231)
+        entries.push({ name: s.name, level: s.level ?? 0, source: raceSource, ...(s.atWill ? { atWill: true } : {}), ...(s.usesPerLongRest ? { usesPerLongRest: s.usesPerLongRest } : {}), ...(s.usesPerLongRest && s.usesResetOn ? { usesResetOn: s.usesResetOn } : {}), ...(s.unlocksAtLevel ? { unlocksAtLevel: s.unlocksAtLevel } : {}) });
       }
     }
   }

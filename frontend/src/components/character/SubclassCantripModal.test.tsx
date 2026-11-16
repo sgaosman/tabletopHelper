@@ -89,4 +89,19 @@ describe('SubclassCantripModal', () => {
     expect(searched.at(-1)?.get('level')).toBe('0');
     expect(screen.getByText(/the Druid spell list/)).toBeInTheDocument();
   });
+
+  it("searches every list by school for a Death Domain cleric's necromancy cantrip (DMG p.96, D231)", async () => {
+    const cleric = { ...makeMockCharacter('char-009', 'Mort', 'Cleric', 1), spellsKnown: [] };
+    const reaper = makeMockPendingChoice({
+      id: 'choice-reaper', type: 'SUBCLASS_CANTRIP', characterLevel: 1, classLevel: 1, className: 'Cleric',
+      count: 1, spellList: null, school: 'Necromancy', maxSpellLevel: 0,
+    });
+    render(<SubclassCantripModal character={cleric} choice={reaper} onComplete={() => {}} onSkip={() => {}}
+      onClose={() => {}} />);
+
+    await waitFor(() => expect(searched.length).toBeGreaterThan(0));
+    expect(searched.at(-1)?.get('className')).toBeNull();
+    expect(searched.at(-1)?.get('school')).toBe('Necromancy');
+    expect(screen.getByText(/the necromancy cantrips of any class's spell list/)).toBeInTheDocument();
+  });
 });

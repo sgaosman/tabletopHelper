@@ -44,7 +44,11 @@ export default function SubclassCantripModal({ character, choice, onComplete, on
     );
   }
 
-  const from = options ? options.join(' or ') : `the ${choice.spellList ?? ''} spell list`;
+  // A choice by school takes a cantrip of it from its list, or from any class's, as the Death Domain's necromancy
+  // cantrip (DMG p.96, D231)
+  const school = options ? null : choice.school ?? null;
+  const list = choice.spellList ? `the ${choice.spellList} spell list` : "any class's spell list";
+  const from = options ? options.join(' or ') : school ? `the ${school.toLowerCase()} cantrips of ${list}` : list;
 
   return (
     <Modal
@@ -76,7 +80,12 @@ export default function SubclassCantripModal({ character, choice, onComplete, on
             value={selected}
             onChange={setSelected}
             max={needed}
-            filter={{ className: options ? undefined : choice.spellList ?? undefined, levels: [0], names: options ?? undefined }}
+            filter={{
+              className: options ? undefined : choice.spellList ?? undefined,
+              levels: [0],
+              names: options ?? undefined,
+              schools: school ? [school] : undefined,
+            }}
             statusOf={spell => known(spell.name) ? { status: 'Known', disabled: true } : undefined}
             placeholder="Search cantrips..."
             emptyText="No cantrips found."

@@ -208,7 +208,12 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
         )}
         <span className="font-body text-[15px] font-semibold text-ink group-hover:text-muted transition-colors">{spell.name}</span>
         {spell.atWill && <span className="font-heading text-[11px] font-semibold text-buff ml-auto">At will</span>}
-        {spell.usesPerLongRest && <span className="font-heading text-[11px] font-semibold text-cls-cleric ml-auto">{spell.usesPerLongRest}/long rest</span>}
+        {spell.usesPerLongRest && (
+          <span className="font-heading text-[11px] font-semibold text-cls-cleric ml-auto">
+            {/* Uses that come back on a short or long rest, as a firbolg's (VGM p.107, D231) */}
+            {spell.usesPerLongRest}/{spell.usesResetOn === 'shortRest' ? 'short rest' : 'long rest'}
+          </span>
+        )}
         {spell.unlocksAtLevel && spell.unlocksAtLevel > char.level && (
           <span className="font-heading text-[11px] font-semibold text-faint ml-auto">Lv {spell.unlocksAtLevel}</span>
         )}

@@ -93,8 +93,17 @@ public record ResourcePoolEntry(
 
     /** A full pool of a spell's innate uses, which come back on a long rest (D165). */
     public static ResourcePoolEntry innate(String spellName, int uses, String sourceType, String sourceName) {
+        return innate(spellName, uses, sourceType, sourceName, "longRest");
+    }
+
+    /**
+     * A full pool of a spell's innate uses, which come back on the rest given: "shortRest" for a short or long rest, as
+     * a VGM firbolg's detect magic (VGM p.107, D231), or "longRest".
+     */
+    public static ResourcePoolEntry innate(String spellName, int uses, String sourceType, String sourceName,
+                                           String resetOn) {
         return new ResourcePoolEntry(innatePoolId(spellName), spellName, sourceType, sourceName, uses, null, uses,
-                "longRest", null, null, "ACTION", "sparkles", Map.of());
+                resetOn, null, null, "ACTION", "sparkles", Map.of());
     }
 
     /**

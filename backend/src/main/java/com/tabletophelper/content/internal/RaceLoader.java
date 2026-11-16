@@ -96,11 +96,25 @@ public class RaceLoader implements ContentLoader {
         return List.of(FILE, EFFECTS_FILE);
     }
 
-    // Version 2 writes the effects overlay
+    // Version 2 writes the effects overlay; version 3 (D231) casts a race's levelled spells once between rests unless
+    // the data says at will, keeps the spells it names under a short-or-long rest with that reset, and names a known
+    // spell's level
     @Override
     public int version() {
-        return 2;
+        return 3;
     }
+
+    // A fixed spell's uses that come back on a short or long rest, as KnownSpell.usesResetOn writes it (D231)
+    static final String SHORT_REST = "shortRest";
+
+    // The levelled spells a race casts at will that its data lists without saying so, by the race's name and source:
+    // the data doesn't tell them from its once-a-day spells. The DMG's deep gnome casts nondetection (self only) at
+    // will, and blindness/deafness, blur and disguise self once a day each (DMG p.282); a yuan-ti casts animal
+    // friendship on snakes "an unlimited number of times" (VGM p.120, MPMM p.29)
+    static final Map<String, Set<String>> KNOWN_AT_WILL = Map.of(
+            "Gnome (Deep)|DMG", Set.of("nondetection"),
+            "Yuan-ti Pureblood|VGM", Set.of("animal friendship"),
+            "Yuan-Ti|MPMM", Set.of("animal friendship"));
 
     // The innate spells' levels come from the spells table
     @Override
@@ -832,19 +846,21 @@ public class RaceLoader implements ContentLoader {
         ObjectNode expandedList = null;
 
         boolean multipleOptions = spellsNode.size() > 1 && !spellsNode.get(0).has("expanded");
+        Set<String> atWill = KNOWN_AT_WILL.getOrDefault(node.path("name").asString("") + "|"
+                + node.path("source").asString(""), Set.of());
 
         if (multipleOptions) {
             ArrayNode options = objectMapper.createArrayNode();
             for (JsonNode entry : spellsNode) {
                 ArrayNode optionSpells = objectMapper.createArrayNode();
-                collectFixedSpells(entry, optionSpells);
+                collectFixedSpells(entry, optionSpells, atWill);
                 collectSpellChoices(entry, optionSpells);
                 options.add(optionSpells);
             }
             result.set("options", options);
         } else {
             for (JsonNode entry : spellsNode) {
-                collectFixedSpells(entry, fixedSpells);
+                collectFixedSpells(entry, fixedSpells, atWill);
                 collectSpellChoices(entry, spellChoices);
                 ObjectNode expanded = collectExpandedList(entry);
                 if (expanded != null) expandedList = expanded;
@@ -864,98 +880,85 @@ public class RaceLoader implements ContentLoader {
         return objectMapper.writeValueAsString(result);
     }
 
-    private void collectFixedSpells(JsonNode entry, ArrayNode fixedSpells) {
-        // "known" block: spells known at certain levels
-        JsonNode known = entry.get("known");
-        if (known != null) {
-            var fieldNames = known.propertyNames().iterator();
+    /**
+     * The spells a race block names, each with how it is cast (D231). A cantrip ({@code #c}, or a spell the spells
+     * table has at level 0) is at will. A levelled spell is at will only where the data says so ({@code will}), or for
+     * a spell {@link #KNOWN_AT_WILL} names; otherwise it is cast once without a slot between rests, and with any slot the
+     * character has: a {@code known} or {@code innate} list, as a Hexblood's hex and disguise self (VRGR p.18) or a
+     * Mark of Passage's misty step (ERLW p.46), once a long rest; {@code daily}, so many times a long rest; and
+     * {@code rest}, so many times between short or long rests, as a VGM firbolg's detect magic and disguise self (VGM
+     * p.107), a DMG eladrin's misty step (DMG p.286), a Mark of Handling's animal friendship and speak with animals
+     * (ERLW p.42) and a Mark of Scribing's comprehend languages (ERLW p.47). Before, a known levelled spell was loaded at
+     * will, and a known spell under {@code rest} was dropped.
+     */
+    private void collectFixedSpells(JsonNode entry, ArrayNode fixedSpells, Set<String> atWill) {
+        for (String block : List.of("known", "innate")) {
+            JsonNode byLevel = entry.get(block);
+            if (byLevel == null || !byLevel.isObject()) continue;
+            var fieldNames = byLevel.propertyNames().iterator();
             while (fieldNames.hasNext()) {
                 String levelKey = fieldNames.next();
                 int unlocksAt = "_".equals(levelKey) ? 1 : parseIntSafe(levelKey, 1);
-                JsonNode spellsAtLevel = known.get(levelKey);
-
-                if (spellsAtLevel.isArray()) {
-                    for (JsonNode s : spellsAtLevel) {
-                        if (s.isString()) {
-                            addFixedSpell(fixedSpells, s.asString(""), unlocksAt, true, 0);
-                        }
-                    }
-                } else if (spellsAtLevel.isObject()) {
-                    var innerKeys = spellsAtLevel.propertyNames().iterator();
-                    while (innerKeys.hasNext()) {
-                        String innerKey = innerKeys.next();
-                        JsonNode innerArr = spellsAtLevel.get(innerKey);
-                        if (innerArr.isArray()) {
-                            for (JsonNode s : innerArr) {
-                                if (s.isString()) {
-                                    addFixedSpell(fixedSpells, s.asString(""), unlocksAt, true, 0);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // "innate" block: spells castable innately (often daily)
-        JsonNode innate = entry.get("innate");
-        if (innate != null) {
-            var fieldNames = innate.propertyNames().iterator();
-            while (fieldNames.hasNext()) {
-                String levelKey = fieldNames.next();
-                int unlocksAt = "_".equals(levelKey) ? 1 : parseIntSafe(levelKey, 1);
-                JsonNode spellsAtLevel = innate.get(levelKey);
-
-                if (spellsAtLevel.isArray()) {
-                    for (JsonNode s : spellsAtLevel) {
-                        if (s.isString()) {
-                            addFixedSpell(fixedSpells, s.asString(""), unlocksAt, false, 0);
-                        }
-                    }
-                } else if (spellsAtLevel.isObject()) {
-                    // daily: {"1": [...], "1e": [...]}
-                    JsonNode daily = spellsAtLevel.get("daily");
-                    if (daily != null) {
-                        var dailyKeys = daily.propertyNames().iterator();
-                        while (dailyKeys.hasNext()) {
-                            String usesKey = dailyKeys.next();
-                            int uses = parseIntSafe(usesKey.replace("e", ""), 1);
-                            JsonNode dailySpells = daily.get(usesKey);
-                            if (dailySpells.isArray()) {
-                                for (JsonNode s : dailySpells) {
-                                    if (s.isString()) {
-                                        addFixedSpell(fixedSpells, s.asString(""), unlocksAt, false, uses);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    // rest/will not handled (rare) — treat as daily 1
-                    JsonNode rest = spellsAtLevel.get("rest");
-                    if (rest != null) {
-                        var restKeys = rest.propertyNames().iterator();
-                        while (restKeys.hasNext()) {
-                            String key = restKeys.next();
-                            JsonNode restSpells = rest.get(key);
-                            if (restSpells.isArray()) {
-                                for (JsonNode s : restSpells) {
-                                    if (s.isString()) addFixedSpell(fixedSpells, s.asString(""), unlocksAt, false, 1);
-                                }
-                            }
-                        }
-                    }
-                    JsonNode will = spellsAtLevel.get("will");
-                    if (will != null && will.isArray()) {
-                        for (JsonNode s : will) {
-                            if (s.isString()) addFixedSpell(fixedSpells, s.asString(""), unlocksAt, true, 0);
-                        }
-                    }
-                }
+                collectCasts(byLevel.get(levelKey), fixedSpells, unlocksAt, atWill);
             }
         }
     }
 
-    private void addFixedSpell(ArrayNode arr, String rawName, int unlocksAt, boolean atWill, int usesPerLongRest) {
+    // The spells of one level's entry: a list (once a long rest), or an object of daily, rest and will lists, or of
+    // lists under other keys, as "_"
+    private void collectCasts(JsonNode spellsAtLevel, ArrayNode fixedSpells, int unlocksAt, Set<String> atWill) {
+        if (spellsAtLevel.isArray()) {
+            addEach(fixedSpells, spellsAtLevel, unlocksAt, atWill, 1, null);
+            return;
+        }
+        if (!spellsAtLevel.isObject()) return;
+        var keys = spellsAtLevel.propertyNames().iterator();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            JsonNode value = spellsAtLevel.get(key);
+            switch (key) {
+                case "will" -> {
+                    if (value.isArray()) {
+                        for (JsonNode s : value) {
+                            if (s.isString()) addFixedSpell(fixedSpells, s.asString(""), unlocksAt, true, 0, null);
+                        }
+                    }
+                }
+                case "daily", "rest" -> {
+                    if (!value.isObject()) continue;
+                    var usesKeys = value.propertyNames().iterator();
+                    while (usesKeys.hasNext()) {
+                        String usesKey = usesKeys.next();
+                        // "1e" is once each
+                        int uses = parseIntSafe(usesKey.replace("e", ""), 1);
+                        addEach(fixedSpells, value.get(usesKey), unlocksAt, atWill, uses,
+                                "rest".equals(key) ? SHORT_REST : null);
+                    }
+                }
+                default -> addEach(fixedSpells, value, unlocksAt, atWill, 1, null);
+            }
+        }
+    }
+
+    private void addEach(ArrayNode fixedSpells, JsonNode spells, int unlocksAt, Set<String> atWill, int uses,
+                         String resetOn) {
+        if (spells == null || !spells.isArray()) return;
+        for (JsonNode s : spells) {
+            if (!s.isString()) continue;
+            boolean will = atWill.contains(baseName(s.asString("")));
+            addFixedSpell(fixedSpells, s.asString(""), unlocksAt, will, will ? 0 : uses, will ? null : resetOn);
+        }
+    }
+
+    // A spell's name in lower case, without its #c or #N mark or its |source suffix
+    private static String baseName(String raw) {
+        String name = raw.contains("#") ? raw.substring(0, raw.indexOf('#')) : raw;
+        if (name.contains("|")) name = name.substring(0, name.indexOf('|'));
+        return name.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private void addFixedSpell(ArrayNode arr, String rawName, int unlocksAt, boolean atWill, int usesPerLongRest,
+                               String resetOn) {
         String name = rawName;
         int castLevel = 0;
         int spellLevel = 0;
@@ -969,13 +972,14 @@ public class RaceLoader implements ContentLoader {
                 spellLevel = 0;
                 atWill = true;
                 usesPerLongRest = 0;
+                resetOn = null;
             } else {
                 castLevel = parseIntSafe(suffix, 0);
             }
         }
 
         // Strip |SOURCE suffix
-        if (name.contains("|")) name = name.split("\\|")[0];
+        if (name.contains("|")) name = name.substring(0, name.indexOf('|'));
 
         // Title-case
         name = titleCaseSpell(name);
@@ -983,15 +987,25 @@ public class RaceLoader implements ContentLoader {
         ObjectNode spell = objectMapper.createObjectNode();
         spell.put("name", name);
         int resolvedLevel = castLevel > 0 ? castLevel : spellLevel;
-        if (resolvedLevel == 0 && !atWill) {
+        // A levelled spell cast at will keeps its level too, as the DMG deep gnome's nondetection (D231)
+        boolean markedCantrip = rawName.contains("#c");
+        if (resolvedLevel == 0 && !markedCantrip) {
             Integer lookup = spellLevelLookup.get(name.toLowerCase());
-            if (lookup != null && lookup > 0) resolvedLevel = lookup;
+            if (lookup != null && lookup > 0) {
+                resolvedLevel = lookup;
+            } else if (lookup != null && !atWill) {
+                // A cantrip the data doesn't mark: cast at will
+                atWill = true;
+                usesPerLongRest = 0;
+                resetOn = null;
+            }
         }
         spell.put("level", resolvedLevel);
         spell.put("atWill", atWill);
         spell.put("unlocksAtLevel", unlocksAt);
         if (castLevel > 0) spell.put("castLevel", castLevel);
         if (usesPerLongRest > 0) spell.put("usesPerLongRest", usesPerLongRest);
+        if (usesPerLongRest > 0 && resetOn != null) spell.put("usesResetOn", resetOn);
 
         arr.add(spell);
     }

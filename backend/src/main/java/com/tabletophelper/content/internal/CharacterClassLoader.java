@@ -80,11 +80,13 @@ public class CharacterClassLoader implements ContentLoader {
     // proficiencies a subclass lets the player choose, and version 6 the conditional grants, the choices owed after
     // the subclass level, the kensei weapons and the Draconic Bloodline's, Storm Sorcery's and Circle of the
     // Shepherd's languages, version 7 saving throws, conditional grants after the subclass level and with
-    // Expertise, the Scout's Expertise and the subclass cantrips, and version 8 the School of Illusion's cantrip
-    // granted unless known (Improved Minor Illusion, PHB p.118)
+    // Expertise, the Scout's Expertise and the subclass cantrips, version 8 the School of Illusion's cantrip
+    // granted unless known (Improved Minor Illusion, PHB p.118), and version 9 (D231) the granted spells (known spells
+    // and the options, such as a Circle of the Land's terrains, whose prepared spells leave the always-prepared list),
+    // spell names without their |source suffix, cantrips granted without a fallback choice and cantrip choices by school
     @Override
     public int version() {
-        return 8;
+        return 9;
     }
 
     // The 5etools entries that place another feature's text inside a feature, such as the Life Domain's Bonus
@@ -190,8 +192,10 @@ public class CharacterClassLoader implements ContentLoader {
      * does, with a count and options alone; such a grant may name its {@code level} after the subclass level and, for a
      * skill, {@code expertise}. {@value #EXPERTISE} lists skills of the row's own that gain Expertise too, and
      * {@value #CANTRIPS} the cantrips the player chooses, each with its count and either {@code spells}, a list of
-     * names, or {@code spellList}, a class's list; one with a {@code grant}, a cantrip's name, gives that cantrip unless
-     * the character knows it and only then owes the choice, which needs a count of 1 and a spellList. Saving throws ({@code saves}) are abbreviated as the class data has
+     * names, or {@code spellList}, a class's list, and or {@code school}, a school of magic, from any class's list
+     * without a spellList (D231); one with a {@code grant}, a cantrip's name, gives that cantrip unless the character
+     * knows it and only then owes the choice from its spellList, which needs a count of 1, or without a spellList owes
+     * nothing (D231). Saving throws ({@code saves}) are abbreviated as the class data has
      * them, such as "WIS". A choice's list names, such as {@code *languages}, are written out as their lists.
      *
      * @throws IllegalStateException for a row that isn't one
@@ -266,9 +270,11 @@ public class CharacterClassLoader implements ContentLoader {
                         + " has no count of 1 or more");
             }
             for (Map.Entry<String, JsonNode> field : cantrip.properties()) {
-                if (!Set.of("count", "spells", "spellList", "grant", "ofCantripsKnown").contains(field.getKey())) {
+                if (!Set.of("count", "spells", "spellList", "school", "grant", "ofCantripsKnown")
+                        .contains(field.getKey())) {
                     throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + " has "
-                            + field.getKey() + ", which isn't count, spells, spellList, grant or ofCantripsKnown");
+                            + field.getKey() + ", which isn't count, spells, spellList, school, grant or "
+                            + "ofCantripsKnown");
                 }
             }
             // ofCantripsKnown marks a cantrip that is one of the class's Cantrips Known, as an Arcane Trickster's Mage
@@ -277,18 +283,28 @@ public class CharacterClassLoader implements ContentLoader {
                 throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
                         + "'s ofCantripsKnown is true or false");
             }
-            if (cantrip.has("grant") && (!cantrip.path("grant").isString()
+            boolean grant = cantrip.has("grant");
+            if (grant && (!cantrip.path("grant").isString()
                     || cantrip.path("grant").asString("").isBlank() || cantrip.path("count").asInt() != 1
-                    || cantrip.has("spells"))) {
+                    || cantrip.has("spells") || cantrip.has("school"))) {
                 throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + "'s grant names one "
-                        + "cantrip, with a count of 1 and a spellList for the choice owed when it is known");
+                        + "cantrip, with a count of 1 and, for a choice owed when it is known, a spellList");
             }
             boolean spells = cantrip.has("spells");
             boolean spellList = cantrip.path("spellList").isString()
                     && !cantrip.path("spellList").asString("").isBlank();
-            if (spells == spellList || (cantrip.has("spellList") && !spellList)) {
+            boolean school = cantrip.path("school").isString() && !cantrip.path("school").asString("").isBlank();
+            if ((cantrip.has("spellList") && !spellList) || (cantrip.has("school") && !school)) {
                 throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
-                        + " names either its spells or its spellList");
+                        + "'s spellList and school are names");
+            }
+            // A cantrip granted without a fallback, as the Light Domain's light (PHB p.60), names nothing else; a
+            // choice names its spells, its spellList, or its school from any class's list, as the Death Domain's
+            // necromancy cantrip (DMG p.96), or a spellList and a school
+            boolean chooses = spells || spellList || school;
+            if ((grant && spells) || (!grant && !chooses) || (spells && (spellList || school))) {
+                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
+                        + " names either its spells, or its spellList or school, or a grant");
             }
             if (spells) requireNames(what + "'s spells", cantrip.get("spells"));
             stored.add(cantrip);
@@ -521,6 +537,7 @@ public class CharacterClassLoader implements ContentLoader {
         String features = parseSubclassFeatures(node, scd.featureMap, scd.nested);
         String alwaysPreparedSpells = parseAlwaysPreparedSpells(node);
         String expandedSpellList = parseExpandedSpellList(node);
+        String grantedSpells = parseGrantedSpells(node, parent.getName());
 
         return Subclass.builder()
                 .name(name)
@@ -529,6 +546,7 @@ public class CharacterClassLoader implements ContentLoader {
                 .features(features)
                 .alwaysPreparedSpells(alwaysPreparedSpells)
                 .expandedSpellList(expandedSpellList)
+                .grantedSpells(grantedSpells)
                 .build();
     }
 
@@ -760,31 +778,114 @@ public class CharacterClassLoader implements ContentLoader {
         return features.isEmpty() ? null : objectMapper.writeValueAsString(features);
     }
 
-    private String parseAlwaysPreparedSpells(JsonNode scNode) throws Exception {
+    // The always-prepared spells of the subclass's lists that every member gets. A subclass whose player picks one of
+    // several named lists, as a Circle of the Land druid picks a terrain (PHB p.68-69), has its lists' spells under
+    // the granted spells' options instead, so a Land druid gets only its own terrain's (D231); before, every terrain's
+    // spells were written over one another by level, and the last, the Underdark's, won
+    String parseAlwaysPreparedSpells(JsonNode scNode) throws Exception {
         JsonNode addSpells = scNode.get("additionalSpells");
         if (addSpells == null || !addSpells.isArray() || addSpells.isEmpty()) return null;
 
         ObjectNode result = objectMapper.createObjectNode();
         for (JsonNode spellBlock : addSpells) {
-            JsonNode prep = spellBlock.get("prepared");
-            if (prep == null) continue;
-
-            final JsonNode prepared = prep;
-            prepared.propertyNames().iterator().forEachRemaining(level -> {
-                JsonNode spells = prepared.get(level);
-                if (spells != null && spells.isArray()) {
-                    ArrayNode arr = objectMapper.createArrayNode();
-                    for (JsonNode s : spells) {
-                        if (s.isString()) {
-                            arr.add(FiveEToolsMarkupParser.parse(s.asString("")));
-                        }
-                    }
-                    if (!arr.isEmpty()) result.set(level, arr);
-                }
-            });
+            if (isOption(addSpells, spellBlock)) continue;
+            mergeByLevel(result, spellBlock.get("prepared"), true);
         }
 
         return result.isEmpty() ? null : objectMapper.writeValueAsString(result);
+    }
+
+    /**
+     * The spells the subclass grants outside its always-prepared list (V41, D231), as {@code Subclass.grantedSpells}:
+     * {@code known}, the spells it teaches by class level, such as a Gloom Stalker's disguise self at Ranger 3 (XGE
+     * p.42), Aberrant Mind's psionic spells (TCE p.66) or Shadow Magic's darkness (XGE p.51), known with the source
+     * "subclass:" and its name and not counted against Spells Known; and {@code options}, for a subclass whose player
+     * picks one of two or more named lists, those lists in the data's order, each with its {@code name} and its
+     * always-prepared ({@code prepared}) and known ({@code known}) spells by class level, as a Circle of the Land
+     * druid's terrains (PHB p.68-69) or a Divine Soul's affinities (XGE p.50). Cantrips ({@code #c}) are left out: data/content/subclass-proficiencies.json grants them, so levelling
+     * down forgets them with the subclass's other cantrips. Choices (objects, such as a College of Lore's Additional
+     * Magical Secrets) are left out too. A prepared caster's subclass learns no spells this way: the only one the data
+     * gives, a Circle of the Moon druid's alter self at Druid 14, is cast at will (Thousand Forms, PHB p.69), which isn't
+     * modelled yet. A list with expanded spells alone, as a Genie's (TCE p.73), is no option. Null for a subclass with
+     * none.
+     */
+    String parseGrantedSpells(JsonNode scNode, String className) throws Exception {
+        JsonNode addSpells = scNode.get("additionalSpells");
+        if (addSpells == null || !addSpells.isArray() || addSpells.isEmpty()) return null;
+        boolean learnsKnown = !PREPARED_CASTERS.contains(className);
+
+        ObjectNode known = objectMapper.createObjectNode();
+        // A list, as PostgreSQL's jsonb doesn't keep an object's keys in order, and the options are offered in the
+        // book's order
+        ArrayNode options = objectMapper.createArrayNode();
+        for (JsonNode spellBlock : addSpells) {
+            if (isOption(addSpells, spellBlock)) {
+                ObjectNode option = objectMapper.createObjectNode();
+                ObjectNode prepared = objectMapper.createObjectNode();
+                mergeByLevel(prepared, spellBlock.get("prepared"), false);
+                ObjectNode optionKnown = objectMapper.createObjectNode();
+                if (learnsKnown) mergeByLevel(optionKnown, spellBlock.get("known"), false);
+                if (prepared.isEmpty() && optionKnown.isEmpty()) continue;
+                option.put("name", spellBlock.path("name").asString("").trim());
+                if (!prepared.isEmpty()) option.set("prepared", prepared);
+                if (!optionKnown.isEmpty()) option.set("known", optionKnown);
+                options.add(option);
+            } else if (learnsKnown) {
+                mergeByLevel(known, spellBlock.get("known"), false);
+            }
+        }
+        ObjectNode result = objectMapper.createObjectNode();
+        if (!known.isEmpty()) result.set("known", known);
+        if (!options.isEmpty()) result.set("options", options);
+        return result.isEmpty() ? null : objectMapper.writeValueAsString(result);
+    }
+
+    // Whether the block is one of two or more named lists the player picks from: a Circle of the Land's terrains or a
+    // Divine Soul's affinities. A single named list, as Lunar Sorcery's, is every member's
+    private static boolean isOption(JsonNode addSpells, JsonNode spellBlock) {
+        if (!spellBlock.path("name").isString() || spellBlock.path("name").asString("").isBlank()) return false;
+        int named = 0;
+        for (JsonNode block : addSpells) {
+            if (block.path("name").isString() && !block.path("name").asString("").isBlank()) named++;
+        }
+        return named >= 2;
+    }
+
+    // Adds a block's spells by name to the class levels' lists, each once; cantrips too unless they are left out.
+    // Choices (objects) are skipped
+    private void mergeByLevel(ObjectNode target, JsonNode byLevel, boolean cantrips) {
+        if (byLevel == null || !byLevel.isObject()) return;
+        byLevel.properties().forEach(level -> {
+            if (!level.getValue().isArray()) return;
+            for (JsonNode s : level.getValue()) {
+                if (!s.isString() || (!cantrips && isCantrip(s.asString("")))) continue;
+                String name = spellName(s.asString(""));
+                if (name.isBlank()) continue;
+                ArrayNode list = target.has(level.getKey()) ? (ArrayNode) target.get(level.getKey())
+                        : target.putArray(level.getKey());
+                boolean present = false;
+                for (JsonNode existing : list) present |= existing.asString("").equalsIgnoreCase(name);
+                if (!present) list.add(name);
+            }
+        });
+    }
+
+    private static boolean isCantrip(String raw) {
+        return raw.trim().toLowerCase(Locale.ROOT).endsWith("#c");
+    }
+
+    /**
+     * A spell's name as the spells table has it, from a 5etools reference: without its {@code #c} cantrip mark or its
+     * {@code |source} suffix, so "summon elemental|tce" (the Fathomless's, TCE p.72) and "fire shield|" (PSA) match
+     * their spells, as "mind sliver|tce#c" does (D231).
+     */
+    static String spellName(String raw) {
+        String name = raw.trim();
+        int mark = name.indexOf('#');
+        if (mark >= 0) name = name.substring(0, mark);
+        int bar = name.indexOf('|');
+        if (bar >= 0) name = name.substring(0, bar);
+        return FiveEToolsMarkupParser.parse(name.trim()).trim();
     }
 
     private String parseExpandedSpellList(JsonNode scNode) throws Exception {
@@ -802,7 +903,7 @@ public class CharacterClassLoader implements ContentLoader {
                     ArrayNode arr = objectMapper.createArrayNode();
                     for (JsonNode s : spells) {
                         if (s.isString()) {
-                            arr.add(FiveEToolsMarkupParser.parse(s.asString("")));
+                            arr.add(spellName(s.asString("")));
                         }
                     }
                     if (!arr.isEmpty()) result.set(level, arr);

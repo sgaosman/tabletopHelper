@@ -108,6 +108,19 @@ describe('SpellsTab', () => {
 
     expect(screen.getByText('Race & Feat')).toBeInTheDocument();
     expect(box('Tiefling Spells')).toBeInTheDocument();
+    expect(screen.getByText('1/long rest')).toBeInTheDocument();
+  });
+
+  it("shows a race spell whose use comes back on a short rest, as a firbolg's (VGM p.107, D231)", () => {
+    const char = {
+      ...makeMockCharacter('char-005', 'Bram', 'Fighter', 1),
+      spellsKnown: [{ name: 'Detect Magic', level: 1, source: 'race:Firbolg', usesPerLongRest: 1,
+        usesResetOn: 'shortRest' }],
+    };
+
+    renderTab(char);
+
+    expect(screen.getByText('1/short rest')).toBeInTheDocument();
   });
 
   it("prepares a spell by sending the class's prepared spells, which the server checks (D158)", async () => {
