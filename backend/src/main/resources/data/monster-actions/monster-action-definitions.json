@@ -25493,6 +25493,7 @@
               "limit": 2,
               "regurgitateDamage": 30,
               "regurgitateDC": 16,
+              "regurgitateFeet": 15,
               "escapeFeet": 15
             },
             "_rider": "added"
@@ -166546,6 +166547,54 @@
         "combatRelevant": false,
         "description": "The bloodfin can breathe only underwater."
       }
+    ],
+    "bonusActions": [
+      {
+        "name": "Swallow",
+        "actionType": "BONUS_ACTION",
+        "deliveryMethod": "ATTACK_ROLL",
+        "attackType": "MELEE_WEAPON",
+        "attackBonus": 9,
+        "reach": 5,
+        "targetCount": 1,
+        "effects": [
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "4d6",
+            "damageType": "necrotic",
+            "endsWith": "swallowed",
+            "turnOf": "TARGET"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "swallow": {
+              "limit": 1,
+              "regurgitateDamage": 30,
+              "regurgitateDC": 15,
+              "regurgitateFeet": 5
+            },
+            "maxTargetSize": "Medium"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed"
+          }
+        ],
+        "targetGrappled": true,
+        "dmNote": "Also on a hit, applied by hand: The bloodfin regains hit points equal to the necrotic damage dealt.",
+        "description": "Melee Weapon Attack: +9 to hit, reach 5 ft., one Medium or smaller creature the bloodfin is grappling. Hit: The bloodfin swallows the target. The swallowed creature is no longer grappled but is blinded and restrained. It has Cover against attacks and other effects outside the bloodfin, it takes 14 (4d6) necrotic damage at the start of each of its turns, and the bloodfin regains hit points equal to the necrotic damage dealt. A bloodfin can have only one creature swallowed at a time. If the bloodfin takes 30 damage or more on a single turn from the swallowed creature, the bloodfin must succeed on a DC 15 Constitution saving throw at the end of that turn or regurgitate the creature, which falls prone in a space within 5 feet of the bloodfin and is no longer blinded or restrained by it.",
+        "_riderAddedAction": true
+      }
+    ],
+    "_riderAddedLists": [
+      "bonusActions"
     ]
   },
   {
@@ -198492,8 +198541,7 @@
         "saveAbility": "DEX",
         "saveDC": 23,
         "halfOnSave": true,
-        "targetType": "AOE_SPHERE",
-        "aoeSize": 30,
+        "targetCount": 1,
         "effects": [
           {
             "effectType": "DAMAGE",
@@ -223539,9 +223587,38 @@
         "attackBonus": 13,
         "reach": 5,
         "targetCount": 1,
-        "automatable": false,
-        "description": "Melee Weapon Attack: +13 to hit, reach 5 ft., one Huge or smaller creature grappled by the regisaur. Hit: The regisaur swallows the target, and the grapple ends. A swallowed creature has the blinded and restrained conditions, it has Cover against attacks and other effects outside the regisaur, and it takes 7 (2d6) acid damage at the start of each of its turns. The regisaur can have up to two creatures swallowed at a time. If the regisaur takes 25 damage or more on a single turn from a swallowed creature, the regisaur must succeed on a DC 16 Constitution saving throw at the end of that turn or regurgitate the creature, which falls in a space within 5 feet of the regisaur and has the prone condition; the creature no longer has the blinded and restrained conditions.",
-        "dmNote": "The hit's effect is not damage the app can roll: The regisaur swallows the target, and the grapple ends. A swallowed creature has the blinded and restrained conditions, it has Cover against attacks and other effects outside the regisaur, and it takes 7 (2d6) acid damage at the start of each of its turns. The regisaur can have up to two creatures swallowed at a time. If the regisaur takes 25 damage or more on a single turn from a swallowed creature, the regisaur must succeed on a DC 16 Constitution saving throw at the end of that turn or regurgitate the creature, which falls in a space within 5 feet of the regisaur and has the prone condition; the creature no longer has the blinded and restrained conditions."
+        "effects": [
+          {
+            "effectType": "ONGOING_DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "acid",
+            "endsWith": "swallowed",
+            "turnOf": "TARGET"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "swallowed",
+            "swallow": {
+              "limit": 2,
+              "regurgitateDamage": 25,
+              "regurgitateDC": 16,
+              "regurgitateFeet": 5
+            },
+            "maxTargetSize": "Huge"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "blinded",
+            "endsWith": "swallowed"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "restrained",
+            "endsWith": "swallowed"
+          }
+        ],
+        "targetGrappled": true,
+        "description": "Melee Weapon Attack: +13 to hit, reach 5 ft., one Huge or smaller creature grappled by the regisaur. Hit: The regisaur swallows the target, and the grapple ends. A swallowed creature has the blinded and restrained conditions, it has Cover against attacks and other effects outside the regisaur, and it takes 7 (2d6) acid damage at the start of each of its turns. The regisaur can have up to two creatures swallowed at a time. If the regisaur takes 25 damage or more on a single turn from a swallowed creature, the regisaur must succeed on a DC 16 Constitution saving throw at the end of that turn or regurgitate the creature, which falls in a space within 5 feet of the regisaur and has the prone condition; the creature no longer has the blinded and restrained conditions."
       }
     ],
     "_entryFromStatBlock": true,
@@ -228497,7 +228574,7 @@
             "damageType": "fire"
           }
         ],
-        "dmNote": "The damage type or amount is a choice the DM settles by hand: Magical flames issue from the colossus toward up to three creatures the colossus can see within 90 feet of it. Each target must make a DC 24 Dexterity saving throw, taking 36 (8d8) fire damage on a failed save, or half as much damage on a successful one. On a failed save, a target also magically catches fire for 1 minute. At the end of each of its turns thereafter, the burning target repeats the saving throw. It takes 18 (4d8) fire damage on a failed save, and the effect ends on a successful one.",
+        "dmNote": "Applied by hand beyond the damage and conditions: Magical flames issue from the colossus toward up to three creatures the colossus can see within 90 feet of it. Each target must make a DC 24 Dexterity saving throw, taking 36 (8d8) fire damage on a failed save, or half as much damage on a successful one. On a failed save, a target also magically catches fire for 1 minute. At the end of each of its turns thereafter, the burning target repeats the saving throw. It takes 18 (4d8) fire damage on a failed save, and the effect ends on a successful one.",
         "description": "Magical flames issue from the colossus toward up to three creatures the colossus can see within 90 feet of it. Each target must make a DC 24 Dexterity saving throw, taking 36 (8d8) fire damage on a failed save, or half as much damage on a successful one. On a failed save, a target also magically catches fire for 1 minute. At the end of each of its turns thereafter, the burning target repeats the saving throw. It takes 18 (4d8) fire damage on a failed save, and the effect ends on a successful one."
       }
     ],
@@ -233109,7 +233186,7 @@
             "damageType": "acid"
           }
         ],
-        "dmNote": "The damage type or amount is a choice the DM settles by hand: The quavilithku expels acid-drenched webs in a 90-foot cone. Each creature in that area must make a DC 18 Constitution saving throw, taking 44 (8d10) acid damage on a failed save or half as much damage on a successful one. Nonmagical objects in the area that aren't being worn or carried take 44 (8d10) acid damage.",
+        "dmNote": "Applied by hand beyond the damage and conditions: The quavilithku expels acid-drenched webs in a 90-foot cone. Each creature in that area must make a DC 18 Constitution saving throw, taking 44 (8d10) acid damage on a failed save or half as much damage on a successful one. Nonmagical objects in the area that aren't being worn or carried take 44 (8d10) acid damage.",
         "description": "The quavilithku expels acid-drenched webs in a 90-foot cone. Each creature in that area must make a DC 18 Constitution saving throw, taking 44 (8d10) acid damage on a failed save or half as much damage on a successful one. Nonmagical objects in the area that aren't being worn or carried take 44 (8d10) acid damage."
       }
     ],

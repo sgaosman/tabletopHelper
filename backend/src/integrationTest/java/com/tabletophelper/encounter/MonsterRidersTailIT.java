@@ -26,7 +26,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Monster riders, steps 6 and 7 (D204), through the API with the bundled definitions: a giant toad grapples a halfling,
- * swallows it and digests it at the start of its turns until it dies and the halfling crawls out prone; a froghemoth
+ * swallows it and digests it at the start of its turns until it dies and the halfling crawls out prone; a regisaur
+ * swallows a death knight it grapples and regurgitates it within 5 feet (D209); a froghemoth
  * swallows a death knight, which can't be reached from outside, and regurgitates it after enough damage from inside; a
  * gelatinous cube engulfs a guard, who escapes with a Strength check; a cockatrice's bite petrifies over two saves; a
  * shadow drains a weak guard's Strength to death; and a ghost possesses a guard until the body drops. Every creature's
@@ -84,6 +85,48 @@ class MonsterRidersTailIT extends IntegrationTest {
         assertThat(conditions(participant(dmView(), halfling))).containsExactly("prone");
         assertThat(descriptions(dmLog())).contains("Halfling escapes from Giant Toad's corpse using 5 feet of "
                 + "movement, exiting prone; it is prone.");
+        assertThat(dice.remaining()).isZero();
+    }
+
+    @Test
+    @DisplayName("A regisaur bites and grapples a death knight, swallows it with its bonus-action Swallow at "
+            + "advantage, ending the grapple; acid at the start of the knight's own turn, and 45 damage from inside "
+            + "makes it fail its DC 16 Constitution save and regurgitate the knight prone within 5 feet (BGG, D209)")
+    void regisaur() {
+        String regisaur = addMonster(monster("Regisaur", "BGG", "Huge", "Monstrosity", 263, 17), "Regisaur");
+        String knight = addMonster(monster("Death Knight", "MM", "Medium", "Undead", 180, 20), "Death Knight");
+        start(regisaur, knight);
+
+        // The Swallow is refused on a creature the regisaur isn't grappling
+        assertThat(monsterAction(regisaur, "Swallow", "BONUS", knight).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+        // 15 + 13 hits AC 20; 6d12 1 x 6 + 8 piercing; grappled and restrained
+        dice.script(15, 1, 1, 1, 1, 1, 1);
+        expect(HttpStatus.OK, monsterAction(regisaur, "Bite", knight));
+        assertThat(conditions(participant(dmView(), knight))).containsExactlyInAnyOrder("grappled", "restrained");
+        // Restrained, the knight is attacked at advantage: two d20s; no damage on the hit
+        dice.script(15, 12);
+        expect(HttpStatus.OK, monsterAction(regisaur, "Swallow", "BONUS", knight));
+        JsonNode swallowed = participant(dmView(), knight);
+        assertThat(conditions(swallowed)).containsExactlyInAnyOrder("swallowed", "blinded", "restrained");
+        assertThat(swallowed.get("hpCurrent").asInt()).isEqualTo(180 - 14);
+
+        // The regisaur's turn ends with nothing taken from inside; the knight's starts: 2d6 3 + 4 acid
+        dice.script(3, 4);
+        nextTurn();
+        assertThat(participant(dmView(), knight).get("hpCurrent").asInt()).isEqualTo(166 - 7);
+
+        // Blinded, the knight attacks from inside at disadvantage: 15 and 14 + 11 hit AC 17; 1d8 8 + 5, 4d8 8 x 4
+        dice.script(15, 14, 8, 8, 8, 8, 8);
+        expect(HttpStatus.OK, monsterAction(knight, "Longsword", regisaur));
+        // The knight's turn ends: the regisaur's Constitution save, 5 + 0, fails DC 16
+        dice.script(5);
+        nextTurn();
+        assertThat(conditions(participant(dmView(), knight))).containsExactly("prone");
+        assertThat(descriptions(dmLog())).anyMatch(line -> line.startsWith("Regisaur took 45 damage from inside it "
+                + "this turn (Regisaur's Swallow (swallowed)) and makes a Constitution save: d20(5)"));
+        assertThat(descriptions(dmLog())).contains("Regisaur regurgitates Death Knight, which lands within 5 feet of "
+                + "it; it is prone.");
         assertThat(dice.remaining()).isZero();
     }
 
@@ -259,8 +302,13 @@ class MonsterRidersTailIT extends IntegrationTest {
     }
 
     private ResponseEntity<String> monsterAction(String monsterId, String actionName, String targetId) {
+        return monsterAction(monsterId, actionName, "ACTION", targetId);
+    }
+
+    private ResponseEntity<String> monsterAction(String monsterId, String actionName, String source,
+                                                 String targetId) {
         return exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/monster-action",
-                Map.of("monsterParticipantId", monsterId, "actionName", actionName, "actionSource", "ACTION",
+                Map.of("monsterParticipantId", monsterId, "actionName", actionName, "actionSource", source,
                         "targetParticipantIds", List.of(targetId)), dm.accessToken());
     }
 

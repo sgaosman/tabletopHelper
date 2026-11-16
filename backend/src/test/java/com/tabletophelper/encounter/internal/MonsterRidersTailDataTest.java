@@ -96,8 +96,8 @@ class MonsterRidersTailDataTest {
     }
 
     @Test
-    @DisplayName("The counts: 40 swallows (32 regurgitating, 7 only for a grappled creature), 2 engulfings, 20 with a "
-            + "limit, 16 actions only for a grappled target, 6 petrifications over two saves, 2 ability drains, 12 "
+    @DisplayName("The counts: 42 swallows (34 regurgitating, 7 only for a grappled creature), 2 engulfings, 22 with a "
+            + "limit, 18 actions only for a grappled target, 6 petrifications over two saves, 2 ability drains, 12 "
             + "drops to 0 (11 stable but poisoned), 7 risings, 7 possessions, 18 actions rebuilt and 5 stale notes "
             + "replaced")
     void counts() {
@@ -140,12 +140,13 @@ class MonsterRidersTailDataTest {
         // the udaak's, ...), 11 regurgitating, 4 with a limit and 1 only for a grappled creature, 5 actions only for a
         // grappled target and the spectral cloud's rising; 28, 21, 15, 6, 9 and 6 before. D206 rebuilds the shambling
         // mound's Engulf (an engulfing with a limit, on a grappled target) and the boneless's Crushing Embrace (on a
-        // grappled target)
+        // grappled target). D209 reads the regisaur's Swallow and adds the slithering bloodfin's: 2 more swallows, each
+        // regurgitating, with a limit and only for a grappled target
         assertEquals(Map.ofEntries(Map.entry("ABILITY_REDUCTION", 2), Map.entry("AT_ZERO", 12),
                 Map.entry("COUNTED_SAVES", 6), Map.entry("ON_KILL", 7), Map.entry("POSSESSION", 7),
-                Map.entry("engulfed", 2), Map.entry("limit", 20), Map.entry("noteReplaced", 5),
-                Map.entry("onlyIfGrappled", 7), Map.entry("rebuilt", 18), Map.entry("regurgitates", 32),
-                Map.entry("stable", 11), Map.entry("swallowed", 40), Map.entry("targetGrappled", 16)), counts);
+                Map.entry("engulfed", 2), Map.entry("limit", 22), Map.entry("noteReplaced", 5),
+                Map.entry("onlyIfGrappled", 7), Map.entry("rebuilt", 18), Map.entry("regurgitates", 34),
+                Map.entry("stable", 11), Map.entry("swallowed", 42), Map.entry("targetGrappled", 18)), counts);
     }
 
     @Test

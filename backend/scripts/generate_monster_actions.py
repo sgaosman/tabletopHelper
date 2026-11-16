@@ -836,8 +836,9 @@ SWALLOW_TRIGGERS = [
     # "the target is swallowed if it is a Medium or smaller creature"
     re.compile(r"the target is swallowed if it is an? " + SIZE_WORD + r" or smaller creature()()()"),
     # "The bloodfin swallows the target." / "The creature is also swallowed, and the grapple ends."
-    re.compile(r"()()()()(?:" + NAME + r" swallows the target|(?:the|that) (?:creature|target) is (?:also )?"
-               r"swallowed,? and the grapple ends)"),
+    # "The regisaur swallows the target, and the grapple ends." (BGG, D209)
+    re.compile(r"()()()()(?:" + NAME + r" swallows the target(?:,? and the grapple ends)?|(?:the|that) (?:creature|"
+               r"target) is (?:also )?swallowed,? and the grapple ends)"),
 ]
 SWALLOW_DAMAGE = re.compile(r"(?:it )?takes " + DICE + r" ([a-z]+) damage(?: and " + DICE + r" ([a-z]+) damage)? at the "
                             r"start of (?:each of )?(" + NAME + r"'s|its) turns(?: from [a-z' ]+)?")
@@ -850,7 +851,11 @@ REGURGITATE = re.compile(r"if " + GULLET + r" takes (\d+) damage or more on a si
                          + r" (?:must succeed on a dc (\d+) constitution saving throw(?: at the end of that turn)? or "
                          r"regurgitate|regurgitates) (?:all swallowed creatures|the (?:swallowed )?creature)"
                          r"(?:,? (?:which|each of which) (?:falls?|lands?) (?:prone )?(?:in|into) (?:a space|spaces) "
-                         r"within \d+ feet of " + GULLET + r"(?: and (?:now )?(?:has|have) the prone condition)?)?")
+                         r"within (\d+) feet of " + GULLET + r"(?: and (?:now )?(?:has|have) the prone condition)?"
+                         # "; the creature no longer has the blinded and restrained conditions" (the regisaur's, BGG),
+                         # "and is no longer blinded or restrained by it" (the slithering bloodfin's, CRCotN) (D209)
+                         r"(?:; the creature no longer has the blinded and restrained conditions| and is no longer "
+                         r"blinded or restrained by it)?)?")
 CORPSE = re.compile(r"if " + GULLET + r" dies, (?:a|any) swallowed creatures? (?:(?:is|are) no longer restrained(?: by "
                     r"(?:it|" + NAME + r"))? and |no longer has the restrained condition and )?can escape from the corpse "
                     r"(?:by )?using (\d+) feet of movement, exiting (?:prone|with the prone condition)")
@@ -864,15 +869,17 @@ def without_whole(part):
 
 
 def swallow_state(text):
-    """The conditions, damage each turn and whether a sentence about a swallowed creature's state says only those, as
-    "a swallowed creature is blinded and restrained, it has cover against attacks and other effects outside the worm,
-    and it takes 21 (6d6) acid damage at the start of each of the worm's turns"; None when it isn't one."""
+    """The conditions, damage each turn and healing of a sentence about a swallowed creature's state that says only
+    those, as "a swallowed creature is blinded and restrained, it has cover against attacks and other effects outside
+    the worm, and it takes 21 (6d6) acid damage at the start of each of the worm's turns"; None when it isn't one. The
+    healing, as the slithering bloodfin's "the bloodfin regains hit points equal to the necrotic damage dealt" (CRCotN,
+    D209), is a list of clauses the DM applies."""
     match = re.match(r"(?:while swallowed, (?:the|a) (?:creature|target)|(?:a|the) swallowed (?:creature|target))"
                      r"(?: is no longer grappled but)? (.*)", text)
-    if not match or 'cover' not in text and 'damage' not in text:
+    if not match or 'cover' not in text and 'damage' not in text and 'no longer grappled' not in text:
         return None
     rest = match.group(1)
-    conditions, damage = [], []
+    conditions, damage, heals = [], [], []
     for piece in re.split(r',\s*and\s+|,\s+|\s+and\s+(?=it\b|has\b|takes\b)', rest):
         piece = piece.strip()
         if not piece:
@@ -888,8 +895,15 @@ def swallow_state(text):
         if turn:
             damage.extend(turn_parts(turn))
             continue
+        if damage and SWALLOW_HEAL.fullmatch(piece):
+            heals.append(piece)
+            continue
         return None
-    return conditions, damage
+    return conditions, damage, heals
+
+
+# "the bloodfin regains hit points equal to the necrotic damage dealt" (CRCotN, D209)
+SWALLOW_HEAL = re.compile(NAME + r" regains hit points equal to the (?:[a-z]+ )?damage dealt")
 
 
 def turn_parts(match):
@@ -907,6 +921,7 @@ def read_swallow(units):
     """A swallow read from a hit's or an action's sentences (D204): its parts, the action keys, and the indexes of the
     sentences it reads; None when no sentence swallows. A sentence it can't read stays for the dmNote."""
     trigger, used, conditions, damage, keys, swallow = None, [], [], [], {}, {}
+    state_at = None
     for index, unit in enumerate(units):
         text = norm(unit)
         if not text:
@@ -918,11 +933,18 @@ def read_swallow(units):
                 used.append(index)
                 break
         else:
-            state = swallow_state(text)
+            # A state that goes on in a sentence of its own, as the slithering bloodfin's "It has total cover ..."
+            # after "The swallowed creature is ... blinded and restrained" (CRCotN, D209)
+            state = swallow_state(text) if not (state_at == index - 1 and text.startswith('it '))                 else swallow_state('the swallowed creature ' + text[3:])
             if state is not None:
                 conditions.extend(c for c in state[0] if c not in conditions)
                 damage.extend(state[1])
-                used.append(index)
+                state_at = index
+                if state[2]:
+                    # The healing stays for the DM, in place of the sentence it came from
+                    units[index] = ', '.join(state[2])
+                else:
+                    used.append(index)
                 continue
             match = SWALLOW_EACH_TURN.fullmatch(text)
             if match:
@@ -954,6 +976,9 @@ def read_swallow(units):
                 swallow['regurgitateDamage'] = int(match.group(1))
                 if match.group(2):
                     swallow['regurgitateDC'] = int(match.group(2))
+                # Where a regurgitated creature lands, kept only when it isn't the 10 feet most give (D209)
+                if match.group(3) and int(match.group(3)) != 10:
+                    swallow['regurgitateFeet'] = int(match.group(3))
                 used.append(index)
                 continue
             match = CORPSE.fullmatch(text)
@@ -1010,13 +1035,14 @@ def swallow_action(raw):
         kind, size, rest = 'auto', auto.group(1), sentences[1:]
     else:
         return None
-    read = read_swallow(['The target is swallowed.'] + rest)
+    units = ['The target is swallowed.'] + rest
+    read = read_swallow(units)
     if read is None:
         return None
     parts, _, used = read
     parts = [without_whole(p) for p in parts]
     parts[0]['maxTargetSize'] = size.capitalize()
-    leftover = [s for i, s in enumerate(rest) if i + 1 not in used]
+    leftover = [s for i, s in enumerate(units[1:]) if i + 1 not in used]
     return kind, parts, leftover
 
 
@@ -1407,7 +1433,10 @@ def damage_parts(text):
         between = text[previous_end:match.start()]
         previous_end = match.end()
         if parts and re.search(r'\bor\b', between):
-            choice = True
+            # An "or" in a later sentence, as "or half as much damage on a successful one. ... It takes 18 (4d8) fire
+            # damage" (the Colossus of Akros's Flames of Akros, MOT), offers no choice between the two (D209)
+            if not re.search(r'[.!?]\s', between):
+                choice = True
             continue
         damage_type = match.group(3)
         if ' or ' in damage_type or ',' in damage_type:
@@ -1538,15 +1567,22 @@ def read_hit(hit):
     units = ([remainder] if remainder.strip(' .,;') else []) + rest
     offset = len(units) - len(rest)
     for reader in (lambda u: read_swallow(u), lambda u: read_petrify(u, True)):
+        before = list(units)
         found = reader(units) if not OPTIONS.search(hit) else None
         if found is None:
             continue
-        parts, used = found[0], found[-1]
+        parts, used = found[0], list(found[-1])
         if len(found) == 3:
             action_keys.update(found[1])
         for part in parts:
             (conditions_read if part['effectType'] == 'CONDITION' else effects).append(part)
-        whole.extend(units[i] for i in used)
+        # A unit the reader read only in part holds what it left, which goes to the DM as it is, as a swallower's
+        # healing (D209)
+        for i, unit in enumerate(units):
+            if unit != before[i] and i not in used:
+                leftover.append(unit)
+                used.append(i)
+        whole.extend(before[i] for i in used)
         if offset and 0 in used:
             remainder = ''
         rest = [s for i, s in enumerate(rest) if i + offset not in used]
@@ -1728,6 +1764,9 @@ def saving_throw(action, raw, description):
         by_hand = [s for s in dealt if DAMAGE.search(s) and 'option damage' not in s]
         dealt = [s for s in dealt if s not in by_hand]
     effects, choice = damage_parts(' '.join(dealt))
+    # Damage after an "or" in a later sentence that damage_parts passes over, as the Colossus of Akros's burning
+    # (MOT), is the DM's (D209)
+    passed_over = len(list(DAMAGE.finditer(' '.join(dealt)))) > len(effects) and not choice
     success_damage, _ = damage_parts(' '.join(success_only))
     effects.extend(conditions(' '.join(s for s in SENTENCE.split(raw)
                                        if 'saving throw' in s or 'failed save' in s or 'condition' in s),
@@ -1762,7 +1801,7 @@ def saving_throw(action, raw, description):
         action['dmNote'] = 'Applied by hand: ' + ' '.join(sentence_of(s) for s in by_hand)
     elif choice:
         action['dmNote'] = 'The damage type or amount is a choice the DM settles by hand: ' + description
-    elif RIDER.search(description):
+    elif RIDER.search(description) or passed_over:
         action['dmNote'] = 'Applied by hand beyond the damage and conditions: ' + description
     action['description'] = description
     return action
@@ -1993,7 +2032,9 @@ def merged(existing, generated):
 #   - what it adds to the dmNote is the action's "_riderNote", with "_riderNoteNew" when there was no dmNote;
 #   - a key it adds to the action itself, as a grapple limit or a save's immunity (D203), lists in "_riderActionKeys";
 #   - a value of the action's own it puts right, as a save action's halfOnSave (D207), keeps the value it had in
-#     "_riderActionReplaced".
+#     "_riderActionReplaced";
+#   - a swallow the entry lacks, which it adds whole from the stat block (D209), has "_riderAddedAction": true, and an
+#     action list it had to start for it is named in the entry's "_riderAddedLists".
 RIDER_LISTS = (('action', 'actions', 'ACTION'), ('bonus', 'bonusActions', 'BONUS_ACTION'),
                ('reaction', 'reactions', 'REACTION'), ('legendary', 'legendaryActions', 'LEGENDARY'),
                ('mythic', 'mythicActions', 'MYTHIC'))
@@ -2004,7 +2045,7 @@ RIDER_STATS = ('attacks matched', 'attacks changed', 'damage given a save', 'dam
                'dmNotes added', 'dmNotes extended', 'lasting riders added', 'conditions linked',
                'conditions given an exemption', 'turn damage moved off the hit', 'grapple limits added',
                'save actions matched', 'save actions given an immunity or exemption', 'actions rebuilt',
-               'multiattacks given heads or a follow-up', 'damage given options')
+               'multiattacks given heads or a follow-up', 'damage given options', 'swallows added')
 # The keys of a condition that tie it to another or keep it from some creatures (D203)
 LINK_KEYS = ('endsWith', 'exemptTypes', 'endsOnDamage')
 LASTING_TYPES = ('HP_MAX_REDUCTION', 'LIFE_DRAIN', 'EXHAUSTION', 'MODIFIER', 'ONGOING_DAMAGE', 'COUNTED_SAVES',
@@ -2531,8 +2572,38 @@ def multiattack_pass(monster, actions, raw, stats):
         stats['multiattacks given heads or a follow-up'] += 1
 
 
+def strip_added(entry):
+    """The entry without the actions, and the lists, the rider pass added whole (D209)."""
+    for _, key_def, _ in RIDER_LISTS:
+        if isinstance(entry.get(key_def), list):
+            entry[key_def] = [a for a in entry[key_def] if not (isinstance(a, dict) and a.get('_riderAddedAction'))]
+    for key_def in entry.pop('_riderAddedLists', []):
+        if not entry.get(key_def):
+            entry.pop(key_def, None)
+
+
+def added_swallow(entry, monster, actions, key_def, action_type, stat, stats):
+    """Adds whole, from its stat block, a swallow the hand-built entry lacks, as the slithering bloodfin's bonus-action
+    Swallow (CRCotN), marked so a later run takes it away first (D209); whether it did."""
+    if hand_built(actions, parse_name(stat['name'])[0]) is not None:
+        return False
+    action = build(stat, action_type, monster.get('name'))
+    if action is None or action.get('automatable') is False or not any(
+            isinstance(p, dict) and p.get('condition') == 'swallowed' for p in action.get('effects') or []):
+        return False
+    action['_riderAddedAction'] = True
+    if not isinstance(entry.get(key_def), list):
+        entry[key_def] = []
+        entry.setdefault('_riderAddedLists', []).append(key_def)
+    entry[key_def].append(action)
+    actions.append(action)
+    stats['swallows added'] += 1
+    return True
+
+
 def rider_pass(entry, monster, stats):
     """The rider pass over one hand-built entry and its stat block."""
+    strip_added(entry)
     for key_5e, key_def, action_type in RIDER_LISTS:
         actions = [a for a in entry.get(key_def) or [] if isinstance(a, dict)]
         for action in actions:
@@ -2541,6 +2612,9 @@ def rider_pass(entry, monster, stats):
             if not isinstance(stat, dict) or not stat.get('name'):
                 continue
             raw = flatten(stat.get('entries'))
+            # A swallow the entry lacks, added whole (D209)
+            if added_swallow(entry, monster, actions, key_def, action_type, stat, stats):
+                continue
             # A multiattack's heads and what follows when all of one attack's hits land (D206)
             if stat['name'].startswith('Multiattack'):
                 multiattack_pass(monster, actions, raw, stats)

@@ -146,9 +146,13 @@ class StatBlockActionsTest {
                         continue;
                     }
                     attacks++;
-                    // A Swallow made against a grappled creature is the monster's own Bite (D204, D205)
-                    String text = statBlockText(statBlock.path(lists[1]), action.path("targetGrappled").asBoolean(false)
-                            ? "Bite" : action.path("name").asString());
+                    // A Swallow made against a grappled creature is the monster's own Bite (D204, D205), unless the
+                    // stat block gives the Swallow an attack of its own, as the regisaur's +13 (BGG, D209)
+                    String text = statBlockText(statBlock.path(lists[1]), action.path("name").asString());
+                    if (action.path("targetGrappled").asBoolean(false)
+                            && (text == null || !HIT_BONUS.matcher(text).find())) {
+                        text = statBlockText(statBlock.path(lists[1]), "Bite");
+                    }
                     String what = name(definition) + " " + action.path("name").asString();
                     if (text == null) {
                         mismatches.add(what + ": not in the stat block");

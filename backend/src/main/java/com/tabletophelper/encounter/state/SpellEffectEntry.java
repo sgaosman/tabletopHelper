@@ -165,23 +165,38 @@ public record SpellEffectEntry(UUID id, String spell, Integer slotLevel, UUID co
      * @param noCover            true when the creatures inside have no cover against what is outside, so others reach
      *                           them and they reach others, as in a shambling mound, whose text gives none (MM p.270,
      *                           D206); null for the total cover of a swallowed creature
+     * @param regurgitateFeet    how far from the swallower a regurgitated creature lands, as a regisaur's 5 feet
+     *                           (BGG); null for 10 feet (D209)
      */
     public record Gullet(@Schema(requiredMode = REQUIRED) String condition,
                          @JsonInclude(JsonInclude.Include.NON_NULL) Integer regurgitateDamage,
                          @JsonInclude(JsonInclude.Include.NON_NULL) Integer regurgitateDc,
                          @JsonInclude(JsonInclude.Include.NON_NULL) Integer escapeFeet,
                          @Schema(requiredMode = REQUIRED) int takenThisTurn,
-                         @JsonInclude(JsonInclude.Include.NON_NULL) Boolean noCover) {
+                         @JsonInclude(JsonInclude.Include.NON_NULL) Boolean noCover,
+                         @JsonInclude(JsonInclude.Include.NON_NULL) Integer regurgitateFeet) {
 
         /** A gullet whose creatures have total cover (D204). */
         public Gullet(String condition, Integer regurgitateDamage, Integer regurgitateDc, Integer escapeFeet,
                       int takenThisTurn) {
-            this(condition, regurgitateDamage, regurgitateDc, escapeFeet, takenThisTurn, null);
+            this(condition, regurgitateDamage, regurgitateDc, escapeFeet, takenThisTurn, null, null);
+        }
+
+        /** A gullet whose regurgitated creatures land within 10 feet (D206). */
+        public Gullet(String condition, Integer regurgitateDamage, Integer regurgitateDc, Integer escapeFeet,
+                      int takenThisTurn, Boolean noCover) {
+            this(condition, regurgitateDamage, regurgitateDc, escapeFeet, takenThisTurn, noCover, null);
         }
 
         /** The same gullet having taken this much this turn. */
         public Gullet withTaken(int taken) {
-            return new Gullet(condition, regurgitateDamage, regurgitateDc, escapeFeet, taken, noCover);
+            return new Gullet(condition, regurgitateDamage, regurgitateDc, escapeFeet, taken, noCover,
+                    regurgitateFeet);
+        }
+
+        /** How far from the swallower a regurgitated creature lands (D209). */
+        public int landsWithinFeet() {
+            return regurgitateFeet != null ? regurgitateFeet : 10;
         }
 
         /** Whether the creatures inside have total cover against what is outside (D204, D206). */

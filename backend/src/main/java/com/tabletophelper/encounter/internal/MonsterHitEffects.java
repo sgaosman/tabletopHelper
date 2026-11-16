@@ -305,7 +305,8 @@ public class MonsterHitEffects {
                 effectApplier.holdMonsterRider(monster, effect.id(), new SpellEffectEntry.MonsterRider(
                         SpellEffectEntry.MonsterRider.SWALLOW, action, null, name, null, null,
                         new SpellEffectEntry.Gullet(name, spec.regurgitateDamage(), spec.regurgitateDc(),
-                                spec.escapeFeet(), 0, spec.givesCover() ? null : Boolean.TRUE)), null);
+                                spec.escapeFeet(), 0, spec.givesCover() ? null : Boolean.TRUE,
+                                spec.regurgitateFeet())), null);
             }
             notes.add(target.getDisplayName() + " is " + name + " by " + monster.getDisplayName() + " (" + action
                     + "): " + (spec.givesCover() ? "it has total cover against attacks and other effects outside it"

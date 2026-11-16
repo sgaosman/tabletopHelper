@@ -1563,7 +1563,8 @@ public class EffectApplier {
                     && holder.getId().equals(c.sourceParticipantId()))) {
                 creature.get().setActiveConditions(conditions.isEmpty() ? null : conditions);
                 proneAfterRelease(encounter, creature.get(), holder.getDisplayName() + " regurgitates "
-                        + creature.get().getDisplayName() + ", which lands within 10 feet of it");
+                        + creature.get().getDisplayName() + ", which lands within " + gullet.landsWithinFeet()
+                        + " feet of it");
             }
         }
         endLinked(encounter);

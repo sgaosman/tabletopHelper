@@ -97,7 +97,7 @@ class MonsterActionDataTest {
     }
 
     @Test
-    @DisplayName("Every bonus action and reaction is found under its source and plans: 73 of the 295 bonus actions "
+    @DisplayName("Every bonus action and reaction is found under its source and plans: 75 of the 296 bonus actions "
             + "and 89 of the 388 reactions resolve automatically, and the rest are logged for the DM (D137, D138)")
     void bonusActionsAndReactions() {
         List<String> missing = new ArrayList<>();
@@ -121,8 +121,8 @@ class MonsterActionDataTest {
         // the Fomorian Noble's Beguiling Presence (bonus actions) and the Shator Warden's Poisonous Slime (a reaction)
         // now give their conditions automatically: 63 and 85 before
         // D205's 168 new entries add 29 bonus actions (8 automatic) and 29 reactions (3 automatic): 65 of 266 and 86
-        // of 359 before
-        assertArrayEquals(new int[]{73, 222}, counts.get("BONUS"));
+        // of 359 before. D209 automates the regisaur's Swallow and adds the slithering bloodfin's: 73 of 295 before
+        assertArrayEquals(new int[]{75, 221}, counts.get("BONUS"));
         assertArrayEquals(new int[]{89, 299}, counts.get("REACTION"));
     }
 

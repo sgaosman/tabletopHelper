@@ -521,14 +521,22 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      * @param cover              false when the creature inside has no cover against what is outside, as the shambling
      *                           mound's text gives none (MM p.270); null for the total cover a swallowed creature has
      *                           (D206)
+     * @param regurgitateFeet    how far from the swallower a regurgitated creature lands, as a regisaur's 5 feet
+     *                           (BGG); null for the 10 feet most stat blocks give (D209)
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Swallow(Integer limit, Integer regurgitateDamage, @JsonProperty("regurgitateDC") Integer regurgitateDc,
-                          Integer escapeFeet, Boolean keepsGrapple, Boolean cover) {
+                          Integer escapeFeet, Boolean keepsGrapple, Boolean cover, Integer regurgitateFeet) {
 
         /** A gullet that ends the grapple and gives total cover (D204). */
         public Swallow(Integer limit, Integer regurgitateDamage, Integer regurgitateDc, Integer escapeFeet) {
             this(limit, regurgitateDamage, regurgitateDc, escapeFeet, null, null);
+        }
+
+        /** A gullet whose regurgitated creatures land within 10 feet (D206). */
+        public Swallow(Integer limit, Integer regurgitateDamage, Integer regurgitateDc, Integer escapeFeet,
+                       Boolean keepsGrapple, Boolean cover) {
+            this(limit, regurgitateDamage, regurgitateDc, escapeFeet, keepsGrapple, cover, null);
         }
 
         /** Whether the monster's grapple on the creature goes on once it is inside (D206). */
