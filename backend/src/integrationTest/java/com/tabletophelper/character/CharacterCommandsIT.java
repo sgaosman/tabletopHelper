@@ -172,6 +172,41 @@ class CharacterCommandsIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("The campaign's bard offers its Song of Rest, which a short rest that heals by Hit Dice adds; a die it can't be is a 400 (D223)")
+    void songOfRest() {
+        UUID bardId = insertCaster("Bard", 8, "CHA", false);
+        create(Map.of("name", "Wren", "classId", bardId, "level", 9, "campaignId", campaignId));
+        RegisteredUser stranger = register("bram");
+
+        JsonNode offered = ok(HttpMethod.GET, aria, "/song-of-rest", null);
+        assertThat(offered.toString()).isEqualTo("{\"dieSize\":8,\"bardName\":\"Wren\",\"bardLevel\":9}");
+        assertThat(exchange(HttpMethod.GET, "/api/characters/" + aria + "/song-of-rest", null, stranger.accessToken())
+                .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(exchange(HttpMethod.GET, "/api/characters/" + UUID.randomUUID() + "/song-of-rest", null,
+                player.accessToken()).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
+        hp("DAMAGE", 15);
+        assertThat(error(command(HttpMethod.POST, aria, "/short-rest", Map.of("hitDice",
+                List.of(Map.of("className", "Fighter")), "songOfRest", Map.of("dieSize", 4))), HttpStatus.BAD_REQUEST))
+                .isEqualTo("Song of Rest heals with a d6, d8, d10 or d12, not a d4");
+        assertThat(get(aria).get("hpCurrent").asInt()).isEqualTo(13);
+
+        // The Hit Die first, then Song of Rest's d8
+        dice.script(4, 5);
+        JsonNode rested = ok(HttpMethod.POST, aria, "/short-rest", Map.of("hitDice",
+                List.of(Map.of("className", "Fighter")), "songOfRest", Map.of("dieSize", 8)));
+        assertThat(rested.get("songOfRest").toString())
+                .isEqualTo("{\"dieSize\":8,\"roll\":5,\"rolledByServer\":true,\"healing\":5}");
+        // 13 + (4 + 2) + 5
+        assertThat(rested.get("character").get("hpCurrent").asInt()).isEqualTo(24);
+        assertThat(dice.remaining()).isZero();
+
+        JsonNode noDice = ok(HttpMethod.POST, aria, "/short-rest", Map.of("songOfRest", Map.of("dieSize", 8, "roll", 8)));
+        assertThat(noDice.get("songOfRest").isNull()).isTrue();
+        assertThat(noDice.get("character").get("hpCurrent").asInt()).isEqualTo(24);
+    }
+
+    @Test
     @DisplayName("A wizard copies spells into its spellbook and prepares from it; the spells a warlock's level owes are checked against its list")
     void spellCommands() {
         spell("Magic Missile", 1, "[\"Sorcerer\",\"Wizard\"]");

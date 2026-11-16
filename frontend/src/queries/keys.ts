@@ -21,6 +21,8 @@ export const queryKeys = {
     detail: (characterId: string) => ['characters', characterId] as const,
     eligibleClasses: (characterId: string) => ['characters', characterId, 'eligible-classes'] as const,
     featOptions: (characterId: string) => ['characters', characterId, 'feat-options'] as const,
+    /** The best Song of Rest a bard of the character's campaign can perform (D223). */
+    songOfRest: (characterId: string) => ['characters', characterId, 'song-of-rest'] as const,
     /** The armour class a creation request would give, for the wizard (nothing is saved). */
     armourClassPreview: (request: unknown) => ['characters', 'armour-class-preview', request] as const,
   },

@@ -32,6 +32,14 @@ export function isSpellbookChoice(choice: PendingChoice): boolean {
   return choice.type === 'SPELLS' && choice.className === 'Wizard';
 }
 
+/**
+ * Whether a SPELLS choice is a known caster's swap alone, owed on a level whose Spells Known don't rise (PHB p.101,
+ * D223): no spells to learn, and one known spell it may replace. Making it without a swap keeps every spell.
+ */
+export function isSwapOnlyChoice(choice: PendingChoice): boolean {
+  return choice.type === 'SPELLS' && choice.count === 0 && !!choice.swap;
+}
+
 /** A kind of proficiency a subclass's PROFICIENCY choice offers, as the server names it. */
 export type ProficiencyKind = 'skills' | 'languages' | 'tools' | 'weapons' | 'armor' | 'saves';
 
@@ -138,6 +146,7 @@ export function proficiencyTaken(character: PlayerCharacter, choice: PendingChoi
  */
 export function choiceTitle(choice: PendingChoice): string {
   if (isSpellbookChoice(choice)) return 'Spellbook';
+  if (isSwapOnlyChoice(choice)) return 'Spell Swap';
   if (choice.type === 'MYSTIC_ARCANUM' && choice.maxSpellLevel) return mysticArcanumTitle(choice.maxSpellLevel);
   if (choice.type === 'PROFICIENCY' && choice.kenseiWeapons) return 'Kensei Weapon';
   if (choice.type === 'PROFICIENCY') {

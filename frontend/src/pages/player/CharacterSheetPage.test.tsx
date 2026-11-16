@@ -6,7 +6,7 @@ import { Route, Routes } from 'react-router-dom';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import { makeMockCharacter, makeMockPendingChoice, makeMockResourcePool } from '../../test/mocks/handlers';
-import type { ShortRestResponse } from '../../types/character';
+import type { ShortRestResponse, SongOfRestResponse } from '../../types/character';
 import CharacterSheetPage from './CharacterSheetPage';
 
 function renderSheet(characterId = 'char-001') {
@@ -140,7 +140,8 @@ describe('CharacterSheetPage', () => {
     ] }]));
     // The rested character replaces the cached one, so the sheet shows it without loading it again
     expect(await screen.findByText('27/30')).toBeInTheDocument();
-    expect(requests).toEqual(['POST /api/characters/char-001/short-rest']);
+    // The dialog asks only which Song of Rest the campaign's bards can sing (D223)
+    expect(requests).toEqual(['GET /api/characters/char-001/song-of-rest', 'POST /api/characters/char-001/short-rest']);
     const result = screen.getByRole('status');
     expect(result).toHaveTextContent('Short rest taken: 15 hit points regained');
     expect(result).toHaveTextContent('Fighter d10: you rolled 7, healing 9');
@@ -161,6 +162,63 @@ describe('CharacterSheetPage', () => {
 
     expect(await screen.findByRole('status')).toHaveTextContent(/^Short rest taken$/);
     expect(bodies).toEqual([{ hitDice: [] }]);
+  });
+
+  it('a short rest offers the campaign bard\'s Song of Rest, sends its die and roll, and shows what it healed (D223)', async () => {
+    server.use(
+      http.get('/api/characters/:id', () => HttpResponse.json(hurtFighter)),
+      http.get('/api/characters/:id/song-of-rest', () => HttpResponse.json(
+        { dieSize: 8, bardName: 'Wren', bardLevel: 9 } satisfies SongOfRestResponse)),
+    );
+    const bodies = recordCommand('post', 'short-rest', {
+      character: { ...hurtFighter, hpCurrent: 25 },
+      rolls: [{ className: 'Fighter', dieSize: 10, roll: 6, rolledByServer: true, healing: 8 }],
+      songOfRest: { dieSize: 8, roll: 5, rolledByServer: false, healing: 5 },
+    } satisfies ShortRestResponse);
+    renderSheet();
+    const user = userEvent.setup();
+    expect(await screen.findByText('12/30')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Short Rest' }));
+    const dialog = screen.getByRole('dialog', { name: 'Short Rest' });
+    const song = within(dialog).getByRole('region', { name: 'Song of Rest' });
+    expect(await within(song).findByText(/Wren \(Bard 9\) can sing it with a d8/)).toBeInTheDocument();
+    await waitFor(() => expect(within(song).getByLabelText('Song of Rest die')).toHaveValue('8'));
+    await user.click(within(dialog).getByRole('button', { name: 'Spend one more Fighter hit die' }));
+    const rest = within(dialog).getByRole('button', { name: 'Short Rest' });
+
+    // A d8 can't roll 9
+    await user.type(within(song).getByLabelText('Song of Rest roll'), '9');
+    expect(within(song).getByText('1 to 8')).toBeInTheDocument();
+    expect(rest).toBeDisabled();
+    await user.clear(within(song).getByLabelText('Song of Rest roll'));
+    await user.type(within(song).getByLabelText('Song of Rest roll'), '5');
+    await user.click(rest);
+
+    await waitFor(() => expect(bodies).toEqual([{
+      hitDice: [{ className: 'Fighter' }], songOfRest: { dieSize: 8, roll: 5 },
+    }]));
+    const result = await screen.findByRole('status');
+    expect(result).toHaveTextContent('Short rest taken: 13 hit points regained');
+    expect(result).toHaveTextContent('Song of Rest d8: you rolled 5, healing 5');
+  });
+
+  it('a short rest can leave Song of Rest out, or choose a die with no bard in the campaign (D223)', async () => {
+    server.use(http.get('/api/characters/:id', () => HttpResponse.json(hurtFighter)));
+    const bodies = recordCommand('post', 'short-rest', { character: hurtFighter, rolls: [] } satisfies ShortRestResponse);
+    renderSheet();
+    const user = userEvent.setup();
+    expect(await screen.findByText('12/30')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Short Rest' }));
+    const dialog = screen.getByRole('dialog', { name: 'Short Rest' });
+    const song = within(dialog).getByRole('region', { name: 'Song of Rest' });
+    expect(await within(song).findByText(/No bard of 2nd level or higher in your campaign/)).toBeInTheDocument();
+    expect(within(song).getByLabelText('Song of Rest die')).toHaveValue('');
+    await user.selectOptions(within(song).getByLabelText('Song of Rest die'), 'd12');
+    await user.click(within(dialog).getByRole('button', { name: 'Short Rest' }));
+
+    await waitFor(() => expect(bodies).toEqual([{ hitDice: [], songOfRest: { dieSize: 12 } }]));
   });
 
   it('the exhaustion control sets the level through the server, and the sheet shows the halved maximum (D183)', async () => {

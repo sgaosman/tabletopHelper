@@ -50,6 +50,29 @@ describe('ProficiencyChoiceModal', () => {
     expect(applied).toEqual({ choiceId: 'choice-cavalier', proficiencies: ['Draconic'] });
   });
 
+  it("offers a ranger's multiclass skill from the ranger's list, marking those held (PHB p.164, D223)", async () => {
+    let applied: unknown;
+    server.use(http.post('/api/characters/:id/apply-choices', async ({ request }) => {
+      applied = await request.json();
+      return HttpResponse.json({ ...character, pendingChoices: [] });
+    }));
+    const ranger = makeMockPendingChoice({
+      id: 'choice-ranger', type: 'PROFICIENCY', characterLevel: 4, classLevel: 1, className: 'Ranger', count: 1,
+      proficiencyOptions: { skills: ['Animal Handling', 'Athletics', 'Survival'] },
+    });
+    const onComplete = vi.fn();
+    render(<ProficiencyChoiceModal character={character} choice={ranger} onComplete={onComplete} onSkip={() => {}}
+      onClose={() => {}} />);
+    const user = userEvent.setup();
+
+    expect(screen.getByRole('button', { name: /Athletics/ })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: /Survival/ }));
+    await user.click(screen.getByRole('button', { name: 'Confirm (1/1)' }));
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalled());
+    expect(applied).toEqual({ choiceId: 'choice-ranger', proficiencies: ['Survival'] });
+  });
+
   it("lets a Knowledge Domain's skill the cleric is proficient in gain Expertise (PHB p.59)", async () => {
     const knowledge = makeMockPendingChoice({
       id: 'choice-knowledge', type: 'PROFICIENCY', characterLevel: 1, classLevel: 1, className: 'Cleric', count: 2,

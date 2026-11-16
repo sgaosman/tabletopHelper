@@ -58,6 +58,17 @@ export function useFeatOptions(characterId: string) {
 }
 
 /**
+ * The best Song of Rest a living bard of the character's campaign, the character itself included, can perform for its
+ * short rest (PHB p.54, D223): the server works it out, and the short-rest dialog offers it.
+ */
+export function useSongOfRest(characterId: string) {
+  return useQuery({
+    queryKey: queryKeys.characters.songOfRest(characterId),
+    queryFn: async () => (await characterApi.getSongOfRest(characterId)).data,
+  });
+}
+
+/**
  * The armour class the creation wizard's request would give the character (M13.5's rules, worked out by the server
  * from the equipped armour and shield, the class, race and scores). With no request nothing is fetched; the last
  * preview stays on screen while the next loads.

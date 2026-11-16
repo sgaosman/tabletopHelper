@@ -36,6 +36,7 @@ import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.character.ClassProgression;
 import com.tabletophelper.rules.character.ClassTables;
+import com.tabletophelper.rules.character.ProficiencyLists;
 import com.tabletophelper.rules.combat.Metamagic;
 import com.tabletophelper.rules.combat.RacialFeatures.DraconicAncestry;
 import com.tabletophelper.shared.ConflictException;
@@ -454,7 +455,7 @@ public class PendingChoiceService {
                     new PendingChoices.ClassLevel(classId, choice.className(), level, subclass.getName(),
                             subclassLevel, List.of()), choice.source()));
         }
-        return brought;
+        return lessSubclassCantripsKnown(brought, subclass, classId, subclassLevel);
     }
 
     // ── Expertise and Fighting Styles ────────────────────────────
@@ -748,6 +749,45 @@ public class PendingChoiceService {
         return cantripChoices(owed, characterLevel, classId, className, classLevel, source);
     }
 
+    /**
+     * The choices owed, with the class's CANTRIPS choice at its subclass level made smaller by the subclass's cantrips
+     * that are among the class's Cantrips Known (D223): an Arcane Trickster learns Mage Hand and two other wizard
+     * cantrips at Rogue 3 (PHB p.98), its three Cantrips Known, so Mage Hand, granted or chosen in its place, leaves
+     * two to choose. A choice left with none goes.
+     */
+    private List<PendingChoice> lessSubclassCantripsKnown(List<PendingChoice> owed, Subclass subclass, UUID classId,
+                                                          int subclassLevel) {
+        int counted = SubclassProficiencies.cantrips(objectMapper, subclass).stream()
+                .filter(SubclassProficiencies.CantripChoice::ofCantripsKnown)
+                .mapToInt(SubclassProficiencies.CantripChoice::count)
+                .sum();
+        if (counted == 0) return owed;
+        List<PendingChoice> less = new ArrayList<>();
+        for (PendingChoice choice : owed) {
+            boolean atSubclassLevel = choice.type() == Type.CANTRIPS && classId.equals(choice.classId())
+                    && choice.classLevel() != null && choice.classLevel() == subclassLevel;
+            if (!atSubclassLevel) {
+                less.add(choice);
+            } else if (choice.count() > counted) {
+                less.add(choice.withCount(choice.count() - counted));
+            }
+        }
+        return less;
+    }
+
+    // At creation, the CANTRIPS choice of each subclass's level, less the subclass's cantrips among its Cantrips Known
+    private List<PendingChoice> lessSubclassCantripsKnown(PlayerCharacter character, List<PendingChoice> owed) {
+        List<PendingChoice> less = owed;
+        for (ClassEntry entry : orEmpty(character.getMulticlassEntries())) {
+            if (entry.subclassId() == null) continue;
+            Subclass subclass = subclassRepository.findById(entry.subclassId()).orElse(null);
+            if (subclass == null) continue;
+            CharacterClass characterClass = characterClass(entry.classId(), entry.className());
+            less = lessSubclassCantripsKnown(less, subclass, entry.classId(), subclassLevel(characterClass));
+        }
+        return less;
+    }
+
     /** The SUBCLASS_CANTRIP choices owed for a subclass's cantrips of the player's choice, on the level given. */
     private static List<PendingChoice> cantripChoices(List<SubclassProficiencies.CantripChoice> cantrips,
                                                       int characterLevel, UUID classId, String className,
@@ -818,6 +858,10 @@ public class PendingChoiceService {
             owed.addAll(PendingChoices.owedAt(classTables, level.characterLevel(),
                     classLevel(character, characterClass, level.classLevel()), Source.CREATION));
         }
+        // A character created at its level chooses all its spells at once, so the swaps its levels would offer on
+        // levelling up, where Spells Known don't rise, mean nothing (D223)
+        owed.removeIf(PendingChoices::swapOnly);
+        owed = lessSubclassCantripsKnown(character, owed);
         owed = expertiseCovered(character, owed, request.getSkillExpertises());
         owed = spellsCovered(character, owed);
         owed.addAll(creationFeats(character));
@@ -851,6 +895,47 @@ public class PendingChoiceService {
         }
         pending.sort(PendingChoices.ORDER);
         character.setPendingChoices(pending);
+    }
+
+    /**
+     * Adds the skill a class lets the player choose on multiclassing into it (PHB p.164, D223): a bard one skill of any,
+     * a ranger one from the ranger's list and a rogue one from the rogue's, as the class data's multiclassing
+     * proficiencies give it ({@code "skills": {"count": 1, "from": [...]}}). It is a PROFICIENCY choice on the level
+     * gained, which records the skill in its {@code proficienciesGained}, so levelling down takes it away. A class
+     * whose multiclassing gives no skill, or a character with every skill offered already, owes none.
+     *
+     * @throws ConflictException when the class's multiclassing proficiencies can't be read (D155)
+     */
+    void owedForMulticlassSkills(PlayerCharacter character, CharacterClass levelClass, int characterLevel,
+                                 int classLevel) {
+        JsonNode grants = readJson(levelClass.getMulticlassProficiencies(),
+                "multiclassing proficiencies of the class " + levelClass.getName());
+        JsonNode skills = grants != null ? grants.path("skills") : null;
+        if (skills == null || !skills.isObject()) return;
+        int count = skills.path("count").asInt(1);
+        List<String> offered = new ArrayList<>();
+        for (JsonNode skill : skills.path("from")) {
+            String name = skill.isString() ? canonicalSkill(skill.asString("")) : null;
+            if (name != null && !containsIgnoringCase(offered, name)) offered.add(name);
+        }
+        boolean anyLacking = offered.stream()
+                .anyMatch(skill -> !containsIgnoringCase(orEmpty(character.getSkillProficiencies()), skill));
+        if (count < 1 || !anyLacking) return;
+        List<PendingChoice> pending = copy(character.getPendingChoices());
+        pending.add(new PendingChoice(UUID.randomUUID(), Type.PROFICIENCY, Source.LEVEL_UP, characterLevel,
+                levelClass.getId(), levelClass.getName(), classLevel, count, null, null, null, null,
+                new ProficienciesGained(null, null, null, List.copyOf(offered), null), null));
+        pending.sort(PendingChoices.ORDER);
+        character.setPendingChoices(pending);
+    }
+
+    // A skill as the PHB names it, "Sleight of Hand" for the class data's "Sleight Of Hand"; null for a blank name
+    private static String canonicalSkill(String name) {
+        if (name == null || name.isBlank()) return null;
+        return ProficiencyLists.SKILLS.stream()
+                .filter(skill -> skill.equalsIgnoreCase(name.trim()))
+                .findFirst()
+                .orElse(name.trim());
     }
 
     /**

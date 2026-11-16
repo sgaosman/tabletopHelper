@@ -1,10 +1,14 @@
 package com.tabletophelper.character;
 
+import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.ShortRestRequest;
 import com.tabletophelper.character.dto.ShortRestRequest.HitDieSpent;
+import com.tabletophelper.character.dto.ShortRestRequest.SongOfRest;
 import com.tabletophelper.character.dto.ShortRestResponse;
 import com.tabletophelper.character.dto.ShortRestResponse.HitDieRoll;
+import com.tabletophelper.character.dto.ShortRestResponse.SongOfRestRoll;
+import com.tabletophelper.character.dto.SongOfRestResponse;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.InventoryItem;
@@ -239,6 +243,72 @@ class RestServiceTest {
             assertThatThrownBy(() -> f.rests.shortRest(pc.getId(), dice(die("Wizard", 3)), f.userId))
                     .isInstanceOf(ValidationException.class)
                     .hasMessage("Aria has no Wizard Hit Dice");
+        }
+
+        @Test
+        @DisplayName("Song of Rest heals its die more when Hit Dice healed, the player's roll or the server's (D223)")
+        void songOfRestHealsItsDieMore() {
+            PlayerCharacter pc = hurt(f.create(f.human, CON_14, f.fighter, 5), 20);
+            f.rolls.add(5);
+
+            ShortRestResponse rested = f.rests.shortRest(pc.getId(), new ShortRestRequest(
+                    List.of(die("Fighter", 7)), null, null, new SongOfRest(8, null)), f.userId);
+
+            // 20 + (7 + 2) + 5: Song of Rest's die adds no modifier
+            assertThat(rested.character().getHpCurrent()).isEqualTo(34);
+            assertThat(rested.songOfRest()).isEqualTo(new SongOfRestRoll(8, 5, true, 5));
+            assertThat(f.rolls).isEmpty();
+
+            ShortRestResponse again = f.rests.shortRest(pc.getId(), new ShortRestRequest(
+                    List.of(die("Fighter", 1)), null, null, new SongOfRest(6, 4)), f.userId);
+            assertThat(again.character().getHpCurrent()).isEqualTo(34 + 3 + 4);
+            assertThat(again.songOfRest()).isEqualTo(new SongOfRestRoll(6, 4, false, 4));
+        }
+
+        @Test
+        @DisplayName("Song of Rest gives nothing without Hit Dice spent, or when the dice regained no hit points (D223)")
+        void songOfRestNeedsHitDiceThatHealed() {
+            PlayerCharacter pc = hurt(f.create(f.human, CON_14, f.fighter, 5), 20);
+
+            ShortRestResponse noDice = f.rests.shortRest(pc.getId(),
+                    new ShortRestRequest(List.of(), null, null, new SongOfRest(6, 6)), f.userId);
+            assertThat(noDice.songOfRest()).isNull();
+            assertThat(noDice.character().getHpCurrent()).isEqualTo(20);
+
+            hurt(pc, 44);
+            ShortRestResponse atMaximum = f.rests.shortRest(pc.getId(),
+                    new ShortRestRequest(List.of(die("Fighter", 3)), null, null, new SongOfRest(6, 6)), f.userId);
+            assertThat(atMaximum.songOfRest()).isNull();
+            assertThat(atMaximum.character().getHpCurrent()).isEqualTo(44);
+        }
+
+        @Test
+        @DisplayName("Song of Rest stops at the hit point maximum")
+        void songOfRestStopsAtTheMaximum() {
+            PlayerCharacter pc = hurt(f.create(f.human, CON_14, f.fighter, 5), 38);
+
+            ShortRestResponse rested = f.rests.shortRest(pc.getId(), new ShortRestRequest(
+                    List.of(die("Fighter", 2)), null, null, new SongOfRest(12, 12)), f.userId);
+
+            assertThat(rested.character().getHpCurrent()).isEqualTo(44);
+            assertThat(rested.songOfRest()).isEqualTo(new SongOfRestRoll(12, 12, false, 12));
+        }
+
+        @Test
+        @DisplayName("A Song of Rest die other than d6 to d12, or a roll outside it, is a 400 and changes nothing")
+        void songOfRestRefusals() {
+            PlayerCharacter pc = hurt(f.create(f.human, CON_14, f.fighter, 5), 20);
+
+            assertThatThrownBy(() -> f.rests.shortRest(pc.getId(), new ShortRestRequest(
+                    List.of(die("Fighter", 5)), null, null, new SongOfRest(4, null)), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Song of Rest heals with a d6, d8, d10 or d12, not a d4");
+            assertThatThrownBy(() -> f.rests.shortRest(pc.getId(), new ShortRestRequest(
+                    List.of(die("Fighter", 5)), null, null, new SongOfRest(6, 7)), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("A d6 rolls 1 to 6, not 7");
+            assertThat(pc.getHpCurrent()).isEqualTo(20);
+            assertThat(pc.getHitDice().get("Fighter").remaining()).isEqualTo(5);
         }
 
         @Test
@@ -619,6 +689,60 @@ class RestServiceTest {
                     .isInstanceOf(ConflictException.class)
                     .hasMessage("Aria is in an encounter that is under way, so can't take a long rest until it ends");
             assertThat(pc.getHpCurrent()).isEqualTo(20);
+        }
+    }
+
+    @Nested
+    @DisplayName("The Song of Rest offered (D223)")
+    class SongOfRestOffered {
+
+        private final Campaign campaign = Campaign.builder().id(UUID.randomUUID()).name("Lost Mine")
+                .dm(f.user).inviteCode("ABCD2345").build();
+
+        // A character with these Bard levels, in the campaign
+        private PlayerCharacter bard(String name, int bardLevel) {
+            PlayerCharacter pc = f.create(f.human, CON_14, f.fighter, 1);
+            pc.setName(name);
+            pc.setMulticlassEntries(List.of(new ClassEntry(UUID.randomUUID(), "Bard", null, null, bardLevel)));
+            pc.setCampaign(campaign);
+            return pc;
+        }
+
+        @Test
+        @DisplayName("The campaign's living bard with the highest Bard level from 2nd offers its die")
+        void bestLivingBardOffersItsDie() {
+            PlayerCharacter resting = f.create(f.human, CON_14, f.fighter, 5);
+            resting.setCampaign(campaign);
+            PlayerCharacter apprentice = bard("Lark", 1);
+            PlayerCharacter singer = bard("Wren", 9);
+            PlayerCharacter fallen = bard("Finch", 17);
+            fallen.setDead(true);
+            when(f.characterRepository.findByCampaignIdAndIsActiveTrue(campaign.getId()))
+                    .thenReturn(List.of(resting, apprentice, singer, fallen));
+
+            assertThat(f.rests.songOfRestOffered(resting.getId(), f.userId))
+                    .isEqualTo(new SongOfRestResponse(8, "Wren", 9));
+        }
+
+        @Test
+        @DisplayName("A character in no campaign is offered its own Song of Rest, or none")
+        void noCampaignOffersItsOwn() {
+            PlayerCharacter fighter = f.create(f.human, CON_14, f.fighter, 5);
+            assertThat(f.rests.songOfRestOffered(fighter.getId(), f.userId)).isEqualTo(SongOfRestResponse.NONE);
+
+            PlayerCharacter soloBard = bard("Lark", 13);
+            soloBard.setCampaign(null);
+            assertThat(f.rests.songOfRestOffered(soloBard.getId(), f.userId))
+                    .isEqualTo(new SongOfRestResponse(10, "Lark", 13));
+        }
+
+        @Test
+        @DisplayName("Another user who isn't the campaign's DM gets a 403")
+        void strangerIs403() {
+            PlayerCharacter pc = f.create(f.human, CON_14, f.fighter, 5);
+
+            assertThatThrownBy(() -> f.rests.songOfRestOffered(pc.getId(), otherUserId))
+                    .isInstanceOf(ForbiddenException.class);
         }
     }
 }

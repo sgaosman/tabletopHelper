@@ -40,6 +40,7 @@
   "Ranger|PHB|Drakewarden|FTD": { "choices": [{ "count": 1, "languages": ["*languages"] }] },
   "Ranger|PHB|Fey Wanderer|TCE": { "choices": [{ "count": 1, "skills": ["Deception", "Performance", "Persuasion"] }] },
   "Ranger|PHB|Gloom Stalker|XGE": { "conditional": [{ "level": 7, "saves": ["WIS"], "otherwise": { "count": 1, "saves": ["INT", "CHA"] } }] },
+  "Rogue|PHB|Arcane Trickster|PHB": { "cantrips": [{ "count": 1, "grant": "Mage Hand", "spellList": "Wizard", "ofCantripsKnown": true }] },
   "Rogue|PHB|Assassin|PHB": { "tools": ["disguise kit", "poisoner's kit"] },
   "Rogue|PHB|Mastermind|XGE": { "tools": ["disguise kit", "forgery kit"], "choices": [{ "count": 1, "tools": ["*gaming sets"] }, { "count": 2, "languages": ["*languages"] }] },
   "Rogue|PHB|Scout|XGE": { "skills": ["Nature", "Survival"], "expertise": ["Nature", "Survival"] },

@@ -42,6 +42,18 @@ export type ShortRestResponse = Schemas['ShortRestResponse'];
  */
 export type HitDieRoll = Schemas['HitDieRoll'];
 
+/** A bard's Song of Rest heard during a short rest (PHB p.54, D223): its die, and the roll if the player made it. */
+export type SongOfRest = Schemas['SongOfRest'];
+
+/** Song of Rest's extra die on a short rest: its roll and the hit points it healed, the roll alone (D223). */
+export type SongOfRestRoll = Schemas['SongOfRestRoll'];
+
+/**
+ * The best Song of Rest a bard of the character's campaign, itself included, can perform (D223): the die, the bard's
+ * name and Bard level, or all null when none can.
+ */
+export type SongOfRestResponse = Schemas['SongOfRestResponse'];
+
 /** The spells one class has prepared, which replace those it had prepared. */
 export type PreparedSpellsRequest = Schemas['PreparedSpellsRequest'];
 

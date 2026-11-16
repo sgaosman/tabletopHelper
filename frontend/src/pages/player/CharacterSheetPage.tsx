@@ -31,10 +31,12 @@ import InventoryTab from './sheet/InventoryTab';
 import FeaturesTab from './sheet/FeaturesTab';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import ArcaneRecoveryPicker from '../../components/character/ArcaneRecoveryPicker';
+import SongOfRestPicker from '../../components/character/SongOfRestPicker';
 import JournalTab from './sheet/JournalTab';
 import type { RunCommand } from './sheet/types';
 import {
   ARCANE_RECOVERY_POOL, arcaneRecoveryLevels, NATURAL_RECOVERY_POOL, slotsAfterRecovery, type ArcaneRecoveryChoice,
+  songOfRestRoll, type SongOfRestChoice,
 } from '../../utils/classFeatures';
 
 type Tab = 'Stats' | 'Actions' | 'Spells' | 'Inventory' | 'Features' | 'Journal';
@@ -61,15 +63,21 @@ function wholeNumber(text: string | undefined): number | undefined {
 }
 
 // A short rest's result: the hit points regained, then a line for each Hit Die spent, saying what it rolled and who
-// rolled it
-function shortRestMessage(hpBefore: number, { character, rolls }: ShortRestResponse): string {
+// rolled it, and one for Song of Rest's die when it healed (D223)
+function shortRestMessage(hpBefore: number, { character, rolls, songOfRest }: ShortRestResponse): string {
   const regained = character.hpCurrent - hpBefore;
   return [
     regained > 0 ? `Short rest taken: ${regained} hit points regained` : 'Short rest taken',
     ...rolls.map(die => `${die.className} d${die.dieSize}: ${die.rolledByServer ? 'the server rolled' : 'you rolled'}`
       + ` ${die.roll}, healing ${die.healing}`),
+    ...(songOfRest
+      ? [`Song of Rest d${songOfRest.dieSize}: ${songOfRest.rolledByServer ? 'the server rolled' : 'you rolled'}`
+        + ` ${songOfRest.roll}, healing ${songOfRest.healing}`]
+      : []),
   ].join('\n');
 }
+
+const NO_SONG_OF_REST: SongOfRestChoice = { dieSize: undefined, roll: '' };
 
 /** A run of Pending Choices whose dialogs open one after another: the one open, and those still to come. */
 interface ChoiceRun {
@@ -113,6 +121,7 @@ export default function CharacterSheetPage() {
   const [shortRestRolls, setShortRestRolls] = useState<Record<string, string[]>>({});
   const [arcaneRecovery, setArcaneRecovery] = useState<ArcaneRecoveryChoice>({});
   const [naturalRecovery, setNaturalRecovery] = useState<ArcaneRecoveryChoice>({});
+  const [songOfRest, setSongOfRest] = useState<SongOfRestChoice>(NO_SONG_OF_REST);
   const [hitPointDialog, setHitPointDialog] = useState<HitPointChange | null>(null);
   const [hitPointAmount, setHitPointAmount] = useState('');
   const [showLevelUp, setShowLevelUp] = useState(false);
@@ -262,10 +271,15 @@ export default function CharacterSheetPage() {
     setShortRestRolls({});
     setArcaneRecovery({});
     setNaturalRecovery({});
+    setSongOfRest(NO_SONG_OF_REST);
   }
 
+  // Song of Rest's die and roll, as the request sends them; a roll entered that can't be right keeps the rest waiting
+  const songRoll = songOfRestRoll(songOfRest);
+  const songInvalid = Number.isNaN(songRoll);
+
   async function handleShortRest() {
-    if (!char || diceToSpend === null) return;
+    if (!char || diceToSpend === null || songInvalid) return;
     const before = char.hpCurrent;
     const recovered = arcaneRecoveryLevels(arcaneRecovery);
     const naturallyRecovered = arcaneRecoveryLevels(naturalRecovery);
@@ -275,6 +289,7 @@ export default function CharacterSheetPage() {
         hitDice: diceToSpend,
         arcaneRecovery: recovered.length > 0 ? recovered : undefined,
         naturalRecovery: naturallyRecovered.length > 0 ? naturallyRecovered : undefined,
+        songOfRest: songOfRest.dieSize ? { dieSize: songOfRest.dieSize, roll: songRoll } : undefined,
       },
     }), result => shortRestMessage(before, result));
     if (rested) closeRestModal();
@@ -647,7 +662,7 @@ export default function CharacterSheetPage() {
               <Button
                 className="flex-1"
                 onClick={restModal === 'short' ? handleShortRest : handleLongRest}
-                disabled={restModal === 'short' && diceToSpend === null}
+                disabled={restModal === 'short' && (diceToSpend === null || songInvalid)}
                 loading={shortRest.isPending || longRest.isPending}
               >
                 {restModal === 'short' ? 'Short Rest' : 'Long Rest'}
@@ -711,6 +726,7 @@ export default function CharacterSheetPage() {
                   );
                 })}
               </div>
+              <SongOfRestPicker characterId={char.id} choice={songOfRest} onChange={setSongOfRest} />
               {wizardLevel > 0 && (
                 <ArcaneRecoveryPicker classLevel={wizardLevel} slots={spellSlots} usedToday={arcaneRecoveryUsed}
                   choice={arcaneRecovery} onChange={setArcaneRecovery} />

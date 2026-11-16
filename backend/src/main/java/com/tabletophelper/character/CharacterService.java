@@ -370,6 +370,10 @@ public class CharacterService {
                 HitPoints.fixedHitDieResult(newCharLevel, levelClass.getHitDice()), newFeatures, proficienciesGained,
                 abilityIncreases);
         pendingChoices.owedAtLevelUp(character, levelClass, newCharLevel, newClassLevel);
+        if (isNewClass) {
+            // A bard's, ranger's or rogue's skill of the player's choice, recorded on this level (PHB p.164, D223)
+            pendingChoices.owedForMulticlassSkills(character, levelClass, newCharLevel, newClassLevel);
+        }
         // Levelling into a first casting class stores its ability, marked on its level, so levelling down past that
         // level clears it again and a feat taken later doesn't replace it (D159)
         if (character.getSpellcastingAbility() == null || character.getSpellcastingAbility().isBlank()) {
@@ -406,8 +410,8 @@ public class CharacterService {
 
     /**
      * The armour, weapon and tool proficiencies multiclassing into a class grants (PHB p.164), less those the
-     * character has, which the level records so that levelling down removes them (D167). A skill to choose isn't
-     * offered yet.
+     * character has, which the level records so that levelling down removes them (D167). The skill a bard, ranger or
+     * rogue lets the player choose is a Pending Choice (PendingChoiceService.owedForMulticlassSkills, D223).
      */
     private ProficienciesGained applyMulticlassProficiencies(PlayerCharacter character, CharacterClass newClass) {
         String json = newClass.getMulticlassProficiencies();

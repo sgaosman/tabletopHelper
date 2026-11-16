@@ -484,6 +484,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/{characterId}/song-of-rest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getSongOfRest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/characters/{characterId}/spell-slots/{slot}/restore": {
         parameters: {
             query?: never;
@@ -4230,10 +4246,12 @@ export interface components {
             arcaneRecovery?: number[] | null;
             hitDice?: components["schemas"]["HitDieSpent"][] | null;
             naturalRecovery?: number[] | null;
+            songOfRest?: components["schemas"]["SongOfRest"] | null;
         };
         ShortRestResponse: {
             character: components["schemas"]["CharacterResponse"];
             rolls: components["schemas"]["HitDieRoll"][];
+            songOfRest?: components["schemas"]["SongOfRestRoll"] | null;
         };
         SlotChange: {
             /** Format: int32 */
@@ -4243,6 +4261,28 @@ export interface components {
             usedAfter: number;
             /** Format: int32 */
             usedBefore: number;
+        };
+        SongOfRest: {
+            /** Format: int32 */
+            dieSize: number;
+            /** Format: int32 */
+            roll?: number | null;
+        };
+        SongOfRestResponse: {
+            /** Format: int32 */
+            bardLevel?: number | null;
+            bardName?: string | null;
+            /** Format: int32 */
+            dieSize?: number | null;
+        };
+        SongOfRestRoll: {
+            /** Format: int32 */
+            dieSize: number;
+            /** Format: int32 */
+            healing: number;
+            /** Format: int32 */
+            roll: number;
+            rolledByServer: boolean;
         };
         SortObject: {
             empty?: boolean | null;
@@ -5594,6 +5634,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShortRestResponse"];
+                };
+            };
+        };
+    };
+    getSongOfRest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SongOfRestResponse"];
                 };
             };
         };

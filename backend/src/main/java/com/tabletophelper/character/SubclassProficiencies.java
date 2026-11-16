@@ -112,12 +112,20 @@ final class SubclassProficiencies {
      * @param grant     the cantrip learned without a choice unless the character knows it already, when the choice is
      *                  owed instead, as the School of Illusion's Minor Illusion (PHB p.118); null for a choice always
      *                  owed
+     * @param ofCantripsKnown true when the cantrip is one of the class's Cantrips Known, as an Arcane Trickster's Mage
+     *                  Hand is one of its three at Rogue 3 (PHB p.98, D223), so the class's CANTRIPS choice at the
+     *                  subclass level is that many fewer; false when it is learned on top, as Minor Illusion is
      */
-    record CantripChoice(int count, List<String> spells, String spellList, String grant) {
+    record CantripChoice(int count, List<String> spells, String spellList, String grant, boolean ofCantripsKnown) {
 
         /** A choice always owed. */
         CantripChoice(int count, List<String> spells, String spellList) {
-            this(count, spells, spellList, null);
+            this(count, spells, spellList, null, false);
+        }
+
+        /** A cantrip learned on top of the class's Cantrips Known. */
+        CantripChoice(int count, List<String> spells, String spellList, String grant) {
+            this(count, spells, spellList, grant, false);
         }
     }
 
@@ -255,7 +263,8 @@ final class SubclassProficiencies {
             String grant = cantrip.path("grant").isString() && !cantrip.path("grant").asString("").isBlank()
                     ? cantrip.path("grant").asString("").trim() : null;
             found.add(new CantripChoice(count, spells.isEmpty() ? null : List.copyOf(spells),
-                    spells.isEmpty() ? spellList.trim() : null, grant));
+                    spells.isEmpty() ? spellList.trim() : null, grant,
+                    cantrip.path("ofCantripsKnown").asBoolean(false)));
         }
         return found;
     }

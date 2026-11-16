@@ -4480,3 +4480,26 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D188, D198, D201
 
 **Tests:** Divine Word and medusa concentration cases, petrified defences, smite and Deft Strike at 0 HP, Evasion while stunned, War Caster, six `CharmsTest` cases and a "Charmed by" form test. On its branch 4,777 backend unit, 580 integration and 1,270 frontend tests passed; merged with the form change, 4,777, 580 and 1,271.
+
+---
+
+## D223: Song of Rest, Multiclass Skill Picks, Swap-Only Levels and the Arcane Trickster's Mage Hand
+
+**Date:** 2026-11-16
+**Status:** Accepted — implemented (no migration; the subclass proficiencies data reloads with its hash)
+
+**Context:** the four gaps [[#D222]]'s levelling review left open, built during the user's overnight run of 2026-11-16. The calls are the lead's, recorded for review.
+
+**Decision:**
+- **Song of Rest** (PHB p.54). A rest is per character here and the server can't know who performed, so the short rest takes an optional `songOfRest {dieSize, roll?}`: a d6, d8 at Bard 9, d10 at 13 or d12 at 17, rolled by the server unless the player gives the roll. It heals only when at least one Hit Die was spent and HP rose, adds no Constitution, is capped at the HP maximum, and comes back in the rest's result. **(choice)** A new `GET /api/characters/{id}/song-of-rest` (owner or DM) names the living Bard 2+ with the highest bard level in the character's campaign, the character included; the short-rest dialog's `SongOfRestPicker` pre-selects that die, and the player may pick none, or a die for a bard the app doesn't hold.
+- **Multiclass skill picks** (PHB p.164). Levelling into Bard, Ranger or Rogue as a new class owes the existing PROFICIENCY Pending Choice, skills only: one of any skill for a bard, one from the class's list for a ranger or rogue. The answer goes on the level, so level-down removes it; none is owed when every offered skill is already held. Characters created with several classes at once don't owe it.
+- **Swap-only levels** (PHB p.53, p.75, p.92, p.98, p.101, p.107). A known caster may replace a spell on every level of the class, so a level where Spells Known don't rise now owes a SPELLS choice of count 0 with `swap`. The player replaces a spell or chooses "Keep My Spells", which clears it; Skip leaves it pending. Creation, where every spell is picked at once, owes none.
+- **Mage Hand** (PHB p.98). The Arcane Trickster learns Mage Hand automatically as a `subclass:Arcane Trickster` cantrip (a new `ofCantripsKnown` flag in `subclass-proficiencies.json`), recorded on the subclass level so level-down removes it, and the Rogue 3 cantrip choice falls to two. A rogue who already knows Mage Hand chooses another wizard cantrip instead, still one of the three.
+
+**Not backfilled:** Arcane Tricksters made before this don't gain Mage Hand, and multiclass levels taken before this don't owe the skill; the DM can add either by hand.
+
+**Key files:** `Rests.java`, `RestService.java`, `ShortRestRequest.java`, `ShortRestResponse.java`, `SongOfRestResponse.java`, `CharacterController.java`, `CharacterService.java`, `PendingChoiceService.java`, `PendingChoices.java`, `SubclassProficiencies.java`, `subclass-proficiencies.json`, `SongOfRestPicker.tsx`, `ManageSpellsModal.tsx`, `CharacterSheetPage.tsx`, `openapi.json`
+
+**Related:** D159, D178, D222
+
+**Tests:** Song of Rest rules, service, offer and HTTP cases; multiclass skill, swap-only and Mage Hand Pending Choice cases with the PHB golden tables updated for swap-only choices; `ManageSpellsModal`, `ProficiencyChoiceModal` and sheet tests. On its branch 4,784 backend unit, 581 integration and 1,277 frontend tests passed; merged with D224, 4,802, 581 and 1,278.

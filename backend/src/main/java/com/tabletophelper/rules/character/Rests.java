@@ -27,6 +27,36 @@ public final class Rests {
         return Math.max(0, roll + constitutionModifier);
     }
 
+    /** The lowest bard level with Song of Rest (PHB p.54). */
+    public static final int SONG_OF_REST_LEVEL = 2;
+
+    /** The dice Song of Rest can be, d6 to d12 (PHB p.54). */
+    public static final List<Integer> SONG_OF_REST_DICE = List.of(6, 8, 10, 12);
+
+    /**
+     * The die a bard's Song of Rest heals with (PHB p.54, D223): from 2nd level a d6, a d8 at 9th, a d10 at 13th and a
+     * d12 at 17th; none below 2nd level.
+     */
+    public static Optional<Integer> songOfRestDie(int bardLevel) {
+        if (bardLevel < SONG_OF_REST_LEVEL) return Optional.empty();
+        if (bardLevel >= 17) return Optional.of(12);
+        if (bardLevel >= 13) return Optional.of(10);
+        if (bardLevel >= 9) return Optional.of(8);
+        return Optional.of(6);
+    }
+
+    /**
+     * Whether a short rest earns Song of Rest's extra healing (PHB p.54, D223): only a creature that regains hit points
+     * at the end of the rest by spending one or more Hit Dice does, so a rest that spent none, or whose dice healed
+     * nothing because the character was at its maximum, doesn't.
+     *
+     * @param hitDiceSpent        how many Hit Dice the rest spent
+     * @param hitPointsFromHitDice the hit points the dice gave back, after the maximum stopped them
+     */
+    public static boolean earnsSongOfRest(int hitDiceSpent, int hitPointsFromHitDice) {
+        return hitDiceSpent > 0 && hitPointsFromHitDice > 0;
+    }
+
     /** The highest slot level Arcane Recovery can recover is 5th: none can be 6th level or higher (PHB p.115). */
     public static final int ARCANE_RECOVERY_HIGHEST_SLOT = 5;
 

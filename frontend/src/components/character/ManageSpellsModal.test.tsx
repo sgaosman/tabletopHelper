@@ -128,6 +128,49 @@ describe('ManageSpellsModal for a Pending Choice (D159)', () => {
     }]);
   });
 
+  it('offers a swap alone on a level whose Spells Known don\'t rise, and replaces one spell (D223)', async () => {
+    const choice = makeMockPendingChoice({
+      id: 'choice-swap', type: 'SPELLS', className: 'Sorcerer', classLevel: 12, characterLevel: 12, count: 0,
+      maxSpellLevel: 1, swap: true,
+    });
+    const bodies = recordChoice(sorcerer);
+    const { onComplete } = renderChoice(sorcerer, choice);
+    const user = userEvent.setup();
+    const dialog = screen.getByRole('dialog', { name: 'Replace a Spell' });
+
+    expect(within(dialog).getByText('Sorcerer 12: you may replace one spell you know, up to level 1')).toBeInTheDocument();
+    // No spells to learn, so no picker
+    expect(within(dialog).queryByPlaceholderText('Search spells...')).not.toBeInTheDocument();
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Spell to replace' }), 'Sleep');
+    expect(within(dialog).getByRole('button', { name: 'Replace Spell' })).toBeDisabled();
+    const replacement = within(dialog).getByRole('combobox', { name: 'Replacement spell' });
+    await waitFor(() => expect(within(replacement).getAllByRole('option').map(o => o.textContent))
+      .toContain('Shield (Lv 1)'));
+    await user.selectOptions(replacement, 'Shield');
+    await user.click(within(dialog).getByRole('button', { name: 'Replace Spell' }));
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith(sorcerer));
+    expect(bodies).toEqual([{ choiceId: 'choice-swap', spells: [], swap: { replace: 'Sleep', with: 'Shield' } }]);
+  });
+
+  it('lets a swap-only choice be declined, keeping every spell, or skipped for later (D223)', async () => {
+    const choice = makeMockPendingChoice({
+      id: 'choice-swap', type: 'SPELLS', className: 'Sorcerer', classLevel: 12, characterLevel: 12, count: 0,
+      maxSpellLevel: 1, swap: true,
+    });
+    const bodies = recordChoice(sorcerer);
+    const { onComplete, onSkip } = renderChoice(sorcerer, choice);
+    const user = userEvent.setup();
+    const dialog = screen.getByRole('dialog', { name: 'Replace a Spell' });
+
+    expect(within(dialog).getByRole('button', { name: 'Skip' })).toBeEnabled();
+    await user.click(within(dialog).getByRole('button', { name: 'Keep My Spells' }));
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith(sorcerer));
+    expect(bodies).toEqual([{ choiceId: 'choice-swap', spells: [] }]);
+    expect(onSkip).not.toHaveBeenCalled();
+  });
+
   it("copies a wizard's level's spells into its spellbook, with no swap", async () => {
     const wizard = {
       ...makeMockCharacter('char-002', 'Elminster', 'Wizard', 3),
