@@ -126,8 +126,12 @@ DAMAGE = re.compile(r'(\d+)\s*\((?:\{@damage )?(\d+d\d+(?:\s*[+-]\s*\d+)?)\}?\)\
                     r'([a-z]+(?:(?:, or |, | or )[a-z]+)*)\s+damage')
 FLAT_DAMAGE = re.compile(r'^\s*(\d+) ([a-z]+) damage')
 # "if used with two hands", and the later wording "when used with two hands to make a melee attack" (D202)
-VERSATILE = re.compile(r',?\s*or (\d+) \(\{@damage ([^}]+)\}\) ([a-z]+) damage (?:if|when) (?:used|wielded) with '
-                       r'(?:two|both) hands(?: to make a melee attack)?')
+# and since D239 the wordings without the type ("or 10 (1d10 + 5) if used with two hands"), with ", magic", with the
+# extra damage repeated ("or 6 (1d10 + 1) slashing damage plus 7 (2d6) fire damage when used with two hands") or "in
+# two hands"
+VERSATILE = re.compile(r',?\s*or (\d+) \(\{@(?:damage|dice) ([^}]+)\}\)(?: ([a-z]+))?(?:,? magic)?(?: damage)?'
+                       r'(?: plus \d+ \(\{@damage [^}]+\}\) [a-z]+ damage)?,? (?:if|when) (?:used|wielded) '
+                       r'(?:with|in) (?:two|both) hands(?: to make a melee attack)?')
 SAVE = re.compile(r'\{@dc (\d+)\}\s+(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)'
                   r'(?: or (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma))?\s+saving throw')
 ACT_SAVE = re.compile(r'\{@actSave (str|dex|con|int|wis|cha)\}\s*\{@dc (\d+)\}')
@@ -1586,6 +1590,10 @@ def read_hit(hit):
         # damage", "5 (1d4 + 3) plus 10 (3d6) poison damage") is read as D194 read it
         effects, choice = damage_parts(first)
         remainder = ''
+    # A two-handed damage without its type has the one-handed damage's (D239)
+    if two_handed and not two_handed['twoHandedDamageType']:
+        two_handed['twoHandedDamageType'] = next((p['damageType'] for p in effects if p['effectType'] == 'DAMAGE'),
+                                                 None)
     # A swallow or a petrification over two saves, read from the sentences as a whole (D204)
     conditions_read, leftover = [], []
     action_keys = {'damageOptions': damage_options} if damage_options else {}
@@ -2077,7 +2085,9 @@ RIDER_STATS = ('attacks matched', 'attacks changed', 'damage given a save', 'dam
                'save actions matched', 'save actions given an immunity or exemption', 'actions rebuilt',
                'multiattacks given heads or a follow-up', 'damage given options', 'swallows added',
                'save actions given half on a success', 'damage put right', 'multiattacks put right',
-               'save actions given one target')
+               'save actions given one target', 'charges', 'charge damage gated', 'charge conditions gated',
+               'charges not read', 'charges without their attack', 'versatile added', 'form damage added',
+               'form damage not matched')
 # The keys of a condition that tie it to another or keep it from some creatures (D203)
 LINK_KEYS = ('endsWith', 'exemptTypes', 'endsOnDamage')
 LASTING_TYPES = ('HP_MAX_REDUCTION', 'LIFE_DRAIN', 'EXHAUSTION', 'MODIFIER', 'ONGOING_DAMAGE', 'COUNTED_SAVES',
@@ -2865,6 +2875,321 @@ def added_swallow(entry, monster, actions, key_def, action_type, stat, stats):
     return True
 
 
+# ── Charges, versatile weapons and form-dependent damage (D239) ──────────────────────────────────────────────────────
+# A charge: a trait ("Charge", "Pounce", "Trampling Charge") that names the attack, or a hit's own sentence
+CHARGE_TRAIT = re.compile(r"^if (?:the )?[^,]+? moves at least (\d+) feet straight toward (?:a|the) (?:target|"
+                          r"creature),? (?:and )?(?:then )?hits(?: it)?(?: with)? (?:an? |its |his |her )?([a-z' -]+?)"
+                          r"(?: attack)? on the same turn,? (.+)$")
+CHARGE_HIT = re.compile(r"^if (?:the )?[^,]+? mov(?:ed|es) at least (\d+) feet (?:straight|in a straight line) "
+                        r"towards? (?:the|this) target "
+                        r"immediately before (?:the hit|(?:it|she|he) hit)(?: and (the target is an? [a-z]+ or smaller "
+                        r"creature))?,? (.+)$")
+CHARGE_EXTRA = re.compile(r"\ban? (?:extra|additional) (?:\d+ \()?(\d+d\d+(?: ?[+-] ?\d+)?)\)?(?: ([a-z]+))? damage"
+                          r"(?:,? or (?:\d+ \()?(\d+d\d+(?: ?[+-] ?\d+)?)\)?(?: [a-z]+)? damage (if [^,.]+))?")
+CHARGE_SAVE = re.compile(r"\bdc ?(\d+) (strength|dexterity|constitution) saving throw or (be|have)\b([^.]*)")
+CHARGE_PUSH = re.compile(r"pushed up to (\d+) feet(?: away| from [a-z' -]+?)?(?= and|,|\.|$)")
+CHARGE_BONUS = re.compile(r"^if the target is (?:knocked )?prone|^if the target has the prone condition")
+CHARGE_TEXT = 'if it moved at least %d feet straight toward the target first'
+
+
+def charge_specs(monster):
+    """The charges of a stat block: the attack each is for (None for the attack whose own hit gives it), the feet, and
+    the text after its first clause."""
+    specs = []
+    for stat in monster.get('trait') or []:
+        # The text keeps its capitals, which tell its sentences apart
+        text = strip_tags(flatten(stat.get('entries')))
+        match = CHARGE_TRAIT.match(text.lower())
+        if match:
+            specs.append({'attack': match.group(2), 'feet': int(match.group(1)), 'rest': text[match.start(3):],
+                          'source': parse_name(stat.get('name') or 'Charge')[0]})
+    return specs
+
+
+def charge_of(spec, action_damage_type):
+    """What a charge gives: its extra damage part, its condition, and its note for the DM."""
+    rest = spec['rest']
+    sentences = SENTENCE.split(rest.strip())
+    # Only the charge's own sentences: the first, and those about a creature it knocked prone or the target being one
+    kept = [sentences[0]] + [s for s in sentences[1:] if CHARGE_BONUS.match(s.lower())
+                             or s.lower().startswith('if the target is a')]
+    text = ' '.join(kept).lower()
+    when = {'attackerCharged': True, 'text': CHARGE_TEXT % spec['feet']}
+    out = {'damage': None, 'condition': None, 'notes': [], 'alternative': None}
+    extra = CHARGE_EXTRA.search(text)
+    if extra:
+        out['damage'] = {'effectType': 'DAMAGE', 'damageDice': re.sub(r'\s*([+-])\s*', r' \1 ', extra.group(1)),
+                         'damageType': extra.group(2) or action_damage_type, 'onlyIf': dict(when)}
+        if extra.group(3):
+            out['alternative'] = re.sub(r'\s*([+-])\s*', r' \1 ', extra.group(3))
+            out['notes'].append('The extra damage is %s %s %s instead, by hand.' % (
+                out['alternative'], extra.group(2) or action_damage_type, extra.group(4)))
+    save = CHARGE_SAVE.search(text)
+    if save and 'prone' in save.group(4):
+        condition = {'effectType': 'CONDITION', 'condition': 'prone', 'saveDC': int(save.group(1)),
+                     'saveAbility': ABILITIES[save.group(2)], 'onlyIf': dict(when)}
+        size = SIZE_CAP.search(spec.get('size') or text)
+        if size:
+            condition['maxTargetSize'] = size.group(1).capitalize()
+        out['condition'] = condition
+        push = CHARGE_PUSH.search(save.group(4))
+        if push:
+            out['notes'].append('A target that fails the save is also pushed up to %s feet away, by hand.'
+                                % push.group(1))
+    for sentence in kept[1:]:
+        if CHARGE_BONUS.match(sentence.lower()):
+            out['notes'].append(sentence_of(sentence))
+    return out
+
+
+def remove_part(action, part):
+    """Takes a part of the entry's away, kept in "_riderRemoved" at its place in the entry's own list, as strip_riders
+    puts it back (D239)."""
+    effects = action['effects']
+    own = [p for p in effects if isinstance(p, dict) and not p.get('_rider')]
+    for removed in sorted(action.get('_riderRemoved', []), key=lambda r: r['at']):
+        own.insert(removed['at'], removed['part'])
+    action.setdefault('_riderRemoved', []).append({'at': next(i for i, p in enumerate(own) if p is part),
+                                                   'part': part})
+    action['_riderRemoved'].sort(key=lambda r: r['at'])
+    effects.remove(part)
+
+
+def charge_attack(actions, attack):
+    """The action a charge trait names, as "gore" or "its tusks" for "Tusks (Boar or Hybrid Form Only)"."""
+    name = re.sub(r'^(?:its|his|her|an?|the) ', '', attack.strip())
+    found = hand_built(actions, name.title())
+    if found is None:
+        alike = [a for a in actions if a.get('deliveryMethod') == 'ATTACK_ROLL' and a.get('name')
+                 and (singular(a['name']) == singular(name) or singular(a['name']).endswith(' ' + singular(name)))]
+        found = alike[0] if len(alike) == 1 else None
+    return found
+
+
+def drop_note_sentences(action, unwanted):
+    """Takes the sentences unwanted() picks out of the note the rider pass added (D239); the rest stays."""
+    note = action.get('_riderNote')
+    if not note:
+        return False
+    head = HAND_NOTE if note.startswith(HAND_NOTE) else ''
+    sentences = SENTENCE.split(note[len(head):])
+    # "The DM settles the choice by hand." goes with the choice before it
+    kept = [s for i, s in enumerate(sentences) if not unwanted(s) and not (
+        s == 'The DM settles the choice by hand.' and i > 0 and unwanted(sentences[i - 1]))]
+    if len(kept) == len(sentences):
+        return False
+    new = head + ' '.join(kept) if kept else None
+    if action.get('_riderNoteNew'):
+        if new:
+            action['dmNote'] = action['_riderNote'] = new
+        else:
+            for k in ('dmNote', '_riderNote', '_riderNoteNew'):
+                action.pop(k, None)
+    else:
+        base = action['dmNote'][:-len(note) - 1]
+        if new:
+            action['dmNote'] = base + ' ' + new
+            action['_riderNote'] = new
+        else:
+            action['dmNote'] = base
+            action.pop('_riderNote')
+    return True
+
+
+def mark_part(action, part, keys):
+    """Gives a part of the entry's the keys, marked; a part the pass adds is marked whole."""
+    if part.get('_rider'):
+        part.update(keys)
+    else:
+        add_keys(part, keys)
+
+
+def apply_charge(action, spec, stats):
+    """Gives an attack its charge (D239): the action key "charge" with the feet and the DM's note, its extra damage and
+    its prone save gated by onlyIf.attackerCharged, so they come only when the DM says the monster charged. Damage or a
+    prone condition the entry deals on every hit, as the aurochs's hand-built 2d8 (MPMM), gets the gate; what it lacks is
+    added. A charge whose damage has an alternative, as the minotaur infiltrator's while enlarged (BMT), leaves that to
+    the DM and takes away the entry's stacked alternative."""
+    effects = action.setdefault('effects', [])
+    damage = [p for p in effects if isinstance(p, dict) and p.get('effectType') == 'DAMAGE']
+    first_type = damage[0].get('damageType') if damage else None
+    charge = charge_of(spec, first_type)
+    if charge['damage'] is None and charge['condition'] is None:
+        stats['charges not read'] += 1
+        return
+    key = {'feet': spec['feet']}
+    if spec.get('source'):
+        key['trait'] = spec['source']
+    if charge['notes']:
+        key['note'] = ' '.join(charge['notes'])
+    add_action_keys(action, {'charge': key})
+    if charge['damage'] is not None:
+        part = charge['damage']
+        same = next((p for p in damage[1:] if dice_key(p) == dice_key(part) and p.get('onlyIf') is None
+                     and p.get('saveDC') is None), None)
+        if same is not None:
+            mark_part(action, same, {'onlyIf': part['onlyIf']})
+        else:
+            effects.append(dict(part, _rider='added'))
+        stats['charge damage gated'] += 1
+        if charge['alternative']:
+            alt = next((p for p in damage[1:] if dice_norm(p.get('damageDice')) == dice_norm(charge['alternative'])
+                        and p.get('onlyIf') is None and not p.get('_rider')), None)
+            if alt is not None:
+                remove_part(action, alt)
+    if charge['condition'] is not None:
+        part = charge['condition']
+        prone = next((p for p in effects if isinstance(p, dict) and p.get('effectType') == 'CONDITION'
+                      and p.get('condition') == 'prone' and p.get('onlyIf') is None), None)
+        if prone is not None:
+            keys = {'onlyIf': part['onlyIf']}
+            if not (prone.get('saveDC') or action.get('saveDC') == part['saveDC']):
+                keys.update(saveDC=part['saveDC'], saveAbility=part['saveAbility'])
+            if part.get('maxTargetSize'):
+                keys['maxTargetSize'] = part['maxTargetSize']
+            mark_part(action, prone, keys)
+            # A second prone the entry gives on every hit, as the dandylion's (MisMV1), is the charge's too
+            for twin in [p for p in effects if p is not prone and isinstance(p, dict) and not p.get('_rider')
+                         and p.get('effectType') == 'CONDITION' and p.get('condition') == 'prone'
+                         and p.get('onlyIf') is None]:
+                remove_part(action, twin)
+        else:
+            effects.append(dict(part, _rider='added'))
+        stats['charge conditions gated'] += 1
+    # The rider pass's note of the charge's sentences goes: the charge now says them
+    drop_note_sentences(action, lambda s: bool(re.search(r'mov(?:ed|es) at least \d+ feet (?:straight|in a straight '
+                                                         r'line) toward', s, re.I))
+                        or bool(re.search(r'must succeed on a dc \d+ strength saving throw or .*prone', s.lower()))
+                        or bool(CHARGE_BONUS.match(s.lower())))
+    stats['charges'] += 1
+
+
+def charge_pass(entry, monster, stats):
+    """Each attack of a monster that charges gets its charge (D239), from a trait that names the attack or from the
+    attack's own hit."""
+    actions = [a for a in entry.get('actions') or [] if isinstance(a, dict)]
+    for spec in charge_specs(monster):
+        action = charge_attack(actions, spec['attack'])
+        if action is None or action.get('deliveryMethod') != 'ATTACK_ROLL':
+            stats['charges without their attack'] += 1
+            continue
+        apply_charge(action, spec, stats)
+    for stat in monster.get('action') or []:
+        raw = flatten(stat.get('entries'))
+        if '{@h}' not in raw:
+            continue
+        sentences = SENTENCE.split(strip_tags(raw.partition('{@h}')[2]).strip())
+        for index, sentence in enumerate(sentences):
+            match = CHARGE_HIT.match(sentence.lower())
+            if not match:
+                continue
+            rest = ' '.join([sentence[match.start(3):]] + sentences[index + 1:])
+            action = hand_built(actions, parse_name(stat['name'])[0])
+            if action is None or action.get('deliveryMethod') != 'ATTACK_ROLL':
+                stats['charges without their attack'] += 1
+                break
+            apply_charge(action, {'feet': int(match.group(1)), 'rest': rest, 'size': match.group(2)}, stats)
+            break
+
+
+# "or 6 (1d10 + 1) slashing damage if used with two hands", with the type, "damage" or a "plus" damage left out as
+# some stat blocks write it (D239)
+VERSATILE_ANY = re.compile(r'(?:,? or|,) (\d+) \(\{@(?:damage|dice) ([^}]+)\}\)(?: ([a-z]+))?(?:,? magic)?(?: damage)?'
+                           r'(?: plus \d+ \(\{@damage [^}]+\}\) [a-z]+ damage)?,? (?:if|when) (?:used|wielded) '
+                           r'(?:with|in) two hands')
+# The rider pass's note of a two-handed alternative alone, which the versatile key now says: Izek Strazni's "Or 15
+# (2d10 + 4) when used with two hands." (CoS), or "On a hit: 5 (1d8 + 1) slashing damage plus 7 (2d6) fire damage, or 6
+# (1d10 + 1) slashing damage plus 7 (2d6) fire damage when used with two hands." with nothing else to choose
+VERSATILE_NOTE = re.compile(r'Or \d+ \([^)]+\)(?: [a-z]+)?(?: damage)? (?:if|when) (?:used|wielded) (?:with|in) two '
+                            r'hands(?: to make a melee attack)?(?:, plus \d+ \([^)]+\) [a-z]+ damage)?\.'
+                            r'|On a hit: [^.]*\bor \d+ \([^)]+\) [^.]*?(?:if|when) (?:used|wielded) (?:with|in) two '
+                            r'hands(?: to make a melee attack)?\.')
+
+
+def versatile_pass(entry, monster, stats):
+    """A hand-built attack whose stat block gives a two-handed alternative and that has none gets the action key
+    "versatile" (D239), as the generated entries have it, so the DM sees both and chooses. A one-handed damage that is
+    two dice expressions, as the orc war chief's spear's "1d6 + 4 plus 1d8" with Gruumsh's Fury (MM), is left out."""
+    for key_5e, key_def, _ in RIDER_LISTS:
+        actions = [a for a in entry.get(key_def) or [] if isinstance(a, dict)]
+        for stat in monster.get(key_5e) or []:
+            if not isinstance(stat, dict) or not stat.get('name'):
+                continue
+            raw = flatten(stat.get('entries'))
+            hit = raw.partition('{@h}')[2]
+            match = VERSATILE_ANY.search(hit)
+            if not match or ' plus {@damage' in hit[:match.start()].split(')')[0]:
+                continue
+            action = hand_built(actions, parse_name(stat['name'])[0])
+            if action is None or action.get('deliveryMethod') != 'ATTACK_ROLL' or 'versatile' in action:
+                continue
+            effects = action.get('effects') or []
+            if any(isinstance(p, dict) and p.get('twoHandedDamageDice') for p in effects):
+                continue
+            first = next((p for p in effects if isinstance(p, dict) and p.get('effectType') == 'DAMAGE'
+                          and p.get('onlyIf') is None and p.get('saveDC') is None), None)
+            if first is None:
+                continue
+            dice = re.sub(r'\s*([+-])\s*', r' \1 ', match.group(2).strip())
+            add_action_keys(action, {'versatile': {'twoHandedDamageDice': dice,
+                                                   'twoHandedDamageType': match.group(3) or first.get('damageType')}})
+            # The rider pass's note of the two-handed damage alone goes, as Izek Strazni's "Or 15 (2d10 + 4) when
+            # used with two hands." (CoS)
+            drop_note_sentences(action, lambda s: bool(VERSATILE_NOTE.fullmatch(s))
+                                and not re.search(r'shillelagh|ranged attack', s))
+            stats['versatile added'] += 1
+
+
+# "1 piercing damage in raven form, or 4 (1d4 + 2) piercing damage in hybrid form" (D239)
+FORM_FLAT_FIRST = re.compile(r'^(\d+) ([a-z]+) damage in ([a-z]+) form, or (\d+) \((\d+d\d+(?: [+-] \d+)?)\) ([a-z]+) '
+                             r'damage in ([a-z]+) form')
+# "15 (2d10 + 4) slashing damage, or 9 (1d10 + 4) slashing damage in Small or Medium form" (D239)
+FORM_ALTERNATIVE = re.compile(r'^\d+ \((\d+d\d+(?: [+-] \d+)?)\) ([a-z]+) damage, or \d+ \((\d+d\d+(?: [+-] \d+)?)\) '
+                              r'([a-z]+) damage in ([a-z]+(?: or [a-z]+)?) form\.')
+
+
+def form_pass(entry, monster, stats):
+    """A hand-built attack whose damage depends on the monster's form gets its other form's damage as an alternative
+    under onlyIf.attackerForm (D239), which the DM picks when using the attack: the wereraven's beak deals 1 piercing
+    damage in raven form (VRGR), the oni's glaive 1d10 + 4 in Small or Medium form (MM)."""
+    actions = [a for a in entry.get('actions') or [] if isinstance(a, dict)]
+    for stat in monster.get('action') or []:
+        raw = flatten(stat.get('entries'))
+        if '{@h}' not in raw:
+            continue
+        first = SENTENCE.split(strip_tags(raw.partition('{@h}')[2]).strip())[0].lower()
+        flat = FORM_FLAT_FIRST.match(first)
+        alternative = FORM_ALTERNATIVE.match(first)
+        if not flat and not alternative:
+            continue
+        action = hand_built(actions, parse_name(stat['name'])[0])
+        if action is None or action.get('deliveryMethod') != 'ATTACK_ROLL' or not isinstance(action.get('effects'), list):
+            continue
+        effects = action['effects']
+        if any(isinstance(p, dict) and (p.get('onlyIf') or {}).get('attackerForm') for p in effects):
+            continue
+        if flat:
+            base = (flat.group(5), flat.group(6))
+            part = {'effectType': 'DAMAGE', 'damageDice': flat.group(1), 'damageType': flat.group(2),
+                    'flatDamage': True}
+            form = flat.group(3) + ' form'
+        else:
+            base = (alternative.group(1), alternative.group(2))
+            part = {'effectType': 'DAMAGE', 'damageDice': alternative.group(3), 'damageType': alternative.group(4)}
+            form = alternative.group(5) + ' form'
+        own = next((p for p in effects if isinstance(p, dict) and p.get('effectType') == 'DAMAGE'
+                    and dice_key(p) == (dice_norm(base[0]), base[1]) and p.get('onlyIf') is None), None)
+        if own is None:
+            stats['form damage not matched'] += 1
+            continue
+        part.update(onlyIf={'attackerForm': form, 'text': 'in ' + form}, replacesDamage=True, _rider='added')
+        effects.insert(next(i for i, p in enumerate(effects) if p is own) + 1, part)
+        drop_note_sentences(action, lambda s: (bool(re.search(r'\bform\b', s)) and 'damage' in s.lower()
+                                               and 'saving throw' not in s.lower())
+                            or s == 'The DM settles the choice by hand.')
+        stats['form damage added'] += 1
+
+
 def rider_pass(entry, monster, stats):
     """The rider pass over one hand-built entry and its stat block."""
     strip_added(entry)
@@ -2904,6 +3229,10 @@ def rider_pass(entry, monster, stats):
                 continue
             stats['attacks matched'] += 1
             add_riders(action, read_attack(raw), stats)
+    # Form-dependent damage, versatile weapons and charges (D239)
+    form_pass(entry, monster, stats)
+    versatile_pass(entry, monster, stats)
+    charge_pass(entry, monster, stats)
 
 
 def main():
@@ -2947,6 +3276,8 @@ def main():
             # The 126 of D194 are read as they were, so their entries stay as they are
             generated = actions_of(monster, wider=bool(definitions[targets[k]].get(ADDED)))
             definitions[targets[k]] = merged(definitions[targets[k]], generated)
+            # A generated attack gets its charge as a hand-built one does (D239)
+            charge_pass(definitions[targets[k]], monster, dict.fromkeys(RIDER_STATS, 0))
             stats['monsters'] += 1
             stats['legendaryResistance'] += 'legendaryResistanceCount' in generated
             for list_key in ('actions', 'bonusActions', 'reactions'):

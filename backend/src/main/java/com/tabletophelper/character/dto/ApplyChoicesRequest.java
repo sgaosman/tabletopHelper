@@ -14,7 +14,7 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 /**
  * Makes one of the character's Pending Choices (D159), named by its ID, with the answer its type takes and nothing
  * else: {@code asi} for an Ability Score Improvement, {@code feat} for a race's or background's feat,
- * {@code subclassId} for a subclass, {@code expertiseSkills} for Expertise, {@code fightingStyle} for a Fighting
+ * {@code subclassId} for a subclass, {@code expertiseSkills} for Expertise (a Rogue's may name "Thieves' Tools", PHB p.96), {@code fightingStyle} for a Fighting
  * Style, {@code metamagic} for a sorcerer's Metamagic options, {@code proficiencies} for a subclass's bonus
  * proficiencies, by name, and {@code spells} for cantrips or spells, a subclass's cantrips among them, with
  * {@code swap} for a known caster's optional swap, and {@code draconicAncestry} for a Dragonborn's draconic

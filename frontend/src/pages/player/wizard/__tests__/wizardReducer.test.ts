@@ -285,6 +285,16 @@ describe('wizardReducer: skills and Expertise', () => {
       .toEqual(['Insight']);
   });
 
+  it("keeps a rogue's Expertise in thieves' tools, and drops it once the class is no longer a rogue (PHB p.96)", () => {
+    const state = reduce(withClass(rogue), { type: 'toggleClassSkill', skill: 'Stealth', max: 4 },
+      { type: 'toggleExpertise', skill: "Thieves' Tools", max: 2 }, { type: 'toggleExpertise', skill: 'Stealth', max: 2 });
+    expect(state.selectedExpertise).toEqual(["Thieves' Tools", 'Stealth']);
+
+    const unskilled = reduce(state, { type: 'toggleClassSkill', skill: 'Stealth', max: 4 });
+    expect(unskilled.selectedExpertise).toEqual(["Thieves' Tools"]);
+    expect(reduce(state, { type: 'selectClass', cls: fighter }).selectedExpertise).toEqual([]);
+  });
+
   it('drops Expertise in a class skill toggled off (D226)', () => {
     const state = reduce(withClass(rogue),
       { type: 'toggleClassSkill', skill: 'Stealth', max: 4 }, { type: 'toggleClassSkill', skill: 'Insight', max: 4 },

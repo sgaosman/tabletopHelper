@@ -7786,6 +7786,10 @@
           "subclassName": {
             "type": "string",
             "nullable": true
+          },
+          "subclassSpellList": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -8221,7 +8225,9 @@
       "ComponentOption": {
         "required": [
           "automated",
+          "charge",
           "damageOptions",
+          "forms",
           "name"
         ],
         "type": "object",
@@ -8229,7 +8235,21 @@
           "automated": {
             "type": "boolean"
           },
+          "charge": {
+            "type": "boolean"
+          },
+          "chargeFeet": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "damageOptions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "forms": {
             "type": "array",
             "items": {
               "type": "string"
@@ -8246,6 +8266,10 @@
           },
           "name": {
             "type": "string"
+          },
+          "twoHandedDamage": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -11036,11 +11060,40 @@
             "type": "boolean",
             "nullable": true
           },
+          "attackerForm": {
+            "type": "string",
+            "nullable": true
+          },
+          "charged": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "componentCharged": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "boolean"
+            }
+          },
           "componentDamageTypes": {
             "type": "array",
             "nullable": true,
             "items": {
               "type": "string"
+            }
+          },
+          "componentForms": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "componentTwoHanded": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "boolean"
             }
           },
           "componentTargetIds": {
@@ -11082,6 +11135,10 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "twoHanded": {
+            "type": "boolean",
+            "nullable": true
           }
         }
       },

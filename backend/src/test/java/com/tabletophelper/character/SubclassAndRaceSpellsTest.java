@@ -81,6 +81,18 @@ class SubclassAndRaceSpellsTest {
             .characterClass(f.cleric)
             .additionalProficiencies("{\"weapons\":[\"martial\"],\"cantrips\":[{\"count\":1,\"school\":\"Necromancy\"}]}")
             .build();
+    // As the class loader stores them (version 10, D239): two of the Genie's four kinds, each with the genie spells
+    // and its own (TCE p.73), and the Fathomless's Grasping Tentacles (TCE p.73)
+    private final Subclass genie = Subclass.builder().id(UUID.randomUUID()).name("The Genie")
+            .characterClass(f.warlock)
+            .grantedSpells("{\"options\":["
+                    + "{\"name\":\"Dao\",\"expanded\":[\"detect evil and good\",\"sanctuary\"]},"
+                    + "{\"name\":\"Djinni\",\"expanded\":[\"detect evil and good\",\"thunderwave\"]}]}")
+            .build();
+    private final Subclass fathomless = Subclass.builder().id(UUID.randomUUID()).name("The Fathomless")
+            .characterClass(f.warlock)
+            .grantedSpells("{\"daily\":{\"10\":[\"Evard's black tentacles\"]}}")
+            .build();
 
     @BeforeEach
     void knowTheReferenceData() {
@@ -95,6 +107,18 @@ class SubclassAndRaceSpellsTest {
         spell("Druidcraft", 0, "Transmutation", "Druid");
         spell("Hex", 1, "Enchantment", "Warlock");
         spell("Detect Magic", 1, "Divination", "Wizard");
+        // The spells table's lists since the spell loader's version 5 (D239)
+        spell("Hold Person", 2, "Enchantment", "Bard", "Cleric", "Druid", "Sorcerer", "Warlock", "Wizard",
+                "Druid (Circle of the Land: Arctic)");
+        spell("Spider Climb", 2, "Transmutation", "Sorcerer", "Warlock", "Wizard",
+                "Druid (Circle of the Land: Underdark)");
+        spell("Detect Evil and Good", 1, "Divination", "Cleric", "Paladin", "Warlock (The Genie: Dao)",
+                "Warlock (The Genie: Djinni)");
+        spell("Sanctuary", 1, "Abjuration", "Cleric", "Warlock (The Genie: Dao)");
+        spell("Thunderwave", 1, "Evocation", "Bard", "Druid", "Sorcerer", "Wizard", "Warlock (The Genie: Djinni)");
+        spell("Eldritch Blast", 0, "Evocation", "Warlock");
+        spell("Minor Illusion", 0, "Illusion", "Bard", "Sorcerer", "Warlock", "Wizard");
+        spell("Evard's Black Tentacles", 4, "Conjuration", "Wizard", "Warlock (The Fathomless)");
         lenient().when(f.spellRepository.findByNameIgnoreCase(anyString()))
                 .thenAnswer(inv -> Optional.ofNullable(spells.get(inv.<String>getArgument(0).toLowerCase(Locale.ROOT))));
         for (CharacterClass c : List.of(druid, ranger)) {
@@ -107,7 +131,9 @@ class SubclassAndRaceSpellsTest {
                 .thenReturn(List.of(divineSoul));
         lenient().when(f.subclassRepository.findByCharacterClassIdOrderByNameAsc(f.cleric.getId()))
                 .thenReturn(List.of(deathDomain, lightDomain));
-        for (Subclass subclass : List.of(land, gloomStalker, divineSoul, lightDomain, deathDomain)) {
+        lenient().when(f.subclassRepository.findByCharacterClassIdOrderByNameAsc(f.warlock.getId()))
+                .thenReturn(List.of(fathomless, genie));
+        for (Subclass subclass : List.of(land, gloomStalker, divineSoul, lightDomain, deathDomain, genie, fathomless)) {
             lenient().when(f.subclassRepository.findById(subclass.getId())).thenReturn(Optional.of(subclass));
         }
     }
@@ -193,6 +219,43 @@ class SubclassAndRaceSpellsTest {
             f.levelDown(pc);
             assertThat(SubclassSpells.optionOf(pc, druid.getId())).isNull();
             assertThat(f.service.getCharacter(pc.getId(), f.userId).getSubclassAlwaysPreparedSpells()).isNull();
+        }
+
+        @Test
+        @DisplayName("D239: only the terrain picked joins the druid's list, so an Arctic druid can't prepare the "
+                + "Underdark's spider climb, which isn't a druid spell, and an Underdark druid can")
+        void onlyTheTerrainPickedIsOnTheList() {
+            PlayerCharacter arctic = landDruid();
+            f.choose(arctic, f.pending(arctic, Type.SUBCLASS_OPTION), request -> request.setSubclassOption("Arctic"));
+            f.levelUp(arctic, druid);
+            assertThat(f.service.getCharacter(arctic.getId(), f.userId).getSpellcasting()).singleElement()
+                    .satisfies(c -> assertThat(c.subclassSpellList()).isEqualTo("Druid (Circle of the Land: Arctic)"));
+
+            assertThatThrownBy(() -> f.spells.setPrepared(arctic.getId(),
+                    new com.tabletophelper.character.dto.PreparedSpellsRequest("Druid", List.of("Spider Climb")),
+                    f.userId)).isInstanceOf(ValidationException.class)
+                    .hasMessage("Spider Climb isn't on the Druid spell list");
+            f.spells.setPrepared(arctic.getId(), new com.tabletophelper.character.dto.PreparedSpellsRequest("Druid",
+                    List.of("Hold Person")), f.userId);
+
+            PlayerCharacter underdark = landDruid();
+            f.choose(underdark, f.pending(underdark, Type.SUBCLASS_OPTION),
+                    request -> request.setSubclassOption("Underdark"));
+            f.levelUp(underdark, druid);
+            f.spells.setPrepared(underdark.getId(), new com.tabletophelper.character.dto.PreparedSpellsRequest("Druid",
+                    List.of("Spider Climb")), f.userId);
+            assertThat(names(underdark, "class:Druid")).contains("Spider Climb");
+        }
+
+        @Test
+        @DisplayName("D239: a Land druid with no terrain picked has no circle spells on its list")
+        void noTerrainNoCircleSpells() {
+            PlayerCharacter pc = landDruid();
+            f.levelUp(pc, druid);
+
+            assertThatThrownBy(() -> f.spells.setPrepared(pc.getId(),
+                    new com.tabletophelper.character.dto.PreparedSpellsRequest("Druid", List.of("Spider Climb")),
+                    f.userId)).isInstanceOf(ValidationException.class);
         }
 
         @Test
@@ -286,6 +349,107 @@ class SubclassAndRaceSpellsTest {
             f.choices.storeMissingSubclassSpells(pc);
             assertThat(names(pc, "subclass:Gloom Stalker")).containsExactly("Disguise Self", "Rope Trick");
             assertThat(pc.getLevelHistory().get(4).choices().subclassSpells()).containsExactly("Rope Trick");
+            assertThat(f.choices.missingSubclassSpells(pc)).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("D239: the Genie's kind and the Fathomless's tentacles (TCE p.73)")
+    class WarlockPatrons {
+
+        @Test
+        @DisplayName("A Genie warlock owes its kind at Warlock 1, and only the genie spells and its kind's join its list")
+        void genieKind() {
+            PlayerCharacter pc = create(f.human, f.warlock, 1, request -> request.setSubclassId(genie.getId()));
+            PendingChoice kind = f.pending(pc, Type.SUBCLASS_OPTION);
+            assertThat(kind.options()).containsExactly("Dao", "Djinni");
+            assertThat(kind.classLevel()).isEqualTo(1);
+            PendingChoice spellsChoice = f.pending(pc, Type.SPELLS);
+
+            // No kind yet: none of the patron's spells is on the list
+            assertThatThrownBy(() -> f.choose(pc, spellsChoice,
+                    request -> request.setSpells(List.of("Detect Evil and Good", "Hex"))))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Detect Evil and Good isn't on the Warlock spell list");
+
+            f.choose(pc, kind, request -> request.setSubclassOption("Dao"));
+            assertThat(f.service.getCharacter(pc.getId(), f.userId).getSpellcasting()).singleElement()
+                    .satisfies(c -> assertThat(c.subclassSpellList()).isEqualTo("Warlock (The Genie: Dao)"));
+            assertThatThrownBy(() -> f.choose(pc, spellsChoice,
+                    request -> request.setSpells(List.of("Thunderwave", "Hex"))))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Thunderwave isn't on the Warlock spell list");
+            f.choose(pc, spellsChoice, request -> request.setSpells(List.of("Sanctuary", "Detect Evil and Good")));
+
+            assertThat(names(pc, "class:Warlock")).containsExactly("Sanctuary", "Detect Evil and Good");
+        }
+
+        @Test
+        @DisplayName("A Genie warlock made before kinds were chosen owes the kind through the backfill")
+        void genieBackfill() {
+            PlayerCharacter pc = create(f.human, f.warlock, 1, request -> request.setSubclassId(genie.getId()));
+            pc.setPendingChoices(List.of());
+
+            assertThat(f.choices.missedChoices(pc)).filteredOn(c -> c.type() == Type.SUBCLASS_OPTION).singleElement()
+                    .satisfies(c -> assertThat(c.options()).containsExactly("Dao", "Djinni"));
+        }
+
+        @Test
+        @DisplayName("A Fathomless warlock learns Evard's black tentacles at Warlock 10, once a long rest without a "
+                + "slot and not counted against its spells known, and levelling down takes it away")
+        void graspingTentacles() {
+            PlayerCharacter pc = create(f.human, f.warlock, 9, request -> request.setSubclassId(fathomless.getId()));
+            assertThat(pc.getSpellsKnown()).isNullOrEmpty();
+
+            f.levelUp(pc, f.warlock);
+            assertThat(pc.getSpellsKnown()).filteredOn(s -> "subclass:The Fathomless".equals(s.source()))
+                    .singleElement().satisfies(spell -> {
+                        assertThat(spell.name()).isEqualTo("Evard's Black Tentacles");
+                        assertThat(spell.level()).isEqualTo(4);
+                        assertThat(spell.usesPerLongRest()).isEqualTo(1);
+                        assertThat(spell.atWill()).isNull();
+                    });
+            assertThat(pc.getLevelHistory().get(9).choices().subclassSpells())
+                    .containsExactly("Evard's Black Tentacles");
+            assertThat(pc.getResourcePools())
+                    .filteredOn(p -> p.poolId().equals(ResourcePoolEntry.innatePoolId("Evard's Black Tentacles")))
+                    .singleElement().satisfies(pool -> {
+                        assertThat(pool.maxUses()).isEqualTo(1);
+                        assertThat(pool.resetOn()).isEqualTo("longRest");
+                    });
+
+            f.levelDown(pc);
+            assertThat(names(pc, "subclass:The Fathomless")).isEmpty();
+        }
+
+        @Test
+        @DisplayName("A Fathomless warlock of 10th level who knows the spell as a warlock spell still gains its free "
+                + "cast, and the recompute job grants it to one made before, once")
+        void graspingTentaclesRecompute() {
+            PlayerCharacter pc = create(f.human, f.warlock, 10, request -> {
+                request.setSubclassId(fathomless.getId());
+                request.setSpellsKnown(List.of(new KnownSpell(null, "Evard's Black Tentacles", 4, "class:Warlock",
+                        null, null, null, null, null)));
+            });
+            assertThat(names(pc, "subclass:The Fathomless")).containsExactly("Evard's Black Tentacles");
+
+            List<KnownSpell> known = new ArrayList<>(pc.getSpellsKnown());
+            known.removeIf(s -> "subclass:The Fathomless".equals(s.source()));
+            pc.setSpellsKnown(known);
+            List<LevelHistoryEntry> history = new ArrayList<>(pc.getLevelHistory());
+            history.set(9, history.get(9).withChoices(history.get(9).choices().withSubclassSpells(null)));
+            pc.setLevelHistory(history);
+
+            assertThat(f.choices.missingSubclassSpells(pc)).singleElement().satisfies(missing -> {
+                assertThat(missing.spell()).isEqualTo("Evard's black tentacles");
+                assertThat(missing.classLevel()).isEqualTo(10);
+                assertThat(missing.oncePerLongRest()).isTrue();
+            });
+            f.choices.storeMissingSubclassSpells(pc);
+            assertThat(pc.getSpellsKnown()).filteredOn(s -> "subclass:The Fathomless".equals(s.source()))
+                    .singleElement().satisfies(spell -> assertThat(spell.usesPerLongRest()).isEqualTo(1));
+            assertThat(pc.getLevelHistory().get(9).choices().subclassSpells())
+                    .containsExactly("Evard's Black Tentacles");
             assertThat(f.choices.missingSubclassSpells(pc)).isEmpty();
         }
     }

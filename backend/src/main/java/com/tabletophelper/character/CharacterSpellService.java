@@ -505,6 +505,43 @@ public class CharacterSpellService {
         return learned;
     }
 
+    /**
+     * Learns the spells a subclass teaches at a class level that are also cast once without a slot between long rests
+     * (D239), as the Fathomless's Evard's black tentacles at Warlock 10: "You learn the spell Evard's black tentacles.
+     * It counts as a warlock spell for you, but it doesn't count against the number of spells you know. You can also
+     * cast it once without a spell slot, and you regain the ability to do so when you finish a long rest" (Grasping
+     * Tentacles, TCE p.73). Each is known with the source "subclass:" and the subclass's name and one use a long rest,
+     * which the pools give an innate pool, and is cast with a slot too. Unlike {@link #learnSubclassSpells} it is
+     * learned even when the class knows the spell already, so the free cast isn't lost; levelling down takes away only
+     * the subclass's entry. One the spell data lacks isn't learned.
+     *
+     * @return the spells learned, by the spell data's names
+     */
+    List<String> learnDailySubclassSpells(PlayerCharacter character, List<String> names, String subclassName) {
+        List<KnownSpell> known = copy(character.getSpellsKnown());
+        List<String> learned = new ArrayList<>();
+        String source = SUBCLASS_SOURCE + subclassName;
+        for (String name : distinct(orEmpty(names))) {
+            Spell spell = spellRepository.findByNameIgnoreCase(name.trim()).orElse(null);
+            if (spell == null || knowsFromSubclass(known, spell.getName(), subclassName)) continue;
+            known.add(new KnownSpell(null, spell.getName(), spell.getLevel(), source, null, null, null, 1, null));
+            learned.add(spell.getName());
+        }
+        character.setSpellsKnown(known);
+        return learned;
+    }
+
+    /** Whether the character knows a spell of that name from the subclass, in any case. */
+    static boolean knowsFromSubclass(PlayerCharacter character, String name, String subclassName) {
+        return knowsFromSubclass(orEmpty(character.getSpellsKnown()), name, subclassName);
+    }
+
+    private static boolean knowsFromSubclass(List<KnownSpell> known, String name, String subclassName) {
+        String source = SUBCLASS_SOURCE + subclassName;
+        return name != null && known.stream().anyMatch(spell -> source.equals(spell.source())
+                && spell.name() != null && key(spell.name()).equals(key(name)));
+    }
+
     /** Whether the spell data has a spell of that name, in any case. */
     boolean isSpell(String name) {
         return name != null && !name.isBlank() && spellRepository.findByNameIgnoreCase(name.trim()).isPresent();
@@ -686,7 +723,9 @@ public class CharacterSpellService {
 
     /**
      * The spell of that name, when it is on the class's list: the list its class tables name (the class's own, or the
-     * wizard's for an Eldritch Knight or Arcane Trickster), or its subclass's additions.
+     * wizard's for an Eldritch Knight or Arcane Trickster), or its subclass's additions, those of the option picked for
+     * a subclass whose additions follow one, so a Land druid's other terrains' circle spells and a Genie warlock's
+     * other kinds' spells aren't on it (D239).
      */
     private Spell classSpell(ClassSpellcasting casting, String name) {
         Spell spell = spellRepository.findByNameIgnoreCase(name.trim())
@@ -694,8 +733,7 @@ public class CharacterSpellService {
         String list = casting.spellList();
         List<String> lists = classLists(spell);
         boolean onList = lists.contains(list)
-                || (casting.subclassName() != null
-                    && lists.contains(casting.className() + " (" + casting.subclassName() + ")"));
+                || (casting.subclassSpellList() != null && lists.contains(casting.subclassSpellList()));
         if (!onList) {
             throw new ValidationException(spell.getName() + " isn't on the " + list + " spell list");
         }

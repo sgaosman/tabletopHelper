@@ -46,6 +46,16 @@ describe('StatsTab', () => {
     expect(within(athletics).getByText('+8')).toBeInTheDocument();
   });
 
+  it("marks thieves' tools with Expertise among the tools, and no other tool (PHB p.96)", () => {
+    const thief = { ...char, toolProficiencies: ["thieves' tools", "Dice set"] };
+    const { unmount } = render(<StatsTab {...defaultProps} char={thief} skillExpertises={["Thieves' Tools"]} />);
+    expect(screen.getByText("Thieves' tools (Expertise), Dice set")).toBeInTheDocument();
+    unmount();
+
+    render(<StatsTab {...defaultProps} char={thief} />);
+    expect(screen.getByText("Thieves' tools, Dice set")).toBeInTheDocument();
+  });
+
   it('shows proficiency section when character has proficiencies', () => {
     render(<StatsTab {...defaultProps} />);
     expect(screen.getByText('Proficiencies')).toBeInTheDocument();

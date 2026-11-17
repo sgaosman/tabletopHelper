@@ -235,4 +235,47 @@ class CreationChecksIT extends IntegrationTest {
         assertThat(strings(expert.get("skillExpertises"))).containsExactly("Stealth", "Sleight of Hand");
         assertThat(expert.get("pendingChoices").toString()).doesNotContain("EXPERTISE");
     }
+
+    @Test
+    @DisplayName("A Rogue's Expertise may take thieves' tools, at creation and at Rogue 6, with proficiency in them; "
+            + "without it the request is a 400 (PHB p.96)")
+    void thievesToolsExpertise() {
+        Map<String, Object> lacking = request(humanId, rogueId, 1);
+        lacking.putAll(Map.of("skillProficiencies", List.of("Stealth", "Perception"),
+                "skillExpertises", List.of("Stealth", "Thieves' Tools")));
+        assertThat(refused(lacking).get("error").asString())
+                .isEqualTo("Aria isn't proficient with thieves' tools, so can't have Expertise with them");
+
+        Map<String, Object> first = request(humanId, rogueId, 1);
+        first.putAll(Map.of("skillProficiencies", List.of("Stealth", "Perception"),
+                "toolProficiencies", List.of("thieves' tools"),
+                "skillExpertises", List.of("Stealth", "thieves' tools")));
+        JsonNode rogue1 = created(first);
+        assertThat(strings(rogue1.get("skillExpertises"))).containsExactly("Stealth", "Thieves' Tools");
+        assertThat(strings(rogue1.get("levelHistory").get(0).get("choices").get("expertise")))
+                .containsExactly("Thieves' Tools", "Stealth");
+        assertThat(rogue1.get("pendingChoices").toString()).doesNotContain("EXPERTISE");
+
+        Map<String, Object> body = request(humanId, rogueId, 6);
+        body.putAll(Map.of("skillProficiencies", List.of("Stealth", "Perception", "Acrobatics"),
+                "toolProficiencies", List.of("thieves' tools"),
+                "skillExpertises", List.of("Stealth", "Perception")));
+        JsonNode rogue = created(body);
+
+        JsonNode sixth = null;
+        for (JsonNode choice : rogue.get("pendingChoices")) {
+            if ("EXPERTISE".equals(choice.get("type").asString())) sixth = choice;
+        }
+        assertThat(sixth).isNotNull();
+        assertThat(sixth.get("characterLevel").asInt()).isEqualTo(6);
+        String id = rogue.get("id").asString();
+        JsonNode chosen = expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/characters/" + id + "/apply-choices",
+                Map.of("choiceId", sixth.get("id").asString(),
+                        "expertiseSkills", List.of("Thieves' Tools", "Acrobatics")),
+                player.accessToken()));
+        assertThat(strings(chosen.get("skillExpertises")))
+                .containsExactly("Stealth", "Perception", "Thieves' Tools", "Acrobatics");
+        assertThat(strings(chosen.get("levelHistory").get(5).get("choices").get("expertise")))
+                .containsExactly("Thieves' Tools", "Acrobatics");
+    }
 }

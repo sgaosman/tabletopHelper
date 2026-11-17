@@ -3,6 +3,11 @@ import { apiErrorMessage } from '../../api/errors';
 import { useMultiattackOptions } from '../../queries/encounters';
 import { Select } from '../ui/Input';
 import type { EncounterParticipant } from '../../types/encounter';
+import type { MonsterActionRequest } from '../../types/combat';
+import { USUAL_FORM, chargeLabel } from '../../utils/monsterChoices';
+
+/** The charge, grip and form chosen for each attack, aligned with them, as the request takes them (D239). */
+export type ComponentChoices = Pick<MonsterActionRequest, 'componentCharged' | 'componentTwoHanded' | 'componentForms'>;
 
 const CHIP = 'px-2 py-0.5 font-heading text-[11px] font-semibold tracking-[0.02em] border transition-colors';
 const CHIP_ON = 'bg-monster text-card border-monster';
@@ -17,8 +22,12 @@ const CHIP_OFF = 'bg-card border-rule-light hover:bg-monster-bg';
  * too, and the multiattack waits until every such attack with a target has one (D207).
  *
  * @param describe the numbers of one of the monster's actions, such as "+14 · 2d10+8", for each attack's label
- * @param onExecute sends the targets of each attack in order, or null to log a multiattack the DM resolves, and the
- *                  damage type of each attack in order ("" for none) when any attack has damage options
+ * An attack a charge adds to takes a Charged box, a versatile weapon's a Two-handed box, and one whose damage depends
+ * on a form a Form select, each off unless the DM says (D239).
+ *
+ * @param onExecute sends the targets of each attack in order, or null to log a multiattack the DM resolves, the
+ *                  damage type of each attack in order ("" for none) when any attack has damage options, and the
+ *                  charges, grips and forms when any attack offers them
  */
 export default function MultiattackPicker({ monster, participants, actionName, describe, executing, onExecute }: {
   monster: EncounterParticipant;
@@ -26,11 +35,15 @@ export default function MultiattackPicker({ monster, participants, actionName, d
   actionName: string;
   describe: (actionName: string) => string | undefined;
   executing: boolean;
-  onExecute: (componentTargetIds: string[][] | null, componentDamageTypes?: string[]) => void;
+  onExecute: (componentTargetIds: string[][] | null, componentDamageTypes?: string[],
+    componentChoices?: ComponentChoices) => void;
 }) {
   const optionsQuery = useMultiattackOptions(monster.id);
   const [chosen, setChosen] = useState<string[][] | null>(null);
   const [types, setTypes] = useState<Record<number, string>>({});
+  const [charged, setCharged] = useState<Record<number, boolean>>({});
+  const [twoHanded, setTwoHanded] = useState<Record<number, boolean>>({});
+  const [forms, setForms] = useState<Record<number, string>>({});
 
   if (optionsQuery.isPending) {
     return <p className="mt-2 font-body text-[15px] font-semibold text-muted">Loading attacks...</p>;
@@ -93,6 +106,19 @@ export default function MultiattackPicker({ monster, participants, actionName, d
   const damageTypes = components.some((_, i) => hasOptions(i))
     ? current.map((ids, i) => (hasOptions(i) && ids.length > 0 ? types[i] ?? '' : ''))
     : undefined;
+  // The charge, grip and form of each attack made, sent only for a multiattack that offers any (D239)
+  const made = (i: number) => components[i].automated && current[i].length > 0;
+  const canCharge = (i: number) => components[i].automated && components[i].charge;
+  const canGrip = (i: number) => components[i].automated && !!components[i].twoHandedDamage;
+  const formsOf = (i: number) => (components[i].automated ? components[i].forms ?? [] : []);
+  const componentChoices: ComponentChoices = {
+    ...(components.some((_, i) => canCharge(i))
+      ? { componentCharged: components.map((_, i) => canCharge(i) && made(i) && !!charged[i]) } : {}),
+    ...(components.some((_, i) => canGrip(i))
+      ? { componentTwoHanded: components.map((_, i) => canGrip(i) && made(i) && !!twoHanded[i]) } : {}),
+    ...(components.some((_, i) => formsOf(i).length > 0)
+      ? { componentForms: components.map((_, i) => (formsOf(i).length > 0 && made(i) ? forms[i] ?? '' : '')) } : {}),
+  };
 
   return (
     <section aria-label={`${actionName} attacks`} className="mt-2 p-3 border border-cls-monk/40 bg-card space-y-2">
@@ -126,6 +152,31 @@ export default function MultiattackPicker({ monster, participants, actionName, d
                 {component.damageOptions.map(type => <option key={type} value={type}>{type}</option>)}
               </Select>
             )}
+            {canGrip(i) && (
+              <label className="flex items-center gap-1 font-body text-[12.5px] font-semibold text-ink cursor-pointer"
+                title={`Two-handed: ${component.twoHandedDamage}`}>
+                <input type="checkbox" className="accent-ink" checked={!!twoHanded[i]}
+                  aria-label={`Two-handed for ${label}`}
+                  onChange={e => setTwoHanded(prev => ({ ...prev, [i]: e.target.checked }))} />
+                Two-handed ({component.twoHandedDamage})
+              </label>
+            )}
+            {formsOf(i).length > 0 && (
+              <Select label={`Form for ${label}`} hideLabel className="w-40" value={forms[i] ?? ''}
+                onChange={e => setForms(prev => ({ ...prev, [i]: e.target.value }))}>
+                <option value="">Form: as the app sees it</option>
+                <option value={USUAL_FORM}>Usual damage</option>
+                {formsOf(i).map(f => <option key={f} value={f}>{f}</option>)}
+              </Select>
+            )}
+            {canCharge(i) && (
+              <label className="flex items-center gap-1 font-body text-[12.5px] font-semibold text-ink cursor-pointer">
+                <input type="checkbox" className="accent-ink" checked={!!charged[i]}
+                  aria-label={`Charged for ${label}`}
+                  onChange={e => setCharged(prev => ({ ...prev, [i]: e.target.checked }))} />
+                {chargeLabel(component.chargeFeet)}
+              </label>
+            )}
             {component.automated ? (
               <div role="group" aria-label={`Targets for ${label}`} className="flex flex-wrap gap-1">
                 {candidates.map(target => {
@@ -151,7 +202,8 @@ export default function MultiattackPicker({ monster, participants, actionName, d
         </p>
       )}
       <button type="button" disabled={attacks === 0 || untyped > 0 || executing}
-        onClick={() => onExecute(current.map((ids, i) => (components[i].automated ? ids : [])), damageTypes)}
+        onClick={() => onExecute(current.map((ids, i) => (components[i].automated ? ids : [])), damageTypes,
+          Object.keys(componentChoices).length > 0 ? componentChoices : undefined)}
         className="px-3 py-1 bg-ink hover:bg-ink/90 disabled:bg-page-alt disabled:text-faint text-card font-heading text-[12px] font-semibold tracking-[0.02em]">
         {executing ? 'Executing...' : `Execute ${actionName} (${attacks} attack${attacks !== 1 ? 's' : ''})`}
       </button>

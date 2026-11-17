@@ -3,7 +3,7 @@ import { initialWizardState, wizardReducer, type WizardAction, type WizardState 
 import {
   bgChoiceReqs, bgChoicesComplete, bgFeatNames, bgReplacementOptions, bgReplacementsComplete, bgSkillConflicts,
   buildCreateRequest, canAdvance, classSkillChoices, firstIncompleteStep, heldSkills, multiclassSkillsRequired,
-  currentStepName, expertiseCount, filteredBackgrounds, filteredRaces, finalScores, firstLevelSubclass,
+  currentStepName, expertiseCount, expertiseOptions, expertiseRequired, filteredBackgrounds, filteredRaces, finalScores, firstLevelSubclass,
   hasMeaningfulData, isVanillaHuman, multiclassSkillChoices, pointBuyTotal, raceChoiceReqs, raceChoicesComplete,
   raceFeats, raceSkills, racialBonuses, resolvedBgProfs, resolvedRaceChoices, spellsKnown, toDraft, wizardSteps,
 } from '../selectors';
@@ -89,6 +89,16 @@ describe('class selectors', () => {
   it("gives a first-class rogue's 1st-level Expertise only", () => {
     expect(expertiseCount(withClass(rogue))).toBe(2);
     expect(expertiseCount(reduce(withClass(fighter, 2), { type: 'addMulticlass', cls: rogue, subclasses: [] }))).toBe(0);
+  });
+
+  it("offers a rogue's Expertise its skills and thieves' tools, and anyone else's skills only (PHB p.96)", () => {
+    const rogue1 = reduce(withClass(rogue), { type: 'toggleClassSkill', skill: 'Stealth', max: 4 },
+      { type: 'toggleClassSkill', skill: 'Insight', max: 4 });
+    expect(expertiseOptions(rogue1)).toEqual(['Stealth', 'Insight', "Thieves' Tools"]);
+    expect(expertiseRequired(rogue1)).toBe(2);
+    const fighter1 = reduce(withClass(fighter), { type: 'toggleClassSkill', skill: 'Athletics', max: 2 });
+    expect(expertiseOptions(fighter1)).toEqual(['Athletics']);
+    expect(expertiseRequired(fighter1)).toBe(0);
   });
 
   it('chooses a subclass at 1st level only for a first class whose subclass comes then and has some', () => {
@@ -296,6 +306,18 @@ describe('canAdvance', () => {
     const unbalanced = reduce(withClass(rogue, 3), { type: 'addMulticlass', cls: fighter, subclasses: [] },
       { type: 'setClassLevel', classId: rogue.id, level: 1 });
     expect(canAdvance(at({ ...unbalanced, selectedClassSkills: ['Stealth', 'Insight', 'Deception', 'Acrobatics'] }, 'Class'))).toBe(false);
+  });
+
+  it("needs a rogue's two Expertise picks before the Class step is left, thieves' tools counting as one (PHB p.96)", () => {
+    const skills = ['Stealth', 'Insight', 'Deception', 'Acrobatics']
+      .map((skill): WizardAction => ({ type: 'toggleClassSkill', skill, max: 4 }));
+    const rogue1 = reduce(withClass(rogue), ...skills);
+    expect(canAdvance(at(rogue1, 'Class'))).toBe(false);
+
+    const one = reduce(rogue1, { type: 'toggleExpertise', skill: 'Stealth', max: 2 });
+    expect(canAdvance(at(one, 'Class'))).toBe(false);
+    expect(canAdvance(at(reduce(one, { type: 'toggleExpertise', skill: 'Insight', max: 2 }), 'Class'))).toBe(true);
+    expect(canAdvance(at(reduce(one, { type: 'toggleExpertise', skill: "Thieves' Tools", max: 2 }), 'Class'))).toBe(true);
   });
 
   it("needs each multiclass's skill (PHB p.164, D226)", () => {

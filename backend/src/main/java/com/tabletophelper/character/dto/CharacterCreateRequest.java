@@ -64,7 +64,8 @@ public class CharacterCreateRequest {
     // (D158, D167), so a request can't set them
 
     // Checked against the race, classes and background (D232): the saving throws are the first class's whatever
-    // this says (PHB p.164); a skill, Expertise, resistance or spell they don't give is a 400
+    // this says (PHB p.164); a skill, Expertise, resistance or spell they don't give is a 400. skillExpertises may
+    // name "Thieves' Tools" for a Rogue's Expertise (PHB p.96)
     private List<String> savingThrowProficiencies;
     private List<String> skillProficiencies;
     private List<String> skillExpertises;

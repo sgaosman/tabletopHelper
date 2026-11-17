@@ -1637,10 +1637,7 @@
             "damageType": "necrotic",
             "twoHandedDamageDice": "3d6"
           }
-        ],
-        "_riderNote": "On a hit: 7 (1d6 + 4) bludgeoning damage plus 10 (3d6) necrotic damage, or 8 (1d8 + 4) bludgeoning damage plus 10 (3d6) necrotic damage when used with two hands. The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 7 (1d6 + 4) bludgeoning damage plus 10 (3d6) necrotic damage, or 8 (1d8 + 4) bludgeoning damage plus 10 (3d6) necrotic damage when used with two hands. The DM settles the choice by hand."
+        ]
       },
       {
         "name": "Invoke Curse",
@@ -7274,9 +7271,28 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6",
             "damageType": "force"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 17,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
         ],
-        "automatable": true
+        "automatable": true,
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is prone, the absorber can make one bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       },
       {
         "name": "Mind Bolt",
@@ -7457,6 +7473,13 @@
             "damageDice": "1d6",
             "damageType": "lightning"
           }
+        ],
+        "versatile": {
+          "twoHandedDamageDice": "1d8 + 6",
+          "twoHandedDamageType": "piercing"
+        },
+        "_riderActionKeys": [
+          "versatile"
         ]
       }
     ],
@@ -8961,7 +8984,26 @@
             "effectType": "DAMAGE",
             "damageDice": "1d8 + 4",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 13,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 30 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 30,
+          "trait": "Pounce",
+          "note": "If the target is prone, the allosaurus can make one bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -11059,7 +11101,14 @@
             "damageType": "piercing"
           }
         ],
-        "automatable": true
+        "automatable": true,
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 2",
+          "twoHandedDamageType": "piercing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       }
     ],
     "traits": [
@@ -17064,7 +17113,35 @@
             "effectType": "DAMAGE",
             "damageDice": "2d8 + 4",
             "damageType": "bludgeoning"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d8",
+            "damageType": "bludgeoning",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 15,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -18803,7 +18880,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: A creature reduced to 0 hit points from damage dealt by the sword Void dies and can't be revived by any means short of a wish spell.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: A creature reduced to 0 hit points from damage dealt by the sword Void dies and can't be revived by any means short of a wish spell."
+        "dmNote": "Also on a hit, applied by hand: A creature reduced to 0 hit points from damage dealt by the sword Void dies and can't be revived by any means short of a wish spell.",
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 3",
+          "twoHandedDamageType": "slashing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Unholy Strike",
@@ -22703,18 +22787,35 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "2d8",
-            "damageType": "piercing"
+            "damageType": "piercing",
+            "_riderKeys": [
+              "onlyIf"
+            ],
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            }
           },
           {
             "effectType": "CONDITION",
             "condition": "prone",
             "saveDC": 15,
-            "saveAbility": "STR"
+            "saveAbility": "STR",
+            "_riderKeys": [
+              "onlyIf"
+            ],
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            }
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the aurochs moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 9 (2d8) piercing damage.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the aurochs moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 9 (2d8) piercing damage."
+        "charge": {
+          "feet": 20
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       }
     ]
   },
@@ -22736,7 +22837,35 @@
             "effectType": "DAMAGE",
             "damageDice": "2d8 + 5",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d8",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 15,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ],
@@ -23222,10 +23351,7 @@
             "damageDice": "4d8",
             "damageType": "psychic"
           }
-        ],
-        "_riderNote": "On a hit: 5 (1d8 + 1) slashing damage plus 18 (4d8) psychic damage, or 6 (1d10 + 1) slashing damage plus 18 (4d8) psychic damage if used with two hands. The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 5 (1d8 + 1) slashing damage plus 18 (4d8) psychic damage, or 6 (1d10 + 1) slashing damage plus 18 (4d8) psychic damage if used with two hands. The DM settles the choice by hand."
+        ]
       },
       {
         "name": "Longbow",
@@ -23587,7 +23713,35 @@
             "effectType": "DAMAGE",
             "damageDice": "2d8 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d8",
+            "damageType": "bludgeoning",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 14,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -25692,7 +25846,14 @@
         "automatable": true,
         "_riderNote": "Also on a hit, applied by hand: Bak Mei can expend up to 3 of the staff's charges. For each expended charge, the target takes an extra 1d6 force damage.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: Bak Mei can expend up to 3 of the staff's charges. For each expended charge, the target takes an extra 1d6 force damage."
+        "dmNote": "Also on a hit, applied by hand: Bak Mei can expend up to 3 of the staff's charges. For each expended charge, the target takes an extra 1d6 force damage.",
+        "versatile": {
+          "twoHandedDamageDice": "1d8",
+          "twoHandedDamageType": "bludgeoning"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Heal Self (Recharges after a Long Rest)",
@@ -26854,12 +27015,33 @@
             "effectType": "CONDITION",
             "condition": "prone",
             "saveDC": 25,
-            "saveAbility": "STR"
+            "saveAbility": "STR",
+            "_riderKeys": [
+              "onlyIf"
+            ],
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            }
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "3d10",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If Baphomet moved at least 10 feet straight toward the target immediately before the hit, the target takes an extra 16 (3d10) piercing damage. If the target is a creature, it must succeed on a DC 25 Strength saving throw or be pushed up to 10 feet away and knocked prone.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If Baphomet moved at least 10 feet straight toward the target immediately before the hit, the target takes an extra 16 (3d10) piercing damage. If the target is a creature, it must succeed on a DC 25 Strength saving throw or be pushed up to 10 feet away and knocked prone."
+        "charge": {
+          "feet": 10,
+          "note": "A target that fails the save is also pushed up to 10 feet away, by hand."
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       },
       {
         "name": "Heartcleaver",
@@ -27049,7 +27231,36 @@
             "effectType": "DAMAGE",
             "damageDice": "2d6 + 10",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "3d10",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 25,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 10,
+          "trait": "Charge",
+          "note": "A target that fails the save is also pushed up to 10 feet away, by hand."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -27815,15 +28026,33 @@
             "saveToEndDC": null,
             "_riderKeys": [
               "saveDC",
-              "saveAbility"
+              "saveAbility",
+              "onlyIf"
             ],
             "saveDC": 14,
-            "saveAbility": "STR"
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            }
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "3d6",
+            "damageType": "bludgeoning",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the bariaur moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 10 (3d6) bludgeoning damage.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the bariaur moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 10 (3d6) bludgeoning damage."
+        "charge": {
+          "feet": 20
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       },
       {
         "name": "Shortbow",
@@ -33899,7 +34128,35 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 1",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1d6",
+            "damageType": "slashing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 11,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -36869,7 +37126,36 @@
             "effectType": "DAMAGE",
             "damageDice": "2d8 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d8",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 14,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 10,
+          "trait": "Charge",
+          "note": "A target that fails the save is also pushed up to 10 feet away, by hand."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -38026,23 +38312,39 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "1d8",
-            "damageType": "piercing"
+            "damageType": "piercing",
+            "_riderKeys": [
+              "onlyIf"
+            ],
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            }
           },
           {
             "effectType": "CONDITION",
             "condition": "prone",
             "_riderKeys": [
               "saveDC",
-              "saveAbility"
+              "saveAbility",
+              "onlyIf"
             ],
             "saveDC": 15,
-            "saveAbility": "STR"
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            }
           }
         ],
         "automatable": true,
-        "_riderNote": "Also on a hit, applied by hand: If Brusipha moved at least 10 feet straight toward the target immediately before she hit, the target takes an extra 4 (1d8) piercing damage. If the target is a creature, it must succeed on a DC 15 Strength saving throw or be pushed up to 10 feet from Brusipha and have the prone condition.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If Brusipha moved at least 10 feet straight toward the target immediately before she hit, the target takes an extra 4 (1d8) piercing damage. If the target is a creature, it must succeed on a DC 15 Strength saving throw or be pushed up to 10 feet from Brusipha and have the prone condition."
+        "charge": {
+          "feet": 10,
+          "note": "A target that fails the save is also pushed up to 10 feet away, by hand."
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       },
       {
         "name": "Incite the Hunters (Recharges after a Short or Long Rest)",
@@ -38979,7 +39281,35 @@
             "effectType": "DAMAGE",
             "damageDice": "1d8 + 3",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "fire",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 13,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -40662,7 +40992,24 @@
             "effectType": "DAMAGE",
             "damageDice": "1d10 + 5",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "3d6",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -40754,7 +41101,24 @@
             "effectType": "DAMAGE",
             "damageDice": "1d10 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "3d6",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 30 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 30,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -40827,22 +41191,38 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "2d10",
-            "damageType": "piercing"
+            "damageType": "piercing",
+            "_riderKeys": [
+              "onlyIf"
+            ],
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            }
           },
           {
             "effectType": "CONDITION",
             "condition": "prone",
             "_riderKeys": [
               "saveDC",
-              "saveAbility"
+              "saveAbility",
+              "onlyIf"
             ],
             "saveDC": 19,
-            "saveAbility": "STR"
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            }
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the ceratops moved at least 20 feet in a straight line toward the target immediately before the hit, the target takes an extra 11 (2d10) piercing damage. If the target is a creature, it also must succeed on a DC 19 Strength saving throw or be pushed up to 20 feet from the ceratops and have the prone condition.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the ceratops moved at least 20 feet in a straight line toward the target immediately before the hit, the target takes an extra 11 (2d10) piercing damage. If the target is a creature, it also must succeed on a DC 19 Strength saving throw or be pushed up to 20 feet from the ceratops and have the prone condition."
+        "charge": {
+          "feet": 20,
+          "note": "A target that fails the save is also pushed up to 20 feet away, by hand."
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       },
       {
         "name": "Stomp",
@@ -43077,7 +43457,26 @@
             "effectType": "DAMAGE",
             "damageDice": "1d8 + 3",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 11,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is prone, the clawfoot can make one bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -46139,7 +46538,24 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ],
@@ -47202,7 +47618,26 @@
             "effectType": "DAMAGE",
             "damageDice": "1d8 + 3",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 13,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is prone, the cat can make one bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ],
@@ -48965,16 +49400,32 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "prone"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone"
+            "condition": "prone",
+            "_riderKeys": [
+              "onlyIf"
+            ],
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            }
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the dandylion moved at least 20 feet straight toward the target immediately before the hit, the target must succeed on a DC 17 Strength saving throw or have the prone condition. If the target has the prone condition, the dandylion can make one Bite attack against it as a bonus action.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the dandylion moved at least 20 feet straight toward the target immediately before the hit, the target must succeed on a DC 17 Strength saving throw or have the prone condition. If the target has the prone condition, the dandylion can make one Bite attack against it as a bonus action."
+        "charge": {
+          "feet": 20,
+          "note": "If the target has the prone condition, the dandylion can make one Bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
+        ],
+        "_riderRemoved": [
+          {
+            "at": 2,
+            "part": {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          }
+        ]
       },
       {
         "name": "Rejuvenating Seedpods (2/Day)",
@@ -51953,11 +52404,24 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the rothé moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 7 (2d6) piercing damage.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the rothé moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 7 (2d6) piercing damage."
+        "charge": {
+          "feet": 20
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       }
     ],
     "spellcasting": {
@@ -51995,7 +52459,24 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ],
@@ -52391,7 +52872,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: While Horgar is enlarged, the damage increases to 15 (2d8 + 6) or 17 (2d10 + 6) bludgeoning damage, respectively.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: While Horgar is enlarged, the damage increases to 15 (2d8 + 6) or 17 (2d10 + 6) bludgeoning damage, respectively."
+        "dmNote": "Also on a hit, applied by hand: While Horgar is enlarged, the damage increases to 15 (2d8 + 6) or 17 (2d10 + 6) bludgeoning damage, respectively.",
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 6",
+          "twoHandedDamageType": "bludgeoning"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Heavy Crossbow",
@@ -52528,7 +53016,26 @@
             "effectType": "DAMAGE",
             "damageDice": "1d8 + 2",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 12,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is prone, the deinonychus can make one Bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ],
@@ -52585,7 +53092,26 @@
             "effectType": "DAMAGE",
             "damageDice": "1d8 + 2",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 12,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is prone, the deinonychus can make one bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ],
@@ -53982,7 +54508,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: 4 (1d8) bludgeoning damage if wielded with two hands, or 6 (1d8 + 2) bludgeoning damage with shillelagh.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: 4 (1d8) bludgeoning damage if wielded with two hands, or 6 (1d8 + 2) bludgeoning damage with shillelagh."
+        "dmNote": "Also on a hit, applied by hand: 4 (1d8) bludgeoning damage if wielded with two hands, or 6 (1d8 + 2) bludgeoning damage with shillelagh.",
+        "versatile": {
+          "twoHandedDamageDice": "1d8",
+          "twoHandedDamageType": "bludgeoning"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       }
     ],
     "spellcasting": {
@@ -55740,12 +56273,22 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "1d6",
-            "damageType": "bludgeoning"
+            "damageType": "bludgeoning",
+            "_riderKeys": [
+              "onlyIf"
+            ],
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 30 feet straight toward the target first"
+            }
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the dolphin moved at least 30 feet straight toward the target immediately before the hit, the target takes an extra 3 (1d6) bludgeoning damage.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the dolphin moved at least 30 feet straight toward the target immediately before the hit, the target takes an extra 3 (1d6) bludgeoning damage."
+        "charge": {
+          "feet": 30
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       }
     ],
     "traits": [
@@ -55774,7 +56317,24 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 2",
             "damageType": "bludgeoning"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1d6",
+            "damageType": "bludgeoning",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 30 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 30,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ],
@@ -59836,6 +60396,13 @@
             "damageDice": "1d6",
             "damageType": "poison"
           }
+        ],
+        "versatile": {
+          "twoHandedDamageDice": "1d8 - 1",
+          "twoHandedDamageType": "bludgeoning"
+        },
+        "_riderActionKeys": [
+          "versatile"
         ]
       },
       {
@@ -59970,7 +60537,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: The target must succeed on a DC 19 Wisdom saving throw or become frightened of the drow for 1 minute.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: The target must succeed on a DC 19 Wisdom saving throw or become frightened of the drow for 1 minute."
+        "dmNote": "Also on a hit, applied by hand: The target must succeed on a DC 19 Wisdom saving throw or become frightened of the drow for 1 minute.",
+        "versatile": {
+          "twoHandedDamageDice": "1d8 + 4",
+          "twoHandedDamageType": "bludgeoning"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Tentacle Rod",
@@ -60205,7 +60779,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: In addition, the target must succeed on a DC19 Wisdom saving throw or become frightened of the drow for 1 minute.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: In addition, the target must succeed on a DC19 Wisdom saving throw or become frightened of the drow for 1 minute."
+        "dmNote": "Also on a hit, applied by hand: In addition, the target must succeed on a DC19 Wisdom saving throw or become frightened of the drow for 1 minute.",
+        "versatile": {
+          "twoHandedDamageDice": "1d8 + 4",
+          "twoHandedDamageType": "bludgeoning"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Tentacle Rod",
@@ -61098,7 +61679,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: 4 (1d8) bludgeoning damage if wielded with two hands, or 6 (1d8 + 2) bludgeoning damage with shillelagh.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: 4 (1d8) bludgeoning damage if wielded with two hands, or 6 (1d8 + 2) bludgeoning damage with shillelagh."
+        "dmNote": "Also on a hit, applied by hand: 4 (1d8) bludgeoning damage if wielded with two hands, or 6 (1d8 + 2) bludgeoning damage with shillelagh.",
+        "versatile": {
+          "twoHandedDamageDice": "1d8",
+          "twoHandedDamageType": "bludgeoning"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       }
     ],
     "spellcasting": {
@@ -63251,7 +63839,14 @@
         "note": "REVIEW: On critical hit, DC 15 CON save or decapitation (instant death for creatures that need a head). Creatures without heads or with legendary actions take extra 6d8 slashing instead.",
         "_riderNote": "Also on a hit, applied by hand: If the dullahan scores a critical hit against a creature, the target must succeed on a DC 15 Constitution saving throw or the dullahan cuts off the target's head. The target dies if it can't survive without the lost head. A creature that doesn't have or need a head, or has legendary actions, instead takes an extra 27 (6d8) slashing damage.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the dullahan scores a critical hit against a creature, the target must succeed on a DC 15 Constitution saving throw or the dullahan cuts off the target's head. The target dies if it can't survive without the lost head. A creature that doesn't have or need a head, or has legendary actions, instead takes an extra 27 (6d8) slashing damage."
+        "dmNote": "Also on a hit, applied by hand: If the dullahan scores a critical hit against a creature, the target must succeed on a DC 15 Constitution saving throw or the dullahan cuts off the target's head. The target dies if it can't survive without the lost head. A creature that doesn't have or need a head, or has legendary actions, instead takes an extra 27 (6d8) slashing damage.",
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 4",
+          "twoHandedDamageType": "slashing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Fiery Skull",
@@ -66618,7 +67213,26 @@
             "effectType": "DAMAGE",
             "damageDice": "3d8 + 6",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 12,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Trampling Charge",
+          "note": "If the target is prone, the elephant can make one stomp attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -66850,7 +67464,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: If the target is a creature that is Large or bigger, it takes an extra 5 (1d10) slashing damage.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the target is a creature that is Large or bigger, it takes an extra 5 (1d10) slashing damage."
+        "dmNote": "Also on a hit, applied by hand: If the target is a creature that is Large or bigger, it takes an extra 5 (1d10) slashing damage.",
+        "versatile": {
+          "twoHandedDamageDice": "1d10",
+          "twoHandedDamageType": "slashing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       }
     ],
     "bonusActions": [
@@ -66914,7 +67535,35 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 3",
             "damageType": "bludgeoning"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "bludgeoning",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 13,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -68240,7 +68889,26 @@
             "effectType": "DAMAGE",
             "damageDice": "2d12 + 5",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 16,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Trampling Charge",
+          "note": "If the target is prone, Envy can make one attack with its claws against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -71898,9 +72566,28 @@
             "effectType": "DAMAGE",
             "damageDice": "3d6 + 4",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 15,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
         ],
-        "automatable": true
+        "automatable": true,
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is prone, the felidar can make one claw attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       }
     ],
     "traits": [
@@ -71958,7 +72645,26 @@
             "effectType": "DAMAGE",
             "damageDice": "2d6 + 4",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 15,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is prone, the felidar can make one bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -72839,7 +73545,24 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "prone"
+            "condition": "prone",
+            "_riderKeys": [
+              "onlyIf"
+            ],
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            }
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d10",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
         ],
         "_riderRemoved": [
@@ -72852,9 +73575,12 @@
             }
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the auger moves at least 20 feet in a straight line toward the target immediately before the hit, the target takes an additional 11 (2d10) piercing damage.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the auger moves at least 20 feet in a straight line toward the target immediately before the hit, the target takes an additional 11 (2d10) piercing damage."
+        "charge": {
+          "feet": 20
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       }
     ],
     "traits": [
@@ -75027,7 +75753,26 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 4",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 14,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is prone, the lion can make one bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ],
@@ -80195,7 +80940,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: If Gar scores a critical hit with this weapon, the target takes extra necrotic damage equal to half its hit point maximum.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If Gar scores a critical hit with this weapon, the target takes extra necrotic damage equal to half its hit point maximum."
+        "dmNote": "Also on a hit, applied by hand: If Gar scores a critical hit with this weapon, the target takes extra necrotic damage equal to half its hit point maximum.",
+        "versatile": {
+          "twoHandedDamageDice": "1d8 + 6",
+          "twoHandedDamageType": "piercing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Umberlee's Wake",
@@ -82727,7 +83479,35 @@
             "effectType": "DAMAGE",
             "damageDice": "2d6 + 3",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "slashing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 13,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -83253,7 +84033,35 @@
             "effectType": "DAMAGE",
             "damageDice": "2d6 + 4",
             "damageType": "bludgeoning"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "bludgeoning",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 14,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -83511,7 +84319,35 @@
             "effectType": "DAMAGE",
             "damageDice": "2d4 + 3",
             "damageType": "bludgeoning"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d4",
+            "damageType": "bludgeoning",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 13,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -83906,12 +84742,27 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "prone"
+            "condition": "prone",
+            "_riderKeys": [
+              "onlyIf",
+              "saveDC",
+              "saveAbility"
+            ],
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "saveDC": 12,
+            "saveAbility": "STR"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the lynx moved at least 20 feet straight toward the target immediately before the hit, the target must succeed on a DC 12 Strength saving throw or have the prone condition. If the target has the prone condition, the lynx can make another Claws attack against it as a bonus action.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the lynx moved at least 20 feet straight toward the target immediately before the hit, the target must succeed on a DC 12 Strength saving throw or have the prone condition. If the target has the prone condition, the lynx can make another Claws attack against it as a bonus action."
+        "charge": {
+          "feet": 20,
+          "note": "If the target has the prone condition, the lynx can make another Claws attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       }
     ],
     "traits": [
@@ -84055,22 +84906,37 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "2d6",
-            "damageType": "piercing"
+            "damageType": "piercing",
+            "_riderKeys": [
+              "onlyIf"
+            ],
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            }
           },
           {
             "effectType": "CONDITION",
             "condition": "prone",
             "_riderKeys": [
               "saveDC",
-              "saveAbility"
+              "saveAbility",
+              "onlyIf"
             ],
             "saveDC": 16,
-            "saveAbility": "STR"
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            }
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the ox moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 7 (2d6) piercing damage.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the ox moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 7 (2d6) piercing damage."
+        "charge": {
+          "feet": 20
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       }
     ],
     "traits": [
@@ -84142,12 +85008,26 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "prone"
+            "condition": "prone",
+            "_riderKeys": [
+              "onlyIf",
+              "saveDC",
+              "saveAbility"
+            ],
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "saveDC": 14,
+            "saveAbility": "STR"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the ram moved at least 20 feet straight toward the target immediately before the hit, the target must succeed on a DC 14 Strength saving throw or have the prone condition.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the ram moved at least 20 feet straight toward the target immediately before the hit, the target must succeed on a DC 14 Strength saving throw or have the prone condition."
+        "charge": {
+          "feet": 20
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       },
       {
         "name": "Force Bolt",
@@ -84391,7 +85271,35 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 1",
             "damageType": "bludgeoning"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "bludgeoning",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 11,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -87226,10 +88134,7 @@
             "damageDice": "4d8",
             "damageType": "psychic"
           }
-        ],
-        "_riderNote": "On a hit: 7 (1d8 + 3) slashing damage plus 18 (4d8) psychic damage, or 8 (1d10 + 3) slashing damage plus 18 (4d8) psychic damage if used with two hands. The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 7 (1d8 + 3) slashing damage plus 18 (4d8) psychic damage, or 8 (1d10 + 3) slashing damage plus 18 (4d8) psychic damage if used with two hands. The DM settles the choice by hand."
+        ]
       }
     ],
     "spellcasting": {
@@ -87721,7 +88626,14 @@
             "damageType": "psychic"
           }
         ],
-        "automatable": true
+        "automatable": true,
+        "versatile": {
+          "twoHandedDamageDice": "1d8 + 2",
+          "twoHandedDamageType": "bludgeoning"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Telekinetic Bolt",
@@ -89239,10 +90151,7 @@
             "damageDice": "4d12",
             "damageType": "necrotic"
           }
-        ],
-        "_riderNote": "On a hit: 7 (1d6 + 4) piercing damage plus 26 (4d12) necrotic damage, or 8 (1d8 + 4) piercing damage plus 26 (4d12) necrotic damage if used with two hands. The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 7 (1d6 + 4) piercing damage plus 26 (4d12) necrotic damage, or 8 (1d8 + 4) piercing damage plus 26 (4d12) necrotic damage if used with two hands. The DM settles the choice by hand."
+        ]
       }
     ],
     "reactions": [
@@ -90532,7 +91441,35 @@
             "effectType": "DAMAGE",
             "damageDice": "1d4 + 1",
             "damageType": "bludgeoning"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1d4",
+            "damageType": "bludgeoning",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 10,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -91239,7 +92176,35 @@
             "effectType": "DAMAGE",
             "damageDice": "2d8 + 4",
             "damageType": "bludgeoning"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "3d6",
+            "damageType": "bludgeoning",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 15,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -91837,7 +92802,26 @@
             "effectType": "DAMAGE",
             "damageDice": "2d12 + 5",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 16,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Trampling Charge",
+          "note": "If the target is prone, the gorgon can make one attack with its hooves against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -95080,6 +96064,13 @@
               "damageType": "piercing"
             }
           }
+        ],
+        "versatile": {
+          "twoHandedDamageDice": "1d8 + 2",
+          "twoHandedDamageType": "piercing"
+        },
+        "_riderActionKeys": [
+          "versatile"
         ]
       },
       {
@@ -96387,7 +97378,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: Plus 6 (1d12) slashing damage if Gunvald uses Menacing Blows.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: Plus 6 (1d12) slashing damage if Gunvald uses Menacing Blows."
+        "dmNote": "Also on a hit, applied by hand: Plus 6 (1d12) slashing damage if Gunvald uses Menacing Blows.",
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 5",
+          "twoHandedDamageType": "slashing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Javelin",
@@ -100114,7 +101112,35 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 2",
             "damageType": "bludgeoning"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "bludgeoning",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 12,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -101742,6 +102768,13 @@
               "damageType": "bludgeoning"
             }
           }
+        ],
+        "versatile": {
+          "twoHandedDamageDice": "1d8 + 1",
+          "twoHandedDamageType": "bludgeoning"
+        },
+        "_riderActionKeys": [
+          "versatile"
         ]
       },
       {
@@ -105998,6 +107031,12 @@
             "damageDice": "1d8 + 4",
             "damageType": "slashing",
             "_rider": "added"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "4d8",
+            "damageType": "force",
+            "_rider": "added"
           }
         ],
         "_riderRemoved": [
@@ -106011,9 +107050,13 @@
             }
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: Or 9 (1d10 + 4) if used with two hands, plus 18 (4d8) force damage.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: Or 9 (1d10 + 4) if used with two hands, plus 18 (4d8) force damage."
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 4",
+          "twoHandedDamageType": "slashing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Mind Fire",
@@ -106141,9 +107184,13 @@
             }
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: Or 9 (1d10 + 4) if used with two hands, plus 18 (4d8) force damage.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: Or 9 (1d10 + 4) if used with two hands, plus 18 (4d8) force damage."
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 4",
+          "twoHandedDamageType": "slashing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       }
     ],
     "spellcasting": {
@@ -106249,9 +107296,13 @@
             }
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: Or 9 (1d10 + 4) if used with two hands, plus 18 (4d8) force damage.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: Or 9 (1d10 + 4) if used with two hands, plus 18 (4d8) force damage."
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 4",
+          "twoHandedDamageType": "slashing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Implode",
@@ -107291,6 +108342,13 @@
               "damageType": "radiant"
             }
           }
+        ],
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 7",
+          "twoHandedDamageType": "slashing"
+        },
+        "_riderActionKeys": [
+          "versatile"
         ]
       },
       {
@@ -108185,9 +109243,13 @@
           }
         ],
         "automatable": true,
-        "_riderNote": "Also on a hit, applied by hand: Or 15 (2d10 + 4) when used with two hands.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: Or 15 (2d10 + 4) when used with two hands."
+        "versatile": {
+          "twoHandedDamageDice": "2d10 + 4",
+          "twoHandedDamageType": "slashing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Hurl Flame",
@@ -110651,7 +111713,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: 4 (1d8) bludgeoning damage if wielded with two hands, or 6 (1d8 + 2) bludgeoning damage with shillelagh.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: 4 (1d8) bludgeoning damage if wielded with two hands, or 6 (1d8 + 2) bludgeoning damage with shillelagh."
+        "dmNote": "Also on a hit, applied by hand: 4 (1d8) bludgeoning damage if wielded with two hands, or 6 (1d8 + 2) bludgeoning damage with shillelagh.",
+        "versatile": {
+          "twoHandedDamageDice": "1d8",
+          "twoHandedDamageType": "bludgeoning"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Claw",
@@ -111386,7 +112455,26 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 3",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 13,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is knocked prone, the kamadan can make two attacks—one with its bite and one with its snakes—against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -111786,7 +112874,26 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 4",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 14,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is prone, the kavu can make one bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ],
@@ -111974,7 +113081,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: Kelek can expend up to 3 of the staff's charges, dealing an extra 3 (1d6) force damage for each expended charge.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: Kelek can expend up to 3 of the staff's charges, dealing an extra 3 (1d6) force damage for each expended charge."
+        "dmNote": "Also on a hit, applied by hand: Kelek can expend up to 3 of the staff's charges, dealing an extra 3 (1d6) force damage for each expended charge.",
+        "versatile": {
+          "twoHandedDamageDice": "1d8 + 5",
+          "twoHandedDamageType": "bludgeoning"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Fiery Explosion",
@@ -113634,6 +114748,13 @@
               "damageType": "radiant"
             }
           }
+        ],
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 3",
+          "twoHandedDamageType": "slashing"
+        },
+        "_riderActionKeys": [
+          "versatile"
         ]
       },
       {
@@ -120438,7 +121559,26 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 3",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 13,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is prone, the lion can make one bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -122817,11 +123957,23 @@
             "effectType": "DAMAGE",
             "damageDice": "1d4 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1",
+            "damageType": "piercing",
+            "flatDamage": true,
+            "onlyIf": {
+              "attackerForm": "raven form",
+              "text": "in raven form"
+            },
+            "replacesDamage": true,
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: In raven form, or 6 (1d4 + 4) piercing damage in hybrid form. If the target is Humanoid, it must succeed on a DC 15 Constitution saving throw or be cursed with wereraven Player Characters as Lycanthropes.",
+        "_riderNote": "Also on a hit, applied by hand: If the target is Humanoid, it must succeed on a DC 15 Constitution saving throw or be cursed with wereraven Player Characters as Lycanthropes.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: In raven form, or 6 (1d4 + 4) piercing damage in hybrid form. If the target is Humanoid, it must succeed on a DC 15 Constitution saving throw or be cursed with wereraven Player Characters as Lycanthropes."
+        "dmNote": "Also on a hit, applied by hand: If the target is Humanoid, it must succeed on a DC 15 Constitution saving throw or be cursed with wereraven Player Characters as Lycanthropes."
       },
       {
         "name": "Change Shape",
@@ -125063,7 +126215,26 @@
             "effectType": "DAMAGE",
             "damageDice": "4d8+7",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 18,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Trampling Charge",
+          "note": "If the target is prone, the mammoth can make one stomp attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -131150,7 +132321,14 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "1d6",
-            "damageType": "piercing"
+            "damageType": "piercing",
+            "_riderKeys": [
+              "onlyIf"
+            ],
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            }
           },
           {
             "effectType": "CONDITION",
@@ -131158,17 +132336,26 @@
             "_riderKeys": [
               "saveDC",
               "saveAbility",
-              "maxTargetSize"
+              "maxTargetSize",
+              "onlyIf"
             ],
             "saveDC": 11,
             "saveAbility": "STR",
-            "maxTargetSize": "Large"
+            "maxTargetSize": "Large",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            }
           }
         ],
         "automatable": true,
-        "_riderNote": "Also on a hit, applied by hand: If the minotaur moved at least 10 feet straight toward the target immediately before it hit, the target takes an extra 3 (1d6) piercing damage. If the target is a Large or smaller creature, it must succeed on a DC 11 Strength saving throw or be pushed up to 10 feet from the minotaur and have the prone condition.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the minotaur moved at least 10 feet straight toward the target immediately before it hit, the target takes an extra 3 (1d6) piercing damage. If the target is a Large or smaller creature, it must succeed on a DC 11 Strength saving throw or be pushed up to 10 feet from the minotaur and have the prone condition."
+        "charge": {
+          "feet": 10,
+          "note": "A target that fails the save is also pushed up to 10 feet away, by hand."
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       }
     ],
     "traits": [
@@ -131215,28 +132402,49 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "1d8",
-            "damageType": "piercing"
-          },
-          {
-            "effectType": "DAMAGE",
-            "damageDice": "2d8",
-            "damageType": "piercing"
+            "damageType": "piercing",
+            "_riderKeys": [
+              "onlyIf"
+            ],
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            }
           },
           {
             "effectType": "CONDITION",
             "condition": "prone",
             "_riderKeys": [
               "saveDC",
-              "saveAbility"
+              "saveAbility",
+              "onlyIf"
             ],
             "saveDC": 14,
-            "saveAbility": "STR"
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            }
           }
         ],
         "automatable": true,
-        "_riderNote": "Also on a hit, applied by hand: If the minotaur moved at least 10 feet straight toward the target immediately before it hit, the target takes an extra 4 (1d8) piercing damage, or 9 (2d8) piercing damage if the minotaur is enlarged. If the target is a creature, it must succeed on a DC 14 Strength saving throw or be pushed up to 10 feet from the minotaur and have the prone condition.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the minotaur moved at least 10 feet straight toward the target immediately before it hit, the target takes an extra 4 (1d8) piercing damage, or 9 (2d8) piercing damage if the minotaur is enlarged. If the target is a creature, it must succeed on a DC 14 Strength saving throw or be pushed up to 10 feet from the minotaur and have the prone condition."
+        "charge": {
+          "feet": 10,
+          "note": "The extra damage is 2d8 piercing if the minotaur is enlarged instead, by hand. A target that fails the save is also pushed up to 10 feet away, by hand."
+        },
+        "_riderActionKeys": [
+          "charge"
+        ],
+        "_riderRemoved": [
+          {
+            "at": 3,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "2d8",
+              "damageType": "piercing"
+            }
+          }
+        ]
       },
       {
         "name": "Mattock",
@@ -131432,7 +132640,36 @@
             "effectType": "DAMAGE",
             "damageDice": "2d8 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d8",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 14,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 10,
+          "trait": "Charge",
+          "note": "A target that fails the save is also pushed up to 10 feet away, by hand."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -131471,7 +132708,36 @@
             "effectType": "DAMAGE",
             "damageDice": "2d8 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d8",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 14,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 10,
+          "trait": "Charge",
+          "note": "A target that fails the save is also pushed up to 10 feet away, by hand."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ],
@@ -131593,6 +132859,13 @@
             "damageDice": "1d6 + 1",
             "damageType": "bludgeoning"
           }
+        ],
+        "versatile": {
+          "twoHandedDamageDice": "1d8 + 1",
+          "twoHandedDamageType": "bludgeoning"
+        },
+        "_riderActionKeys": [
+          "versatile"
         ]
       }
     ],
@@ -134439,7 +135712,35 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 2",
             "damageType": "bludgeoning"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1d6",
+            "damageType": "bludgeoning",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 12,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ],
@@ -141230,7 +142531,35 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6",
             "damageType": "force"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d4",
+            "damageType": "bludgeoning",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 13,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -143479,11 +144808,19 @@
             "effectType": "DAMAGE",
             "damageDice": "2d10 + 4",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1d10 + 4",
+            "damageType": "slashing",
+            "onlyIf": {
+              "attackerForm": "small or medium form",
+              "text": "in small or medium form"
+            },
+            "replacesDamage": true,
+            "_rider": "added"
           }
-        ],
-        "_riderNote": "On a hit: 15 (2d10 + 4) slashing damage, or 9 (1d10 + 4) slashing damage in Small or Medium form. The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 15 (2d10 + 4) slashing damage, or 9 (1d10 + 4) slashing damage in Small or Medium form. The DM settles the choice by hand."
+        ]
       },
       {
         "name": "Change Shape",
@@ -146261,11 +147598,24 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the ox moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 7 (2d6) piercing damage.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the ox moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 7 (2d6) piercing damage."
+        "charge": {
+          "feet": 20
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       }
     ],
     "traits": [
@@ -146294,7 +147644,24 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ],
@@ -146436,7 +147803,26 @@
             "effectType": "DAMAGE",
             "damageDice": "1d4 + 2",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 12,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is prone, the panther can make one bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -153923,14 +155309,22 @@
             "effectType": "CONDITION",
             "condition": "prone",
             "_riderKeys": [
-              "maxTargetSize"
+              "maxTargetSize",
+              "onlyIf"
             ],
-            "maxTargetSize": "Medium"
+            "maxTargetSize": "Medium",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            }
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the werefox moved at least 20 feet straight toward the target immediately before the hit.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the werefox moved at least 20 feet straight toward the target immediately before the hit."
+        "charge": {
+          "feet": 20
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       },
       {
         "name": "Lance (Elf or Hybrid Form Only)",
@@ -155326,7 +156720,35 @@
             "effectType": "DAMAGE",
             "damageDice": "2d8 + 5",
             "damageType": "bludgeoning"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d8",
+            "damageType": "bludgeoning",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 15,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -155735,7 +157157,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: Ringlerun can expend 1 of the staff's charges to deal an extra 3 (1d6) force damage.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: Ringlerun can expend 1 of the staff's charges to deal an extra 3 (1d6) force damage."
+        "dmNote": "Also on a hit, applied by hand: Ringlerun can expend 1 of the staff's charges to deal an extra 3 (1d6) force damage.",
+        "versatile": {
+          "twoHandedDamageDice": "1d8 + 1",
+          "twoHandedDamageType": "bludgeoning"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Freezing Ray",
@@ -156555,12 +157984,25 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
         ],
         "automatable": true,
-        "_riderNote": "Also on a hit, applied by hand: If the rothé moved at least 20 feet straight towards this target immediately before the hit, the target takes an extra 7 (2d6) piercing damage.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the rothé moved at least 20 feet straight towards this target immediately before the hit, the target takes an extra 7 (2d6) piercing damage."
+        "charge": {
+          "feet": 20
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       }
     ]
   },
@@ -156582,7 +158024,24 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ],
@@ -156814,7 +158273,26 @@
             "effectType": "DAMAGE",
             "damageDice": "2d6",
             "damageType": "psychic"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 16,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Trampling Charge",
+          "note": "If the target is prone, the elephant can make one Stomp attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -157270,7 +158748,26 @@
             "effectType": "DAMAGE",
             "damageDice": "2d6 + 5",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 14,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is prone, the tiger can make one bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -159257,9 +160754,16 @@
           }
         ],
         "automatable": true,
-        "_riderNote": "Also on a hit, applied by hand: Or 11 (1d10 + 6) if wielded in two hands. The target must succeed on a DC 18 Constitution saving throw or be cursed by Bhaal, preventing it from regaining hit points. The curse lasts until removed by the Remove Curse spell or similar effect.",
+        "_riderNote": "Also on a hit, applied by hand: The target must succeed on a DC 18 Constitution saving throw or be cursed by Bhaal, preventing it from regaining hit points. The curse lasts until removed by the Remove Curse spell or similar effect.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: Or 11 (1d10 + 6) if wielded in two hands. The target must succeed on a DC 18 Constitution saving throw or be cursed by Bhaal, preventing it from regaining hit points. The curse lasts until removed by the Remove Curse spell or similar effect."
+        "dmNote": "Also on a hit, applied by hand: The target must succeed on a DC 18 Constitution saving throw or be cursed by Bhaal, preventing it from regaining hit points. The curse lasts until removed by the Remove Curse spell or similar effect.",
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 6",
+          "twoHandedDamageType": "slashing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Flames of Bhaal",
@@ -159404,9 +160908,9 @@
             "twoHandedDamageDice": "1d10 + 5"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: Or 10 (1d10 + 5) if wielded in two hands. If the target is a creature, it must succeed on a DC 16 Constitution saving throw or be cursed by Bhaal. The cursed target can't regain hit points. The curse lasts until removed by the remove curse spell or other magic.",
+        "_riderNote": "Also on a hit, applied by hand: If the target is a creature, it must succeed on a DC 16 Constitution saving throw or be cursed by Bhaal. The cursed target can't regain hit points. The curse lasts until removed by the remove curse spell or other magic.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: Or 10 (1d10 + 5) if wielded in two hands. If the target is a creature, it must succeed on a DC 16 Constitution saving throw or be cursed by Bhaal. The cursed target can't regain hit points. The curse lasts until removed by the remove curse spell or other magic."
+        "dmNote": "Also on a hit, applied by hand: If the target is a creature, it must succeed on a DC 16 Constitution saving throw or be cursed by Bhaal. The cursed target can't regain hit points. The curse lasts until removed by the remove curse spell or other magic."
       },
       {
         "name": "Assassin's Strike",
@@ -162362,7 +163866,26 @@
             "saveDC": 14,
             "saveAbility": "CON",
             "halfOnSave": true
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 14,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is prone, the serpopard can make one bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ],
@@ -168291,7 +169814,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: Skylla can expend up to 3 of the staff's charges, dealing an extra 4 (1d8) lightning damage for each expended charge.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: Skylla can expend up to 3 of the staff's charges, dealing an extra 4 (1d8) lightning damage for each expended charge."
+        "dmNote": "Also on a hit, applied by hand: Skylla can expend up to 3 of the staff's charges, dealing an extra 4 (1d8) lightning damage for each expended charge.",
+        "versatile": {
+          "twoHandedDamageDice": "1d8",
+          "twoHandedDamageType": "bludgeoning"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       }
     ],
     "reactions": [
@@ -171929,12 +173459,27 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "prone"
+            "condition": "prone",
+            "_riderKeys": [
+              "onlyIf",
+              "saveDC",
+              "saveAbility"
+            ],
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "saveDC": 16,
+            "saveAbility": "STR"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the lion moved at least 20 feet straight toward the target immediately before the hit, the target must succeed on a DC 16 Strength saving throw or have the prone condition. If the target has the prone condition, the lion can make another Rend attack against it as a bonus action.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the lion moved at least 20 feet straight toward the target immediately before the hit, the target must succeed on a DC 16 Strength saving throw or have the prone condition. If the target has the prone condition, the lion can make another Rend attack against it as a bonus action."
+        "charge": {
+          "feet": 20,
+          "note": "If the target has the prone condition, the lion can make another Rend attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       }
     ],
     "traits": [
@@ -172083,10 +173628,7 @@
             "damageDice": "1d8",
             "damageType": "psychic"
           }
-        ],
-        "_riderNote": "On a hit: 6 (1d8 + 2) slashing damage plus 4 (1d8) psychic damage, or 7 (1d10 + 2) slashing damage plus 4 (1d8) psychic damage if used with two hands. The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 6 (1d8 + 2) slashing damage plus 4 (1d8) psychic damage, or 7 (1d10 + 2) slashing damage plus 4 (1d8) psychic damage if used with two hands. The DM settles the choice by hand."
+        ]
       },
       {
         "name": "Longbow",
@@ -172764,11 +174306,24 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "3d6",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the star lancer moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 10 (3d6) piercing damage.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the star lancer moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 10 (3d6) piercing damage."
+        "charge": {
+          "feet": 20
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       },
       {
         "name": "Invisibility Cloak (3/Day)",
@@ -173813,7 +175368,26 @@
             "effectType": "DAMAGE",
             "damageDice": "2d8 + 5",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 15,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Raking Charge",
+          "note": "If the target is prone, the kavu can make one rend attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -173912,11 +175486,24 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the stench kow moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 7 (2d6) piercing damage.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the stench kow moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 7 (2d6) piercing damage."
+        "charge": {
+          "feet": 20
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       }
     ],
     "traits": [
@@ -173945,7 +175532,24 @@
             "effectType": "DAMAGE",
             "damageDice": "1d6 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ],
@@ -176195,7 +177799,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: Once on each of his turns, Strongheart can also cause the blade to gleam with holy light. If he does so, the target is blinded until the start of Strongheart's next turn.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: Once on each of his turns, Strongheart can also cause the blade to gleam with holy light. If he does so, the target is blinded until the start of Strongheart's next turn."
+        "dmNote": "Also on a hit, applied by hand: Once on each of his turns, Strongheart can also cause the blade to gleam with holy light. If he does so, the target is blinded until the start of Strongheart's next turn.",
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 4",
+          "twoHandedDamageType": "slashing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Revivify",
@@ -176997,10 +178608,7 @@
             "damageDice": "1d8",
             "damageType": "fire"
           }
-        ],
-        "_riderNote": "On a hit: 13 (2d8 + 4) slashing damage plus 4 (1d8) fire damage, or 15 (2d10 + 4) slashing damage plus 4 (1d8) fire damage if used with two hands. The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 13 (2d8 + 4) slashing damage plus 4 (1d8) fire damage, or 15 (2d10 + 4) slashing damage plus 4 (1d8) fire damage if used with two hands. The DM settles the choice by hand."
+        ]
       },
       {
         "name": "Longbow",
@@ -182266,7 +183874,36 @@
             "effectType": "DAMAGE",
             "damageDice": "2d6",
             "damageType": "force"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d10",
+            "damageType": "slashing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 19,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 10,
+          "trait": "Charge",
+          "note": "A target that fails the save is also pushed up to 10 feet away, by hand."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -184695,7 +186332,26 @@
             "effectType": "DAMAGE",
             "damageDice": "1d8 + 3",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 13,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is prone, the tiger can make one bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -184917,22 +186573,37 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "3d8",
-            "damageType": "bludgeoning"
+            "damageType": "bludgeoning",
+            "_riderKeys": [
+              "onlyIf"
+            ],
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            }
           },
           {
             "effectType": "CONDITION",
             "condition": "prone",
             "_riderKeys": [
               "saveDC",
-              "saveAbility"
+              "saveAbility",
+              "onlyIf"
             ],
             "saveDC": 18,
-            "saveAbility": "STR"
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            }
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: If the titanothere moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 13 (3d8) bludgeoning damage.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the titanothere moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 13 (3d8) bludgeoning damage."
+        "charge": {
+          "feet": 20
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       }
     ],
     "traits": [
@@ -184985,6 +186656,13 @@
             "half": true,
             "_rider": "added"
           }
+        ],
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 4",
+          "twoHandedDamageType": "force"
+        },
+        "_riderActionKeys": [
+          "versatile"
         ]
       },
       {
@@ -185171,9 +186849,16 @@
             "damageType": "necrotic"
           }
         ],
-        "_riderNote": "On a hit: 8 (1d8 + 4) slashing damage plus 16 (3d10) necrotic damage, or 9 (1d10 + 4) slashing damage plus 16 (3d10) necrotic damage if used with two hands. The DM settles the choice by hand. Also on a hit, applied by hand: If the target is a creature, its hit point maximum is reduced by an amount equal to half the necrotic damage it takes.",
+        "_riderNote": "Also on a hit, applied by hand: If the target is a creature, its hit point maximum is reduced by an amount equal to half the necrotic damage it takes.",
         "_riderNoteNew": true,
-        "dmNote": "On a hit: 8 (1d8 + 4) slashing damage plus 16 (3d10) necrotic damage, or 9 (1d10 + 4) slashing damage plus 16 (3d10) necrotic damage if used with two hands. The DM settles the choice by hand. Also on a hit, applied by hand: If the target is a creature, its hit point maximum is reduced by an amount equal to half the necrotic damage it takes."
+        "dmNote": "Also on a hit, applied by hand: If the target is a creature, its hit point maximum is reduced by an amount equal to half the necrotic damage it takes.",
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 4",
+          "twoHandedDamageType": "slashing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Frightful Word",
@@ -188110,7 +189795,26 @@
             "effectType": "DAMAGE",
             "damageDice": "4d8 + 6",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 13,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Trampling Charge",
+          "note": "If the target is prone, the triceratops can make one stomp attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -191066,7 +192770,35 @@
             "effectType": "DAMAGE",
             "damageDice": "1d8 + 4",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d8",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 15,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -192112,6 +193844,13 @@
             "damageDice": "3d8",
             "damageType": "poison"
           }
+        ],
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 4",
+          "twoHandedDamageType": "slashing"
+        },
+        "_riderActionKeys": [
+          "versatile"
         ]
       },
       {
@@ -196677,6 +198416,13 @@
             "damageDice": "1d8 + 6",
             "damageType": "radiant"
           }
+        ],
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 6",
+          "twoHandedDamageType": "radiant"
+        },
+        "_riderActionKeys": [
+          "versatile"
         ]
       },
       {
@@ -197802,7 +199548,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: Plus 7 (2d6) fire damage if the weapon is aflame.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: Plus 7 (2d6) fire damage if the weapon is aflame."
+        "dmNote": "Also on a hit, applied by hand: Plus 7 (2d6) fire damage if the weapon is aflame.",
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 3",
+          "twoHandedDamageType": "slashing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Dagger",
@@ -198271,7 +200024,26 @@
             "effectType": "DAMAGE",
             "damageDice": "2d6 + 4",
             "damageType": "bludgeoning"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 14,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Trampling Charge",
+          "note": "If the target is prone, the horse can make another attack with its hooves against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -199600,11 +201372,39 @@
             "effectType": "DAMAGE",
             "damageDice": "2d6 + 3",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "slashing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 15 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 13,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 15 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
         ],
         "_riderNote": "Also on a hit, applied by hand: If the target is a humanoid, it must succeed on a DC 12 Constitution saving throw or be cursed with wereboar Player Characters as Lycanthropes.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: If the target is a humanoid, it must succeed on a DC 12 Constitution saving throw or be cursed with wereboar Player Characters as Lycanthropes."
+        "dmNote": "Also on a hit, applied by hand: If the target is a humanoid, it must succeed on a DC 12 Constitution saving throw or be cursed with wereboar Player Characters as Lycanthropes.",
+        "charge": {
+          "feet": 15,
+          "trait": "Charge (Boar or Hybrid Form Only)"
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       }
     ],
     "traits": [
@@ -199745,11 +201545,23 @@
             "effectType": "DAMAGE",
             "damageDice": "1d4 + 2",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1",
+            "damageType": "piercing",
+            "flatDamage": true,
+            "onlyIf": {
+              "attackerForm": "raven form",
+              "text": "in raven form"
+            },
+            "replacesDamage": true,
+            "_rider": "added"
           }
         ],
-        "_riderNote": "Also on a hit, applied by hand: In raven form, or 4 (1d4 + 2) piercing damage in hybrid form. If the target is humanoid, it must succeed on a DC 10 Constitution saving throw or be cursed with wereraven Player Characters as Lycanthropes.",
+        "_riderNote": "Also on a hit, applied by hand: If the target is humanoid, it must succeed on a DC 10 Constitution saving throw or be cursed with wereraven Player Characters as Lycanthropes.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: In raven form, or 4 (1d4 + 2) piercing damage in hybrid form. If the target is humanoid, it must succeed on a DC 10 Constitution saving throw or be cursed with wereraven Player Characters as Lycanthropes."
+        "dmNote": "Also on a hit, applied by hand: If the target is humanoid, it must succeed on a DC 10 Constitution saving throw or be cursed with wereraven Player Characters as Lycanthropes."
       },
       {
         "name": "Shortsword (Human or Hybrid Form Only)",
@@ -199848,7 +201660,26 @@
             "effectType": "DAMAGE",
             "damageDice": "1d8 + 3",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 14,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 15 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 15,
+          "trait": "Pounce (Tiger or Hybrid Form Only)",
+          "note": "If the target is prone, the weretiger can make one bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       },
       {
@@ -201464,7 +203295,24 @@
             "effectType": "DAMAGE",
             "damageDice": "2d12 + 5",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "3d12",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -201562,7 +203410,26 @@
             "effectType": "DAMAGE",
             "damageDice": "2d8 + 5",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 15,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
+        ],
+        "charge": {
+          "feet": 20,
+          "trait": "Pounce",
+          "note": "If the target is prone, the lion can make one bite attack against it as a bonus action."
+        },
+        "_riderActionKeys": [
+          "charge"
         ]
       }
     ]
@@ -203607,8 +205474,13 @@
           "fire"
         ],
         "_riderActionKeys": [
-          "damageOptions"
-        ]
+          "damageOptions",
+          "versatile"
+        ],
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 6",
+          "twoHandedDamageType": "slashing"
+        }
       }
     ],
     "spellcasting": {
@@ -211590,10 +213462,7 @@
             "damageDice": "8d8",
             "damageType": "fire"
           }
-        ],
-        "_riderNote": "On a hit: 17 (2d8 + 8) slashing damage plus 36 (8d8) fire damage, or 19 (2d10 + 8) slashing damage plus 36 (8d8) fire damage if used with two hands. The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 17 (2d8 + 8) slashing damage plus 36 (8d8) fire damage, or 19 (2d10 + 8) slashing damage plus 36 (8d8) fire damage if used with two hands. The DM settles the choice by hand."
+        ]
       },
       {
         "name": "Javelin",
@@ -212801,7 +214670,14 @@
         ],
         "_riderNote": "Also on a hit, applied by hand: On a ranged attack that hits, the hammer deals an extra 1d8 bludgeoning damage (2d8 if the target is a giant). {@hom}If thrown, the weapon flies back to Zorak's hand after the attack.",
         "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: On a ranged attack that hits, the hammer deals an extra 1d8 bludgeoning damage (2d8 if the target is a giant). {@hom}If thrown, the weapon flies back to Zorak's hand after the attack."
+        "dmNote": "Also on a hit, applied by hand: On a ranged attack that hits, the hammer deals an extra 1d8 bludgeoning damage (2d8 if the target is a giant). {@hom}If thrown, the weapon flies back to Zorak's hand after the attack.",
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 7",
+          "twoHandedDamageType": "bludgeoning"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ]
       },
       {
         "name": "Multiattack (Vampire Form Only)",
@@ -214761,14 +216637,23 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 11,
         "targetCount": 1,
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 6",
+          "twoHandedDamageType": "slashing"
+        },
         "effects": [
           {
             "effectType": "DAMAGE",
             "damageDice": "1d8 + 6",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "3d8",
+            "damageType": "radiant"
           }
         ],
-        "dmNote": "Also on a hit, applied by hand: Or 11 (1d10 + 6) if wielded in two hands, plus 13 (3d8) radiant damage. If the target is an evil creature, it must succeed on a DC 17 Charisma saving throw or take an additional 13 (3d8) radiant damage.",
+        "dmNote": "Also on a hit, applied by hand: If the target is an evil creature, it must succeed on a DC 17 Charisma saving throw or take an additional 13 (3d8) radiant damage.",
         "description": "Melee Weapon Attack: +11 to hit, reach 5ft., one target. Hit: 10 (1d8 + 6) slashing damage or 11 (1d10 + 6) if wielded in two hands, plus 13 (3d8) radiant damage. If the target is an evil creature, it must succeed on a DC 17 Charisma saving throw or take an additional 13 (3d8) radiant damage."
       },
       {
@@ -225050,6 +226935,10 @@
         "attackBonus": 7,
         "reach": 5,
         "targetCount": 1,
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 1",
+          "twoHandedDamageType": "slashing"
+        },
         "effects": [
           {
             "effectType": "DAMAGE",
@@ -225062,7 +226951,6 @@
             "damageType": "fire"
           }
         ],
-        "dmNote": "On a hit: 5 (1d8 + 1) slashing damage plus 7 (2d6) fire damage, or 6 (1d10 + 1) slashing damage plus 7 (2d6) fire damage when used with two hands. The DM settles the choice by hand.",
         "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 5 (1d8 + 1) slashing damage plus 7 (2d6) fire damage, or 6 (1d10 + 1) slashing damage plus 7 (2d6) fire damage when used with two hands."
       },
       {
@@ -225270,6 +227158,10 @@
         "attackBonus": 7,
         "reach": 5,
         "targetCount": 1,
+        "versatile": {
+          "twoHandedDamageDice": "1d8 + 2",
+          "twoHandedDamageType": "bludgeoning"
+        },
         "effects": [
           {
             "effectType": "DAMAGE",
@@ -225277,7 +227169,7 @@
             "damageType": "bludgeoning"
           }
         ],
-        "dmNote": "On a hit: 5 (1d6 + 2) bludgeoning, magic damage, or 6 (1d8 + 2) bludgeoning, magic damage when used with two hands. The DM settles the choice by hand. Also on a hit, applied by hand: Vajra can expend 1 of the staff's charges to deal an extra 3 (1d6) force damage on a hit.",
+        "dmNote": "On a hit: 5 (1d6 + 2) bludgeoning, magic damage. The DM settles the choice by hand. Also on a hit, applied by hand: Vajra can expend 1 of the staff's charges to deal an extra 3 (1d6) force damage on a hit.",
         "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 2) bludgeoning, magic damage, or 6 (1d8 + 2) bludgeoning, magic damage when used with two hands. Vajra can expend 1 of the staff's charges to deal an extra 3 (1d6) force damage on a hit."
       }
     ],
@@ -229016,9 +230908,37 @@
             "effectType": "DAMAGE",
             "damageDice": "3d8 + 8",
             "damageType": "bludgeoning"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "6d8",
+            "damageType": "bludgeoning",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 21,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 20 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
         ],
-        "description": "Melee Weapon Attack: +13 to hit, reach 10 ft., one target. Hit: 21 (3d8 + 8) bludgeoning damage."
+        "description": "Melee Weapon Attack: +13 to hit, reach 10 ft., one target. Hit: 21 (3d8 + 8) bludgeoning damage.",
+        "charge": {
+          "feet": 20,
+          "trait": "Charge"
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       },
       {
         "name": "Swallow",
@@ -230744,9 +232664,38 @@
             "effectType": "DAMAGE",
             "damageDice": "7d10 + 7",
             "damageType": "piercing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "7d10",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 15 feet straight toward the target first"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone",
+            "saveDC": 21,
+            "saveAbility": "STR",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 15 feet straight toward the target first"
+            },
+            "_rider": "added"
           }
         ],
-        "description": "Melee Weapon Attack: +13 to hit, reach 10 ft., one target. Hit: 45 (7d10 + 7) piercing damage."
+        "description": "Melee Weapon Attack: +13 to hit, reach 10 ft., one target. Hit: 45 (7d10 + 7) piercing damage.",
+        "charge": {
+          "feet": 15,
+          "trait": "Charge",
+          "note": "A target that fails the save is also pushed up to 20 feet away, by hand."
+        },
+        "_riderActionKeys": [
+          "charge"
+        ]
       }
     ],
     "_entryFromStatBlock": true,
@@ -234132,6 +236081,10 @@
         "attackBonus": 11,
         "reach": 5,
         "targetCount": 1,
+        "versatile": {
+          "twoHandedDamageDice": "1d8 + 6",
+          "twoHandedDamageType": "bludgeoning"
+        },
         "effects": [
           {
             "effectType": "DAMAGE",
@@ -234142,9 +236095,16 @@
             "effectType": "DAMAGE",
             "damageDice": "4d8",
             "damageType": "psychic"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "incapacitated",
+            "saveDC": 19,
+            "saveAbility": "CON",
+            "durationText": "until the end of its next turn",
+            "durationRounds": 1
           }
         ],
-        "dmNote": "On a hit: 9 (1d6 + 6) bludgeoning damage plus 18 (4d8) psychic damage, or 10 (1d8 + 6) bludgeoning damage plus 18 (4d8) psychic damage, if used with two hands, and the target must succeed on a DC 19 Constitution saving throw or be incapacitated until the end of its next turn. The DM settles the choice by hand.",
         "description": "Melee Weapon Attack: +11 to hit, reach 5 ft., one target. Hit: 9 (1d6 + 6) bludgeoning damage plus 18 (4d8) psychic damage, or 10 (1d8 + 6) bludgeoning damage plus 18 (4d8) psychic damage, if used with two hands, and the target must succeed on a DC 19 Constitution saving throw or be incapacitated until the end of its next turn."
       },
       {
@@ -234475,14 +236435,22 @@
         "attackBonus": 9,
         "reach": 5,
         "targetCount": 1,
+        "versatile": {
+          "twoHandedDamageDice": "1d10 + 5",
+          "twoHandedDamageType": "slashing"
+        },
         "effects": [
           {
             "effectType": "DAMAGE",
             "damageDice": "1d8 + 5",
             "damageType": "slashing"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "3d6",
+            "damageType": "necrotic"
           }
         ],
-        "dmNote": "Also on a hit, applied by hand: Or 10 (1d10 + 5) if used with two hands, plus 10 (3d6) necrotic damage.",
         "description": "Melee Weapon Attack: +9 to hit, reach 5 ft., one target. Hit: 9 (1d8 + 5) slashing damage, or 10 (1d10 + 5) if used with two hands, plus 10 (3d6) necrotic damage."
       },
       {

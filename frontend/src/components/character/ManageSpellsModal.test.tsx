@@ -239,6 +239,38 @@ describe('ManageSpellsModal for a Pending Choice (D159)', () => {
     expect(searched).toEqual(['Wizard']);
   });
 
+  it("learns a Genie warlock's spells from its list and its kind's expanded spells (TCE p.73, D239)", async () => {
+    const searched: Array<[string, string | null]> = [];
+    const sanctuary = { ...spell('Sanctuary', 1), classes: ['Cleric', 'Warlock (The Genie: Dao)'] };
+    const thunderwave = { ...spell('Thunderwave', 1), classes: ['Wizard', 'Warlock (The Genie: Djinni)'] };
+    const hex = { ...spell('Hex', 1), classes: ['Warlock'] };
+    server.use(http.get('/api/reference/spells', ({ request }) => {
+      const params = new URL(request.url).searchParams;
+      searched.push([params.get('className') ?? '', params.get('subclass')]);
+      const lists = [params.get('className'), params.get('subclass')].filter(Boolean) as string[];
+      const content = [sanctuary, thunderwave, hex].filter(s => s.classes.some(c => lists.includes(c)));
+      return HttpResponse.json({ content, totalElements: content.length, totalPages: 1, number: 0, size: 50 } satisfies PageResponse<Spell>);
+    }));
+    const genie = {
+      ...makeMockCharacter('char-005', 'Sahar', 'Warlock', 1),
+      spellsKnown: [],
+      spellcasting: [casting({ className: 'Warlock', subclassName: 'The Genie', spellList: 'Warlock',
+        highestSpellLevel: 1, cantripsKnown: 2, spellsKnown: 2, pactMagic: true,
+        subclassSpellList: 'Warlock (The Genie: Dao)' })],
+    };
+    const choice = makeMockPendingChoice({
+      id: 'choice-genie', type: 'SPELLS', className: 'Warlock', classLevel: 1, characterLevel: 1, count: 2,
+      maxSpellLevel: 1, spellList: 'Warlock',
+    });
+    renderChoice(genie, choice);
+    const dialog = screen.getByRole('dialog', { name: 'Learn Spells' });
+
+    expect(await within(dialog).findByRole('button', { name: /^Sanctuary/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /^Hex/ })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: /Thunderwave/ })).not.toBeInTheDocument();
+    expect(searched).toContainEqual(['Warlock', 'Warlock (The Genie: Dao)']);
+  });
+
   it('prepares up to the limit, leaving an always-prepared spell as it is', async () => {
     const cleric = {
       ...makeMockCharacter('char-004', 'Aria', 'Cleric', 1),

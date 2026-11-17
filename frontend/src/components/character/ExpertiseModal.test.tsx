@@ -139,6 +139,41 @@ describe('ExpertiseModal', () => {
     expect(screen.getByRole('button', { name: 'perception' })).toHaveAttribute('aria-pressed', 'false');
   });
 
+  it("offers a Rogue's Expertise thieves' tools beside its skills, and sends them as chosen (PHB p.96)", async () => {
+    const thief = { ...character, toolProficiencies: ["thieves' tools"] };
+    let applied: unknown;
+    server.use(
+      http.post('/api/characters/:id/apply-choices', async ({ request }) => {
+        applied = await request.json();
+        return HttpResponse.json(thief);
+      }),
+    );
+    render(<ExpertiseModal character={thief} choice={expertise(2)} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
+    expect(screen.getByText(/Rogue 6: select 2 proficiencies.*0\/2/)).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: "Thieves' Tools" }));
+    await user.click(screen.getByRole('button', { name: 'perception' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm Expertise' }));
+
+    await waitFor(() => expect(applied).toEqual({
+      choiceId: 'choice-expertise', expertiseSkills: ["Thieves' Tools", 'perception'],
+    }));
+  });
+
+  it("offers thieves' tools neither to a Bard's Expertise nor a second time (PHB p.54, p.96)", () => {
+    const thief = { ...character, toolProficiencies: ["Thieves' Tools"] };
+    const bards = makeMockPendingChoice({
+      id: 'choice-bard', type: 'EXPERTISE', characterLevel: 9, className: 'Bard', classLevel: 3, count: 2,
+    });
+    const { unmount } = render(<ExpertiseModal character={thief} choice={bards} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
+    expect(screen.queryByRole('button', { name: "Thieves' Tools" })).not.toBeInTheDocument();
+    unmount();
+
+    render(<ExpertiseModal character={{ ...thief, skillExpertises: ["Thieves' Tools"] }} choice={expertise(2)}
+      onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
+    expect(screen.queryByRole('button', { name: "Thieves' Tools" })).not.toBeInTheDocument();
+  });
+
   it('closes on Escape', async () => {
     let closed = false;
     render(<ExpertiseModal character={character} choice={expertise(1)} onComplete={() => {}} onSkip={() => {}} onClose={() => { closed = true; }} />);

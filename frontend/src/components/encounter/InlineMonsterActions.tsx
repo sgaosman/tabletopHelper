@@ -11,9 +11,13 @@ import { Select } from '../ui/Input';
 import { chargeBlock, type EconomyCost } from '../../utils/turnEconomy';
 import { isAttackAction } from '../../utils/summons';
 import { damageBreakdown } from '../../utils/damageParts';
+import { USUAL_FORM, actionForms, chargeLabel, hasCharge, oneHandedDamage, twoHandedDamage } from '../../utils/monsterChoices';
 
 type ActionSource = MonsterActionRequest['actionSource'];
-type ActionTargets = Pick<MonsterActionRequest, 'targetParticipantIds' | 'componentTargetIds' | 'componentDamageTypes'>;
+type ActionTargets = Pick<MonsterActionRequest, 'targetParticipantIds' | 'componentTargetIds' | 'componentDamageTypes'
+  | 'componentCharged' | 'componentTwoHanded' | 'componentForms'>;
+/** What the DM chose for the selected action (D207, D239): its damage type, a charge, a grip and a form. */
+type ActionChoices = Pick<MonsterActionRequest, 'damageType' | 'charged' | 'twoHanded' | 'attackerForm'>;
 
 /**
  * What the last monster action came to: the server's result, with the combat log entries there were before it ran,
@@ -101,6 +105,11 @@ export default function InlineMonsterActions({
   const [selectedAction, setSelectedAction] = useState<MonsterAction | null>(null);
   // The damage type the DM chooses for the selected action, when its stat block lets the monster choose (D207)
   const [damageType, setDamageType] = useState('');
+  // Whether the monster charged first, held a versatile weapon in two hands, and the form its damage depends on
+  // ('' for the server to tell), for the selected attack (D239)
+  const [charged, setCharged] = useState(false);
+  const [twoHanded, setTwoHanded] = useState(false);
+  const [form, setForm] = useState('');
   // The multiattack whose target per attack the DM is choosing (D165)
   const [multiattackName, setMultiattackName] = useState<string | null>(null);
   const [chosenTargets, setChosenTargets] = useState<string[]>([]);
@@ -112,6 +121,9 @@ export default function InlineMonsterActions({
   function selectAction(action: MonsterAction | null) {
     setSelectedAction(action);
     setDamageType('');
+    setCharged(false);
+    setTwoHanded(false);
+    setForm('');
   }
 
   function toggleTarget(targetId: string) {
@@ -119,8 +131,8 @@ export default function InlineMonsterActions({
   }
 
   // The targets chosen in the selector, unless the action brings its own, as a multiattack does (D165), and the
-  // damage type chosen for an action with damage options (D207)
-  async function execute(actionName: string, source: ActionSource, own?: ActionTargets, chosenType?: string) {
+  // damage type, charge, grip and form chosen for the action (D207, D239)
+  async function execute(actionName: string, source: ActionSource, own?: ActionTargets, chosen?: ActionChoices) {
     if (!own && targets.length === 0) return;
     setExecuting(true);
     const logBefore = new Set(log.map(entry => entry.id));
@@ -132,7 +144,10 @@ export default function InlineMonsterActions({
         targetParticipantIds: own?.targetParticipantIds ?? targets,
         ...(own?.componentTargetIds ? { componentTargetIds: own.componentTargetIds } : {}),
         ...(own?.componentDamageTypes ? { componentDamageTypes: own.componentDamageTypes } : {}),
-        ...(chosenType ? { damageType: chosenType } : {}),
+        ...(own?.componentCharged ? { componentCharged: own.componentCharged } : {}),
+        ...(own?.componentTwoHanded ? { componentTwoHanded: own.componentTwoHanded } : {}),
+        ...(own?.componentForms ? { componentForms: own.componentForms } : {}),
+        ...(chosen ?? {}),
       });
       setResult({ response, logBefore });
     } catch (err: unknown) {
@@ -195,6 +210,20 @@ export default function InlineMonsterActions({
   };
 
   const needsType = (selectedAction?.damageOptions?.length ?? 0) > 0;
+  // The charge, grip and form the selected attack offers (D239)
+  const canCharge = selectedAction ? hasCharge(selectedAction) : false;
+  const twoHands = selectedAction ? twoHandedDamage(selectedAction) : undefined;
+  const forms = selectedAction ? actionForms(selectedAction) : [];
+
+  // The choices the selected action sends: only those it offers and the DM made
+  function choices(): ActionChoices {
+    return {
+      ...(needsType ? { damageType } : {}),
+      ...(canCharge && charged ? { charged: true } : {}),
+      ...(twoHands && twoHanded ? { twoHanded: true } : {}),
+      ...(forms.length > 0 && form ? { attackerForm: form } : {}),
+    };
+  }
 
   function switchTab(next: Tab) {
     setTab(next);
@@ -347,9 +376,10 @@ export default function InlineMonsterActions({
           actionName={multiattackName}
           describe={describeAction}
           executing={executing}
-          onExecute={(componentTargetIds, componentDamageTypes) => {
+          onExecute={(componentTargetIds, componentDamageTypes, componentChoices) => {
             void execute(multiattackName, 'ACTION', componentTargetIds
-              ? { targetParticipantIds: [], componentTargetIds, ...(componentDamageTypes ? { componentDamageTypes } : {}) }
+              ? { targetParticipantIds: [], componentTargetIds, ...(componentDamageTypes ? { componentDamageTypes } : {}),
+                ...(componentChoices ?? {}) }
               : { targetParticipantIds: [] });
             setMultiattackName(null);
           }}
@@ -385,6 +415,35 @@ export default function InlineMonsterActions({
               {selectedAction.damageOptions?.map(type => <option key={type} value={type}>{type}</option>)}
             </Select>
           )}
+          {/* A versatile weapon's grip, one hand unless the DM says two (D239) */}
+          {twoHands && (
+            <Select label="Grip" className="mb-2 max-w-xs" value={twoHanded ? 'two' : 'one'}
+              onChange={e => setTwoHanded(e.target.value === 'two')}>
+              <option value="one">One-handed ({oneHandedDamage(selectedAction)})</option>
+              <option value="two">Two-handed ({twoHands})</option>
+            </Select>
+          )}
+          {/* The form the attack's damage depends on, as a wereraven's beak in raven form (D239) */}
+          {forms.length > 0 && (
+            <Select label="Form" className="mb-2 max-w-xs" value={form} onChange={e => setForm(e.target.value)}>
+              <option value="">As the app sees it</option>
+              <option value={USUAL_FORM}>Usual damage ({oneHandedDamage(selectedAction)})</option>
+              {forms.map(f => <option key={f} value={f}>{f}</option>)}
+            </Select>
+          )}
+          {/* A charge's extra damage and save come only when the monster charged (D239) */}
+          {canCharge && (
+            <label className="flex items-start gap-2 mb-2 cursor-pointer">
+              <input type="checkbox" checked={charged} onChange={e => setCharged(e.target.checked)}
+                className="mt-1 accent-ink" />
+              <span className="font-body text-[13px] font-semibold text-ink">
+                {chargeLabel(selectedAction.charge?.feet)}
+                {selectedAction.charge?.note && (
+                  <span className="block text-faint">{selectedAction.charge.trait ?? 'Charge'}: {selectedAction.charge.note}</span>
+                )}
+              </span>
+            </label>
+          )}
           {/* What each target's and the monster's conditions add to an attack roll; a ranged attack is made from
               beyond 5 feet, as the server takes it (D161) */}
           {isAttackAction(selectedAction) && participants.filter(p => targets.includes(p.id)).map(t => (
@@ -402,7 +461,7 @@ export default function InlineMonsterActions({
               if (tab === 'legendary' && (ownTurn || legendaryRemaining < (selectedAction.cost || 1))) return;
               if (tab === 'lair' && !lairReady) return;
               if (needsType && !damageType) return;
-              void execute(selectedAction.name, TAB_SOURCE[tab], undefined, needsType ? damageType : undefined);
+              void execute(selectedAction.name, TAB_SOURCE[tab], undefined, choices());
               selectAction(null);
             }}
             className="px-3 py-1 bg-ink hover:bg-ink/90 disabled:bg-page-alt disabled:text-faint text-card font-heading text-[12px] font-semibold tracking-[0.02em]"

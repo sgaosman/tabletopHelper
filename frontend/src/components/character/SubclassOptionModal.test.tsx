@@ -71,4 +71,34 @@ describe('SubclassOptionModal', () => {
     await waitFor(() => expect(onComplete).toHaveBeenCalledWith(updated));
     expect(applied).toEqual({ choiceId: 'choice-terrain', subclassOption: 'Arctic' });
   });
+
+  it("offers a Genie warlock's kinds, each with the spells it alone adds, the genie spells shown once (TCE p.73, D239)", async () => {
+    const warlock = {
+      ...makeMockCharacter('char-002', 'Sahar', 'Warlock', 1),
+      multiclassEntries: [{ classId: 'cls-warlock', className: 'Warlock', subclassId: 'sc-genie',
+        subclassName: 'The Genie', level: 1 }],
+    };
+    const kind = makeMockPendingChoice({
+      id: 'choice-kind', type: 'SUBCLASS_OPTION', classId: 'cls-warlock', className: 'Warlock', classLevel: 1,
+      characterLevel: 1, options: ['Dao', 'Djinni'],
+    });
+    server.use(http.get('/api/reference/classes/:classId/subclasses', () => HttpResponse.json([{
+      id: 'sc-genie', name: 'The Genie', source: 'TCE',
+      characterClass: { id: 'cls-warlock', name: 'Warlock' },
+      grantedSpells: {
+        options: [
+          { name: 'Dao', expanded: ['wish', 'detect evil and good', 'sanctuary', 'spike growth'] },
+          { name: 'Djinni', expanded: ['wish', 'detect evil and good', 'thunderwave', 'gust of wind'] },
+        ],
+      },
+    }] as unknown as Subclass[])));
+    render(<SubclassOptionModal character={warlock} choice={kind} onComplete={() => {}} onSkip={() => {}}
+      onClose={() => {}} />);
+
+    expect(screen.getByRole('dialog', { name: 'Choose a Genie Kind' })).toBeInTheDocument();
+    expect(await screen.findByText('Every choice adds to your spell list: wish, detect evil and good'))
+      .toBeInTheDocument();
+    expect(screen.getByText('Adds to your spell list: sanctuary, spike growth')).toBeInTheDocument();
+    expect(screen.getByText('Adds to your spell list: thunderwave, gust of wind')).toBeInTheDocument();
+  });
 });

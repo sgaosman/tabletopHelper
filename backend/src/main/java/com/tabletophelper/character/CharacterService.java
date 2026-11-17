@@ -247,7 +247,7 @@ public class CharacterService {
                 .charisma(request.getCharisma())
                 .savingThrowProficiencies(savingThrows)
                 .skillProficiencies(skills)
-                .skillExpertises(CreationChecks.skillNames(request.getSkillExpertises()))
+                .skillExpertises(CreationChecks.expertiseNames(request.getSkillExpertises()))
                 .armorProficiencies(CreationChecks.once(request.getArmorProficiencies()))
                 .weaponProficiencies(CreationChecks.once(request.getWeaponProficiencies()))
                 .toolProficiencies(CreationChecks.once(request.getToolProficiencies()))

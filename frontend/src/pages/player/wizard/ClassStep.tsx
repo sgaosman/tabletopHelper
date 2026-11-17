@@ -6,8 +6,8 @@ import { safeJsonParse } from '../../../utils/dndRules';
 import { checkMulticlassEligibility } from './types';
 import type { WizardAction, WizardState } from './wizardReducer';
 import {
-  classSkillChoices as skillChoicesOf, expertiseCount as expertiseCountOf, finalScores as finalScoresOf,
-  heldSkills, multiclassSkillChoices, multiclassSkillsRequired, multiclassSkillsTaken, raceSkills as raceSkillsOf,
+  classSkillChoices as skillChoicesOf, expertiseCount as expertiseCountOf, expertiseOptions,
+  expertiseRequired as expertiseRequiredOf, finalScores as finalScoresOf, multiclassSkillChoices, multiclassSkillsRequired, multiclassSkillsTaken, raceSkills as raceSkillsOf,
 } from './selectors';
 
 export interface ClassStepProps {
@@ -30,6 +30,7 @@ export default function ClassStep({ classes, state, dispatch, onSelectClass, onA
   const raceSkills = raceSkillsOf(state);
   const mcSkillChoicesMap = multiclassSkillChoices(state);
   const expertiseCount = expertiseCountOf(state);
+  const expertiseRequired = expertiseRequiredOf(state);
   return (
     <div className="space-y-4">
       <h2 className="font-heading text-[17px] font-semibold text-ink">Choose a Class</h2>
@@ -329,26 +330,27 @@ export default function ClassStep({ classes, state, dispatch, onSelectClass, onA
         );
       })}
 
-      {/* Expertise picker: only skills the character is proficient in (PHB p.96, D226) */}
+      {/* Expertise picker: only skills the character is proficient in, or thieves' tools (PHB p.96, D226) */}
       {expertiseCount > 0 && (
         <div className="mt-4 bg-card border border-rule p-4">
           <div className="flex items-center justify-between mb-1">
             <h3 className="font-heading text-[15px] font-semibold text-ink">Expertise</h3>
-            <span className="font-heading text-[11px] font-semibold text-faint">{selectedExpertise.length}/{expertiseCount} selected</span>
+            <span className="font-heading text-[11px] font-semibold text-faint">{selectedExpertise.length}/{expertiseRequired} selected</span>
           </div>
           <p className="font-body text-[13px] text-faint mb-3">
-            Choose {expertiseCount} skill{expertiseCount > 1 ? 's' : ''} to gain expertise in (double proficiency bonus).
+            Choose {expertiseRequired} of your skill proficiencies, or your proficiency with thieves&apos; tools, to gain
+            expertise in (double proficiency bonus).
           </p>
           <div className="flex gap-1.5 flex-wrap">
-            {heldSkills(state)
+            {expertiseOptions(state)
               .map(skill => {
                 const isSelected = selectedExpertise.includes(skill);
-                const disabled = !isSelected && selectedExpertise.length >= expertiseCount;
+                const disabled = !isSelected && selectedExpertise.length >= expertiseRequired;
                 return (
                   <button
                     key={skill}
                     aria-pressed={isSelected}
-                    onClick={() => dispatch({ type: 'toggleExpertise', skill, max: expertiseCount })}
+                    onClick={() => dispatch({ type: 'toggleExpertise', skill, max: expertiseRequired })}
                     disabled={disabled}
                     className={`px-3 py-1.5 font-heading text-[11px] font-semibold tracking-[0.02em] transition-colors border ${
                       isSelected ? 'bg-cls-monk text-card border-cls-monk'
@@ -361,8 +363,8 @@ export default function ClassStep({ classes, state, dispatch, onSelectClass, onA
                 );
               })}
           </div>
-          {selectedExpertise.length < expertiseCount && (
-            <p className="font-body text-[13px] font-semibold text-hp-wounded mt-3">Select {expertiseCount - selectedExpertise.length} more skill{expertiseCount - selectedExpertise.length > 1 ? 's' : ''}</p>
+          {selectedExpertise.length < expertiseRequired && (
+            <p className="font-body text-[13px] font-semibold text-hp-wounded mt-3">Select {expertiseRequired - selectedExpertise.length} more to continue</p>
           )}
         </div>
       )}

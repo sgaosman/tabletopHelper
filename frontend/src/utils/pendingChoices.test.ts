@@ -103,6 +103,8 @@ describe('pendingChoices', () => {
     expect(choiceTitle(terrain)).toBe('Terrain');
     expect(choiceLabel(terrain)).toBe('Terrain (Druid 2)');
     expect(choiceTitle({ ...terrain, className: 'Sorcerer' })).toBe('Divine Affinity');
+    // A Genie warlock's kind (TCE p.73, D239)
+    expect(choiceLabel({ ...terrain, className: 'Warlock', classLevel: 1 })).toBe('Genie Kind (Warlock 1)');
     expect(choiceTitle({ ...terrain, className: 'Bard' })).toBe('Subclass Option');
   });
 

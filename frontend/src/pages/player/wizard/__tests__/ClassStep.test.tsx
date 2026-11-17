@@ -82,6 +82,23 @@ describe('ClassStep multiclass skills and toggle state (D226)', () => {
     expect(expertise.querySelectorAll('button')).toHaveLength(1);
     expect(expertise.querySelector('button')).toHaveAttribute('aria-pressed', 'true');
   });
+
+  it("offers a rogue's Expertise thieves' tools beside its skills, and asks for the rest until two are chosen (PHB p.96)", () => {
+    const rogueFirst = mockClassRef({
+      id: 'cls-rogue', name: 'Rogue', toolProficiencies: '["Thieves\' tools"]',
+      skillChoices: JSON.stringify({ count: 4, from: ['Stealth', 'Insight', 'Deception', 'Acrobatics'] }),
+    });
+    renderStep({
+      selectedClass: rogueFirst, classEntries: [{ cls: rogueFirst, level: 1, subclass: null, subclasses: [] }],
+      selectedClassSkills: ['Stealth', 'Insight'], selectedExpertise: ["Thieves' Tools"],
+    });
+
+    const expertise = screen.getByRole('heading', { name: 'Expertise' }).closest('div')!.parentElement!;
+    expect([...expertise.querySelectorAll('button')].map(b => b.textContent)).toEqual(['Stealth', 'Insight', "Thieves' Tools"]);
+    expect(screen.getByRole('button', { name: "Thieves' Tools" })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('1/2 selected')).toBeInTheDocument();
+    expect(screen.getByText('Select 1 more to continue')).toBeInTheDocument();
+  });
 });
 
 describe('ClassStep', () => {

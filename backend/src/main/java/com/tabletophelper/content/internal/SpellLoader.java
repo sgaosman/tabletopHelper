@@ -40,7 +40,8 @@ public class SpellLoader implements ContentLoader {
         // 2: an area from the caster reads "Self (15-foot cone)", not "15 feet"
         // 3: a range of one reads "1 mile", not "1 miles"
         // 4: a subclass's spell named with a |source suffix joins its list (D231)
-        return 4;
+        // 5: a subclass option's spells join the option's list, such as "Warlock (The Genie: Dao)" (D239)
+        return 5;
     }
 
     @Override
@@ -143,9 +144,17 @@ public class SpellLoader implements ContentLoader {
                 JsonNode additionalSpells = sc.get("additionalSpells");
                 if (additionalSpells == null || !additionalSpells.isArray()) continue;
 
-                String label = className + " (" + subclassName + ")";
+                int named = 0;
+                for (JsonNode asp : additionalSpells) {
+                    if (!asp.path("name").asString("").isBlank()) named++;
+                }
 
                 for (JsonNode asp : additionalSpells) {
+                    // A subclass whose player picks one of several named lists lists each under its own name, as
+                    // "Warlock (The Genie: Dao)" (TCE p.73) or "Druid (Circle of the Land: Arctic)" (PHB p.68-69), so
+                    // only the list picked joins the class's (D239); SubclassSpells.listName reads the same names
+                    String option = named >= 2 ? asp.path("name").asString("").trim() : "";
+                    String label = className + " (" + subclassName + (option.isEmpty() ? "" : ": " + option) + ")";
                     collectSubclassSpells(asp.get("prepared"), label, map);
                     collectSubclassSpells(asp.get("expanded"), label, map);
                     collectSubclassSpells(asp.get("known"), label, map);

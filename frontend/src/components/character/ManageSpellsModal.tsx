@@ -64,6 +64,10 @@ export default function ManageSpellsModal({
   const spellList = choice?.spellList ?? casting?.spellList ?? className;
 
   const isChoice = type === 'choice' && !!choice;
+  // A known caster learns from its subclass's additions too, such as a Genie warlock's kind's expanded spells (TCE
+  // p.73), as the server names them (D239); a prepared caster's subclass spells are always prepared, so not offered
+  const subclassList = isChoice && choice?.type === 'SPELLS' && spellList === casting?.spellList
+    ? casting?.subclassSpellList ?? undefined : undefined;
   const isCantripChoice = isChoice && choice?.type === 'CANTRIPS';
   const isSpellbookChoice = isChoice && !!choice && copiesToSpellbook(choice);
   const isSwapOnly = isChoice && !!choice && isSwapOnlyChoice(choice);
@@ -148,7 +152,7 @@ export default function ManageSpellsModal({
   // in their place, of the levels the choice offers, neither known nor picked
   const replaceable = leveled.filter(s => !s.alwaysPrepared);
   const replacementSearch = useSpellSearch(
-    { className: spellList, level: validLevels.join(','), size: 200, sort: 'name' },
+    { className: spellList, subclass: subclassList, level: validLevels.join(','), size: 200, sort: 'name' },
     { enabled: isChoice && !!choice?.swap && validLevels.length > 0 },
   );
   const replacementOptions = (() => {
@@ -254,7 +258,7 @@ export default function ManageSpellsModal({
         value={value}
         onChange={change}
         max={isChoice ? choiceCount : type === 'prepared' ? prepLimit : undefined}
-        filter={{ className: spellList, levels: validLevels }}
+        filter={{ className: spellList, subclass: subclassList, levels: validLevels }}
         statusOf={statusOf}
         localSpells={spellbookSpells}
         placeholder={spellbookSpells ? 'Filter spellbook...' : 'Search spells...'}

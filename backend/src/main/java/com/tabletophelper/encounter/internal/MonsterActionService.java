@@ -106,10 +106,11 @@ public class MonsterActionService {
                 .orElseThrow(() -> new ValidationException("Action '" + request.actionName()
                         + "' not found in monster's action templates (source: " + request.actionSource() + ")"));
         String actionName = MonsterEffects.nameOf(found);
-        // The damage type the monster chooses for the action, as a dracohydra's Bite's (FTD); a multiattack's attacks
-        // each take their own (D207)
-        String damageType = singleDamageType(actionName, found, request);
-        MonsterTemplates.Action action = found.withDamageType(damageType);
+        // The damage type the monster chooses for the action, as a dracohydra's Bite's (FTD), and whether it charged,
+        // held a versatile weapon in two hands or is in a form its damage depends on; a multiattack's attacks each take
+        // their own (D207, D239)
+        MonsterTemplates.Choices choices = singleChoices(actionName, found, request);
+        MonsterTemplates.Action action = found.chosen(choices);
         EncounterParticipant warlock = pact
                 ? pactWarlock(encounter, monster, request, action, actionName) : null;
         requireSummonMayAct(encounter, monster, action, actionName, userId, pact);
@@ -138,10 +139,11 @@ public class MonsterActionService {
             throw new ValidationException(actionName + " makes its attacks one target at a time: choose a target "
                     + "for each attack");
         }
-        // Each attack the monster chooses a damage type for, read with the type chosen (D207)
-        List<String> componentTypes = componentDamageTypes(actionName, read, request, componentTargetIds, targetIds);
+        // Each attack read as the DM chose to make it: its damage type, a charge, a grip and a form (D207, D239)
+        List<MonsterTemplates.Choices> componentChoices = componentChoices(actionName, read, request,
+                componentTargetIds, targetIds);
         MonsterEffects.Multiattack multiattack = read != null
-                ? monsterEffects.withDamageTypes(read, componentTypes, overrides) : null;
+                ? monsterEffects.withChoices(read, componentChoices, overrides) : null;
         List<EncounterParticipant> targets = CombatAccess.targets(encounter,
                 componentTargetIds != null ? distinct(componentTargetIds) : targetIds, userId);
         CombatAccess.requireNotDead(targets);
@@ -212,8 +214,10 @@ public class MonsterActionService {
         // The entry for the action as a whole names no target, so it can't name a hidden one (D157); it names the
         // damage types chosen (D207)
         String lead = monster.getDisplayName() + " uses " + actionName + costNote
-                + typesNote(damageType, multiattack, componentTypes);
-        String notes = String.join(" ", plan.notes());
+                + choicesNote(choices, multiattack, componentChoices);
+        List<String> planNotes = new ArrayList<>(plan.notes());
+        planNotes.addAll(chargeNotes(action, choices, multiattack, componentChoices));
+        String notes = String.join(" ", planNotes);
         String description = plan.automated()
                 ? lead + "." + (notes.isEmpty() ? "" : " " + notes)
                 : lead + " — " + plan.manualReason();
@@ -547,7 +551,9 @@ public class MonsterActionService {
         return new MultiattackOption(multiattack.name(), multiattack.description(),
                 multiattack.components().stream()
                         .map(component -> new MultiattackOption.ComponentOption(component.name(), component.automated(),
-                                component.manualReason(), component.maxTargets(), component.damageOptions()))
+                                component.manualReason(), component.maxTargets(), component.damageOptions(),
+                                component.template() != null && component.template().hasCharge(),
+                                component.chargeFeet(), component.twoHandedDamage(), component.forms()))
                         .toList(),
                 multiattack.unreadable());
     }
@@ -596,36 +602,57 @@ public class MonsterActionService {
     }
 
     /*
-     * The damage type chosen for an action that isn't a multiattack (D207), or null; a multiattack's attacks take theirs
-     * in componentDamageTypes, so a single type for one, or a list for another action, is a 400.
+     * What the DM chose for an action that isn't a multiattack (D207, D239): its damage type, whether the monster
+     * charged, whether it held a versatile weapon in two hands, and its form. A multiattack's attacks take theirs in
+     * the component lists, so a single choice for one, or a list for another action, is a 400.
      */
-    private static String singleDamageType(String actionName, MonsterTemplates.Action action,
-                                           MonsterActionRequest request) {
+    private static MonsterTemplates.Choices singleChoices(String actionName, MonsterTemplates.Action action,
+                                                          MonsterActionRequest request) {
         boolean single = request.damageType() != null && !request.damageType().isBlank();
+        boolean other = request.charged() != null || request.twoHanded() != null
+                || (request.attackerForm() != null && !request.attackerForm().isBlank());
         if (action.multiattack()) {
             if (single) {
                 throw new ValidationException(actionName + " chooses a damage type for each attack: give them in "
                         + "componentDamageTypes");
             }
-            return null;
+            if (other) {
+                throw new ValidationException(actionName + " takes a charge, a grip and a form for each attack: give "
+                        + "them in componentCharged, componentTwoHanded and componentForms");
+            }
+            return MonsterTemplates.Choices.NONE;
         }
         if (request.componentDamageTypes() != null) {
             throw new ValidationException("Only a multiattack takes a damage type for each attack, and " + actionName
                     + " isn't one");
         }
-        return MonsterEffects.damageType(actionName, action, request.damageType());
+        if (request.componentCharged() != null || request.componentTwoHanded() != null
+                || request.componentForms() != null) {
+            throw new ValidationException("Only a multiattack takes a charge, a grip or a form for each attack, and "
+                    + actionName + " isn't one");
+        }
+        return new MonsterTemplates.Choices(MonsterEffects.damageType(actionName, action, request.damageType()),
+                MonsterEffects.charged(actionName, action, request.charged()),
+                MonsterEffects.twoHanded(actionName, action, request.twoHanded()),
+                MonsterEffects.form(actionName, action, request.attackerForm()));
     }
 
     /*
-     * The damage type chosen for each of a multiattack's attacks (D207), in order, null for an attack without options
-     * or one not made; null for an action that isn't a multiattack the server can read. Refused with a 400 when the
-     * list doesn't have one entry per attack, when an attack made with options has none or one not among them, or
-     * when an attack without options is given one.
+     * What the DM chose for each of a multiattack's attacks (D207, D239), in order: the damage type of an attack with
+     * options, null for one without or not made; whether the monster charged, held its weapon in two hands, and its
+     * form. Null for an action that isn't a multiattack the server can read. Refused with a 400 when a list doesn't
+     * have one entry per attack, when an attack made with options has no type or one not among them, or when an attack
+     * is given a choice it doesn't have.
      */
-    private static List<String> componentDamageTypes(String actionName, MonsterEffects.Multiattack multiattack,
-                                                     MonsterActionRequest request,
-                                                     List<List<UUID>> componentTargetIds, List<UUID> targetIds) {
+    private static List<MonsterTemplates.Choices> componentChoices(String actionName,
+                                                                   MonsterEffects.Multiattack multiattack,
+                                                                   MonsterActionRequest request,
+                                                                   List<List<UUID>> componentTargetIds,
+                                                                   List<UUID> targetIds) {
         List<String> given = request.componentDamageTypes();
+        List<Boolean> charged = request.componentCharged();
+        List<Boolean> twoHanded = request.componentTwoHanded();
+        List<String> forms = request.componentForms();
         if (multiattack == null) {
             return null;
         }
@@ -634,48 +661,113 @@ public class MonsterActionService {
                 throw new ValidationException(multiattack.unreadable()
                         + ", so its attacks can't take damage types one by one");
             }
+            if (charged != null || twoHanded != null || forms != null) {
+                throw new ValidationException(multiattack.unreadable()
+                        + ", so its attacks can't take a charge, a grip or a form one by one");
+            }
             return null;
         }
         List<MonsterEffects.MultiattackComponent> components = multiattack.components();
-        if (given != null && given.size() != components.size()) {
-            throw new ValidationException(actionName + " makes " + components.size() + " attack"
-                    + (components.size() != 1 ? "s" : "") + ", but damage types were given for " + given.size());
-        }
-        List<String> types = new ArrayList<>();
+        sized(actionName, components.size(), given, "damage types");
+        sized(actionName, components.size(), charged, "charges");
+        sized(actionName, components.size(), twoHanded, "grips");
+        sized(actionName, components.size(), forms, "forms");
+        List<MonsterTemplates.Choices> choices = new ArrayList<>();
         for (int i = 0; i < components.size(); i++) {
             MonsterEffects.MultiattackComponent component = components.get(i);
             String requested = given != null ? given.get(i) : null;
             boolean chosen = requested != null && !requested.isBlank();
             String label = component.name() + " (attack " + (i + 1) + ")";
+            String type = null;
             if (component.damageOptions().isEmpty()) {
                 if (chosen) {
                     throw new ValidationException(label + " has no damage type to choose");
                 }
-                types.add(null);
+            } else {
+                boolean made = componentTargetIds != null ? !componentTargetIds.get(i).isEmpty()
+                        : !targetIds.isEmpty();
+                type = made || chosen ? MonsterEffects.damageType(label, component.template(), requested) : null;
+            }
+            Boolean charge = charged != null ? charged.get(i) : null;
+            Boolean grip = twoHanded != null ? twoHanded.get(i) : null;
+            String form = forms != null ? forms.get(i) : null;
+            MonsterTemplates.Action template = component.template();
+            if (template == null) {
+                if (Boolean.TRUE.equals(charge) || Boolean.TRUE.equals(grip) || (form != null && !form.isBlank())) {
+                    throw new ValidationException(label + " is the DM's to resolve, so it takes no charge, grip or "
+                            + "form");
+                }
+                choices.add(type != null ? MonsterTemplates.Choices.ofDamageType(type) : null);
                 continue;
             }
-            boolean made = componentTargetIds != null ? !componentTargetIds.get(i).isEmpty() : !targetIds.isEmpty();
-            types.add(made || chosen ? MonsterEffects.damageType(label, component.template(), requested) : null);
+            choices.add(new MonsterTemplates.Choices(type, MonsterEffects.charged(label, template, charge),
+                    MonsterEffects.twoHanded(label, template, grip), MonsterEffects.form(label, template, form)));
         }
-        return types;
+        return choices;
     }
 
-    // " (fire)" for a single action, " (Bite: fire; Bite: cold)" for a multiattack's choices (D207), or nothing
-    private static String typesNote(String damageType, MonsterEffects.Multiattack multiattack,
-                                    List<String> componentTypes) {
-        if (damageType != null) {
-            return " (" + damageType + ")";
+    // A 400 when a list of choices for a multiattack's attacks doesn't have one per attack
+    private static void sized(String actionName, int attacks, List<?> given, String what) {
+        if (given != null && given.size() != attacks) {
+            throw new ValidationException(actionName + " makes " + attacks + " attack" + (attacks != 1 ? "s" : "")
+                    + ", but " + what + " were given for " + given.size());
         }
-        if (multiattack == null || componentTypes == null) {
+    }
+
+    /*
+     * " (fire)" for a single action, " (Bite: fire; Bite: cold)" for a multiattack's choices (D207), with "charging",
+     * "two-handed" and the form beside them (D239), as " (Pike: charging)", an attack with nothing chosen left out;
+     * nothing when nothing was chosen
+     */
+    private static String choicesNote(MonsterTemplates.Choices choices, MonsterEffects.Multiattack multiattack,
+                                      List<MonsterTemplates.Choices> componentChoices) {
+        if (choices != null && !choices.words().isEmpty()) {
+            return " (" + String.join(", ", choices.words()) + ")";
+        }
+        if (multiattack == null || componentChoices == null) {
             return "";
         }
         List<String> chosen = new ArrayList<>();
-        for (int i = 0; i < componentTypes.size(); i++) {
-            if (componentTypes.get(i) != null) {
-                chosen.add(multiattack.components().get(i).name() + ": " + componentTypes.get(i));
+        for (int i = 0; i < componentChoices.size(); i++) {
+            MonsterTemplates.Choices made = componentChoices.get(i);
+            if (made != null && !made.words().isEmpty()) {
+                chosen.add(multiattack.components().get(i).name() + ": " + String.join(", ", made.words()));
             }
         }
         return chosen.isEmpty() ? "" : " (" + String.join("; ", chosen) + ")";
+    }
+
+    /*
+     * What the DM applies by hand after a charge (D239), as "Pounce: If the target is prone, the lion can make one bite
+     * attack against it as a bonus action." or a push, for each attack made charging
+     */
+    private static List<String> chargeNotes(MonsterTemplates.Action action, MonsterTemplates.Choices choices,
+                                            MonsterEffects.Multiattack multiattack,
+                                            List<MonsterTemplates.Choices> componentChoices) {
+        List<String> notes = new ArrayList<>();
+        if (choices != null && choices.charged()) {
+            chargeNote(action).ifPresent(notes::add);
+        }
+        if (multiattack != null && componentChoices != null) {
+            for (int i = 0; i < componentChoices.size() && i < multiattack.components().size(); i++) {
+                MonsterTemplates.Choices made = componentChoices.get(i);
+                MonsterTemplates.Action template = multiattack.components().get(i).template();
+                if (made != null && made.charged() && template != null) {
+                    chargeNote(template).filter(note -> !notes.contains(note)).ifPresent(notes::add);
+                }
+            }
+        }
+        return notes;
+    }
+
+    // "Charge: <its note>", or nothing when the charge leaves the DM nothing
+    private static java.util.Optional<String> chargeNote(MonsterTemplates.Action action) {
+        MonsterTemplates.Charge charge = action.charge();
+        if (charge == null || charge.note() == null || charge.note().isBlank()) {
+            return java.util.Optional.empty();
+        }
+        String name = charge.trait() != null && !charge.trait().isBlank() ? charge.trait().trim() : "Charge";
+        return java.util.Optional.of(name + ": " + charge.note().trim());
     }
 
     // Every creature the attacks name, in the order first named

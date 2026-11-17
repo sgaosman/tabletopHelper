@@ -83,10 +83,12 @@ public class CharacterClassLoader implements ContentLoader {
     // Expertise, the Scout's Expertise and the subclass cantrips, version 8 the School of Illusion's cantrip
     // granted unless known (Improved Minor Illusion, PHB p.118), and version 9 (D231) the granted spells (known spells
     // and the options, such as a Circle of the Land's terrains, whose prepared spells leave the always-prepared list),
-    // spell names without their |source suffix, cantrips granted without a fallback choice and cantrip choices by school
+    // spell names without their |source suffix, cantrips granted without a fallback choice and cantrip choices by school,
+    // and version 10 an option's expanded spells, so the Genie's four kinds are options (TCE p.73), and the spells a
+    // subclass teaches with a use a long rest, as the Fathomless's Evard's black tentacles (TCE p.73)
     @Override
     public int version() {
-        return 9;
+        return 10;
     }
 
     // The 5etools entries that place another feature's text inside a feature, such as the Life Domain's Bonus
@@ -802,12 +804,16 @@ public class CharacterClassLoader implements ContentLoader {
      * "subclass:" and its name and not counted against Spells Known; and {@code options}, for a subclass whose player
      * picks one of two or more named lists, those lists in the data's order, each with its {@code name} and its
      * always-prepared ({@code prepared}) and known ({@code known}) spells by class level, as a Circle of the Land
-     * druid's terrains (PHB p.68-69) or a Divine Soul's affinities (XGE p.50). Cantrips ({@code #c}) are left out: data/content/subclass-proficiencies.json grants them, so levelling
-     * down forgets them with the subclass's other cantrips. Choices (objects, such as a College of Lore's Additional
-     * Magical Secrets) are left out too. A prepared caster's subclass learns no spells this way: the only one the data
-     * gives, a Circle of the Moon druid's alter self at Druid 14, is cast at will (Thousand Forms, PHB p.69), which isn't
-     * modelled yet. A list with expanded spells alone, as a Genie's (TCE p.73), is no option. Null for a subclass with
-     * none.
+     * druid's terrains (PHB p.68-69) or a Divine Soul's affinities (XGE p.50), and the levelled spells it adds to the
+     * class's list ({@code expanded}, names in the data's order), as each of the Genie's four kinds (TCE p.73: the genie
+     * spells every kind has, then the kind's own); and {@code daily}, the spells it teaches by class level that are also
+     * cast once without a slot between long rests, as the Fathomless's Evard's black tentacles at Warlock 10 (Grasping
+     * Tentacles, TCE p.73: 5etools' {@code "known": {"10": {"daily": {"1": [...]}}}}). Cantrips ({@code #c}) are left
+     * out: data/content/subclass-proficiencies.json grants them, so levelling down forgets them with the subclass's other
+     * cantrips. Choices (objects, such as a College of Lore's Additional Magical Secrets or a Divine Soul's cleric list)
+     * are left out too. A prepared caster's subclass learns no spells this way: the only one the data gives, a Circle of
+     * the Moon druid's alter self at Druid 14, is cast at will (Thousand Forms, PHB p.69), which isn't modelled yet. Null
+     * for a subclass with none.
      */
     String parseGrantedSpells(JsonNode scNode, String className) throws Exception {
         JsonNode addSpells = scNode.get("additionalSpells");
@@ -815,6 +821,7 @@ public class CharacterClassLoader implements ContentLoader {
         boolean learnsKnown = !PREPARED_CASTERS.contains(className);
 
         ObjectNode known = objectMapper.createObjectNode();
+        ObjectNode daily = objectMapper.createObjectNode();
         // A list, as PostgreSQL's jsonb doesn't keep an object's keys in order, and the options are offered in the
         // book's order
         ArrayNode options = objectMapper.createArrayNode();
@@ -825,19 +832,54 @@ public class CharacterClassLoader implements ContentLoader {
                 mergeByLevel(prepared, spellBlock.get("prepared"), false);
                 ObjectNode optionKnown = objectMapper.createObjectNode();
                 if (learnsKnown) mergeByLevel(optionKnown, spellBlock.get("known"), false);
-                if (prepared.isEmpty() && optionKnown.isEmpty()) continue;
+                ArrayNode expanded = expandedNames(spellBlock.get("expanded"));
+                if (prepared.isEmpty() && optionKnown.isEmpty() && expanded.isEmpty()) continue;
                 option.put("name", spellBlock.path("name").asString("").trim());
                 if (!prepared.isEmpty()) option.set("prepared", prepared);
                 if (!optionKnown.isEmpty()) option.set("known", optionKnown);
+                if (!expanded.isEmpty()) option.set("expanded", expanded);
                 options.add(option);
             } else if (learnsKnown) {
                 mergeByLevel(known, spellBlock.get("known"), false);
+                mergeDailyByLevel(daily, spellBlock.get("known"));
             }
         }
         ObjectNode result = objectMapper.createObjectNode();
         if (!known.isEmpty()) result.set("known", known);
+        if (!daily.isEmpty()) result.set("daily", daily);
         if (!options.isEmpty()) result.set("options", options);
         return result.isEmpty() ? null : objectMapper.writeValueAsString(result);
+    }
+
+    // The levelled spells a block adds to its class's list, each once in the data's order, from 5etools' "expanded"
+    // keyed by spell level ("s1") or class level; choices (objects, such as a Divine Soul's {"all": ...}) are left out
+    private ArrayNode expandedNames(JsonNode expanded) {
+        ArrayNode names = objectMapper.createArrayNode();
+        if (expanded == null || !expanded.isObject()) return names;
+        expanded.properties().forEach(level -> {
+            if (!level.getValue().isArray()) return;
+            for (JsonNode s : level.getValue()) {
+                if (!s.isString() || isCantrip(s.asString(""))) continue;
+                String name = spellName(s.asString(""));
+                boolean present = name.isBlank();
+                for (JsonNode existing : names) present |= existing.asString("").equalsIgnoreCase(name);
+                if (!present) names.add(name);
+            }
+        });
+        return names;
+    }
+
+    // Adds a block's known spells that are cast once a long rest without a slot, 5etools' {"daily": {"1": [...]}} under
+    // a class level, to that level's list. Only one use ("1") is read: the data gives no other for a known spell
+    private void mergeDailyByLevel(ObjectNode target, JsonNode byLevel) {
+        if (byLevel == null || !byLevel.isObject()) return;
+        byLevel.properties().forEach(level -> {
+            JsonNode once = level.getValue().path("daily").path("1");
+            if (!once.isArray()) return;
+            ObjectNode wrapper = objectMapper.createObjectNode();
+            wrapper.set(level.getKey(), once);
+            mergeByLevel(target, wrapper, false);
+        });
     }
 
     // Whether the block is one of two or more named lists the player picks from: a Circle of the Land's terrains or a

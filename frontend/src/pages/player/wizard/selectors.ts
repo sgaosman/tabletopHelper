@@ -10,6 +10,7 @@ import type { AbilityScores, ProfEntry, RaceChoiceReq, ChoiceReq } from './types
 import type { WizardDraft, WizardState } from './wizardReducer';
 import { equipmentComplete, startingInventory, type WizardKits } from './startingEquipment';
 import { ancestryOf, DRACONIC_ANCESTRIES, hasDraconicAncestry } from '../../../utils/draconicAncestry';
+import { hasThievesTools, THIEVES_TOOLS } from '../../../utils/thievesTools';
 
 // The values the creation wizard works out from its state, and the request it sends
 
@@ -107,6 +108,27 @@ export function multiclassSkillChoices(state: WizardState): Record<string, Skill
 /** A rogue's 1st-level Expertise (PHB p.94); every later level's is a Pending Choice made on the sheet (D159). */
 export function expertiseCount(state: WizardState): number {
   return state.classEntries[0]?.cls.name === 'Rogue' ? 2 : 0;
+}
+
+/**
+ * What Expertise can take: the skills held, and for a rogue's 1st-level Expertise thieves' tools too, with proficiency
+ * in them, which a rogue always has (PHB p.96: "one of your skill proficiencies and your proficiency with thieves'
+ * tools").
+ */
+export function expertiseOptions(state: WizardState): string[] {
+  if (expertiseCount(state) === 0) return heldSkills(state);
+  const first = state.classEntries[0]?.cls;
+  const raceTools = safeJsonParse<{ tools?: string[] }>(state.selectedRace?.proficiencies, {}).tools ?? [];
+  const tools = [
+    ...safeJsonParse<string[]>(first?.toolProficiencies, []), ...raceTools, ...resolvedRaceChoices(state).tools,
+    ...resolvedBgProfs(state).tools,
+  ];
+  return [...heldSkills(state), ...(hasThievesTools(tools) ? [THIEVES_TOOLS] : [])];
+}
+
+/** How many Expertise picks the Class step needs: the rogue's two, or every option when there are fewer. */
+export function expertiseRequired(state: WizardState): number {
+  return Math.min(expertiseCount(state), expertiseOptions(state).length);
 }
 
 /** Whether the first class's 1st level chooses its subclass, as a cleric's, sorcerer's or warlock's does. */
@@ -429,6 +451,8 @@ export function canAdvance(state: WizardState, kits: WizardKits = {}): boolean {
       if (firstLevelSubclass(state) && !state.classEntries[0].subclass) return false;
       const skills = classSkillChoices(state);
       if (skills.count > 0 && state.selectedClassSkills.length < skills.count) return false;
+      // A rogue's 1st-level Expertise (PHB p.96) is made here too, before the step is left
+      if (state.selectedExpertise.length < expertiseRequired(state)) return false;
       // A multiclass's skill (PHB p.164) is a 1st-level choice of that class, made here (D226)
       return multiclassSkillsComplete(state);
     }

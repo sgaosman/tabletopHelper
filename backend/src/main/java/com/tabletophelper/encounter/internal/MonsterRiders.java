@@ -307,6 +307,11 @@ final class MonsterRiders {
         if (when == null) {
             return true;
         }
+        // A charge's parts reach here only when the DM didn't say the monster charged, as the action's choices take
+        // the condition away from them when it did (D239)
+        if (when.attackerCharged()) {
+            return false;
+        }
         if (when.targetCondition() != null) {
             String wanted = when.targetCondition().trim().toLowerCase(Locale.ROOT);
             List<ConditionEntry> entries = target.getActiveConditions() != null ? target.getActiveConditions()

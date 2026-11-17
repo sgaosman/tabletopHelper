@@ -2,7 +2,7 @@ import type { Background, CharacterClassRef, Race, Spell, Subclass } from '../..
 import { ABILITIES, safeJsonParse } from '../../../utils/dndRules';
 import type { AbilityScores, ClassEntry } from './types';
 import {
-  bgChoiceReqs, bgReplacementOptions, bgSkillConflicts, firstIncompleteStep, heldSkills, multiclassSkillsTaken,
+  bgChoiceReqs, bgReplacementOptions, bgSkillConflicts, expertiseOptions, firstIncompleteStep, multiclassSkillsTaken,
   raceSkills, skillsBeforeBackground,
 } from './selectors';
 
@@ -238,7 +238,8 @@ function sameOr(current: string[], next: string[]): string[] {
  * Keeps the skill choices consistent after any change (D226). A skill is held once: a class skill the race now
  * gives is dropped, as is a multiclass's skill the race or another class gives and a background's chosen skill the
  * race or a class gives. A background skill's replacement is dropped once that skill no longer conflicts or the
- * replacement is held another way (PHB p.125), and Expertise goes with a skill no longer held (PHB p.96).
+ * replacement is held another way (PHB p.125), and Expertise goes with a skill no longer held (PHB p.96), or with
+ * thieves' tools once they are no longer among the Expertise options.
  */
 export function reconcileSkills(state: WizardState): WizardState {
   let s = state;
@@ -279,7 +280,8 @@ export function reconcileSkills(state: WizardState): WizardState {
     s = { ...s, bgSkillReplacements: replacements };
   }
 
-  const held = new Set(heldSkills(s).map(k => k.toLowerCase()));
+  // Thieves' tools stay among a rogue's options (PHB p.96)
+  const held = new Set(expertiseOptions(s).map(k => k.toLowerCase()));
   const expertise = sameOr(s.selectedExpertise, s.selectedExpertise.filter(k => held.has(k.toLowerCase())));
   if (expertise !== s.selectedExpertise) s = { ...s, selectedExpertise: expertise };
   return s;

@@ -17,8 +17,8 @@ export interface SpellFilter {
   /** The spell list searched, as the spells table names it, such as "Wizard"; none searches every spell */
   className?: string;
   /**
-   * A subclass's additions to the list, as the spells table names them, such as "Warlock (The Genie)" for a Genie
-   * warlock's expanded spells (TCE p.73), searched along with the class's list
+   * A subclass's additions to the list, as the spells table names them, such as "Warlock (The Genie: Dao)" for a dao
+   * Genie warlock's expanded spells (TCE p.73, D239), searched along with the class's list
    */
   subclass?: string;
   /** The spell levels offered, 0 for cantrips; the level filter lists them when there are two or more */

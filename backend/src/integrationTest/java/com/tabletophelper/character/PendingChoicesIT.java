@@ -698,6 +698,68 @@ class PendingChoicesIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("D239: a Genie warlock owes its kind at Warlock 1, and once it is picked only the genie spells and "
+            + "that kind's join its list (TCE p.73)")
+    void genieKind() {
+        UUID warlockId = insertCaster("Warlock", 8, "CHA", true);
+        spellRepository.save(Spell.builder().name("Sanctuary").level(1).school("Abjuration").source("PHB")
+                .classes("[\"Cleric\",\"Warlock (The Genie: Dao)\"]").build());
+        spellRepository.save(Spell.builder().name("Thunderwave").level(1).school("Evocation").source("PHB")
+                .classes("[\"Wizard\",\"Warlock (The Genie: Djinni)\"]").build());
+        UUID genieId = subclassRepository.save(Subclass.builder().name("The Genie").source("TCE")
+                .characterClass(characterClassRepository.findById(warlockId).orElseThrow())
+                .grantedSpells("{\"options\": [{\"name\": \"Dao\", \"expanded\": [\"sanctuary\"]}, "
+                        + "{\"name\": \"Djinni\", \"expanded\": [\"thunderwave\"]}]}")
+                .build()).getId();
+
+        JsonNode created = create(Map.of("classId", warlockId, "level", 1, "subclassId", genieId));
+        String aria = created.get("id").asString();
+        JsonNode kind = choice(created, "SUBCLASS_OPTION", 1);
+        assertThat(kind.get("options").toString()).isEqualTo("[\"Dao\",\"Djinni\"]");
+        assertThat(created.get("spellcasting").get(0).get("subclassSpellList").asString())
+                .isEqualTo("Warlock (The Genie)");
+
+        JsonNode made = applied(aria, Map.of("choiceId", kind.get("id").asString(), "subclassOption", "Dao"));
+        assertThat(made.get("spellcasting").get(0).get("subclassSpellList").asString())
+                .isEqualTo("Warlock (The Genie: Dao)");
+        String spells = choice(made, "SPELLS", 1).get("id").asString();
+        assertThat(error(apply(aria, Map.of("choiceId", spells, "spells", List.of("Thunderwave", "Sanctuary"))),
+                HttpStatus.BAD_REQUEST)).isEqualTo("Thunderwave isn't on the Warlock spell list");
+    }
+
+    @Test
+    @DisplayName("D239: a Fathomless warlock learns Evard's black tentacles at Warlock 10, with a use a long rest "
+            + "(Grasping Tentacles, TCE p.73), and levelling down forgets it")
+    void graspingTentacles() {
+        UUID warlockId = insertCaster("Warlock", 8, "CHA", true);
+        spellRepository.save(Spell.builder().name("Evard's Black Tentacles").level(4).school("Conjuration")
+                .source("PHB").classes("[\"Wizard\",\"Warlock (The Fathomless)\"]").build());
+        UUID fathomlessId = subclassRepository.save(Subclass.builder().name("The Fathomless").source("TCE")
+                .characterClass(characterClassRepository.findById(warlockId).orElseThrow())
+                .grantedSpells("{\"daily\": {\"10\": [\"Evard's black tentacles\"]}}")
+                .build()).getId();
+
+        JsonNode created = create(Map.of("classId", warlockId, "level", 10, "subclassId", fathomlessId));
+        String aria = created.get("id").asString();
+        assertThat(names(created, "subclass:The Fathomless")).containsExactly("Evard's Black Tentacles");
+        JsonNode tentacles = null;
+        for (JsonNode spell : created.get("spellsKnown")) {
+            if ("subclass:The Fathomless".equals(spell.path("source").asString())) tentacles = spell;
+        }
+        assertThat(tentacles).isNotNull();
+        assertThat(tentacles.get("usesPerLongRest").asInt()).isEqualTo(1);
+        assertThat(created.get("levelHistory").get(9).get("choices").get("subclassSpells").toString())
+                .isEqualTo("[\"Evard's Black Tentacles\"]");
+        boolean pool = false;
+        for (JsonNode entry : created.get("resourcePools")) {
+            pool |= entry.path("poolId").asString().startsWith("innate:") && entry.path("maxUses").asInt() == 1;
+        }
+        assertThat(pool).isTrue();
+
+        assertThat(names(levelDown(aria), "subclass:The Fathomless")).isEmpty();
+    }
+
+    @Test
     @DisplayName("A kensei chooses a melee and a ranged kensei weapon on Monk 3 and another on Monk 6 (XGE p.34), "
             + "gaining proficiency only with those it lacked; the sheet lists them, and levelling down takes the "
             + "Monk 6 weapon away")

@@ -975,5 +975,62 @@ class LevelProgressionTest {
                     .hasMessageStartingWith("Aria has no pending choice ");
             assertThat(rogue.getSkillExpertises()).containsExactly("Athletics");
         }
+
+        @Test
+        @DisplayName("A Rogue's 6th-level Expertise may take thieves' tools (PHB p.96), recorded on Rogue 6 and taken "
+                + "away by levelling down")
+        void rogueThievesTools() {
+            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.rogue, 5);
+            pc.setSkillProficiencies(List.of("Stealth", "Perception"));
+            pc.setToolProficiencies(List.of("thieves' tools"));
+            pc.setSkillExpertises(List.of("Stealth", "Perception"));
+            f.levelUp(pc, f.rogue);
+            PendingChoice expertise = f.pending(pc, Type.EXPERTISE);
+
+            // Every skill has Expertise already, so the tool is the one proficiency left to choose
+            assertThatThrownBy(() -> f.choose(pc, expertise,
+                    request -> request.setExpertiseSkills(List.of("Thieves' Tools", "Stealth"))))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Aria already has Expertise in Stealth");
+            f.choose(pc, expertise, request -> request.setExpertiseSkills(List.of("thieves' tools")));
+
+            assertThat(pc.getSkillExpertises()).containsExactly("Stealth", "Perception", "Thieves' Tools");
+            assertThat(pc.getLevelHistory().getLast().choices().expertise()).containsExactly("Thieves' Tools");
+            assertThat(pc.getPendingChoices()).noneMatch(c -> c.type() == Type.EXPERTISE && c.characterLevel() == 6);
+            f.levelDown(pc);
+            assertThat(pc.getSkillExpertises()).containsExactly("Stealth", "Perception");
+        }
+
+        @Test
+        @DisplayName("Thieves' tools without proficiency, a second time, or for a Bard's Expertise, which takes skills "
+                + "only (PHB p.54), are 400s")
+        void thievesToolsRefused() {
+            PlayerCharacter rogue = f.create(f.human, CharacterFixture.scores(), f.rogue, 6);
+            rogue.setSkillProficiencies(List.of("Stealth", "Perception", "Athletics"));
+            PendingChoice expertise = f.pending(rogue, Type.EXPERTISE);
+
+            rogue.setToolProficiencies(List.of());
+            assertThatThrownBy(() -> f.choose(rogue, expertise,
+                    request -> request.setExpertiseSkills(List.of("Stealth", "Thieves' Tools"))))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Aria isn't proficient with thieves' tools, so can't have Expertise with them");
+
+            rogue.setToolProficiencies(List.of("Thieves' Tools"));
+            rogue.setSkillExpertises(List.of("Thieves' Tools"));
+            assertThatThrownBy(() -> f.choose(rogue, expertise,
+                    request -> request.setExpertiseSkills(List.of("Stealth", "thieves' tools"))))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Aria already has Expertise in Thieves' Tools");
+
+            rogue.setSkillExpertises(List.of());
+            PendingChoice bards = new PendingChoice(expertise.id(), Type.EXPERTISE, expertise.source(),
+                    expertise.characterLevel(), UUID.randomUUID(), "Bard", 3, 2, null, null, null, null, null, null);
+            rogue.setPendingChoices(List.of(bards));
+            assertThatThrownBy(() -> f.choose(rogue, bards,
+                    request -> request.setExpertiseSkills(List.of("Stealth", "Thieves' Tools"))))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Only a Rogue's Expertise can take thieves' tools; a Bard's takes skills");
+            assertThat(rogue.getSkillExpertises()).isEmpty();
+        }
     }
 }

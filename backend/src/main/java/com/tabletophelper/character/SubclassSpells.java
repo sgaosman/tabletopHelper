@@ -21,8 +21,10 @@ import java.util.UUID;
  * the spells it teaches by class level, such as a Gloom Stalker's disguise self at Ranger 3 (XGE p.42) or Aberrant Mind's
  * psionic spells (TCE p.66), and, for a subclass whose player picks one of several named lists, each list's spells: a
  * Circle of the Land druid's terrain gives its circle spells, always prepared at Druid 3, 5, 7 and 9 (PHB p.68-69), and a
- * Divine Soul's affinity its spell (XGE p.50). The option picked is recorded on the level that records the subclass
- * ({@code LevelChoices.subclassOption}); until it is, the option's spells aren't granted.
+ * Divine Soul's affinity its spell (XGE p.50), and a Genie warlock's kind its expanded spells (TCE p.73). The option
+ * picked is recorded on the level that records the subclass ({@code LevelChoices.subclassOption}); until it is, the
+ * option's spells aren't granted, nor on the class's list (D239). The Fathomless's Evard's black tentacles is taught at
+ * Warlock 10 with one use a long rest (Grasping Tentacles, TCE p.73).
  * <p>
  * Aberrant Mind and Clockwork Soul let a sorcerer swap a psionic or clockwork spell for another of its level from a
  * school's list on levelling up (TCE p.66, p.68); the swap isn't offered yet.
@@ -37,16 +39,27 @@ public final class SubclassSpells {
      *
      * @param prepared the spells it keeps always prepared, by the class level they come at
      * @param known    the spells it teaches, by the class level they come at
+     * @param expanded the spells it adds to the class's list, as a Genie kind's (TCE p.73); the spells table lists them
+     *                 under {@link #listName}
      */
-    public record Option(Map<Integer, List<String>> prepared, Map<Integer, List<String>> known) {}
+    public record Option(Map<Integer, List<String>> prepared, Map<Integer, List<String>> known,
+                         List<String> expanded) {}
 
     /**
      * What a subclass grants.
      *
      * @param known   the spells it teaches every member, by the class level they come at
+     * @param daily   the spells it teaches every member by class level that are also cast once without a slot between
+     *                long rests, as the Fathomless's Evard's black tentacles at Warlock 10 (TCE p.73)
      * @param options the named lists its player picks one of, in the data's order; empty for none
      */
-    public record Granted(Map<Integer, List<String>> known, Map<String, Option> options) {
+    public record Granted(Map<Integer, List<String>> known, Map<Integer, List<String>> daily,
+                          Map<String, Option> options) {
+
+        /** The spells taught at exactly that class level that are also cast once a long rest without a slot. */
+        public List<String> dailyAt(int classLevel) {
+            return daily.getOrDefault(classLevel, List.of());
+        }
 
         /** The names of the lists its player picks one of. */
         public List<String> optionNames() {
@@ -71,7 +84,19 @@ public final class SubclassSpells {
         }
     }
 
-    private static final Granted NONE = new Granted(Map.of(), Map.of());
+    private static final Granted NONE = new Granted(Map.of(), Map.of(), Map.of());
+
+    /**
+     * The name the spells table gives a subclass's additions to its class's list (D231, D239): "Warlock (The
+     * Fathomless)", or for a subclass whose additions follow the option its player picked, that option's, as "Warlock
+     * (The Genie: Dao)" (TCE p.73) or "Druid (Circle of the Land: Arctic)" (PHB p.68-69). The spell loader writes the
+     * same names. Null without a subclass.
+     */
+    public static String listName(String className, String subclassName, String option) {
+        if (className == null || subclassName == null || subclassName.isBlank()) return null;
+        return className.trim() + " (" + subclassName.trim()
+                + (option != null && !option.isBlank() ? ": " + option.trim() : "") + ")";
+    }
 
     /**
      * What the subclass grants; nothing for a subclass that grants nothing.
@@ -91,9 +116,9 @@ public final class SubclassSpells {
                 String name = option.path("name").asString("").trim();
                 if (name.isEmpty()) throw unreadable(subclass);
                 options.put(name, new Option(byLevel(option.path("prepared"), subclass),
-                        byLevel(option.path("known"), subclass)));
+                        byLevel(option.path("known"), subclass), names(option.path("expanded"), subclass)));
             }
-            return new Granted(byLevel(root.path("known"), subclass), options);
+            return new Granted(byLevel(root.path("known"), subclass), byLevel(root.path("daily"), subclass), options);
         } catch (JacksonException e) {
             throw unreadable(subclass);
         }
@@ -164,6 +189,16 @@ public final class SubclassSpells {
             byLevel.put(classLevel, List.copyOf(names));
         }
         return byLevel;
+    }
+
+    private static List<String> names(JsonNode node, Subclass subclass) {
+        if (node == null || node.isMissingNode() || node.isNull()) return List.of();
+        if (!node.isArray()) throw unreadable(subclass);
+        List<String> names = new ArrayList<>();
+        for (JsonNode name : node) {
+            if (name.isString() && !name.asString("").isBlank()) names.add(name.asString("").trim());
+        }
+        return List.copyOf(names);
     }
 
     private static ConflictException unreadable(Subclass subclass) {

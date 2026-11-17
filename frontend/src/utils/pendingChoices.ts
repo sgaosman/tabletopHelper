@@ -154,6 +154,8 @@ export function choiceTitle(choice: PendingChoice): string {
   // A Circle of the Land druid's terrain (PHB p.68-69) or a Divine Soul's affinity (XGE p.50), D231
   if (choice.type === 'SUBCLASS_OPTION' && choice.className === 'Druid') return 'Terrain';
   if (choice.type === 'SUBCLASS_OPTION' && choice.className === 'Sorcerer') return 'Divine Affinity';
+  // A Genie warlock's patron's kind (TCE p.73), D239
+  if (choice.type === 'SUBCLASS_OPTION' && choice.className === 'Warlock') return 'Genie Kind';
   if (choice.type === 'PROFICIENCY') {
     const kinds = KIND_ORDER.filter(kind => (choice.proficiencyOptions?.[kind] ?? []).length > 0);
     if (kinds.length === 0) return TITLES.PROFICIENCY;

@@ -403,6 +403,25 @@ class CharacterClassLoaderTest {
     }
 
     @Test
+    @DisplayName("D239: each of the Genie's kinds is an option with its expanded spells, the genie spells and its own "
+            + "(TCE p.73), and the Fathomless teaches Evard's black tentacles at Warlock 10 once a long rest (TCE p.73)")
+    void genieKindsAndGraspingTentacles() throws Exception {
+        assertThat(json(loader.parseGrantedSpells(json("""
+                {"additionalSpells": [
+                  {"name": "Dao", "expanded": {"9": ["wish"], "s1": ["detect evil and good", "sanctuary"],
+                   "s4": ["summon elemental|tce"]}},
+                  {"name": "Djinni", "expanded": {"9": ["wish"], "s1": ["detect evil and good", "thunderwave"]}}]}"""),
+                "Warlock"))).isEqualTo(json("""
+                {"options": [
+                  {"name": "Dao", "expanded": ["wish", "detect evil and good", "sanctuary", "summon elemental"]},
+                  {"name": "Djinni", "expanded": ["wish", "detect evil and good", "thunderwave"]}]}"""));
+        assertThat(json(loader.parseGrantedSpells(json("""
+                {"additionalSpells": [{"expanded": {"s1": ["create or destroy water", "thunderwave"]},
+                  "known": {"10": {"daily": {"1": ["Evard's black tentacles"]}}}}]}"""), "Warlock")))
+                .isEqualTo(json("{\"daily\": {\"10\": [\"Evard's black tentacles\"]}}"));
+    }
+
+    @Test
     @DisplayName("D231: a spell's |source suffix and #c mark are dropped, so the Fathomless's \"summon elemental|tce\" "
             + "(TCE p.72) and PSA Zeal's \"fire shield|\" match their spells")
     void spellNamesLoseTheirSourceSuffix() {

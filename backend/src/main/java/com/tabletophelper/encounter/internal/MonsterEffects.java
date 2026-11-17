@@ -237,6 +237,21 @@ public class MonsterEffects {
             return template != null ? template.damageOptions() : List.of();
         }
 
+        /** How far the monster must charge for this attack's charge, or null for none (D239). */
+        public Integer chargeFeet() {
+            return template != null && template.hasCharge() ? chargeFeetOf(template) : null;
+        }
+
+        /** This attack's damage with two hands, as "1d10 + 1 slashing", or null when it isn't versatile (D239). */
+        public String twoHandedDamage() {
+            return template != null ? twoHandedDamageOf(template) : null;
+        }
+
+        /** The forms its damage depends on; empty for none (D239). */
+        public List<String> forms() {
+            return template != null ? template.forms() : List.of();
+        }
+
         public boolean automated() {
             return manualReason == null;
         }
@@ -408,24 +423,101 @@ public class MonsterEffects {
      * checked the types against each attack's options.
      */
     public Multiattack withDamageTypes(Multiattack multiattack, List<String> types, Overrides overrides) {
-        if (types == null || types.stream().allMatch(Objects::isNull)) {
+        return withChoices(multiattack, types == null ? null : types.stream()
+                .map(type -> type != null ? MonsterTemplates.Choices.ofDamageType(type) : null)
+                .toList(), overrides);
+    }
+
+    /**
+     * The multiattack with each attack read again as the DM chose to make it (D207, D239): its damage type, a charge, a
+     * grip and a form, one set of choices per component, in order, null for none. MonsterActionService has checked
+     * them against each attack.
+     */
+    public Multiattack withChoices(Multiattack multiattack, List<MonsterTemplates.Choices> choices,
+                                   Overrides overrides) {
+        if (choices == null || choices.stream().allMatch(c -> c == null || c.equals(MonsterTemplates.Choices.NONE))) {
             return multiattack;
         }
         List<MultiattackComponent> components = new ArrayList<>();
         for (int i = 0; i < multiattack.components().size(); i++) {
             MultiattackComponent component = multiattack.components().get(i);
-            String type = i < types.size() ? types.get(i) : null;
-            if (type == null || component.template() == null || !component.template().hasDamageOptions()) {
+            MonsterTemplates.Choices made = i < choices.size() ? choices.get(i) : null;
+            if (made == null || made.equals(MonsterTemplates.Choices.NONE) || component.template() == null) {
                 components.add(component);
                 continue;
             }
-            MonsterTemplates.Action chosen = component.template().withDamageType(type);
+            MonsterTemplates.Action chosen = component.template().chosen(made);
             Read read = read(component.name(), chosen, overrides);
             components.add(new MultiattackComponent(component.name(), read.effect(), read.manualReason(),
                     read.notes(), component.maxTargets(), read.riders(), chosen));
         }
         return new Multiattack(multiattack.name(), multiattack.description(), components, multiattack.unreadable(),
                 multiattack.notes());
+    }
+
+    /**
+     * Whether the monster charged before this attack (D239): false when the DM didn't say; a charge said for an attack
+     * without one is refused with a 400.
+     *
+     * @param label how the refusal names the action, such as "Gore" or "Gore (attack 2)"
+     */
+    public static boolean charged(String label, MonsterTemplates.Action action, Boolean requested) {
+        boolean charged = Boolean.TRUE.equals(requested);
+        if (charged && !action.hasCharge()) {
+            throw new ValidationException(label + " has no charge to make");
+        }
+        return charged;
+    }
+
+    /**
+     * Whether a versatile weapon is held in two hands for this attack (D239): false when the DM didn't say; two hands
+     * said for an attack that isn't versatile are refused with a 400.
+     */
+    public static boolean twoHanded(String label, MonsterTemplates.Action action, Boolean requested) {
+        boolean twoHanded = Boolean.TRUE.equals(requested);
+        if (twoHanded && !action.isVersatile()) {
+            throw new ValidationException(label + " isn't a versatile weapon attack, so it has no two-handed damage");
+        }
+        return twoHanded;
+    }
+
+    /**
+     * The form the DM says the monster makes this attack in (D239), as one of its forms' spelling or USUAL_FORM; null
+     * for the app to tell. A form the attack's damage doesn't depend on is refused with a 400 naming them.
+     */
+    public static String form(String label, MonsterTemplates.Action action, String requested) {
+        if (requested == null || requested.isBlank()) {
+            return null;
+        }
+        String wanted = requested.trim().toLowerCase(Locale.ROOT);
+        List<String> forms = action.forms();
+        if (forms.isEmpty()) {
+            throw new ValidationException(label + "'s damage doesn't depend on a form");
+        }
+        if (MonsterTemplates.Action.USUAL_FORM.equals(wanted) || forms.contains(wanted)) {
+            return wanted;
+        }
+        throw new ValidationException(requested.trim() + " isn't a form " + label + " depends on: "
+                + String.join(", ", forms) + " or " + MonsterTemplates.Action.USUAL_FORM);
+    }
+
+    /** How far the monster must charge first for the action's charge, or null when the data doesn't say (D239). */
+    static Integer chargeFeetOf(MonsterTemplates.Action action) {
+        return action.charge() != null ? action.charge().feet() : null;
+    }
+
+    /** The action's damage with two hands, as "1d10 + 1 slashing", or null when it isn't versatile (D239). */
+    static String twoHandedDamageOf(MonsterTemplates.Action action) {
+        if (!action.isVersatile()) {
+            return null;
+        }
+        MonsterTemplates.Action held = action.withGrip(true);
+        return held.effects().stream()
+                .filter(part -> "DAMAGE".equalsIgnoreCase(part.effectType()) && part.onlyIf() == null
+                        && !part.ownSave())
+                .findFirst()
+                .map(part -> part.damageDice() + (part.damageType() != null ? " " + part.damageType() : ""))
+                .orElse(null);
     }
 
     /**
@@ -455,8 +547,10 @@ public class MonsterEffects {
                         + " can deal: " + options));
     }
 
-    // What a single action does, or why the DM resolves it
-    private Read read(String name, MonsterTemplates.Action action, Overrides overrides) {
+    // What a single action does, or why the DM resolves it. A charge's parts the DM's choices haven't kept are left out:
+    // the monster didn't charge (D239)
+    private Read read(String name, MonsterTemplates.Action template, Overrides overrides) {
+        MonsterTemplates.Action action = template.withCharge(false);
         if (Boolean.FALSE.equals(action.automatable())) {
             // The DM's note says what to apply by hand, so it comes before the stat block's wording
             if (action.dmNote() != null && !action.dmNote().isBlank()) {

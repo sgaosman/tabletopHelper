@@ -97,8 +97,8 @@ class MonsterActionCorrectionsDataTest {
             // MM p.346: the two-handed and shillelagh alternatives are in the note, not three stacked parts
             "Druid|MM|Quarterstaff|1d6 bludgeoning",
             "Mummy Lord|MM|Rotting Fist|3d6 + 4 bludgeoning,6d6 necrotic",
-            // 9 (1d10 + 4) only in Small or Medium form
-            "Oni|MM|Glaive|2d10 + 4 slashing",
+            // 9 (1d10 + 4) only in Small or Medium form, an alternative under onlyIf.attackerForm the DM picks (D239)
+            "Oni|MM|Glaive|2d10 + 4 slashing,1d10 + 4 slashing",
             // The ignition's damage each turn is the DM's, in the note
             "Fire Elemental|MM|Touch|2d6 + 3 fire",
             "Magmin|MM|Touch|2d6 fire",

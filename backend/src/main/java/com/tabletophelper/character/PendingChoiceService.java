@@ -468,17 +468,25 @@ public class PendingChoiceService {
 
     /**
      * Expertise in as many of the character's skill proficiencies as the choice counts, each one it doesn't have
-     * Expertise in yet (PHB p.51, p.94), or in all of those left when there are fewer. Recorded on the level, so
-     * levelling down takes it away.
+     * Expertise in yet (PHB p.51, p.94), or in all of those left when there are fewer. A Rogue's may take its
+     * proficiency with thieves' tools instead of a skill (PHB p.96), stored as {@link ThievesTools#NAME}; a Bard's
+     * takes skills only (PHB p.54). Recorded on the level, so levelling down takes it away.
      */
     private static void applyExpertise(PlayerCharacter character, PendingChoice choice, int index,
                                        List<String> skills) {
         List<String> proficient = orEmpty(character.getSkillProficiencies());
         List<String> expert = orEmpty(character.getSkillExpertises());
-        long eligible = proficient.stream().filter(skill -> !containsIgnoringCase(expert, skill)).distinct().count();
+        boolean toolOffered = ThievesTools.offeredBy(choice.className()) && ThievesTools.heldBy(character)
+                && !ThievesTools.in(expert);
+        long eligible = proficient.stream().filter(skill -> !containsIgnoringCase(expert, skill)).distinct().count()
+                + (toolOffered ? 1 : 0);
         int needed = (int) Math.min(choice.count(), eligible);
         List<String> chosen = new ArrayList<>();
         for (String skill : distinct(orEmpty(skills))) {
+            if (ThievesTools.is(skill)) {
+                chosen.add(thievesToolsExpertise(character, choice.className(), expert));
+                continue;
+            }
             String proficiency = proficient.stream().filter(p -> p.trim().equalsIgnoreCase(skill)).findFirst()
                     .orElseThrow(() -> new ValidationException(character.getName() + " isn't proficient in " + skill
                             + ", so can't have Expertise in it"));
@@ -493,6 +501,25 @@ public class PendingChoiceService {
         }
         character.setSkillExpertises(CharacterUpdates.merged(character.getSkillExpertises(), chosen));
         CharacterUpdates.recordExpertise(character, index, chosen);
+    }
+
+    /**
+     * Thieves' tools as an Expertise pick, by the name it is stored under: only a Rogue's Expertise takes them (PHB
+     * p.96), only with proficiency in them, and only once.
+     */
+    private static String thievesToolsExpertise(PlayerCharacter character, String className, List<String> expert) {
+        if (!ThievesTools.offeredBy(className)) {
+            throw new ValidationException("Only a Rogue's Expertise can take thieves' tools; "
+                    + (className == null ? "this one" : "a " + className + "'s") + " takes skills");
+        }
+        if (!ThievesTools.heldBy(character)) {
+            throw new ValidationException(character.getName() + " isn't proficient with thieves' tools, so can't "
+                    + "have Expertise with them");
+        }
+        if (ThievesTools.in(expert)) {
+            throw new ValidationException(character.getName() + " already has Expertise in " + ThievesTools.NAME);
+        }
+        return ThievesTools.NAME;
     }
 
     /**
@@ -719,7 +746,9 @@ public class PendingChoiceService {
     /**
      * One of the named lists a subclass's player picks from, by name in any case: a Circle of the Land druid's terrain
      * (PHB p.68-69: arctic, coast, desert, forest, grassland, mountain, swamp or Underdark), whose circle spells the druid
-     * then has always prepared from Druid 3, or a Divine Soul's affinity (XGE p.50), whose spell it learns. Recorded on
+     * then has always prepared from Druid 3, a Divine Soul's affinity (XGE p.50), whose spell it learns, or a Genie
+     * warlock's kind (TCE p.73: dao, djinni, efreeti or marid), whose expanded spells join the warlock's list (D239,
+     * through ClassSpellcasting.subclassSpellList). Recorded on
      * the level that owes it, the subclass's, as its {@code subclassOption}; the option's spells of each class level the
      * character has are learned and recorded on that level, so levelling down forgets them. A level that records an
      * option already is a 409.
@@ -769,10 +798,18 @@ public class PendingChoiceService {
      */
     private void grantSubclassSpells(PlayerCharacter character, Subclass subclass, int classLevel, int levelIndex,
                                      String option) {
-        List<String> names = SubclassSpells.of(objectMapper, subclass).knownAt(classLevel, option);
-        if (names.isEmpty()) return;
-        recordSubclassSpells(character, levelIndex, spellService.learnSubclassSpells(character, names,
-                subclass.getName()));
+        SubclassSpells.Granted granted = SubclassSpells.of(objectMapper, subclass);
+        List<String> names = granted.knownAt(classLevel, option);
+        if (!names.isEmpty()) {
+            recordSubclassSpells(character, levelIndex, spellService.learnSubclassSpells(character, names,
+                    subclass.getName()));
+        }
+        // With a use a long rest, as the Fathomless's Evard's black tentacles at Warlock 10 (TCE p.73, D239)
+        List<String> daily = granted.dailyAt(classLevel);
+        if (!daily.isEmpty()) {
+            recordSubclassSpells(character, levelIndex, spellService.learnDailySubclassSpells(character, daily,
+                    subclass.getName()));
+        }
     }
 
     private static void recordSubclassSpells(PlayerCharacter character, int levelIndex, List<String> learned) {
@@ -829,12 +866,21 @@ public class PendingChoiceService {
             String option = SubclassSpells.optionOf(character, entry.classId());
             for (int level = 1; level <= entry.level(); level++) {
                 List<String> names = granted.knownAt(level, option);
-                int index = names.isEmpty() ? -1
+                List<String> daily = granted.dailyAt(level);
+                int index = names.isEmpty() && daily.isEmpty() ? -1
                         : historyIndexOf(character, entry.classId(), entry.className(), level);
                 if (index < 0) continue;
                 for (String name : names) {
                     if (!CharacterSpellService.knows(character, name) && spellService.isSpell(name)) {
                         found.add(new MissingSubclassSpell(subclass.getName(), name, entry.className(), level, index));
+                    }
+                }
+                // Known from the subclass with its use even when the class knows it too (D239)
+                for (String name : daily) {
+                    if (!CharacterSpellService.knowsFromSubclass(character, name, subclass.getName())
+                            && spellService.isSpell(name)) {
+                        found.add(new MissingSubclassSpell(subclass.getName(), name, entry.className(), level, index,
+                                true));
                     }
                 }
             }
@@ -848,8 +894,10 @@ public class PendingChoiceService {
      */
     public void storeMissingSubclassSpells(PlayerCharacter character) {
         for (MissingSubclassSpell missing : missingSubclassSpells(character)) {
-            recordSubclassSpells(character, missing.levelIndex(), spellService.learnSubclassSpells(character,
-                    List.of(missing.spell()), missing.subclassName()));
+            List<String> spells = List.of(missing.spell());
+            recordSubclassSpells(character, missing.levelIndex(), missing.oncePerLongRest()
+                    ? spellService.learnDailySubclassSpells(character, spells, missing.subclassName())
+                    : spellService.learnSubclassSpells(character, spells, missing.subclassName()));
         }
     }
 
@@ -861,9 +909,17 @@ public class PendingChoiceService {
      * @param className    the class
      * @param classLevel   the class level that teaches it
      * @param levelIndex   that level's place in the level history
+     * @param oncePerLongRest whether it is also cast once without a slot between long rests, as the Fathomless's
+     *                        Evard's black tentacles (TCE p.73, D239)
      */
     public record MissingSubclassSpell(String subclassName, String spell, String className, int classLevel,
-                                       int levelIndex) {
+                                       int levelIndex, boolean oncePerLongRest) {
+
+        /** A spell taught with no use of its own. */
+        public MissingSubclassSpell(String subclassName, String spell, String className, int classLevel,
+                                    int levelIndex) {
+            this(subclassName, spell, className, classLevel, levelIndex, false);
+        }
     }
 
     // The subclass the character's class has, by name; null for none
@@ -1761,39 +1817,59 @@ public class PendingChoiceService {
     // The EXPERTISE choices less the skills the request gave Expertise, recorded on the levels they cover, oldest
     // first. Each skill must be one of the character's skill proficiencies, and the request can't give more than the
     // levels' EXPERTISE choices count, as a Rogue's 2 at 1st and 6th level and a Bard's at 3rd and 10th (PHB p.96,
-    // p.54; D232): what isn't chosen stays a Pending Choice
+    // p.54; D232): what isn't chosen stays a Pending Choice. Thieves' tools may be one of them, with proficiency in
+    // them, and are recorded on a Rogue's EXPERTISE choice, the only one that takes them (PHB p.96)
     private static List<PendingChoice> expertiseCovered(PlayerCharacter character, List<PendingChoice> owed,
                                                         List<String> given) {
-        List<String> skills = new ArrayList<>(distinct(orEmpty(given)));
+        List<String> skills = new ArrayList<>();
+        String tool = null;
         List<String> proficient = orEmpty(character.getSkillProficiencies());
-        for (int i = 0; i < skills.size(); i++) {
-            String skill = skills.get(i);
+        for (String skill : distinct(orEmpty(given))) {
+            if (ThievesTools.is(skill)) {
+                if (!ThievesTools.heldBy(character)) {
+                    throw new ValidationException(character.getName() + " isn't proficient with thieves' tools, so "
+                            + "can't have Expertise with them");
+                }
+                tool = ThievesTools.NAME;
+                continue;
+            }
             String proficiency = proficient.stream().filter(p -> p != null && p.trim().equalsIgnoreCase(skill))
                     .findFirst()
                     .orElseThrow(() -> new ValidationException(character.getName() + " isn't proficient in " + skill
                             + ", so can't have Expertise in it"));
-            skills.set(i, proficiency);
+            skills.add(proficiency);
         }
+        int givenCount = skills.size() + (tool != null ? 1 : 0);
         int owedCount = owed.stream().filter(c -> c.type() == Type.EXPERTISE).mapToInt(PendingChoice::count).sum();
-        if (skills.size() > owedCount) {
+        if (givenCount > owedCount) {
             throw new ValidationException("A character created at level " + character.getLevel() + " with these "
                     + "classes has Expertise in " + owedCount + " skill" + (owedCount == 1 ? "" : "s") + ", not "
-                    + skills.size());
+                    + givenCount);
         }
         List<PendingChoice> left = new ArrayList<>();
         for (PendingChoice choice : owed) {
-            if (choice.type() != Type.EXPERTISE || skills.isEmpty()) {
+            boolean takesTool = tool != null && ThievesTools.offeredBy(choice.className());
+            if (choice.type() != Type.EXPERTISE || (skills.isEmpty() && !takesTool)) {
                 left.add(choice);
                 continue;
             }
-            int covered = Math.min(choice.count(), skills.size());
-            List<String> taken = new ArrayList<>(skills.subList(0, covered));
-            skills.subList(0, covered).clear();
+            List<String> taken = new ArrayList<>();
+            if (takesTool) {
+                taken.add(tool);
+                tool = null;
+            }
+            int fromSkills = Math.min(choice.count() - taken.size(), skills.size());
+            taken.addAll(skills.subList(0, fromSkills));
+            skills.subList(0, fromSkills).clear();
             CharacterUpdates.recordExpertise(character, CharacterUpdates.historyIndex(character,
                     choice.characterLevel()), taken);
-            if (covered < choice.count()) {
-                left.add(choice.withCount(choice.count() - covered));
+            if (taken.size() < choice.count()) {
+                left.add(choice.withCount(choice.count() - taken.size()));
             }
+        }
+        if (tool != null) {
+            throw new ValidationException("Only a Rogue's Expertise can take thieves' tools (PHB p.96), and "
+                    + character.getName() + " has no Rogue Expertise to choose");
         }
         return left;
     }

@@ -8,6 +8,7 @@ import com.tabletophelper.character.DerivedStats;
 import com.tabletophelper.character.DmAdjustments;
 import com.tabletophelper.character.EquippedArmour;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.SubclassSpells;
 import com.tabletophelper.character.dto.AbilityScoreMaximums;
 import com.tabletophelper.character.dto.ArmourClassBreakdown;
 import com.tabletophelper.character.dto.ClassSpellcasting;
@@ -703,7 +704,10 @@ public class CharacterStats {
                     ClassProgression.cantripsKnown(classTables, c.name(), subclass, classLevel),
                     boxed(ClassProgression.spellsKnown(classTables, c.name(), subclass, classLevel)),
                     boxed(ClassProgression.preparedSpells(classTables, c.name(), classLevel, modifier)),
-                    Boolean.TRUE.equals(c.characterClass().getIsPactMagic())));
+                    Boolean.TRUE.equals(c.characterClass().getIsPactMagic()),
+                    // With the option picked, such as a Genie warlock's kind or a Land druid's terrain (D239)
+                    SubclassSpells.listName(c.name(), subclass,
+                            SubclassSpells.optionOf(character, c.entry().classId()))));
         }
         return spellcasting;
     }

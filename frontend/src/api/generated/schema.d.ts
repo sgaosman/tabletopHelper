@@ -2903,6 +2903,7 @@ export interface components {
             /** Format: int32 */
             spellsKnown?: number | null;
             subclassName?: string | null;
+            subclassSpellList?: string | null;
         };
         ClassTableResponse: {
             asiLevels: number[];
@@ -3016,11 +3017,16 @@ export interface components {
         };
         ComponentOption: {
             automated: boolean;
+            charge: boolean;
+            /** Format: int32 */
+            chargeFeet?: number | null;
             damageOptions: string[];
+            forms: string[];
             manualReason?: string | null;
             /** Format: int32 */
             maxTargets?: number | null;
             name: string;
+            twoHandedDamage?: string | null;
         };
         ConcentrationCheck: {
             /** Format: int32 */
@@ -3788,7 +3794,12 @@ export interface components {
             /** @enum {string} */
             actionSource: "ACTION" | "BONUS" | "REACTION" | "LEGENDARY" | "LAIR";
             advantage?: boolean | null;
+            attackerForm?: string | null;
+            charged?: boolean | null;
+            componentCharged?: boolean[] | null;
             componentDamageTypes?: string[] | null;
+            componentForms?: string[] | null;
+            componentTwoHanded?: boolean[] | null;
             componentTargetIds?: string[][] | null;
             damageType?: string | null;
             /** Format: uuid */
@@ -3799,6 +3810,7 @@ export interface components {
             overrideSaveDC?: number | null;
             pactOfTheChain?: boolean | null;
             targetParticipantIds: string[];
+            twoHanded?: boolean | null;
         };
         MonsterActionResponse: {
             conditionsInflicted: string[];

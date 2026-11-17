@@ -3,6 +3,7 @@ import { Check } from 'lucide-react';
 import { apiErrorMessage } from '../../api/errors';
 import { useApplyChoices } from '../../queries/characters';
 import type { PendingChoice, PlayerCharacter } from '../../types/character';
+import { expertiseTakesThievesTools, hasThievesTools, THIEVES_TOOLS } from '../../utils/thievesTools';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
 
@@ -17,8 +18,9 @@ interface Props {
 }
 
 /**
- * Expertise in skills the character is proficient in and has no Expertise in yet: as many as the choice counts, or
- * every one left when there are fewer. The updated character replaces the cached one.
+ * Expertise in skills the character is proficient in and has no Expertise in yet, or for a Rogue's choice in thieves'
+ * tools too: as many as the choice counts, or every one left when there are fewer. The updated character replaces the
+ * cached one.
  */
 export default function ExpertiseModal({ character, choice, onComplete, onSkip, onClose }: Props) {
   const applyChoices = useApplyChoices();
@@ -28,7 +30,13 @@ export default function ExpertiseModal({ character, choice, onComplete, onSkip, 
 
   const proficientSkills = character.skillProficiencies ?? [];
   const existingExpertise = character.skillExpertises ?? [];
-  const available = proficientSkills.filter(s => !existingExpertise.includes(s));
+  // A Rogue's Expertise may take its proficiency with thieves' tools instead of a skill (PHB p.96); a Bard's can't
+  const toolOffered = expertiseTakesThievesTools(choice.className) && hasThievesTools(character.toolProficiencies)
+    && !hasThievesTools(existingExpertise);
+  const available = [
+    ...proficientSkills.filter(s => !existingExpertise.includes(s)),
+    ...(toolOffered ? [THIEVES_TOOLS] : []),
+  ];
   const count = Math.min(choice.count, available.length);
 
   function toggle(skill: string) {
@@ -47,7 +55,7 @@ export default function ExpertiseModal({ character, choice, onComplete, onSkip, 
   return (
     <Modal
       title="Choose Expertise"
-      subtitle={<>{choice.className} {choice.classLevel}: select {count} skill{count === 1 ? '' : 's'} to double your proficiency bonus ({selected.length}/{count})</>}
+      subtitle={<>{choice.className} {choice.classLevel}: select {count} {toolOffered ? 'proficienc' + (count === 1 ? 'y' : 'ies') : 'skill' + (count === 1 ? '' : 's')} to double your proficiency bonus ({selected.length}/{count})</>}
       onClose={onClose}
       footer={(
         <>

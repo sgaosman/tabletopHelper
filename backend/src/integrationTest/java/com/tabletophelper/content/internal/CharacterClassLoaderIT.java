@@ -2,6 +2,7 @@ package com.tabletophelper.content.internal;
 
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.reference.CharacterClass;
+import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.rules.character.ClassTables;
@@ -20,6 +21,8 @@ class CharacterClassLoaderIT extends IntegrationTest {
     @Autowired private SubclassRepository subclassRepository;
     @Autowired private PlatformTransactionManager transactionManager;
     @Autowired private ClassTables classTables;
+    @Autowired private SpellLoader spellLoader;
+    @Autowired private SpellRepository spellRepository;
 
     // Runs the loader in a transaction, as ContentLoading does
     private void load() {
@@ -341,5 +344,47 @@ class CharacterClassLoaderIT extends IntegrationTest {
         assertThat(subclassNamed("The Fathomless").getExpandedSpellList()).contains("\"summon elemental\"")
                 .doesNotContain("|tce");
         assertThat(subclassNamed("Circle of the Moon").getGrantedSpells()).isNull();
+    }
+
+    @Test
+    @DisplayName("D239: the Genie's four kinds are options with the genie spells and their own (TCE p.73), and the "
+            + "Fathomless teaches Evard's black tentacles at Warlock 10 once a long rest (TCE p.73)")
+    void genieKindsAndGraspingTentacles() {
+        load();
+
+        var kinds = objectMapper.readTree(subclassNamed("The Genie").getGrantedSpells()).path("options");
+        assertThat(names(kinds)).containsExactly("Dao", "Djinni", "Efreeti", "Marid");
+        assertThat(kinds.get(0).path("expanded")).isEqualTo(objectMapper.readTree("[\"wish\", \"detect evil and good\", "
+                + "\"sanctuary\", \"phantasmal force\", \"spike growth\", \"create food and water\", \"meld into stone\", "
+                + "\"phantasmal killer\", \"stone shape\", \"creation\", \"wall of stone\"]"));
+        assertThat(kinds.get(3).path("expanded").toString()).contains("\"fog cloud\"", "\"cone of cold\"")
+                .doesNotContain("\"sanctuary\"");
+        assertThat(objectMapper.readTree(subclassNamed("The Fathomless").getGrantedSpells())).isEqualTo(
+                objectMapper.readTree("{\"daily\": {\"10\": [\"Evard's black tentacles\"]}}"));
+    }
+
+    @Test
+    @DisplayName("D239: the spells table lists a subclass option's spells under the option, as \"Warlock (The Genie: "
+            + "Dao)\" or \"Druid (Circle of the Land: Arctic)\", and a subclass without options under its name")
+    void spellListsOfSubclassOptions() {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            try {
+                spellLoader.load(new LoadContext(objectMapper));
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+
+        assertThat(classesOf("Sanctuary")).contains("Cleric", "Warlock (The Genie: Dao)")
+                .doesNotContain("Warlock (The Genie)", "Warlock (The Genie: Djinni)");
+        assertThat(classesOf("Detect Evil and Good")).contains("Warlock (The Genie: Dao)", "Warlock (The Genie: Djinni)",
+                "Warlock (The Genie: Efreeti)", "Warlock (The Genie: Marid)");
+        assertThat(classesOf("Web")).contains("Druid (Circle of the Land: Underdark)")
+                .doesNotContain("Druid (Circle of the Land)", "Druid (Circle of the Land: Arctic)");
+        assertThat(classesOf("Evard's Black Tentacles")).contains("Warlock (The Fathomless)");
+    }
+
+    private String classesOf(String spell) {
+        return spellRepository.findByNameIgnoreCase(spell).orElseThrow().getClasses();
     }
 }

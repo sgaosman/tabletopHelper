@@ -265,6 +265,21 @@ class CreationRequestTest {
             assertThat(pc.getSkillExpertises()).containsExactly("Stealth", "Sleight of Hand");
             assertThat(pc.getPendingChoices()).noneMatch(c -> c.type() == Type.EXPERTISE);
         }
+
+        @Test
+        @DisplayName("A Rogue 1 with Expertise in one skill and thieves' tools, recorded on Rogue 1 (PHB p.96)")
+        void rogueThievesToolsExpertise() {
+            PlayerCharacter pc = create(request(humanRace, f.rogue, 1, r -> {
+                r.setSkillProficiencies(List.of("Stealth", "Perception"));
+                r.setToolProficiencies(List.of("thieves' tools"));
+                r.setSkillExpertises(List.of("Stealth", "thieves’ tools"));
+            }));
+
+            assertThat(pc.getSkillExpertises()).containsExactly("Stealth", "Thieves' Tools");
+            assertThat(pc.getLevelHistory().getFirst().choices().expertise())
+                    .containsExactly("Thieves' Tools", "Stealth");
+            assertThat(pc.getPendingChoices()).noneMatch(c -> c.type() == Type.EXPERTISE);
+        }
     }
 
     @Nested
@@ -346,6 +361,32 @@ class CreationRequestTest {
             })))
                     .isInstanceOf(ValidationException.class)
                     .hasMessage("A character created at level 3 with these classes has Expertise in 2 skills, not 3");
+        }
+
+        @Test
+        @DisplayName("Thieves' tools as Expertise without proficiency in them, or for a Bard, whose Expertise takes "
+                + "skills only, is a 400 (PHB p.96, p.54)")
+        void thievesToolsExpertise() {
+            assertThatThrownBy(() -> create(request(humanRace, f.rogue, 1, r -> {
+                r.setSkillProficiencies(List.of("Stealth"));
+                r.setSkillExpertises(List.of("Stealth", "Thieves' Tools"));
+            })))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Aria isn't proficient with thieves' tools, so can't have Expertise with them");
+            assertThatThrownBy(() -> create(request(humanRace, bard, 3, r -> {
+                r.setSkillProficiencies(List.of("Performance", "Persuasion", "Deception"));
+                r.setToolProficiencies(List.of("Thieves' Tools"));
+                r.setSkillExpertises(List.of("Performance", "Thieves' Tools"));
+            })))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Only a Rogue's Expertise can take thieves' tools (PHB p.96), and Aria has no Rogue Expertise to choose");
+            assertThatThrownBy(() -> create(request(humanRace, f.rogue, 1, r -> {
+                r.setSkillProficiencies(List.of("Stealth", "Perception"));
+                r.setToolProficiencies(List.of("thieves' tools"));
+                r.setSkillExpertises(List.of("Stealth", "Perception", "Thieves' Tools"));
+            })))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("A character created at level 1 with these classes has Expertise in 2 skills, not 3");
         }
 
         @Test

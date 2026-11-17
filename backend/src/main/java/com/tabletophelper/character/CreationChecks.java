@@ -295,6 +295,15 @@ final class CreationChecks {
     }
 
     /**
+     * The proficiencies given Expertise, as {@link #skillNames} spells them, with thieves' tools, which a Rogue's
+     * Expertise may take (PHB p.96), as {@link ThievesTools#NAME}. PendingChoiceService checks each one.
+     */
+    static List<String> expertiseNames(List<String> names) {
+        if (names == null) return null;
+        return skillNames(names.stream().map(name -> ThievesTools.is(name) ? ThievesTools.NAME : name).toList());
+    }
+
+    /**
      * Proficiency names, each once whatever its case (D232): a rogue with the Criminal background gets thieves' tools
      * from both, and carries them once.
      */

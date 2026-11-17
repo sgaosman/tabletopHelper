@@ -306,9 +306,9 @@ describe('InlineMonsterActions: damage options (D207)', () => {
       http.get('/api/encounters/:id/combat/multiattack-options', () => HttpResponse.json([{
         name: 'Multiattack', description: 'The dracohydra makes as many Bite attacks as it has heads.', manualReason: null,
         components: [
-          { name: 'Bite', automated: true, manualReason: null, maxTargets: 1, damageOptions: dragonTypes },
-          { name: 'Bite', automated: true, manualReason: null, maxTargets: 1, damageOptions: dragonTypes },
-          { name: 'Claw', automated: true, manualReason: null, maxTargets: 1, damageOptions: [] },
+          { name: 'Bite', automated: true, manualReason: null, maxTargets: 1, charge: false, forms: [], damageOptions: dragonTypes },
+          { name: 'Bite', automated: true, manualReason: null, maxTargets: 1, charge: false, forms: [], damageOptions: dragonTypes },
+          { name: 'Claw', automated: true, manualReason: null, maxTargets: 1, charge: false, forms: [], damageOptions: [] },
         ],
       }] satisfies MultiattackOption[])),
     );
@@ -517,12 +517,12 @@ describe('InlineMonsterActions: review fixes', () => {
       } satisfies MonsterActionTemplate)),
       http.get('/api/encounters/:id/combat/multiattack-options', () => HttpResponse.json([
         { name: 'Multiattack', description: null, manualReason: null, components: [
-          { name: 'Bite', automated: true, manualReason: null, maxTargets: 1, damageOptions: [] },
-          { name: 'Claw', automated: true, manualReason: null, maxTargets: 1, damageOptions: [] },
-          { name: 'Claw', automated: true, manualReason: null, maxTargets: 1, damageOptions: [] },
+          { name: 'Bite', automated: true, manualReason: null, maxTargets: 1, charge: false, forms: [], damageOptions: [] },
+          { name: 'Claw', automated: true, manualReason: null, maxTargets: 1, charge: false, forms: [], damageOptions: [] },
+          { name: 'Claw', automated: true, manualReason: null, maxTargets: 1, charge: false, forms: [], damageOptions: [] },
         ] },
         { name: 'Multiattack (Ranged)', description: null, manualReason: null, components: [
-          { name: 'Longbow', automated: true, manualReason: null, maxTargets: 1, damageOptions: [] },
+          { name: 'Longbow', automated: true, manualReason: null, maxTargets: 1, charge: false, forms: [], damageOptions: [] },
         ] },
       ] satisfies MultiattackOption[])),
     );

@@ -23,14 +23,14 @@ const SPELLS: Spell[] = [
   spell('Circle of Death', 6, ['Sorcerer', 'Warlock', 'Wizard']),
   spell('Heal', 6, ['Cleric', 'Druid']),
   spell('Power Word Kill', 9, ['Bard', 'Sorcerer', 'Warlock', 'Wizard']),
-  spell('Wish', 9, ['Sorcerer', 'Wizard', 'Warlock (The Genie)']),
+  spell('Wish', 9, ['Sorcerer', 'Wizard', 'Warlock (The Genie: Dao)', 'Warlock (The Genie: Marid)']),
 ];
 
-function warlockCasting(subclassName?: string): ClassSpellcasting {
+function warlockCasting(subclassName?: string, subclassSpellList?: string): ClassSpellcasting {
   return {
     className: 'Warlock', classLevel: 17, ability: 'CHA', spellSaveDc: 17, spellAttackBonus: 9,
     highestSpellLevel: 5, cantripsKnown: 4, spellsKnown: 14, preparedSpells: null, pactMagic: true,
-    spellList: 'Warlock', subclassName,
+    spellList: 'Warlock', subclassName, subclassSpellList,
   };
 }
 
@@ -81,7 +81,9 @@ describe('MysticArcanumModal', () => {
   });
 
   it("offers a Genie warlock wish, its patron's expanded spell, as its 9th-level arcanum (TCE p.73)", async () => {
-    const genie = { ...makeMockCharacter('char-012', 'Sahar', 'Warlock', 17), spellcasting: [warlockCasting('The Genie')] };
+    // The server names the additions of the warlock's kind (D239)
+    const genie = { ...makeMockCharacter('char-012', 'Sahar', 'Warlock', 17),
+      spellcasting: [warlockCasting('The Genie', 'Warlock (The Genie: Marid)')] };
     const ninth = makeMockPendingChoice({
       id: 'choice-ninth', type: 'MYSTIC_ARCANUM', characterLevel: 17, classLevel: 17, className: 'Warlock', count: 1,
       maxSpellLevel: 9, spellList: 'Warlock',
@@ -91,7 +93,7 @@ describe('MysticArcanumModal', () => {
 
     expect(await screen.findByRole('button', { name: /Wish/ })).toBeEnabled();
     expect(screen.getByRole('button', { name: /Power Word Kill/ })).toBeEnabled();
-    expect(searched.at(-1)?.get('subclass')).toBe('Warlock (The Genie)');
+    expect(searched.at(-1)?.get('subclass')).toBe('Warlock (The Genie: Marid)');
   });
 
   it('can be skipped, leaving the choice pending', async () => {

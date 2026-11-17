@@ -10,6 +10,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.JacksonDefaults;
 import org.slf4j.Logger;
@@ -263,6 +264,13 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      * @param rechargeGroup           the name of the recharge this action shares with others, as a brass dragon's Fire
      *                                Breath and Sleep Breath share its Breath Weapons' "Recharge 5-6" (MM p.105): its
      *                                recharge pool is the group's, so using either spends both; null for its own (D227)
+     * @param versatile               a versatile weapon's damage with two hands, as a hobgoblin's longsword's "or 6
+     *                                (1d10 + 1) slashing damage if used with two hands" (MM p.186), which takes the
+     *                                place of its first damage when the DM says it is used so; null for none (D239)
+     * @param charge                  the charge that adds to the attack, as a centaur's "moves at least 30 feet
+     *                                straight toward a target and then hits it with a pike attack on the same turn" (MM
+     *                                p.38): its parts under onlyIf.attackerCharged come only when the DM says the
+     *                                monster charged; null for none (D239)
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Action(String name, String description, Boolean automatable, String deliveryMethod,
@@ -276,10 +284,14 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                          @JsonProperty("isEyeRays") boolean eyeRays, Integer rayCount, List<Ray> rays,
                          String dmNote, Integer grappleLimit, boolean grappleLimitBlocks, String immuneAfterSave,
                          List<String> exemptTypes, List<String> targetTypes, boolean targetGrappled, Heads heads,
-                         OnAllHit onAllHit, List<String> damageOptions, String rechargeGroup) {
+                         OnAllHit onAllHit, List<String> damageOptions, String rechargeGroup, Versatile versatile,
+                         Charge charge) {
 
         /** The damage type of a part the monster chooses when it uses the action (D207). */
         public static final String OPTION = "option";
+
+        /** The form a monster is in when it is in none of an action's forms, as a wereraven in hybrid form (D239). */
+        public static final String USUAL_FORM = "usual";
 
         public Action {
             effects = listOf(effects);
@@ -304,12 +316,120 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                     halfOnSave, targetCount, secondarySaveDc, secondarySaveAbility, effects, recharge, uses, usesPerDay,
                     usesRecharge, rechargeType, cost, multiattack, multiattackComponents, multiattackDescription,
                     multiattackNote, eyeRays, rayCount, rays, dmNote, grappleLimit, grappleLimitBlocks,
-                    immuneAfterSave, exemptTypes, targetTypes, targetGrappled, heads, onAllHit, null, null);
+                    immuneAfterSave, exemptTypes, targetTypes, targetGrappled, heads, onAllHit, null, null, null,
+                    null);
         }
 
         /** Whether the monster chooses the damage type when it uses the action (D207). */
         public boolean hasDamageOptions() {
             return !damageOptions.isEmpty();
+        }
+
+        /** The action with these parts in place of its own. */
+        public Action withEffects(List<Part> parts) {
+            return new Action(name, description, automatable, deliveryMethod, attackType, attackBonus, saveDc,
+                    saveAbility, halfOnSave, targetCount, secondarySaveDc, secondarySaveAbility, parts, recharge, uses,
+                    usesPerDay, usesRecharge, rechargeType, cost, multiattack, multiattackComponents,
+                    multiattackDescription, multiattackNote, eyeRays, rayCount, rays, dmNote, grappleLimit,
+                    grappleLimitBlocks, immuneAfterSave, exemptTypes, targetTypes, targetGrappled, heads, onAllHit,
+                    damageOptions, rechargeGroup, versatile, charge);
+        }
+
+        /** The action as the DM chose to use it (D207, D239). */
+        public Action chosen(Choices choices) {
+            Choices made = choices != null ? choices : Choices.NONE;
+            return withDamageType(made.damageType()).withCharge(made.charged()).withGrip(made.twoHanded())
+                    .withForm(made.form());
+        }
+
+        /** Whether a charge adds to the attack, which the DM says the monster made when using it (D239). */
+        public boolean hasCharge() {
+            return charge != null || effects.stream().anyMatch(Part::chargeOnly);
+        }
+
+        /**
+         * The action with its charge's parts, as a centaur's 3d6 piercing after a 30-foot charge (MM p.38), dealt on
+         * every hit when the monster charged and left out when it didn't (D239).
+         */
+        public Action withCharge(boolean charged) {
+            if (effects.stream().noneMatch(Part::chargeOnly)) {
+                return this;
+            }
+            List<Part> parts = effects.stream()
+                    .filter(part -> charged || !part.chargeOnly())
+                    .map(part -> part.chargeOnly() ? part.withOnlyIf(part.onlyIf().withoutCharge()) : part)
+                    .toList();
+            return withEffects(parts);
+        }
+
+        /** Whether the attack is a versatile weapon's, with a two-handed damage the DM may choose (D239). */
+        public boolean isVersatile() {
+            return versatile != null && versatile.twoHandedDamageDice() != null
+                    && !versatile.twoHandedDamageDice().isBlank() && firstDamage() >= 0;
+        }
+
+        /**
+         * The action held in two hands, its first damage the versatile weapon's two-handed damage, as a hobgoblin's
+         * longsword's 1d10 + 1 for 1d8 + 1 (MM p.186); the action itself in one hand or when it isn't versatile (D239).
+         */
+        public Action withGrip(boolean twoHanded) {
+            if (!twoHanded || !isVersatile()) {
+                return this;
+            }
+            int first = firstDamage();
+            List<Part> parts = new ArrayList<>(effects);
+            Part part = parts.get(first);
+            String type = versatile.twoHandedDamageType() != null && !versatile.twoHandedDamageType().isBlank()
+                    ? versatile.twoHandedDamageType() : part.damageType();
+            parts.set(first, part.withDamage(versatile.twoHandedDamageDice().trim(), type));
+            return withEffects(parts);
+        }
+
+        /**
+         * The forms its damage depends on, as the wereraven's beak's "raven form" (VRGR) or a duergar's "enlarged"
+         * (MM p.122), in order, lower case; empty for none (D239).
+         */
+        public List<String> forms() {
+            return effects.stream()
+                    .filter(part -> part.onlyIf() != null && part.onlyIf().attackerForm() != null
+                            && !part.onlyIf().attackerForm().isBlank())
+                    .map(part -> part.onlyIf().attackerForm().trim().toLowerCase(java.util.Locale.ROOT))
+                    .distinct()
+                    .toList();
+        }
+
+        /**
+         * The action with the form the DM says the monster is in (D239): the parts of that form are dealt, an
+         * alternative still taking the place of the usual damage, and those of its other forms are left out; USUAL_FORM
+         * leaves out them all. The action itself when form is null, so the app tells the form from the creature's
+         * conditions, spells and Polymorph or Wild Shape form, as before (D202).
+         */
+        public Action withForm(String form) {
+            if (form == null || form.isBlank() || forms().isEmpty()) {
+                return this;
+            }
+            String wanted = form.trim().toLowerCase(java.util.Locale.ROOT);
+            List<Part> parts = new ArrayList<>();
+            for (Part part : effects) {
+                String partForm = part.onlyIf() != null ? part.onlyIf().attackerForm() : null;
+                if (partForm == null || partForm.isBlank()) {
+                    parts.add(part);
+                } else if (partForm.trim().equalsIgnoreCase(wanted)) {
+                    parts.add(part.withOnlyIf(part.onlyIf().declared()));
+                }
+            }
+            return withEffects(parts);
+        }
+
+        // The place of its first damage that comes with every hit, or -1
+        private int firstDamage() {
+            for (int i = 0; i < effects.size(); i++) {
+                Part part = effects.get(i);
+                if ("DAMAGE".equalsIgnoreCase(part.effectType()) && part.onlyIf() == null && !part.ownSave()) {
+                    return i;
+                }
+            }
+            return -1;
         }
 
         /**
@@ -324,12 +444,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                     .map(part -> part != null && OPTION.equalsIgnoreCase(part.damageType())
                             ? part.withDamageType(type) : part)
                     .toList();
-            return new Action(name, description, automatable, deliveryMethod, attackType, attackBonus, saveDc,
-                    saveAbility, halfOnSave, targetCount, secondarySaveDc, secondarySaveAbility, chosen, recharge, uses,
-                    usesPerDay, usesRecharge, rechargeType, cost, multiattack, multiattackComponents,
-                    multiattackDescription, multiattackNote, eyeRays, rayCount, rays, dmNote, grappleLimit,
-                    grappleLimitBlocks, immuneAfterSave, exemptTypes, targetTypes, targetGrappled, heads, onAllHit,
-                    damageOptions, rechargeGroup);
+            return withEffects(chosen);
         }
 
         /**
@@ -486,9 +601,91 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                     tempHp, levels, modifier, turnOf, total, swallow, counted, ability, atZero, onKill, turnSave);
         }
 
+        /** The part with other dice and type, as a versatile weapon's two-handed damage (D239). */
+        public Part withDamage(String dice, String type) {
+            return new Part(effectType, dice, type, condition, saveDc, saveAbility, durationRounds,
+                    saveToEndEachTurn, saveToEndDc, saveToEndAbility, escapeDc, halfOnSave, onlyIf, replacesDamage,
+                    maxTargetSize, endOfUsersTurn, endsWith, endsOnDamage, exemptTypes, until, diesAtZero, half,
+                    tempHp, levels, modifier, turnOf, total, swallow, counted, ability, atZero, onKill, turnSave);
+        }
+
+        /** The part with another condition for it, or none (D239). */
+        public Part withOnlyIf(DamageCondition when) {
+            return new Part(effectType, damageDice, damageType, condition, saveDc, saveAbility, durationRounds,
+                    saveToEndEachTurn, saveToEndDc, saveToEndAbility, escapeDc, halfOnSave, when, replacesDamage,
+                    maxTargetSize, endOfUsersTurn, endsWith, endsOnDamage, exemptTypes, until, diesAtZero, half,
+                    tempHp, levels, modifier, turnOf, total, swallow, counted, ability, atZero, onKill, turnSave);
+        }
+
+        /** Whether the part comes only after a charge, as a boar's extra tusk damage and knock prone (D239). */
+        public boolean chargeOnly() {
+            return onlyIf != null && onlyIf.attackerCharged();
+        }
+
         /** Whether the part records a save of its own: both its DC and its ability. */
         public boolean ownSave() {
             return saveDc != null && saveAbility != null && !saveAbility.isBlank();
+        }
+    }
+
+    /**
+     * A versatile weapon's damage with two hands (D239), as a hobgoblin's longsword's "or 6 (1d10 + 1) slashing damage
+     * if used with two hands" (MM p.186).
+     *
+     * @param twoHandedDamageDice  its dice, such as "1d10 + 1"
+     * @param twoHandedDamageType  its type; null for the one-handed damage's
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Versatile(String twoHandedDamageDice, String twoHandedDamageType) {
+    }
+
+    /**
+     * A charge that adds to an attack (D239): "If the boar moves at least 20 feet straight toward a target and then
+     * hits it with a tusk attack on the same turn, the target takes an extra 3 (1d6) slashing damage" (MM p.319), or a
+     * hit's own "If the aurochs moved at least 20 feet straight toward the target immediately before the hit" (MPMM).
+     *
+     * @param feet  how far the monster must move straight toward the target first
+     * @param trait the trait that gives it, such as "Charge" or "Pounce"; null when the attack's own hit does
+     * @param note  what the DM applies by hand after it, as a push or a lion's bite as a bonus action against a target
+     *              knocked prone; null for nothing
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Charge(Integer feet, String trait, String note) {
+    }
+
+    /**
+     * What the DM chooses for one use of an action (D207, D239).
+     *
+     * @param damageType the damage type of its "option" parts; null for none
+     * @param charged    the monster charged first, so its charge's parts come with the hit
+     * @param twoHanded  a versatile weapon is held in two hands
+     * @param form       the form the monster is in, one of the action's forms or USUAL_FORM; null for the app to tell
+     */
+    public record Choices(String damageType, boolean charged, boolean twoHanded, String form) {
+
+        public static final Choices NONE = new Choices(null, false, false, null);
+
+        /** A damage type alone (D207). */
+        public static Choices ofDamageType(String damageType) {
+            return new Choices(damageType, false, false, null);
+        }
+
+        /** The log's words for what was chosen, as "fire, charging, two-handed, in raven form"; empty for nothing. */
+        public List<String> words() {
+            List<String> words = new ArrayList<>();
+            if (damageType != null) {
+                words.add(damageType);
+            }
+            if (charged) {
+                words.add("charging");
+            }
+            if (twoHanded) {
+                words.add("two-handed");
+            }
+            if (form != null && !form.isBlank()) {
+                words.add(Action.USUAL_FORM.equalsIgnoreCase(form.trim()) ? "in its usual form" : "in " + form.trim());
+            }
+            return words;
         }
     }
 
@@ -666,17 +863,46 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      * What must hold for a DAMAGE part to be dealt (D202), one of: the target has a condition (given by the attacker,
      * with byAttacker, as "grappled by Geryon"), the target is of a creature type, the attacker had advantage on the
      * attack roll, the attacker is in a form ("enlarged", "crocodile form", "raging"), or the attacker has half its
-     * hit points or fewer, as a swarm.
+     * hit points or fewer, as a swarm. Since D239 also: the attacker charged first, which the DM says when using the
+     * attack (attackerCharged).
      *
      * @param text the stat block's words, such as "if the target is prone", which the combat log quotes
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record DamageCondition(String targetCondition, boolean byAttacker, List<String> targetType,
                                   boolean attackerAdvantage, String attackerForm, boolean attackerBloodied,
-                                  String text) {
+                                  String text, boolean attackerCharged) {
 
         public DamageCondition {
             targetType = listOf(targetType);
+        }
+
+        /** A condition that isn't a charge (D202). */
+        public DamageCondition(String targetCondition, boolean byAttacker, List<String> targetType,
+                               boolean attackerAdvantage, String attackerForm, boolean attackerBloodied, String text) {
+            this(targetCondition, byAttacker, targetType, attackerAdvantage, attackerForm, attackerBloodied, text,
+                    false);
+        }
+
+        /** The condition once the attacker charged: what else it asks, or null for nothing more (D239). */
+        public DamageCondition withoutCharge() {
+            DamageCondition rest = new DamageCondition(targetCondition, byAttacker, targetType, attackerAdvantage,
+                    attackerForm, attackerBloodied, text, false);
+            return rest.asksNothing() ? null : rest;
+        }
+
+        /**
+         * The condition of a form the DM says the attacker is in (D239): it holds, and the log keeps its words, so an
+         * alternative still takes the place of the usual damage.
+         */
+        public DamageCondition declared() {
+            return new DamageCondition(null, false, List.of(), false, null, false, text, false);
+        }
+
+        // Whether it asks nothing at all
+        private boolean asksNothing() {
+            return targetCondition == null && targetType.isEmpty() && !attackerAdvantage && attackerForm == null
+                    && !attackerBloodied && !attackerCharged;
         }
     }
 
@@ -730,9 +956,40 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
         }
     }
 
-    // One of the lists, read into records; null when absent
+    // One of the lists, read into records; null when absent. A hand-built entry keeps a versatile weapon's two-handed
+    // damage on its first damage part ("twoHandedDamageDice"), a generated one on the action ("versatile"): the records
+    // read both as the action's versatile (D239), from a copy, so the JSON stays as stored
     private static List<Action> actions(JsonNode root, String key) {
-        return READER.convertValue(root.get(key), ACTIONS);
+        JsonNode list = root.get(key);
+        if (list != null && list.isArray()) {
+            list = list.deepCopy();
+            for (JsonNode action : list) {
+                if (action instanceof ObjectNode object && !object.has("versatile")) {
+                    JsonNode first = firstDamage(object.path("effects"));
+                    if (first != null && first.path("twoHandedDamageDice").isString()) {
+                        ObjectNode versatile = object.putObject("versatile");
+                        versatile.put("twoHandedDamageDice", first.path("twoHandedDamageDice").asString());
+                        if (first.path("damageType").isString()) {
+                            versatile.put("twoHandedDamageType", first.path("damageType").asString());
+                        }
+                    }
+                }
+            }
+        }
+        return READER.convertValue(list, ACTIONS);
+    }
+
+    // An action's first DAMAGE part in its JSON, or null
+    private static JsonNode firstDamage(JsonNode effects) {
+        if (effects == null || !effects.isArray()) {
+            return null;
+        }
+        for (JsonNode part : effects) {
+            if ("DAMAGE".equals(part.path("effectType").asString(""))) {
+                return part;
+            }
+        }
+        return null;
     }
 
     // A list without nulls, empty when there is none

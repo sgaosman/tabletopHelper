@@ -4551,6 +4551,8 @@ The plan's twelve questions were answered with its recommended answers when the 
 
 **Still open:** Rogue Expertise isn't required to leave the Class step, and thieves' tools aren't offered for it.
 
+**Update (2026-11-17):** both items closed by [[#D239]].
+
 **Key files:** `CharacterCreateWizard.tsx`, `wizardReducer.ts`, `selectors.ts`, `RaceStep.tsx`, `ClassStep.tsx`, `BackgroundStep.tsx`, `AbilityScoresStep.tsx`, `StatsTab.tsx`, `CharacterSheetPage.tsx`, `LevelUpModal.tsx`
 
 **Related:** D158, D223
@@ -4600,6 +4602,8 @@ The plan's twelve questions were answered with its recommended answers when the 
 - **Smaller:** the Drow Matron Mother's and Illithilich's "1–3 actions" spellcasting become three entries costing 1, 2 and 3; the Witchstalker's howl is a Wisdom save; the IMR Demogorgon's Gaze is the DM's, with its Beguiling and Hypnotic Gazes as save actions; 43 save actions aimed at one creature target one; 104 action names lose a stray recharge digit ("Fire Breath 5").
 
 **Still open:** a charge's extra damage after moving 20 feet still comes with every hit ([[#D202]]); form-dependent damage (the wereraven's beak) is unchanged; versatile damage isn't shown to the DM.
+
+**Update (2026-11-17):** all three items closed by [[#D241]]; what remains is listed there.
 
 **Key files:** `backend/scripts/generate_monster_actions.py`, `monster-action-definitions.json`, `MonsterTemplates.java`, `MonsterPools.java`, `InlineMonsterActions.tsx`, new `MonsterActionCorrectionsDataTest`
 
@@ -4679,6 +4683,8 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Existing characters:** `recompute-characters` grants the new fixed cantrips and subclass spells, puts at-will racial spells to once per rest and adds missing racial spells, including those unlocked after creation (a tiefling's *hellish rebuke* from 3rd level); `backfill-pending-choices` owes the terrain, affinity, Arcana and Death Domain cantrip and Order Domain skill choices.
 
 **Still open:** spell-list membership isn't per terrain (a Land druid may prepare another terrain's spells), the Genie's expanded spells merge all four patrons, and the Fathomless's *Evard's black tentacles* isn't granted.
+
+**Update (2026-11-17):** all three items closed by [[#D240]].
 
 **Key files:** `CharacterClassLoader.java`, `RaceLoader.java`, `SpellLoader.java`, new `SubclassSpells`, `PendingChoiceService.java`, `PendingChoice`, `LevelChoices`, `KnownSpell`, `CharacterMapper.java`, `CasterSpells.java`, `subclass-proficiencies.json`, `V41__subclass_granted_spells.sql`, new `SubclassOptionModal.tsx`, `ChoiceDialog`, `SpellsTab.tsx`, `openapi.json`
 
@@ -4837,3 +4843,72 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D156, D221
 
 **Tests:** `WebSocketSessionsTest` (including a sweep/logout race), `WebSocketAuthInterceptorTest`, `AuthControllerTest`, `AuthServiceTest`, `JwtTokenProviderTest`; new `WebSocketSessionLifetimeIT` (a 2 s token's socket closes after expiry while another user's stays; logout closes the user's socket and not another's; a second logout with a revoked cookie closes nothing); frontend quiet reconnect after 1008, no retry loop on a refused refresh, renewal without a banner, logout stopping the client, `liveSockets`. 4,986 backend unit, 608 integration and 1,348 frontend tests pass. Checked on the rehearsal copy: logging the QA DM out from a separate login closed the browser's socket ("Signed out"), and the open DM session refreshed and reconnected with no banner.
+
+## D239: Rogue Expertise Required in the Wizard; Thieves' Tools as a Choice
+
+**Date:** 2026-11-17
+**Status:** Accepted — implemented (no migration, no DTO change)
+
+**Context:** [[#D226]] left open that Rogue Expertise wasn't required to leave the wizard's Class step and thieves' tools weren't offered for it. [[#D232]] already checks Expertise at creation. Wording from the repo's 5etools `class-rogue.json` / `class-bard.json` (2014.5e.tools refuses automated fetches; same data): Rogue 1 — "choose two of your skill proficiencies, or one of your skill proficiencies and your proficiency with thieves' tools"; Rogue 6 — "you can choose two more of your proficiencies (in skills or with thieves' tools)"; Bard 3 — "choose two of your skill proficiencies" (skills only).
+
+**Decision:**
+- The Class step can't be left until a first-class Rogue's two 1st-level Expertise picks are made (`selectors.expertiseRequired`). A Bard's Expertise and every level above 1st stay Pending Choices ([[#D159]]).
+- A Rogue's Expertise may take thieves' tools, with proficiency and only once: in the wizard, the creation request (400 otherwise) and the Rogue 6 Pending Choice (`ExpertiseModal`). Any non-Rogue Expertise refuses them with a 400.
+- Stored in `skillExpertises` as "Thieves' Tools" and on the level's `choices.expertise`, so levelling down reverses it. The sheet's Tools line shows "Thieves' tools (Expertise)".
+
+**Trade-offs:** `skillExpertises` now holds one tool name; every reader looks skills up by name, so it's ignored there. Tool checks aren't rolled anywhere, so the doubled bonus is display-only. Background skills can't be picked for Expertise on the first pass through the wizard (the Background step comes later); a Rogue always has enough class skills plus the tool.
+
+**Key files:** `character/ThievesTools.java`, `PendingChoiceService.java`, `CreationChecks.java`, `CharacterService.java`; frontend `utils/thievesTools.ts`, `wizard/selectors.ts`, `wizardReducer.ts`, `ClassStep.tsx`, `ExpertiseModal.tsx`, `sheet/StatsTab.tsx`
+
+**Related:** D159, D226, D232
+
+**Tests:** `CreationRequestTest`, `LevelProgressionTest`, `CreationChecksIT`; frontend selectors, wizardReducer, ClassStep, ExpertiseModal and StatsTab tests.
+
+## D240: Per-Option Subclass Spell Lists; the Genie's Kind; Grasping Tentacles
+
+**Date:** 2026-11-17
+**Status:** Accepted — implemented (no migration; class loader version 10, spell loader version 5)
+
+**Context:** [[#D231]] left open that a Land druid's list held every terrain's circle spells, the Genie's expanded spells merged all four kinds, and the Fathomless's *Evard's black tentacles* wasn't granted (the data nests it under a 10th-level `daily` key). Wording read from 2014.5e.tools' own class data, per [[#D237]]:
+- Circle Spells: "Once you gain access to a circle spell, you always have it prepared … If you gain access to a spell that doesn't appear on the druid spell list, the spell is nonetheless a druid spell for you."
+- The Genie: "You choose your patron's kind or determine it randomly"; the Genie Expanded Spells table "shows the genie spells that are added to the warlock spell list for you, along with the spells associated in the table with your patron's kind."
+- Grasping Tentacles (10th level): "You learn the spell Evard's black tentacles. It counts as a warlock spell for you, but it doesn't count against the number of spells you know. You can also cast it once without a spell slot, and you regain the ability to do so when you finish a long rest."
+
+**Decision:**
+- **Option lists:** a subclass option's spells are tagged with the option ("Druid (Circle of the Land: Arctic)", "Warlock (The Genie: Dao)"). `ClassSpellcasting.subclassSpellList` names the character's own list from the option recorded on the subclass level; with no option picked there are no additions.
+- **Genie Kind** is a `SUBCLASS_OPTION` choice at Warlock 1 holding the shared genie spells and its kind's own.
+- **Grasping Tentacles:** known as `subclass:The Fathomless` with one use per long rest (innate pool; slots also cast it), granted even if already known as a warlock spell so the free cast isn't lost.
+- **Existing characters:** `backfill-pending-choices` owes the Genie Kind; `recompute-characters` grants the tentacles to Fathomless warlocks of 10th level or higher. The Land terrain backfill is already [[#D231]]'s.
+
+**Trade-offs:** the tentacles' temporary hit points and concentration rider aren't modelled. Genie's Wrath damage type and Elemental Gift resistance aren't applied yet; they should read the recorded kind. Divine Soul affinity spells are now tagged per affinity (which stops one affinity learning another's by accident); Divine Magic's cleric list is still unmodelled. The picker offers subclass additions only when a known caster learns spells (prepared casters' circle and domain spells are always prepared anyway). Spell scrolls still check the base class list only. `Subclass.expandedSpellList` (unused) still holds the last block only.
+
+**Key files:** `SpellLoader.java`, `CharacterClassLoader.java`, `SubclassSpells.java`, `ClassSpellcasting.java`, `CharacterStats.java`, `CharacterSpellService.java`, `PendingChoiceService.java`, `RecomputeCharactersJob.java`; frontend `SubclassOptionModal.tsx`, `ManageSpellsModal.tsx`, `MysticArcanumModal.tsx`, `pendingChoices.ts`
+
+**Related:** D231, D237
+
+**Tests:** `CharacterClassLoaderTest`, `SubclassAndRaceSpellsTest`, `PendingChoiceServiceTest`, `PendingChoicesIT`, `CharacterClassLoaderIT`; frontend SubclassOptionModal, ManageSpellsModal, MysticArcanumModal and pendingChoices tests.
+
+## D241: Charges, Versatile Grips and Form-Dependent Damage on Monster Attacks
+
+**Date:** 2026-11-17
+**Status:** Accepted — implemented (no migration; monster action data changed, so it reloads)
+
+**Context:** [[#D227]] left open that a charge's extra damage came with every hit ([[#D202]]), form-dependent damage was unchanged, and versatile damage wasn't shown to the DM. Stat-block wording checked on 2014.5e.tools in the browser, e.g.:
+- Centaur: "If the centaur moves at least 30 feet straight toward a target and then hits it with a pike attack on the same turn, the target takes an extra 10 (3d6) piercing damage."
+- Hobgoblin: "5 (1d8 + 1) slashing damage, or 6 (1d10 + 1) slashing damage if used with two hands."
+- Wereraven, Beak (Raven or Hybrid Form Only): "1 piercing damage in raven form, or 4 (1d4 + 2) piercing damage in hybrid form."
+Also checked: minotaur, boar, elk, lion, aurochs, giant ox, titanothere, werewolf, oni, knight (no versatile).
+
+**Decision:**
+- **Charge** (81 attacks on 81 monsters): the DM ticks "Charged" on the attack; only then do the extra damage and prone save apply (`onlyIf.attackerCharged`), including hand-built entries that dealt them on every hit (aurochs, giant ox, titanothere, dandylion). No charge text says "once per turn", so the DM decides per attack. Pushes and follow-up bonus bites stay as notes.
+- **Versatile** (263 attacks): a "Grip" select shows both damages, one-handed by default; the chosen one is rolled.
+- **Forms** (30 attacks on 21 monsters): monster shapechanging isn't tracked ([[#D192]] forms are Polymorph and Wild Shape only), so "(X Form Only)" actions stay visible with their label. A "Form" select picks the damage ("As the app sees it" keeps D202's detection, e.g. an enlarged duergar).
+- Multiattacks get the same controls per attack. A choice an attack doesn't have is a 400 ([[#D207]]). Log text names the choice ("Aurochs uses Gore (charging)") and never AC ([[#D235]]).
+
+**Trade-offs:** charges without an attack hit (giff and equinal Headfirst Charge, ferrumach Skewering Charge) aren't automated. The Minotaur Infiltrator's enlarged charge damage is in its note. Elk charge damage, untyped in the stat block, uses the Ram's bludgeoning. Yochlol and Animated Breath form-dependent types remain notes. Still without versatile: the orc Eye of Gruumsh and War Chief spears, Vajra Safahr's Blackstaff, Sephek's sword.
+
+**Key files:** `backend/scripts/generate_monster_actions.py`, `monster-action-definitions.json`, `MonsterTemplates.java`, `MonsterEffects.java`, `MonsterActionService.java`, `MonsterRiders.java`, `MonsterActionRequest.java`, `MultiattackOption.java`; frontend `InlineMonsterActions.tsx`, `MultiattackPicker.tsx`, `utils/monsterChoices.ts`
+
+**Related:** D192, D202, D207, D227, D235
+
+**Tests:** `ChargeGripFormTest`, `ChargeGripFormDataTest`, `ChargeGripFormIT`, `MultiattackIT`, `MonsterActionCorrectionsDataTest`; frontend `MonsterAttackChoices.test.tsx`. Merged: 5,016 backend unit, 617 integration and 1,362 frontend tests pass.

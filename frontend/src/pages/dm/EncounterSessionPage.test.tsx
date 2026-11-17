@@ -884,8 +884,8 @@ describe('DM EncounterSessionPage', () => {
       const requests = owlbearFight({
         name: 'Multiattack', description: 'The owlbear makes two attacks: one with its beak and one with its claws.',
         components: [
-          { name: 'Beak', automated: true, manualReason: null, maxTargets: 1, damageOptions: [] },
-          { name: 'Claw', automated: true, manualReason: null, maxTargets: 1, damageOptions: [] },
+          { name: 'Beak', automated: true, manualReason: null, maxTargets: 1, charge: false, forms: [], damageOptions: [] },
+          { name: 'Claw', automated: true, manualReason: null, maxTargets: 1, charge: false, forms: [], damageOptions: [] },
         ],
         manualReason: null,
       });
@@ -919,9 +919,9 @@ describe('DM EncounterSessionPage', () => {
       const requests = owlbearFight({
         name: 'Multiattack', description: null,
         components: [
-          { name: 'Frightful Presence', automated: true, manualReason: null, maxTargets: null, damageOptions: [] },
-          { name: 'Roar', automated: false, manualReason: 'The owlbear roars.', maxTargets: null, damageOptions: [] },
-          { name: 'Claw', automated: true, manualReason: null, maxTargets: 1, damageOptions: [] },
+          { name: 'Frightful Presence', automated: true, manualReason: null, maxTargets: null, charge: false, forms: [], damageOptions: [] },
+          { name: 'Roar', automated: false, manualReason: 'The owlbear roars.', maxTargets: null, charge: false, forms: [], damageOptions: [] },
+          { name: 'Claw', automated: true, manualReason: null, maxTargets: 1, charge: false, forms: [], damageOptions: [] },
         ],
         manualReason: null,
       });

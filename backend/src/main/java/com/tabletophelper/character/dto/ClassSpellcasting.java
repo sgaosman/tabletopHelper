@@ -25,6 +25,11 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param preparedSpells    spells the class can prepare each day, 0 while it has no slots; null for one that knows
  *                          its spells
  * @param pactMagic         true for a warlock, whose slots are pact slots
+ * @param subclassSpellList the name the spells table gives the subclass's additions to the list, such as "Warlock (The
+ *                          Fathomless)", or for a subclass whose additions follow its player's option, the option's,
+ *                          such as "Warlock (The Genie: Dao)" or "Druid (Circle of the Land: Arctic)" (D239); null
+ *                          without a subclass. A subclass whose option isn't picked yet has its name alone, which no
+ *                          spell is listed under
  */
 public record ClassSpellcasting(
         @Schema(requiredMode = REQUIRED) String className,
@@ -38,6 +43,16 @@ public record ClassSpellcasting(
         @Schema(requiredMode = REQUIRED) int cantripsKnown,
         Integer spellsKnown,
         Integer preparedSpells,
-        @Schema(requiredMode = REQUIRED) boolean pactMagic
+        @Schema(requiredMode = REQUIRED) boolean pactMagic,
+        String subclassSpellList
 ) {
+
+    /** A class's numbers whose subclass's additions are named by the class and subclass alone. */
+    public ClassSpellcasting(String className, String subclassName, String spellList, int classLevel, String ability,
+                             int spellSaveDc, int spellAttackBonus, int highestSpellLevel, int cantripsKnown,
+                             Integer spellsKnown, Integer preparedSpells, boolean pactMagic) {
+        this(className, subclassName, spellList, classLevel, ability, spellSaveDc, spellAttackBonus, highestSpellLevel,
+                cantripsKnown, spellsKnown, preparedSpells, pactMagic,
+                subclassName != null && !subclassName.isBlank() ? className + " (" + subclassName + ")" : null);
+    }
 }

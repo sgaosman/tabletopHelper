@@ -261,9 +261,11 @@ public class RecomputeCharactersJob implements MaintenanceJob {
                 + missing.className() + " " + missing.classLevel() + ")";
     }
 
-    // Such as "subclass spell: + Disguise Self (Gloom Stalker, recorded on Ranger 3)"
+    // Such as "subclass spell: + Disguise Self (Gloom Stalker, recorded on Ranger 3)", or for one cast once a long rest
+    // without a slot "subclass spell: + Evard's Black Tentacles (The Fathomless, 1/long rest, recorded on Warlock 10)"
     private static String subclassSpell(PendingChoiceService.MissingSubclassSpell missing) {
-        return "subclass spell: + " + missing.spell() + " (" + missing.subclassName() + ", recorded on "
+        return "subclass spell: + " + missing.spell() + " (" + missing.subclassName()
+                + (missing.oncePerLongRest() ? ", 1/long rest" : "") + ", recorded on "
                 + missing.className() + " " + missing.classLevel() + ")";
     }
 

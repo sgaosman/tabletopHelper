@@ -3,6 +3,7 @@ import type { PlayerCharacter } from '../../../types/character';
 import { ABILITIES, ABILITY_ABBR, SKILLS, abilityMod, formatMod } from '../../../utils/dndRules';
 import { activeAdjustments, describeAdjustment } from '../../../utils/dmAdjustments';
 import { formatArmourClass } from '../../../utils/armourClass';
+import { hasThievesTools, isThievesTools } from '../../../utils/thievesTools';
 import StatCard from './StatCard';
 
 export default function StatsTab({ char, savingThrows, skillProfs, skillExpertises, resistances }: {
@@ -155,7 +156,9 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
             {toolProfs.length > 0 && (
               <div>
                 <span className="font-heading text-[11px] font-semibold tracking-[0.04em] uppercase text-faint">Tools: </span>
-                <span className="font-body text-[15px] font-semibold text-muted">{toolProfs.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')}</span>
+                {/* A Rogue's Expertise with thieves' tools doubles the proficiency bonus for checks with them (PHB p.96) */}
+                <span className="font-body text-[15px] font-semibold text-muted">{toolProfs.map(t => t.charAt(0).toUpperCase() + t.slice(1)
+                  + (isThievesTools(t) && hasThievesTools(skillExpertises) ? ' (Expertise)' : '')).join(', ')}</span>
               </div>
             )}
             {languageProfs.length > 0 && (
