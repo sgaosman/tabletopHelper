@@ -89,6 +89,27 @@ describe('InventoryTab', () => {
     expect(sent.every(inventory => inventory.currency.gp === 120)).toBe(true);
   });
 
+  it('keeps the item picker with its entry when an entry above is removed, and closes it with its own', async () => {
+    const sent = recordInventories();
+    const { rerender } = renderTab();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Link Healing Potion to an item' }));
+    expect(screen.getByLabelText('Item for Healing Potion')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Remove Longsword' }));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    rerender(<InventoryTab characterId="char-001" equipment={sent[0].equipment} currency={currency}
+      runCommand={runCommand} />);
+    expect(screen.getByLabelText('Item for Healing Potion')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Item for Shield')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Remove Healing Potion' }));
+    await waitFor(() => expect(sent).toHaveLength(2));
+    rerender(<InventoryTab characterId="char-001" equipment={sent[1].equipment} currency={currency}
+      runCommand={runCommand} />);
+    expect(screen.queryByLabelText(/^Item for /)).not.toBeInTheDocument();
+  });
+
   it('links an entry to an item from the items list, and unlinks it (D164)', async () => {
     const sent = recordInventories();
     const longsword = {

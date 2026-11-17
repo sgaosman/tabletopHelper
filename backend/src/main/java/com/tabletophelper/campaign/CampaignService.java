@@ -10,6 +10,7 @@ import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -70,7 +71,13 @@ public class CampaignService {
                 .user(user)
                 .role(UserRole.PLAYER)
                 .build();
-        campaignMemberRepository.save(member);
+        // Two joins at once both pass the check above; the unique membership constraint stops the second, which is
+        // then the same 409 as a join after the first, not a 500
+        try {
+            campaignMemberRepository.saveAndFlush(member);
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictException("Already a member of this campaign");
+        }
 
         campaign.getMembers().add(member);
 

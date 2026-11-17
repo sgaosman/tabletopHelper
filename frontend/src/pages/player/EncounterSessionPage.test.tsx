@@ -145,7 +145,7 @@ describe('Player EncounterSessionPage', () => {
     expect(screen.getByText("It's your turn!")).toBeInTheDocument();
     expect(screen.getByText('Hidden Bugbear')).toBeInTheDocument();
     expect(screen.getByText('Bloodied')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Attack' })).toHaveLength(3);
+    expect(screen.getAllByRole('button', { name: /^Attack / })).toHaveLength(3);
   });
 
   it('subscribes to the Player View and the players\' combat log, never the DM\'s topics', async () => {
@@ -242,7 +242,7 @@ describe('Player EncounterSessionPage', () => {
       ],
     });
     const ACTIONS: (string | RegExp)[] = [
-      'Add Condition', /Concentration/, 'Cast Spell', 'Attack', 'Actions', 'Reaction', /prone/, /level 1 slot/,
+      'Add Condition', /Concentration/, 'Cast Spell', /^Attack /, 'Actions', 'Reaction', /prone/, /level 1 slot/,
     ];
 
     it('shows every action while the encounter is Active', async () => {
@@ -284,7 +284,7 @@ describe('Player EncounterSessionPage', () => {
   describe('dying (D161)', () => {
     it('shows death saves only while Dying', async () => {
       server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
-        participants: [gimli({ hpCurrent: 0, lifeState: 'DYING', deathSaveFailures: 1 }), goblin()],
+        participants: [gimli({ hpCurrent: 0, lifeState: 'DYING', deathSaveFailures: 1, deathSaveDue: true }), goblin()],
       }))));
       renderPage();
 
@@ -293,6 +293,17 @@ describe('Player EncounterSessionPage', () => {
       expect(screen.getByText('Dying')).toBeInTheDocument();
       // A character at 0 HP takes no actions
       expect(screen.queryByRole('button', { name: 'Add Condition' })).not.toBeInTheDocument();
+    });
+
+    it('offers the Roll only while a death save is due at the start of the turn (PHB p.197)', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+        participants: [gimli({ hpCurrent: 0, lifeState: 'DYING', deathSaveDue: false }), goblin()],
+      }))));
+      renderPage();
+
+      expect(await screen.findByText('You are dying!')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Roll' })).not.toBeInTheDocument();
+      expect(screen.getByText(/next death saving throw comes at the start of your turn/)).toBeInTheDocument();
     });
 
     it('a Stable or Dead character makes no death saves', async () => {
@@ -329,7 +340,7 @@ describe('Player EncounterSessionPage', () => {
       const user = userEvent.setup();
       renderPage();
 
-      await user.click(await screen.findByRole('button', { name: 'Attack' }));
+      await user.click(await screen.findByRole('button', { name: /^Attack / }));
       expect(await screen.findByText('+5 to hit · 1d8 + 3 slashing')).toBeInTheDocument();
       // The panel names the goblin without its AC, which is the DM's (D235)
       expect(screen.getByText('Attack Test Goblin')).toBeInTheDocument();
@@ -350,7 +361,7 @@ describe('Player EncounterSessionPage', () => {
       const user = userEvent.setup();
       renderPage();
 
-      await user.click(await screen.findByRole('button', { name: 'Attack' }));
+      await user.click(await screen.findByRole('button', { name: /^Attack / }));
       const first = await screen.findByRole('group', { name: 'Attack 1' });
       await user.click(within(first).getByRole('button', { name: 'Crit' }));
       expect(within(first).getByRole('button', { name: 'Crit' })).toHaveAttribute('aria-pressed', 'true');
@@ -381,7 +392,7 @@ describe('Player EncounterSessionPage', () => {
       const user = userEvent.setup();
       renderPage();
 
-      await user.click(await screen.findByRole('button', { name: 'Attack' }));
+      await user.click(await screen.findByRole('button', { name: /^Attack / }));
       const first = await screen.findByRole('group', { name: 'Attack 1' });
       await user.click(within(first).getByRole('button', { name: 'Great Weapon Master: -5 to hit, +10 damage' }));
       expect(within(first).getByText('+0 to hit · 2d6 + 13 slashing')).toBeInTheDocument();
@@ -406,7 +417,7 @@ describe('Player EncounterSessionPage', () => {
       const user = userEvent.setup();
       renderPage();
 
-      await user.click(await screen.findByRole('button', { name: 'Attack' }));
+      await user.click(await screen.findByRole('button', { name: /^Attack / }));
       await user.click(await screen.findByRole('button', { name: 'Roll Attack' }));
 
       expect(await screen.findByRole('alert')).toHaveTextContent("This campaign doesn't allow players to enter Manual Modifiers");
@@ -586,7 +597,7 @@ describe('Player EncounterSessionPage', () => {
 
       await screen.findByText('This Turn');
       // Off the player's turn the rows offer no attack and there is no Actions menu: only the Reaction menu
-      expect(screen.queryByRole('button', { name: 'Attack' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Attack / })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: 'Reaction' }));
       const menu = await screen.findByRole('dialog', { name: /Reactions/ });
@@ -605,7 +616,7 @@ describe('Player EncounterSessionPage', () => {
 
       expect(await screen.findByText('This Turn')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Reaction' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Attack' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Attack / })).not.toBeInTheDocument();
     });
 
     it('takes a standard action from the Actions menu on the player\'s own turn', async () => {

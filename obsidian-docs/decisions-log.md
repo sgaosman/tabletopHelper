@@ -4990,3 +4990,29 @@ A survey of every "moves at least N feet" wording in the bestiary found no other
 **Update (2026-11-17, browser check):** on the rehearsal copy the DM saw the centaur Pike's Charged box (off by default) and the wereraven Beak's Form select; via the API an aurochs Gore did 9 uncharged and 22 charged with the prone save, and a hobgoblin's Longbow refused a two-handed grip (400). The Form select's options now show each form's damage, as "Raven form (1 piercing)" or "Enlarged (1d8 piercing if charging)" (`monsterChoices.formLabel`). Code comments for the monster-attack choices cite D241 (they had the agents' working number D239).
 
 **Update (2026-11-17, review):** two points were checked and left as they are. The TRAIT charges cost nothing and aren't tied to the monster's turn, since the DM triggers them after moving the creature and the app doesn't track movement. The Minotaur Infiltrator's prone save stays tied to the charge: in its Gore the save sentence follows the charge sentence ("If the minotaur moved at least 10 feet straight toward the target immediately before it hit … If the target is a creature, it must succeed on a DC 14 Strength saving throw or be pushed up to 10 feet … and have the prone condition"), which reads as part of the charge, as other minotaurs' Charge riders do; a DM who reads it otherwise applies prone by hand.
+
+## D244: Review Fixes for the Player's Encounter Page, Campaign Joins and the Inventory
+
+**Date:** 2026-11-17
+**Status:** Accepted — implemented (no migration)
+
+**Context:** an overnight review of the areas earlier reviews hadn't covered: the player's encounter page, campaign management and the sheet's inventory. The calls below are the lead's, made during the user's unattended run and recorded for review.
+
+**Decision:**
+- **Death saves come one a turn for players.** "Whenever you start your turn with 0 hit points, you must make a special saving throw, called a death saving throw" (PHB p.197). `HitPointService.rollDeathSave` let a player roll at any time, any number of times, so a Dying PC could be stabilised or killed in one go between turns. A player now rolls only the save that is due (`deathSaveDue`, set as their turn starts, [[#D163]]); any other is a 409. The DM may still roll for anyone at any time. The player's page shows Roll only while the save is due, and otherwise "Your next death saving throw comes at the start of your turn."
+- **A monster's concentration slot is the DM's.** `EncounterViews.monsterForPlayers` cleared a monster's Spell Effects' slot levels (M15) but sent `concentrationSlotLevel`, so an upcast Hold Monster showed its slot in the Player View. It is now cleared too ([[#D235]], [[#D157]]).
+- **Labels.** Each attack button on the player's turn order is named for its target ("Attack Goblin 2"), not just "Attack"; the dashboard's invite-code box is labelled "Invite code".
+- **A double-clicked join is a 409.** Two joins at once both passed the membership check, and the second hit the unique membership constraint as a 500. `joinCampaign` now flushes the insert and answers a constraint failure with the same "Already a member of this campaign" 409.
+- **The inventory's item picker follows its entry.** It was kept by position, so removing an entry above it moved it onto the next entry, where a pick would link the wrong item. Removing an entry now moves the picker with its own entry, or closes it when its entry is removed. Long item names wrap instead of pushing the row sideways on a phone.
+
+**Not changed, for the user:**
+- **The bestiary gate can be reached by anyone.** [[#D235]] lets a user who runs any campaign read stat blocks, and any user can create a campaign, so a player can make a throwaway campaign and read every monster's AC and speed. Closing it needs a choice: a DM role on the account, or monster detail limited to monsters in the caller's encounters (which the encounter builder's search would then need another way to serve).
+- **Players can read their campaign's Preparing encounters** through `GET /api/encounters/campaign/{id}` and `/{id}` (Player View, so hidden monsters stay hidden). The player pages never ask for them.
+- **Hidden participants' IDs** remain in a few Player View fields (`summonedParticipantIds`, `controlledIds`, `risingIds`, `usableByIds`); no names leak.
+- **No way to leave a campaign or remove a member**, and every member sees the invite code ([[#D238]] notes that closing a removed member's sockets waits on this).
+
+**Key files:** `encounter/internal/HitPointService.java`, `encounter/EncounterViews.java`, `campaign/CampaignService.java`; frontend `pages/player/EncounterSessionPage.tsx`, `pages/player/PlayerDashboard.tsx`, `pages/player/sheet/InventoryTab.tsx`
+
+**Related:** D157, D161, D163, D235, D238
+
+**Tests:** `HitPointServiceTest.playerDeathSaveOnlyWhenDue`, `EncounterViewsTest` (concentration slot), `CampaignServiceTest.joinCampaign_concurrentDuplicateIsConflict`; frontend `EncounterSessionPage.test.tsx` (Roll only when due, attack labels), `InventoryTab.test.tsx` (picker follows its entry).

@@ -85,6 +85,13 @@ public class HitPointService {
         if (participant.getParticipantType() != ParticipantType.PLAYER) {
             throw new ValidationException("Only player characters make death saving throws");
         }
+        // A death save is made at the start of each of the creature's turns (PHB p.197): a player rolls only the one
+        // that is due, while the DM may roll for anyone at any time
+        if (participant.getLifeState() == LifeState.DYING && !CombatAccess.isDm(encounter, userId)
+                && !Boolean.TRUE.equals(participant.getDeathSaveDue())) {
+            throw new ConflictException(participant.getDisplayName()
+                    + " makes a death save at the start of its own turn");
+        }
         switch (participant.getLifeState()) {
             case DYING -> effectApplier.deathSave(encounter, participant);
             case ALIVE -> throw new ConflictException(participant.getDisplayName() + " is not dying");

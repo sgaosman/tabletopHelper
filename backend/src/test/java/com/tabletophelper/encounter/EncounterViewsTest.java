@@ -65,6 +65,7 @@ class EncounterViewsTest {
                 .turnEconomy(SPENT)
                 .attacksPerAction(1)
                 .speed(Map.of("walk", 30))
+                .concentrationSlotLevel(5)
                 .activeEffects(List.of(EncounterResponse.SpellEffectResponse.builder().id(UUID.randomUUID())
                         .spell("Spiritual Weapon").slotLevel(4).startedRound(1).durationRounds(10)
                         .directedCost(RepeatCost.BONUS_ACTION).directedResolves(true).triggers(List.of()).build()))
@@ -170,6 +171,8 @@ class EncounterViewsTest {
             assertEquals("Spiritual Weapon", goblin.getActiveEffects().getFirst().getSpell());
             assertNull(goblin.getActiveEffects().getFirst().getSlotLevel());
             assertEquals(10, goblin.getActiveEffects().getFirst().getDurationRounds());
+            // Nor the slot its concentration spell was cast at
+            assertNull(goblin.getConcentrationSlotLevel());
         }
 
         @Test

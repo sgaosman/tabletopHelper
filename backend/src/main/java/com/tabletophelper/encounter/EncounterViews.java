@@ -411,7 +411,9 @@ public final class EncounterViews {
                         .toList())
                 .activeEffects(monster.getActiveEffects() == null ? null : monster.getActiveEffects().stream()
                         .map(effect -> effect.toBuilder().slotLevel(null).build())
-                        .toList());
+                        .toList())
+                // The slot a monster's concentration spell was cast at is the DM's, as its effects' slot levels are
+                .concentrationSlotLevel(null);
         if (!showExactHp) {
             HealthStatus status = HealthStatus.of(monster.getHpCurrent(), monster.getHpMax());
             view.healthStatus(status != null ? status.name() : null)

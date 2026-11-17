@@ -261,8 +261,13 @@ function PlayerSessionView() {
             {myCharacter.deathSaveDue && (
               <p role="status" className="text-debuff font-body text-[15px] font-semibold">Your turn has started: roll your death saving throw.</p>
             )}
-            {/* The Roll button shows only while the encounter is Active, since combat needs it (D166) */}
-            <DeathSaves participant={myCharacter} onRoll={isActive ? () => actions.rollDeathSave(myCharacter.id) : undefined} />
+            {/* The Roll button shows only while the encounter is Active (D166) and a save is due at the start of
+                the character's turn: the server refuses any other (PHB p.197) */}
+            <DeathSaves participant={myCharacter}
+              onRoll={isActive && myCharacter.deathSaveDue ? () => actions.rollDeathSave(myCharacter.id) : undefined} />
+            {isActive && !myCharacter.deathSaveDue && (
+              <p className="text-muted font-body text-[13px] mt-1">Your next death saving throw comes at the start of your turn.</p>
+            )}
           </div>
         )}
         {myCharacter && isActive && savesToRoll.length > 0 && (
@@ -498,7 +503,7 @@ function PlayerSessionView() {
                     {/* The dead can't be attacked; the dying can (D161). Off the player's turn an opportunity attack is
                         in their Reaction menu (D174) */}
                     {isActive && isMyTurn && p.lifeState !== 'DEAD' && (
-                      <IconButton label="Attack" onClick={() => selectAttackTarget(p.id)}
+                      <IconButton label={`Attack ${p.displayName}`} onClick={() => selectAttackTarget(p.id)}
                         className="inline-flex items-center justify-center size-11 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter">
                         <Crosshair className="w-3.5 h-3.5" />
                       </IconButton>

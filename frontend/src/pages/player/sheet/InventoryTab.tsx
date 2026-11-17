@@ -97,6 +97,14 @@ export default function InventoryTab({ characterId, equipment, currency, armourE
       spell.trim() ? `${entry.name} holds ${spell.trim()}` : undefined);
   }
 
+  // The item picker is kept by the entry's place, so removing an entry above it moves it with its entry, and
+  // removing its own entry closes it, rather than leaving it open on the entry that slides into the place
+  async function removeAt(index: number) {
+    if (await save(equipment.filter((_, j) => j !== index))) {
+      setLinking(open => (open === null || open < index ? open : open === index ? null : open - 1));
+    }
+  }
+
   // Unlinking an item ends attunement to it, which only a linked item can have
   async function link(index: number, item: Item | null) {
     const entry = { ...equipment[index], itemId: item?.id ?? null };
@@ -153,7 +161,7 @@ export default function InventoryTab({ characterId, equipment, currency, armourE
               return (
                 <div key={i} className="py-2 border-b border-rule-light last:border-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-body text-[15px] font-semibold text-ink flex-1">
+                    <span className="font-body text-[15px] font-semibold text-ink flex-1 min-w-0 break-words">
                       {item.name}
                       {item.itemId && (
                         <span className="ml-2 font-heading text-[11px] font-semibold text-buff" title="Linked to an item">
@@ -196,7 +204,7 @@ export default function InventoryTab({ characterId, equipment, currency, armourE
                       </IconButton>
                     )}
                     <IconButton label={`Remove ${item.name}`} disabled={busy}
-                      onClick={() => save(equipment.filter((_, j) => j !== i))}
+                      onClick={() => void removeAt(i)}
                       className="p-1 text-faint hover:text-debuff disabled:opacity-30">
                       <X className="w-4 h-4" />
                     </IconButton>

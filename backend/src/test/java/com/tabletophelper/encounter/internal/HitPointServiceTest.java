@@ -488,4 +488,26 @@ class HitPointServiceTest {
         inOrder.verify(f.eventPublisher).publishEvent(new EncounterChanged(f.encounterId()));
         verify(f.encounterRepository, never()).findById(any());
     }
+
+    @Test
+    @DisplayName("A player rolls only the death save that is due at the start of their turn; the DM may roll any time")
+    void playerDeathSaveOnlyWhenDue() {
+        EncounterParticipant pc = f.player("Fighter", 30, 18);
+        UUID player = f.playerControlling(pc);
+        CombatFixture.downed(pc, LifeState.DYING, 0);
+        DeathSaveRequest request = new DeathSaveRequest();
+        request.setParticipantId(pc.getId());
+
+        assertThrows(ConflictException.class, () -> f.hitPoints.rollDeathSave(f.encounterId(), request, player));
+
+        pc.setDeathSaveDue(true);
+        f.dice.script(15);
+        f.hitPoints.rollDeathSave(f.encounterId(), request, player);
+        assertEquals(1, pc.getDeathSaveSuccesses());
+        assertFalse(Boolean.TRUE.equals(pc.getDeathSaveDue()));
+        assertThrows(ConflictException.class, () -> f.hitPoints.rollDeathSave(f.encounterId(), request, player));
+
+        deathSave(pc, 15);
+        assertEquals(2, pc.getDeathSaveSuccesses());
+    }
 }

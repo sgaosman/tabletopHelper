@@ -111,7 +111,7 @@ class CampaignServiceTest {
         when(campaignRepository.findByInviteCode(inviteCode)).thenReturn(Optional.of(campaign));
         when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, playerUserId)).thenReturn(false);
         when(userService.getUser(playerUserId)).thenReturn(playerUser);
-        when(campaignMemberRepository.save(any(CampaignMember.class))).thenAnswer(invocation -> {
+        when(campaignMemberRepository.saveAndFlush(any(CampaignMember.class))).thenAnswer(invocation -> {
             CampaignMember member = invocation.getArgument(0);
             member.setId(UUID.randomUUID());
             return member;
@@ -121,7 +121,7 @@ class CampaignServiceTest {
 
         assertNotNull(response);
         assertEquals("Test Campaign", response.getName());
-        verify(campaignMemberRepository).save(any(CampaignMember.class));
+        verify(campaignMemberRepository).saveAndFlush(any(CampaignMember.class));
     }
 
     @Test
@@ -320,5 +320,26 @@ class CampaignServiceTest {
         assertFalse(campaign.getPromptPlayerRepeatSaves());
         assertTrue(campaign.getAllowPlayerManualModifiers());
         verify(campaignRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Two joins at once: the second, stopped by the unique membership, is a 409, not a 500")
+    void joinCampaign_concurrentDuplicateIsConflict() {
+        UUID campaignId = UUID.randomUUID();
+        String inviteCode = "RACE1234";
+        Campaign campaign = Campaign.builder()
+                .id(campaignId)
+                .name("Test Campaign")
+                .dm(dmUser)
+                .inviteCode(inviteCode)
+                .members(new ArrayList<>())
+                .build();
+        when(campaignRepository.findByInviteCode(inviteCode)).thenReturn(Optional.of(campaign));
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, playerUserId)).thenReturn(false);
+        when(userService.getUser(playerUserId)).thenReturn(playerUser);
+        when(campaignMemberRepository.saveAndFlush(any(CampaignMember.class)))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("uq_campaign_members"));
+
+        assertThrows(ConflictException.class, () -> campaignService.joinCampaign(inviteCode, playerUserId));
     }
 }

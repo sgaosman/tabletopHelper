@@ -69,6 +69,7 @@ export default function PlayerDashboard() {
               required
               maxLength={8}
               placeholder="Enter invite code"
+              aria-label="Invite code"
               className="flex-1 max-w-xs px-3 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink tracking-wider placeholder-faint focus:border-muted focus:outline-none uppercase"
             />
             <button type="submit" disabled={joinCampaign.isPending} className="px-4 py-2 bg-ink text-card font-body text-[16px] font-semibold border border-ink hover:bg-muted hover:border-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
