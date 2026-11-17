@@ -211,12 +211,12 @@ export interface MonsterAction {
   rechargeGroup?: string;
   /**
    * A versatile weapon's damage with two hands, as a generated entry keeps it; a hand-built one keeps it on its first
-   * damage effect's twoHandedDamageDice instead (D239).
+   * damage effect's twoHandedDamageDice instead (D241).
    */
   versatile?: { twoHandedDamageDice?: string; twoHandedDamageType?: string };
   /**
    * The charge that adds to the attack, as a centaur's after moving 30 feet straight toward the target (MM p.38): its
-   * effects under onlyIf.attackerCharged come only when the request says the monster charged (D239).
+   * effects under onlyIf.attackerCharged come only when the request says the monster charged (D241).
    */
   charge?: { feet?: number; trait?: string; note?: string };
 }
@@ -225,9 +225,9 @@ export interface MonsterEffect {
   effectType: string;
   damageDice?: string;
   damageType?: string;
-  /** A versatile weapon's damage with two hands, on a hand-built entry's first damage (D239). */
+  /** A versatile weapon's damage with two hands, on a hand-built entry's first damage (D241). */
   twoHandedDamageDice?: string;
-  /** What must hold for the effect: a charge, a form, the target's condition and so on (D202, D239). */
+  /** What must hold for the effect: a charge, a form, the target's condition and so on (D202, D241). */
   onlyIf?: { attackerCharged?: boolean; attackerForm?: string; text?: string };
   replacesDamage?: boolean;
   condition?: string;

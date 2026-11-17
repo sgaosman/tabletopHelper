@@ -11,12 +11,12 @@ import { Select } from '../ui/Input';
 import { chargeBlock, type EconomyCost } from '../../utils/turnEconomy';
 import { isAttackAction } from '../../utils/summons';
 import { damageBreakdown } from '../../utils/damageParts';
-import { USUAL_FORM, actionForms, chargeLabel, hasCharge, oneHandedDamage, twoHandedDamage } from '../../utils/monsterChoices';
+import { USUAL_FORM, actionForms, chargeLabel, formLabel, hasCharge, oneHandedDamage, twoHandedDamage } from '../../utils/monsterChoices';
 
 type ActionSource = MonsterActionRequest['actionSource'];
 type ActionTargets = Pick<MonsterActionRequest, 'targetParticipantIds' | 'componentTargetIds' | 'componentDamageTypes'
   | 'componentCharged' | 'componentTwoHanded' | 'componentForms'>;
-/** What the DM chose for the selected action (D207, D239): its damage type, a charge, a grip and a form. */
+/** What the DM chose for the selected action (D207, D241): its damage type, a charge, a grip and a form. */
 type ActionChoices = Pick<MonsterActionRequest, 'damageType' | 'charged' | 'twoHanded' | 'attackerForm'>;
 
 /**
@@ -109,7 +109,7 @@ export default function InlineMonsterActions({
   // The damage type the DM chooses for the selected action, when its stat block lets the monster choose (D207)
   const [damageType, setDamageType] = useState('');
   // Whether the monster charged first, held a versatile weapon in two hands, and the form its damage depends on
-  // ('' for the server to tell), for the selected attack (D239)
+  // ('' for the server to tell), for the selected attack (D241)
   const [charged, setCharged] = useState(false);
   const [twoHanded, setTwoHanded] = useState(false);
   const [form, setForm] = useState('');
@@ -134,7 +134,7 @@ export default function InlineMonsterActions({
   }
 
   // The targets chosen in the selector, unless the action brings its own, as a multiattack does (D165), and the
-  // damage type, charge, grip and form chosen for the action (D207, D239)
+  // damage type, charge, grip and form chosen for the action (D207, D241)
   async function execute(actionName: string, source: ActionSource, own?: ActionTargets, chosen?: ActionChoices) {
     if (!own && targets.length === 0) return;
     setExecuting(true);
@@ -215,7 +215,7 @@ export default function InlineMonsterActions({
   };
 
   const needsType = (selectedAction?.damageOptions?.length ?? 0) > 0;
-  // The charge, grip and form the selected attack offers (D239)
+  // The charge, grip and form the selected attack offers (D241)
   const canCharge = selectedAction ? hasCharge(selectedAction) : false;
   const twoHands = selectedAction ? twoHandedDamage(selectedAction) : undefined;
   const forms = selectedAction ? actionForms(selectedAction) : [];
@@ -426,7 +426,7 @@ export default function InlineMonsterActions({
               {selectedAction.damageOptions?.map(type => <option key={type} value={type}>{type}</option>)}
             </Select>
           )}
-          {/* A versatile weapon's grip, one hand unless the DM says two (D239) */}
+          {/* A versatile weapon's grip, one hand unless the DM says two (D241) */}
           {twoHands && (
             <Select label="Grip" className="mb-2 max-w-xs" value={twoHanded ? 'two' : 'one'}
               onChange={e => setTwoHanded(e.target.value === 'two')}>
@@ -434,15 +434,15 @@ export default function InlineMonsterActions({
               <option value="two">Two-handed ({twoHands})</option>
             </Select>
           )}
-          {/* The form the attack's damage depends on, as a wereraven's beak in raven form (D239) */}
+          {/* The form the attack's damage depends on, as a wereraven's beak in raven form (D241) */}
           {forms.length > 0 && (
             <Select label="Form" className="mb-2 max-w-xs" value={form} onChange={e => setForm(e.target.value)}>
               <option value="">As the app sees it</option>
               <option value={USUAL_FORM}>Usual damage ({oneHandedDamage(selectedAction)})</option>
-              {forms.map(f => <option key={f} value={f}>{f}</option>)}
+              {forms.map(f => <option key={f} value={f}>{formLabel(selectedAction, f)}</option>)}
             </Select>
           )}
-          {/* A charge's extra damage and save come only when the monster charged (D239) */}
+          {/* A charge's extra damage and save come only when the monster charged (D241) */}
           {canCharge && (
             <label className="flex items-start gap-2 mb-2 cursor-pointer">
               <input type="checkbox" checked={charged} onChange={e => setCharged(e.target.checked)}

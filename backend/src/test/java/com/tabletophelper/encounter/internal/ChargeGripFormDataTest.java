@@ -20,7 +20,7 @@ import java.util.TreeMap;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * The shipped charges, versatile weapons and form-dependent damage (D239), as generate_monster_actions.py reads them
+ * The shipped charges, versatile weapons and form-dependent damage (D241), as generate_monster_actions.py reads them
  * from the stat blocks: a charge trait ("Charge", "Pounce", "Trampling Charge") or a hit's "If the X moved at least N
  * feet straight toward the target immediately before the hit", "or N (dice) damage if used with two hands", and "1
  * piercing damage in raven form, or 4 (1d4 + 2) piercing damage in hybrid form".

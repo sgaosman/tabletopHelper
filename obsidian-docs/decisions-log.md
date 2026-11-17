@@ -4948,3 +4948,5 @@ A survey of every "moves at least N feet" wording in the bestiary found no other
 **Related:** [[#D202]], [[#D207]], [[#D227]], [[#D235]], [[#D241]]
 
 **Tests:** `ChargeLeftoversDataTest` (5), `TraitChargeIT` (5), `ChargeGripFormDataTest` (versatile count 265), `MonsterRidersTailDataTest` (notes replaced 7); frontend `MonsterAttackChoices.test.tsx` (Traits tab). 5,021 backend unit, 622 integration and 1,363 frontend tests pass.
+
+**Update (2026-11-17, browser check):** on the rehearsal copy the DM saw the centaur Pike's Charged box (off by default) and the wereraven Beak's Form select; via the API an aurochs Gore did 9 uncharged and 22 charged with the prone save, and a hobgoblin's Longbow refused a two-handed grip (400). The Form select's options now show each form's damage, as "Raven form (1 piercing)" or "Enlarged (1d8 piercing if charging)" (`monsterChoices.formLabel`). Code comments for the monster-attack choices cite D241 (they had the agents' working number D239).

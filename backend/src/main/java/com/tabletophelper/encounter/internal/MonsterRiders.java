@@ -328,7 +328,7 @@ final class MonsterRiders {
             return true;
         }
         // A charge's parts reach here only when the DM didn't say the monster charged, as the action's choices take
-        // the condition away from them when it did (D239)
+        // the condition away from them when it did (D241)
         if (when.attackerCharged()) {
             return false;
         }

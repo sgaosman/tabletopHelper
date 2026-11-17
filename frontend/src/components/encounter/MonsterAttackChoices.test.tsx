@@ -9,10 +9,10 @@ import type { MonsterActionResponse, MonsterActionTemplate, MultiattackOption } 
 import { EncounterProvider } from '../../context/EncounterContext';
 import { queryKeys } from '../../queries/keys';
 import InlineMonsterActions from './InlineMonsterActions';
-import { actionForms, hasCharge, twoHandedDamage } from '../../utils/monsterChoices';
+import { actionForms, formLabel, hasCharge, twoHandedDamage } from '../../utils/monsterChoices';
 
 /**
- * The DM's choices for one use of a monster's attack (D239): a charge, off by default; a versatile weapon's grip,
+ * The DM's choices for one use of a monster's attack (D241): a charge, off by default; a versatile weapon's grip,
  * one-handed by default, showing both damages; and the form an attack's damage depends on.
  */
 const centaur = makeMockParticipant('part-centaur', 'Centaur', 'MONSTER');
@@ -75,11 +75,13 @@ describe('monsterChoices', () => {
     expect(hasCharge(pike)).toBe(true);
     expect(hasCharge(longsword)).toBe(false);
     expect(actionForms(beak)).toEqual(['raven form']);
+    expect(formLabel(beak, 'raven form')).toBe('Raven form (1 piercing)');
+    expect(formLabel({ ...beak, effects: [{ effectType: 'DAMAGE', damageDice: '1d8', damageType: 'piercing', onlyIf: { attackerForm: 'enlarged', attackerCharged: true } }] }, 'enlarged')).toBe('Enlarged (1d8 piercing if charging)');
     expect(actionForms(pike)).toEqual([]);
   });
 });
 
-describe('InlineMonsterActions: charges, grips and forms (D239)', () => {
+describe('InlineMonsterActions: charges, grips and forms (D241)', () => {
   beforeEach(() => {
     setupAuthToken();
     server.use(

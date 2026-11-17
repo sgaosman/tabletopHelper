@@ -26,7 +26,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * A charge, a versatile weapon's grip and a form (D239), through the API with the bundled definitions: an aurochs
+ * A charge, a versatile weapon's grip and a form (D241), through the API with the bundled definitions: an aurochs
  * charges (MPMM), a hobgoblin swings its longsword in two hands (MM p.186), and a wereraven pecks in raven form (VRGR),
  * each at a target of AC 12, abilities 10 and 100 hit points. A player of the campaign reads the log, which names the
  * choices but never the target monster's AC (D235).

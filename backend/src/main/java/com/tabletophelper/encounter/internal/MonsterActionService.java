@@ -108,7 +108,7 @@ public class MonsterActionService {
         String actionName = MonsterEffects.nameOf(found);
         // The damage type the monster chooses for the action, as a dracohydra's Bite's (FTD), and whether it charged,
         // held a versatile weapon in two hands or is in a form its damage depends on; a multiattack's attacks each take
-        // their own (D207, D239)
+        // their own (D207, D241)
         MonsterTemplates.Choices choices = singleChoices(actionName, found, request);
         MonsterTemplates.Action action = found.chosen(choices);
         EncounterParticipant warlock = pact
@@ -139,7 +139,7 @@ public class MonsterActionService {
             throw new ValidationException(actionName + " makes its attacks one target at a time: choose a target "
                     + "for each attack");
         }
-        // Each attack read as the DM chose to make it: its damage type, a charge, a grip and a form (D207, D239)
+        // Each attack read as the DM chose to make it: its damage type, a charge, a grip and a form (D207, D241)
         List<MonsterTemplates.Choices> componentChoices = componentChoices(actionName, read, request,
                 componentTargetIds, targetIds);
         MonsterEffects.Multiattack multiattack = read != null
@@ -607,7 +607,7 @@ public class MonsterActionService {
     }
 
     /*
-     * What the DM chose for an action that isn't a multiattack (D207, D239): its damage type, whether the monster
+     * What the DM chose for an action that isn't a multiattack (D207, D241): its damage type, whether the monster
      * charged, whether it held a versatile weapon in two hands, and its form. A multiattack's attacks take theirs in
      * the component lists, so a single choice for one, or a list for another action, is a 400.
      */
@@ -643,7 +643,7 @@ public class MonsterActionService {
     }
 
     /*
-     * What the DM chose for each of a multiattack's attacks (D207, D239), in order: the damage type of an attack with
+     * What the DM chose for each of a multiattack's attacks (D207, D241), in order: the damage type of an attack with
      * options, null for one without or not made; whether the monster charged, held its weapon in two hands, and its
      * form. Null for an action that isn't a multiattack the server can read. Refused with a 400 when a list doesn't
      * have one entry per attack, when an attack made with options has no type or one not among them, or when an attack
@@ -721,7 +721,7 @@ public class MonsterActionService {
 
     /*
      * " (fire)" for a single action, " (Bite: fire; Bite: cold)" for a multiattack's choices (D207), with "charging",
-     * "two-handed" and the form beside them (D239), as " (Pike: charging)", an attack with nothing chosen left out;
+     * "two-handed" and the form beside them (D241), as " (Pike: charging)", an attack with nothing chosen left out;
      * nothing when nothing was chosen
      */
     private static String choicesNote(MonsterTemplates.Choices choices, MonsterEffects.Multiattack multiattack,
@@ -743,7 +743,7 @@ public class MonsterActionService {
     }
 
     /*
-     * What the DM applies by hand after a charge (D239), as "Pounce: If the target is prone, the lion can make one bite
+     * What the DM applies by hand after a charge (D241), as "Pounce: If the target is prone, the lion can make one bite
      * attack against it as a bonus action." or a push, for each attack made charging
      */
     private static List<String> chargeNotes(MonsterTemplates.Action action, MonsterTemplates.Choices choices,

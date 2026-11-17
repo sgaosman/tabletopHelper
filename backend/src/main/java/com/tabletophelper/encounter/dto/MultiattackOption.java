@@ -33,11 +33,11 @@ public record MultiattackOption(
      *                      componentDamageTypes gives when it is made; empty for none (D207)
      * @param chargeFeet      for an attack a charge adds to, how far the monster must move straight toward the target
      *                        first, which componentCharged says it did; null for none, or when the data doesn't say
-     * @param charge          whether a charge adds to the attack (D239)
+     * @param charge          whether a charge adds to the attack (D241)
      * @param twoHandedDamage a versatile weapon's damage with two hands, as "1d10 + 1 slashing", which
-     *                        componentTwoHanded chooses; null when it isn't versatile (D239)
+     *                        componentTwoHanded chooses; null when it isn't versatile (D241)
      * @param forms           the forms the attack's damage depends on, one of which, or "usual", componentForms
-     *                        names; empty for none (D239)
+     *                        names; empty for none (D241)
      */
     public record ComponentOption(
             @Schema(requiredMode = REQUIRED) String name,

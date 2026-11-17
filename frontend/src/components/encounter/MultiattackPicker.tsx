@@ -6,7 +6,7 @@ import type { EncounterParticipant } from '../../types/encounter';
 import type { MonsterActionRequest } from '../../types/combat';
 import { USUAL_FORM, chargeLabel } from '../../utils/monsterChoices';
 
-/** The charge, grip and form chosen for each attack, aligned with them, as the request takes them (D239). */
+/** The charge, grip and form chosen for each attack, aligned with them, as the request takes them (D241). */
 export type ComponentChoices = Pick<MonsterActionRequest, 'componentCharged' | 'componentTwoHanded' | 'componentForms'>;
 
 const CHIP = 'px-2 py-0.5 font-heading text-[11px] font-semibold tracking-[0.02em] border transition-colors';
@@ -23,7 +23,7 @@ const CHIP_OFF = 'bg-card border-rule-light hover:bg-monster-bg';
  *
  * @param describe the numbers of one of the monster's actions, such as "+14 · 2d10+8", for each attack's label
  * An attack a charge adds to takes a Charged box, a versatile weapon's a Two-handed box, and one whose damage depends
- * on a form a Form select, each off unless the DM says (D239).
+ * on a form a Form select, each off unless the DM says (D241).
  *
  * @param onExecute sends the targets of each attack in order, or null to log a multiattack the DM resolves, the
  *                  damage type of each attack in order ("" for none) when any attack has damage options, and the
@@ -106,7 +106,7 @@ export default function MultiattackPicker({ monster, participants, actionName, d
   const damageTypes = components.some((_, i) => hasOptions(i))
     ? current.map((ids, i) => (hasOptions(i) && ids.length > 0 ? types[i] ?? '' : ''))
     : undefined;
-  // The charge, grip and form of each attack made, sent only for a multiattack that offers any (D239)
+  // The charge, grip and form of each attack made, sent only for a multiattack that offers any (D241)
   const made = (i: number) => components[i].automated && current[i].length > 0;
   const canCharge = (i: number) => components[i].automated && components[i].charge;
   const canGrip = (i: number) => components[i].automated && !!components[i].twoHandedDamage;

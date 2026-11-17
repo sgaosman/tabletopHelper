@@ -270,11 +270,11 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      *                                recharge pool is the group's, so using either spends both; null for its own (D227)
      * @param versatile               a versatile weapon's damage with two hands, as a hobgoblin's longsword's "or 6
      *                                (1d10 + 1) slashing damage if used with two hands" (MM p.186), which takes the
-     *                                place of its first damage when the DM says it is used so; null for none (D239)
+     *                                place of its first damage when the DM says it is used so; null for none (D241)
      * @param charge                  the charge that adds to the attack, as a centaur's "moves at least 30 feet
      *                                straight toward a target and then hits it with a pike attack on the same turn" (MM
      *                                p.38): its parts under onlyIf.attackerCharged come only when the DM says the
-     *                                monster charged; null for none (D239)
+     *                                monster charged; null for none (D241)
      * @param maxTargetSize           the largest creature the whole action reaches, as the giff's Headfirst Charge's
      *                                "a Large or smaller creature" (MPMM); a bigger target is refused; null for any
      *                                (D243)
@@ -297,7 +297,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
         /** The damage type of a part the monster chooses when it uses the action (D207). */
         public static final String OPTION = "option";
 
-        /** The form a monster is in when it is in none of an action's forms, as a wereraven in hybrid form (D239). */
+        /** The form a monster is in when it is in none of an action's forms, as a wereraven in hybrid form (D241). */
         public static final String USUAL_FORM = "usual";
 
         public Action {
@@ -342,21 +342,21 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                     damageOptions, rechargeGroup, versatile, charge, maxTargetSize);
         }
 
-        /** The action as the DM chose to use it (D207, D239). */
+        /** The action as the DM chose to use it (D207, D241). */
         public Action chosen(Choices choices) {
             Choices made = choices != null ? choices : Choices.NONE;
             return withDamageType(made.damageType()).withCharge(made.charged()).withGrip(made.twoHanded())
                     .withForm(made.form());
         }
 
-        /** Whether a charge adds to the attack, which the DM says the monster made when using it (D239). */
+        /** Whether a charge adds to the attack, which the DM says the monster made when using it (D241). */
         public boolean hasCharge() {
             return charge != null || effects.stream().anyMatch(Part::chargeOnly);
         }
 
         /**
          * The action with its charge's parts, as a centaur's 3d6 piercing after a 30-foot charge (MM p.38), dealt on
-         * every hit when the monster charged and left out when it didn't (D239).
+         * every hit when the monster charged and left out when it didn't (D241).
          */
         public Action withCharge(boolean charged) {
             if (effects.stream().noneMatch(Part::chargeOnly)) {
@@ -369,7 +369,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
             return withEffects(parts);
         }
 
-        /** Whether the attack is a versatile weapon's, with a two-handed damage the DM may choose (D239). */
+        /** Whether the attack is a versatile weapon's, with a two-handed damage the DM may choose (D241). */
         public boolean isVersatile() {
             return versatile != null && versatile.twoHandedDamageDice() != null
                     && !versatile.twoHandedDamageDice().isBlank() && firstDamage() >= 0;
@@ -377,7 +377,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
 
         /**
          * The action held in two hands, its first damage the versatile weapon's two-handed damage, as a hobgoblin's
-         * longsword's 1d10 + 1 for 1d8 + 1 (MM p.186); the action itself in one hand or when it isn't versatile (D239).
+         * longsword's 1d10 + 1 for 1d8 + 1 (MM p.186); the action itself in one hand or when it isn't versatile (D241).
          */
         public Action withGrip(boolean twoHanded) {
             if (!twoHanded || !isVersatile()) {
@@ -394,7 +394,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
 
         /**
          * The forms its damage depends on, as the wereraven's beak's "raven form" (VRGR) or a duergar's "enlarged"
-         * (MM p.122), in order, lower case; empty for none (D239).
+         * (MM p.122), in order, lower case; empty for none (D241).
          */
         public List<String> forms() {
             return effects.stream()
@@ -406,7 +406,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
         }
 
         /**
-         * The action with the form the DM says the monster is in (D239): the parts of that form are dealt, an
+         * The action with the form the DM says the monster is in (D241): the parts of that form are dealt, an
          * alternative still taking the place of the usual damage, and those of its other forms are left out; USUAL_FORM
          * leaves out them all. The action itself when form is null, so the app tells the form from the creature's
          * conditions, spells and Polymorph or Wild Shape form, as before (D202).
@@ -608,7 +608,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                     tempHp, levels, modifier, turnOf, total, swallow, counted, ability, atZero, onKill, turnSave);
         }
 
-        /** The part with other dice and type, as a versatile weapon's two-handed damage (D239). */
+        /** The part with other dice and type, as a versatile weapon's two-handed damage (D241). */
         public Part withDamage(String dice, String type) {
             return new Part(effectType, dice, type, condition, saveDc, saveAbility, durationRounds,
                     saveToEndEachTurn, saveToEndDc, saveToEndAbility, escapeDc, halfOnSave, onlyIf, replacesDamage,
@@ -616,7 +616,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                     tempHp, levels, modifier, turnOf, total, swallow, counted, ability, atZero, onKill, turnSave);
         }
 
-        /** The part with another condition for it, or none (D239). */
+        /** The part with another condition for it, or none (D241). */
         public Part withOnlyIf(DamageCondition when) {
             return new Part(effectType, damageDice, damageType, condition, saveDc, saveAbility, durationRounds,
                     saveToEndEachTurn, saveToEndDc, saveToEndAbility, escapeDc, halfOnSave, when, replacesDamage,
@@ -624,7 +624,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                     tempHp, levels, modifier, turnOf, total, swallow, counted, ability, atZero, onKill, turnSave);
         }
 
-        /** Whether the part comes only after a charge, as a boar's extra tusk damage and knock prone (D239). */
+        /** Whether the part comes only after a charge, as a boar's extra tusk damage and knock prone (D241). */
         public boolean chargeOnly() {
             return onlyIf != null && onlyIf.attackerCharged();
         }
@@ -636,7 +636,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
     }
 
     /**
-     * A versatile weapon's damage with two hands (D239), as a hobgoblin's longsword's "or 6 (1d10 + 1) slashing damage
+     * A versatile weapon's damage with two hands (D241), as a hobgoblin's longsword's "or 6 (1d10 + 1) slashing damage
      * if used with two hands" (MM p.186).
      *
      * @param twoHandedDamageDice  its dice, such as "1d10 + 1"
@@ -647,7 +647,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
     }
 
     /**
-     * A charge that adds to an attack (D239): "If the boar moves at least 20 feet straight toward a target and then
+     * A charge that adds to an attack (D241): "If the boar moves at least 20 feet straight toward a target and then
      * hits it with a tusk attack on the same turn, the target takes an extra 3 (1d6) slashing damage" (MM p.319), or a
      * hit's own "If the aurochs moved at least 20 feet straight toward the target immediately before the hit" (MPMM).
      *
@@ -661,7 +661,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
     }
 
     /**
-     * What the DM chooses for one use of an action (D207, D239).
+     * What the DM chooses for one use of an action (D207, D241).
      *
      * @param damageType the damage type of its "option" parts; null for none
      * @param charged    the monster charged first, so its charge's parts come with the hit
@@ -870,7 +870,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      * What must hold for a DAMAGE part to be dealt (D202), one of: the target has a condition (given by the attacker,
      * with byAttacker, as "grappled by Geryon"), the target is of a creature type, the attacker had advantage on the
      * attack roll, the attacker is in a form ("enlarged", "crocodile form", "raging"), or the attacker has half its
-     * hit points or fewer, as a swarm. Since D239 also: the attacker charged first, which the DM says when using the
+     * hit points or fewer, as a swarm. Since D241 also: the attacker charged first, which the DM says when using the
      * attack (attackerCharged).
      *
      * @param text the stat block's words, such as "if the target is prone", which the combat log quotes
@@ -891,7 +891,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                     false);
         }
 
-        /** The condition once the attacker charged: what else it asks, or null for nothing more (D239). */
+        /** The condition once the attacker charged: what else it asks, or null for nothing more (D241). */
         public DamageCondition withoutCharge() {
             DamageCondition rest = new DamageCondition(targetCondition, byAttacker, targetType, attackerAdvantage,
                     attackerForm, attackerBloodied, text, false);
@@ -899,7 +899,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
         }
 
         /**
-         * The condition of a form the DM says the attacker is in (D239): it holds, and the log keeps its words, so an
+         * The condition of a form the DM says the attacker is in (D241): it holds, and the log keeps its words, so an
          * alternative still takes the place of the usual damage.
          */
         public DamageCondition declared() {
@@ -965,7 +965,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
 
     // One of the lists, read into records; null when absent. A hand-built entry keeps a versatile weapon's two-handed
     // damage on its first damage part ("twoHandedDamageDice"), a generated one on the action ("versatile"): the records
-    // read both as the action's versatile (D239), from a copy, so the JSON stays as stored
+    // read both as the action's versatile (D241), from a copy, so the JSON stays as stored
     private static List<Action> actions(JsonNode root, String key) {
         JsonNode list = root.get(key);
         if (list != null && list.isArray()) {

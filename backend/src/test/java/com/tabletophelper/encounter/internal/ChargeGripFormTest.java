@@ -17,7 +17,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * What the DM says about one use of a monster's attack (D239): that it charged first, as an aurochs's Gore "If the
+ * What the DM says about one use of a monster's attack (D241): that it charged first, as an aurochs's Gore "If the
  * aurochs moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 9
  * (2d8) piercing damage, and the target must succeed on a DC 15 Strength saving throw or be knocked prone" (MPMM);
  * that a versatile weapon was held in two hands, as a hobgoblin's longsword (MM p.186); and the form its damage depends

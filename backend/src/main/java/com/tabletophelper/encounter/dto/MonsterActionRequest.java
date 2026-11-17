@@ -22,7 +22,7 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * multiattack takes componentDamageTypes instead, one per component in the order its multiattack option lists them,
  * null for an attack without options or one not made; each attack with options that is made needs one.
  * <p>
- * charged, twoHanded and attackerForm (D239): the monster charged before the attack, so its charge's extra damage and
+ * charged, twoHanded and attackerForm (D241): the monster charged before the attack, so its charge's extra damage and
  * knock-prone save come with the hit (an attack without a charge refuses true); a versatile weapon held in two hands, so
  * its two-handed damage is rolled (an attack that isn't versatile refuses true); and the form the monster is in, one of
  * the forms the attack's damage depends on or "usual" for none of them, null for the app to tell. A multiattack takes
