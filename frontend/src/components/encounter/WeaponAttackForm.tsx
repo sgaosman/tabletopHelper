@@ -82,6 +82,8 @@ interface AttackRow {
   guidedStrike: boolean;
   /** A Kensei monk's Unerring Accuracy: reroll the attack if it misses, once on each of its turns (XGE p.35). */
   unerring: boolean;
+  /** A Genie warlock's Genie's Wrath on the hit, once during each of its turns (TCE, D242); on unless declined. */
+  wrath: boolean;
   advantage: boolean | null;
   within5Ft: boolean;
   forceCrit: boolean;
@@ -97,7 +99,8 @@ interface AttackRow {
 function newRow(option: AttackOption | undefined, cost: AttackCost | null): AttackRow {
   return {
     cost, weapon: option?.weapon ?? ENTERED, powerAttack: false, reckless: false, grip: null, sneak: 'auto',
-    inspiration: false, guidedStrike: false, unerring: false, advantage: null, within5Ft: !(option?.ranged ?? false),
+    inspiration: false, guidedStrike: false, unerring: false, wrath: true, advantage: null,
+    within5Ft: !(option?.ranged ?? false),
     forceCrit: false, extraAttackBonus: '', extraDamageDice: '', extraDamageType: '',
     attackBonus: '', damageDice: '', damageType: '',
   };
@@ -127,7 +130,7 @@ function summary(option: AttackOption, powerAttack: boolean, grip: AttackGrip | 
  * while the campaign allows them; the server refuses them otherwise (D164).
  */
 function attackRequest(row: AttackRow & { cost: AttackCost }, option: AttackOption | undefined, targetId: string,
-  allowManualModifiers: boolean): AttackRollRequest | null {
+  allowManualModifiers: boolean, wrathLeft: boolean): AttackRollRequest | null {
   const common = {
     targetId,
     // Left out, an attack is one of the Attack action's (D174)
@@ -141,6 +144,8 @@ function attackRequest(row: AttackRow & { cost: AttackCost }, option: AttackOpti
   };
   // Unerring Accuracy goes with a monk weapon, which the server knows (XGE p.35)
   const unerringAccuracy = row.unerring && option?.unerringAccuracy ? true : undefined;
+  // Genie's Wrath, on the attacker's own turn while it hasn't been dealt; the server adds it to the turn's first hit
+  const geniesWrath = row.wrath && option?.geniesWrath && wrathLeft ? true : undefined;
   if (row.weapon === ENTERED) {
     if (!allowManualModifiers || row.attackBonus === '' || !row.damageDice.trim()) return null;
     return {
@@ -158,6 +163,7 @@ function attackRequest(row: AttackRow & { cost: AttackCost }, option: AttackOpti
     grip: row.grip ?? undefined,
     sneakAttack: !option?.sneakAttack || row.sneak === 'auto' ? undefined : row.sneak === 'claim',
     unerringAccuracy,
+    geniesWrath,
     extraAttackBonus: extraBonus ? extraBonus : undefined,
     extraDamageDice: extraDamage || undefined,
     extraDamageType: extraDamage && row.extraDamageType ? row.extraDamageType : undefined,
@@ -205,6 +211,8 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
   const costs = COSTS.filter(c => c.value === 'MARTIAL_ARTS' ? martialArts
     : c.value === 'FLURRY_OF_BLOWS' ? flurry : true);
   const sneakUsed = sneakAttackUsed(attacker, encounter?.turnStamp);
+  // Genie's Wrath is once during each of the warlock's own turns (TCE)
+  const wrathLeft = attacker.isCurrentTurn && !attacker.turnEconomy?.geniesWrathUsed;
 
   function update(index: number, change: Partial<AttackRow>) {
     setRows(current.map((row, i) => i === index ? { ...row, ...change } : row));
@@ -253,7 +261,8 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
     e.preventDefault();
     if (rolling) return;
     const requests = current
-      .map(row => attackRequest({ ...row, cost: costOf(row) }, optionFor(row.weapon), target.id, allowManualModifiers))
+      .map(row => attackRequest({ ...row, cost: costOf(row) }, optionFor(row.weapon), target.id, allowManualModifiers,
+        wrathLeft))
       .filter((request): request is AttackRollRequest => request !== null);
     if (requests.length === 0) return;
     setRolling(true);
@@ -419,6 +428,15 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
                   title="Reroll the attack if it misses, once on each of your turns; the new roll stands"
                   className={`min-h-11 px-2 py-2 font-body text-[12.5px] font-semibold ${row.unerring ? 'bg-buff text-card' : TOGGLE_OFF}`}>
                   Unerring Accuracy
+                </button>
+              )}
+              {/* Genie's Wrath (TCE), dealt on the turn's first hit, once during each of the warlock's turns */}
+              {option?.geniesWrath && wrathLeft && (
+                <button type="button" onClick={() => update(i, { wrath: !row.wrath })}
+                  aria-pressed={row.wrath}
+                  title="Genie's Wrath: on a hit, extra damage equal to your proficiency bonus, once during each of your turns"
+                  className={`min-h-11 px-2 py-2 font-body text-[12.5px] font-semibold ${row.wrath ? 'bg-buff text-card' : TOGGLE_OFF}`}>
+                  Genie's Wrath {option.geniesWrath}
                 </button>
               )}
               {/* A hit on an unconscious or paralyzed target is a critical hit only from within 5 feet (D161) */}

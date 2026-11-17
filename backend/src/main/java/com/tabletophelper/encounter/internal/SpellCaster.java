@@ -57,9 +57,22 @@ public class SpellCaster {
      * @param manualReason  why the DM resolves it, or null when it was resolved
      * @param summary       the whole result in words, for the response to whoever cast it
      * @param targets       each target's result as the response reports it
+     * @param applied       what the cast's Effect did to each creature it was rolled against, for what follows a hit, as
+     *                      Genie's Wrath (D242); empty where the cast keeps none
      */
     public record CastResult(String spellName, int spellLevel, boolean concentration, String manualReason,
-                             String summary, List<CastSpellResponse.TargetOutcome> targets) {
+                             String summary, List<CastSpellResponse.TargetOutcome> targets,
+                             List<EffectApplier.Applied> applied) {
+
+        public CastResult {
+            applied = applied != null ? List.copyOf(applied) : List.of();
+        }
+
+        /** A result that keeps nothing of what was applied. */
+        public CastResult(String spellName, int spellLevel, boolean concentration, String manualReason,
+                          String summary, List<CastSpellResponse.TargetOutcome> targets) {
+            this(spellName, spellLevel, concentration, manualReason, summary, targets, List.of());
+        }
 
         public boolean autoResolved() {
             return manualReason == null;
@@ -382,7 +395,7 @@ public class SpellCaster {
         return new CastResult(spellName, plan.spellLevel(), plan.concentration(), null,
                 summary(lead, applied) + typeNote + failNote + modifierNote + fifthNote + seventhNote + highNote
                         + reminderNote,
-                outcomes(effect, applied));
+                outcomes(effect, applied), applied);
     }
 
     /*

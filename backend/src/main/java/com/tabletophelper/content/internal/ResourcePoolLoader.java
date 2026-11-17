@@ -74,8 +74,9 @@ public class ResourcePoolLoader implements ContentLoader {
 
     @Override
     public int version() {
-        // 2: level tables (V27), and every formula checked (D169); 3: race pools (V37, D208)
-        return 3;
+        // 2: level tables (V27), and every formula checked (D169); 3: race pools (V37, D208); 4: Elemental Gift's
+        // effect, its flying speed at the table (D242)
+        return 4;
     }
 
     @Override

@@ -332,7 +332,8 @@ public class RecomputeCharactersJob implements MaintenanceJob {
         }
     }
 
-    // Pools by ID: one added, one removed, or one whose maximum, uses, rest, die or limit change (D169)
+    // Pools by ID: one added, one removed, or one whose maximum, uses, rest, die, limit or table effect change (D169), the
+    // effect so a pool whose definition gains one, as Elemental Gift's flying speed (D242), is copied again
     private static void comparePools(List<String> diffs, List<ResourcePoolEntry> before, List<ResourcePoolEntry> after) {
         Map<String, String> old = pools(before);
         Map<String, String> now = pools(after);
@@ -351,8 +352,10 @@ public class RecomputeCharactersJob implements MaintenanceJob {
         Map<String, String> byId = new LinkedHashMap<>();
         for (ResourcePoolEntry pool : pools != null ? pools : List.<ResourcePoolEntry>of()) {
             Object die = pool.metadata() instanceof Map<?, ?> metadata ? metadata.get("die") : null;
+            Object effect = pool.metadata() instanceof Map<?, ?> metadata ? metadata.get("effect") : null;
             byId.putIfAbsent(pool.poolId(), pool.currentUses() + "/" + pool.maxUses()
-                    + (pool.unlimited() ? " unlimited" : "") + " " + pool.resetOn() + (die != null ? " " + die : ""));
+                    + (pool.unlimited() ? " unlimited" : "") + " " + pool.resetOn() + (die != null ? " " + die : "")
+                    + (effect != null ? " (" + effect + ")" : ""));
         }
         return byId;
     }

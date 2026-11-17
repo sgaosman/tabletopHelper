@@ -68,7 +68,8 @@ public final class DmAdjustments {
 
     /**
      * The damage types the character has the defence against, each once in any case: for resistance and immunity,
-     * those its sheet lists from its race, features and feats, then those the active DEFENCE adjustments add; for
+     * those its sheet lists from its race, features and feats, then a Genie warlock's Elemental Gift resistance (TCE,
+     * D242), then those the active DEFENCE adjustments add; for
      * vulnerability only the adjustments', since no 2014 race or feat gives one (D161).
      */
     public static List<String> damageTypes(PlayerCharacter character, Defence defence) {
@@ -80,6 +81,10 @@ public final class DmAdjustments {
         };
         if (listed != null) {
             listed.forEach(type -> addOnce(types, type));
+        }
+        // Elemental Gift's resistance, worked out from the Genie's kind, so a kind chosen later counts at once (D242)
+        if (defence == Defence.RESISTANCE) {
+            WarlockPatrons.elementalGiftResistance(character).ifPresent(type -> addOnce(types, type));
         }
         for (DmAdjustment adjustment : active(character)) {
             if (adjustment.kind() == DmAdjustment.Kind.DEFENCE && adjustment.defence() == defence) {

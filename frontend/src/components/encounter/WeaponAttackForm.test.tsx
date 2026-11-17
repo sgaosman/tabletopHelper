@@ -343,6 +343,36 @@ describe('WeaponAttackForm', () => {
       expect(screen.queryByRole('button', { name: 'Unerring Accuracy' })).not.toBeInTheDocument();
     });
 
+    it("sends Genie's Wrath on the warlock's turn unless declined, for the server to add to the turn's first hit (TCE)",
+      async () => {
+        serveOptions(makeMockAttackOption('Dagger', { geniesWrath: '+2 fire' }));
+        const bodies = attackRequests();
+        const { onDone, user } = await renderForm();
+
+        const toggle = await screen.findByRole('button', { name: "Genie's Wrath +2 fire" });
+        expect(toggle).toHaveAttribute('aria-pressed', 'true');
+        await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+        await waitFor(() => expect(onDone).toHaveBeenCalled());
+        expect(bodies[0]).toMatchObject({ weapon: 'Dagger', geniesWrath: true });
+      });
+
+    it("leaves Genie's Wrath out when declined", async () => {
+      serveOptions(makeMockAttackOption('Dagger', { geniesWrath: '+2 fire' }));
+      const bodies = attackRequests();
+      const { onDone, user } = await renderForm();
+      await user.click(await screen.findByRole('button', { name: "Genie's Wrath +2 fire" }));
+      await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+      await waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(bodies[0]).not.toHaveProperty('geniesWrath');
+    });
+
+    it("offers no Genie's Wrath once dealt this turn", async () => {
+      serveOptions(makeMockAttackOption('Dagger', { geniesWrath: '+2 fire' }));
+      await renderForm({ attacker: rogue({ turnEconomy: { ...FRESH, geniesWrathUsed: true } }) });
+      expect(await screen.findByRole('button', { name: 'Roll Attack' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Genie's Wrath/ })).not.toBeInTheDocument();
+    });
+
     it('offers no monk strikes to a character without Martial Arts or ki', async () => {
       await renderForm();
       expect(await screen.findByLabelText('Cost')).toBeInTheDocument();

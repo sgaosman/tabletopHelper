@@ -4882,6 +4882,8 @@ The plan's twelve questions were answered with its recommended answers when the 
 
 **Trade-offs:** the tentacles' temporary hit points and concentration rider aren't modelled. Genie's Wrath damage type and Elemental Gift resistance aren't applied yet; they should read the recorded kind. Divine Soul affinity spells are now tagged per affinity (which stops one affinity learning another's by accident); Divine Magic's cleric list is still unmodelled. The picker offers subclass additions only when a known caster learns spells (prepared casters' circle and domain spells are always prepared anyway). Spell scrolls still check the base class list only. `Subclass.expandedSpellList` (unused) still holds the last block only.
 
+**Update (2026-11-17):** the Grasping Tentacles temporary hit points and concentration rider, Genie's Wrath (from the recorded kind) and Elemental Gift's resistance and flying speed are now applied; Divine Magic, the picker and scroll items stay open. See [[#D242]].
+
 **Key files:** `SpellLoader.java`, `CharacterClassLoader.java`, `SubclassSpells.java`, `ClassSpellcasting.java`, `CharacterStats.java`, `CharacterSpellService.java`, `PendingChoiceService.java`, `RecomputeCharactersJob.java`; frontend `SubclassOptionModal.tsx`, `ManageSpellsModal.tsx`, `MysticArcanumModal.tsx`, `pendingChoices.ts`
 
 **Related:** D231, D237
@@ -4912,3 +4914,29 @@ Also checked: minotaur, boar, elk, lion, aurochs, giant ox, titanothere, werewol
 **Related:** D192, D202, D207, D227, D235
 
 **Tests:** `ChargeGripFormTest`, `ChargeGripFormDataTest`, `ChargeGripFormIT`, `MultiattackIT`, `MonsterActionCorrectionsDataTest`; frontend `MonsterAttackChoices.test.tsx`. Merged: 5,016 backend unit, 617 integration and 1,362 frontend tests pass.
+
+## D242: Genie's Wrath, Elemental Gift and the Grasping Tentacles Rider
+
+**Date:** 2026-11-17
+**Status:** Accepted — implemented (no migration; resource pool loader version 4)
+
+**Context:** [[#D240]] recorded the Genie's kind and granted the Fathomless's *Evard's black tentacles*, but left the kind's features and the tentacles' rider unapplied. Wording read from the repo's 5etools class data (`class-warlock.json`), as 2014.5e.tools refuses automated fetches ([[#D237]]):
+- Genie's Wrath (1st level): "Once during each of your turns when you hit with an attack roll, you can deal extra damage to the target equal to your proficiency bonus. The type of this damage is determined by your patron: bludgeoning (dao), thunder (djinni), fire (efreeti), or cold (marid)." It is one of the uses of the Genie's Vessel ("While you are touching the vessel, you can use it in the following ways").
+- Elemental Gift (6th level): "You now have resistance to a damage type determined by your patron's kind: bludgeoning (dao), thunder (djinni), fire (efreeti), or cold (marid)." and "as a bonus action, you can give yourself a flying speed of 30 feet that lasts for 10 minutes, during which you can hover. You can use this bonus action a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+- Grasping Tentacles (10th level), after the free cast: "Whenever you cast this spell, your patron's magic bolsters you, granting you a number of temporary hit points equal to your warlock level. Moreover, damage can't break your concentration on this spell."
+
+**Decision:**
+- **Kind lookup:** `WarlockPatrons` reads the kind from the level that records The Genie (`subclassOption`, [[#D240]]) and maps it to its damage type; with no kind chosen, none of the kind's features apply.
+- **Genie's Wrath:** an attack (`AttackRollRequest.geniesWrath`) or a cast (`CastSpellRequest.geniesWrath`, only for a spell with a spell attack or weapon attack) asks for it, as Sneak Attack is asked for ([[#D178]]). It is dealt after the first hit as part of that hit's damage (one concentration check for both, as Divine Smite's), and `TurnEconomy.geniesWrathUsed` spends it for the turn; a miss or a hit that killed spends nothing, and asking again after it was dealt adds nothing, so every attack of a turn may ask. Refused off the warlock's own turn ("each of your turns"), for a creature without it, or before the kind is chosen. Attack options and spell options show it ("+3 fire"); the attack form and the cast modal show a toggle, on by default, while it is left this turn.
+- **Elemental Gift resistance** is derived live in `DmAdjustments.damageTypes` (the sheet and combat both read it), so existing characters and a kind chosen later need no recompute.
+- **Elemental Gift flight:** the existing pool (proficiency bonus, long rest) gains the table effect `elemental-gift`: a bonus action leaves an "elemental gift" entry for 100 rounds, and `TurnEconomies.speed` gives fly 30 while it lasts, as a spell's granted speed ([[#D184]]). `recompute-characters` now counts a pool's effect as a change, so existing Genie warlocks get the effect.
+- **Grasping Tentacles:** "this spell" names the spell, so every cast of *Evard's black tentacles* by a Fathomless warlock of 10th level or higher gives temporary hit points equal to the warlock level (slot casts as well as the free one), and damage then makes no concentration check on it. Dropping to 0 hit points still ends it (incapacitated, PHB p.203).
+- `SubclassSpells.java` comments drop the unverified page number and say TCE.
+
+**Trade-offs:** the vessel isn't tracked, so the warlock always counts as touching it. Genie's Wrath isn't offered on later uses of a lasting spell's attack (Spiritual Weapon's repeat), on darts or Chaos Bolt's typed bolts; the DM adds it by hand there. The DM's turn economy editor can't clear `geniesWrathUsed`. Bottled Respite and the vessel's AC and hit points are unchanged (the pool already exists). Other files' unverified "TCE p.73" references (`CharacterSpellService`, `PendingChoiceService`, `PendingChoice`, `CharacterClassLoader`, `SpellLoader`) stay for now.
+
+**Key files:** `WarlockPatrons.java`, `DmAdjustments.java`, `GeniesWrath.java`, `AttackService.java`, `SpellcastingService.java`, `SpellCaster.java`, `SpellEffects.java`, `EffectApplier.java`, `FeatureEffects.java`, `TurnEconomies.java`, `TurnEconomy.java`, `AttackOption.java`, `AttackRollRequest.java`, `CastSpellRequest.java`, `SpellOption.java`, `ResourcePoolLoader.java`, `resource-pools.json`, `RecomputeCharactersJob.java`, `SubclassSpells.java`; frontend `WeaponAttackForm.tsx`, `SpellCastModal.tsx`, `openapi.json`, `schema.d.ts`
+
+**Related:** [[#D240]], [[#D237]], [[#D184]], [[#D178]], [[#D177]], [[#D231]]
+
+**Tests:** `WarlockPatronsTest`, `GenieAndFathomlessTest`, `WeaponAttackIT` (options JSON); frontend `WeaponAttackForm.test.tsx`, `SpellCastModal.test.tsx`. On its branch: 5,031 backend unit, 617 integration and 1,367 frontend tests pass.

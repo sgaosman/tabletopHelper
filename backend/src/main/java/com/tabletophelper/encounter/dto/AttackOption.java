@@ -36,6 +36,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param unerringAccuracy whether a miss with it may be rerolled with Unerring Accuracy: the character is a Way of the
  *                        Kensei monk of 17th level and it is a monk weapon for it (XGE p.35); whether a use is left
  *                        this turn is the turn economy's
+ * @param geniesWrath     what Genie's Wrath adds to a hit, such as "+3 fire", when the character is a Genie warlock whose
+ *                        kind is recorded (TCE, D242); null otherwise. Whether it is left this turn is the turn economy's
  */
 public record AttackOption(
         @Schema(requiredMode = REQUIRED) String weapon,
@@ -54,7 +56,8 @@ public record AttackOption(
         String sneakAttack,
         @Schema(requiredMode = REQUIRED) boolean martialArts,
         @Schema(requiredMode = REQUIRED) boolean kenseiWeapon,
-        @Schema(requiredMode = REQUIRED) boolean unerringAccuracy
+        @Schema(requiredMode = REQUIRED) boolean unerringAccuracy,
+        String geniesWrath
 ) {
 
     public AttackOption {
@@ -67,7 +70,7 @@ public record AttackOption(
                         boolean twoHanded, String versatileDamage, List<String> features, int critRange,
                         String sneakAttack, boolean martialArts) {
         this(weapon, ability, proficient, attackBonus, damage, damageType, ranged, powerAttack, recklessAttack,
-                twoHanded, versatileDamage, features, critRange, sneakAttack, martialArts, false, false);
+                twoHanded, versatileDamage, features, critRange, sneakAttack, martialArts, false, false, null);
     }
 
     /** A weapon with none of the class features of M17. */

@@ -77,4 +77,9 @@ public class CastSpellRequest {
     // The reaction offer the cast answers (D216): Shield cast in answer to a hit takes the hit back when its +5 AC makes
     // the attack roll miss. Optional; an offer that has gone changes nothing, and other spells ignore it
     private UUID reactionOfferId;
+
+    // Genie's Wrath (Genie warlock 1, TCE, D242): true adds the proficiency bonus as damage of the genie kind's type to
+    // the spell's first hit with an attack roll, once during each of the warlock's own turns; refused for a spell that
+    // makes no attack roll, off the warlock's turn, or for a caster without it
+    private Boolean geniesWrath;
 }

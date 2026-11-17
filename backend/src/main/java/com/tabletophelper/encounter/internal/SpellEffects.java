@@ -1396,6 +1396,15 @@ public class SpellEffects {
         return template(spellName).map(SpellTemplate::selfDamageHeals).orElse(0);
     }
 
+    /**
+     * Whether casting the spell makes an attack roll, as Genie's Wrath needs (D242): a spell attack, as Eldritch Blast's,
+     * or a weapon attack, as Booming Blade's (D199).
+     */
+    public boolean attackRoll(String spellName) {
+        return template(spellName).map(template -> "SPELL_ATTACK".equals(template.deliveryMethod())
+                || template.weaponAttack()).orElse(false);
+    }
+
     /** Whether casting the spell makes a melee weapon attack (D199), as Booming Blade's (TCE p.106). */
     public boolean weaponAttack(String spellName) {
         return template(spellName).map(SpellTemplate::weaponAttack).orElse(false);

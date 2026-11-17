@@ -2446,6 +2446,7 @@ export interface components {
             damage: string;
             damageType?: string | null;
             features: string[];
+            geniesWrath?: string | null;
             kenseiWeapon: boolean;
             martialArts: boolean;
             powerAttack?: components["schemas"]["PowerAttackOption"] | null;
@@ -2477,6 +2478,7 @@ export interface components {
             extraDamageDice?: string | null;
             extraDamageType?: string | null;
             forceCrit?: boolean | null;
+            geniesWrath?: boolean | null;
             /** @enum {string|null} */
             grip?: "ONE_HANDED" | "TWO_HANDED" | "TWO_WEAPONS" | null;
             guidedStrike?: boolean | null;
@@ -2605,6 +2607,7 @@ export interface components {
             forms?: {
                 [key: string]: string;
             } | null;
+            geniesWrath?: boolean | null;
             itemName?: string | null;
             metamagic?: components["schemas"]["MetamagicChoice"][] | null;
             option?: string | null;
@@ -4442,6 +4445,7 @@ export interface components {
             castingTime: "ACTION" | "BONUS_ACTION" | "REACTION" | "LONGER";
             /** Format: int32 */
             duplicatesUpTo?: number | null;
+            geniesWrath?: string | null;
             /** Format: int32 */
             level: number;
             metamagic?: components["schemas"]["MetamagicOption"][] | null;
@@ -4729,6 +4733,7 @@ export interface components {
             disengaged: boolean;
             /** Format: int32 */
             flurryStrikesLeft?: number | null;
+            geniesWrathUsed?: boolean | null;
             lastMeleeHit?: components["schemas"]["WeaponHit"] | null;
             martialArtsAttack?: boolean | null;
             objectInteractionUsed: boolean;

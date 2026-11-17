@@ -101,6 +101,10 @@ export default function SpellCastModal({
   const [castOption, setCastOption] = useState<string | null>(null);
   const [careful, setCareful] = useState<string[]>([]);
   const [heightened, setHeightened] = useState<string | null>(null);
+  // Genie's Wrath on the spell's first hit (TCE, D242): offered for a spell with an attack roll on the warlock's own
+  // turn while it hasn't been dealt; on unless declined
+  const [wrath, setWrath] = useState(true);
+  const wrathOffered = !!selectedSpell?.geniesWrath && !!caster.isCurrentTurn && !caster.turnEconomy?.geniesWrathUsed;
   const points = sorceryPoints(caster.resourcePoolsCurrent)?.currentUses ?? 0;
   // Metamagic needs the options the server lists for the spell and the sorcery points to pay for them
   const offersMetamagic = (spell: SpellOption) => (spell.metamagic?.length ?? 0) > 0
@@ -233,6 +237,7 @@ export default function SpellCastModal({
       forms: formSpell
         ? Object.fromEntries(subjects.map(s => [s.id, forms[s.id].monsterId])) : undefined,
       spellConsents: consentRequest(),
+      geniesWrath: wrathOffered && wrath ? true : undefined,
       itemName: choice.source === 'ITEM' || choice.source === 'SCROLL' ? itemName : undefined,
       ...flow.overrides(),
     }, caster.id));
@@ -386,6 +391,13 @@ export default function SpellCastModal({
             <p className="font-body text-[15px] font-semibold text-ink">
               Forms: {subjects.map(s => `${s.displayName} as ${forms[s.id]?.name ?? '?'}`).join(', ')}
             </p>
+          )}
+          {wrathOffered && (
+            <button type="button" onClick={() => setWrath(!wrath)} aria-pressed={wrath}
+              title="Genie's Wrath: on a hit, extra damage equal to your proficiency bonus, once during each of your turns"
+              className={`min-h-11 px-3 py-2 font-body text-[13px] font-semibold ${wrath ? 'bg-buff text-card' : 'bg-page-alt text-muted border border-rule'}`}>
+              Genie's Wrath {selectedSpell!.geniesWrath}
+            </button>
           )}
           <ConfirmStep
             spellName={selectedSpell!.name}
