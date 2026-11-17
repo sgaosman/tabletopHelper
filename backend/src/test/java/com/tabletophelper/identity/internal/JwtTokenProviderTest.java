@@ -44,6 +44,8 @@ class JwtTokenProviderTest {
         // JWT expiry has whole-second precision
         long secondsLeft = Duration.between(Instant.now(), claims.expiresAt()).toSeconds();
         assertTrue(secondsLeft > 890 && secondsLeft <= 900, "expires in " + secondsLeft + "s");
+        // The issue time, which lets a CONNECT in flight during logout be closed (D238 review)
+        assertTrue(Math.abs(Duration.between(Instant.now(), claims.issuedAt()).toSeconds()) <= 5);
     }
 
     @Test

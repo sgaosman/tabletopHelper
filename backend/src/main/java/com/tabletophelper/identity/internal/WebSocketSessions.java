@@ -7,7 +7,9 @@ import org.springframework.web.socket.WebSocketSession;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,7 +33,12 @@ public class WebSocketSessions {
     /** Code 1008: the user logged out. */
     static final CloseStatus SIGNED_OUT = CloseStatus.POLICY_VIOLATION.withReason("Signed out");
 
+    /** How long a logout is remembered: longer than any access token lives, so a token issued before it is refused. */
+    static final Duration SIGNED_OUT_MEMORY = Duration.ofDays(1);
+
     private final Map<String, OpenSession> sessions = new ConcurrentHashMap<>();
+    // Each user's last logout, so a CONNECT in flight during it, with a token issued before it, is closed too
+    private final Map<UUID, Instant> signedOut = new ConcurrentHashMap<>();
     private final Clock clock;
 
     public WebSocketSessions() {
@@ -54,9 +61,29 @@ public class WebSocketSessions {
 
     /** CONNECT was accepted with a token for this user that expires at the given instant. */
     void authenticated(String sessionId, UUID userId, Instant expiresAt) {
+        authenticated(sessionId, userId, null, expiresAt);
+    }
+
+    /**
+     * CONNECT was accepted with a token for this user issued and expiring at the given instants. A token issued
+     * before the user's last logout belongs to a connect that was in flight when logout closed the user's sockets,
+     * so the socket is closed now as logout would have closed it (D238 review).
+     */
+    void authenticated(String sessionId, UUID userId, Instant issuedAt, Instant expiresAt) {
         OpenSession open = sessions.get(sessionId);
-        if (open != null) {
-            open.auth = new Auth(userId, expiresAt);
+        if (open == null) {
+            return;
+        }
+        Auth auth = new Auth(userId, expiresAt);
+        open.auth = auth;
+        Instant signedOutAt = signedOut.get(userId);
+        // JWT times are whole seconds, so only a token from an earlier second than the logout is refused
+        if (issuedAt != null && signedOutAt != null
+                && issuedAt.isBefore(signedOutAt.truncatedTo(ChronoUnit.SECONDS))
+                && sessions.remove(sessionId, open)) {
+            // Marked expired, so if the close fails and the socket stays tracked, the next sweep closes it
+            open.auth = new Auth(userId, Instant.EPOCH);
+            close(open, auth, SIGNED_OUT);
         }
     }
 
@@ -70,6 +97,8 @@ public class WebSocketSessions {
     /** Closes every session whose token has expired; returns how many. */
     int closeExpired() {
         Instant now = clock.instant();
+        // A logout matters only while tokens issued before it can still be valid
+        signedOut.values().removeIf(at -> at.plus(SIGNED_OUT_MEMORY).isBefore(now));
         return closeWhere(auth -> isExpired(auth, now), TOKEN_EXPIRED);
     }
 
@@ -78,6 +107,7 @@ public class WebSocketSessions {
      * once with a fresh token from its own login, so this is harmless to it (D238).
      */
     int closeAllFor(UUID userId) {
+        signedOut.put(userId, clock.instant());
         return closeWhere(auth -> auth.userId().equals(userId), SIGNED_OUT);
     }
 
@@ -92,19 +122,24 @@ public class WebSocketSessions {
             Auth auth = open.auth;
             // remove(key, value) succeeds for one thread only, so each session is closed once
             if (auth != null && matches.test(auth) && sessions.remove(entry.getKey(), open)) {
-                close(open.session, auth, status);
+                close(open, auth, status);
                 closed++;
             }
         }
         return closed;
     }
 
-    private static void close(WebSocketSession session, Auth auth, CloseStatus status) {
+    private void close(OpenSession open, Auth auth, CloseStatus status) {
+        WebSocketSession session = open.session;
         log.info("Closing WebSocket session {} of user {}: {}", session.getId(), auth.userId(), status.getReason());
         try {
             session.close(status);
         } catch (IOException | RuntimeException e) {
-            log.debug("WebSocket session {} did not close cleanly", session.getId(), e);
+            log.warn("WebSocket session {} did not close cleanly: {}", session.getId(), e.toString());
+            // Still open, so it stays tracked and the next sweep or logout tries again (D238 review)
+            if (session.isOpen()) {
+                sessions.putIfAbsent(session.getId(), open);
+            }
         }
     }
 

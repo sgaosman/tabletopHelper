@@ -45,7 +45,7 @@ class WebSocketAuthInterceptorTest {
 
         interceptor.preSend(frame(StompCommand.CONNECT, "good"), channel);
 
-        verify(sessions).authenticated(SESSION_ID, userId, expiresAt);
+        verify(sessions).authenticated(SESSION_ID, userId, null, expiresAt);
     }
 
     @Test
@@ -55,7 +55,7 @@ class WebSocketAuthInterceptorTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> interceptor.preSend(frame(StompCommand.CONNECT, "bad"), channel));
-        verify(sessions, never()).authenticated(any(), any(), any());
+        verify(sessions, never()).authenticated(any(), any(), any(), any());
     }
 
     @Test

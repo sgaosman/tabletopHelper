@@ -4844,6 +4844,8 @@ The plan's twelve questions were answered with its recommended answers when the 
 
 **Tests:** `WebSocketSessionsTest` (including a sweep/logout race), `WebSocketAuthInterceptorTest`, `AuthControllerTest`, `AuthServiceTest`, `JwtTokenProviderTest`; new `WebSocketSessionLifetimeIT` (a 2 s token's socket closes after expiry while another user's stays; logout closes the user's socket and not another's; a second logout with a revoked cookie closes nothing); frontend quiet reconnect after 1008, no retry loop on a refused refresh, renewal without a banner, logout stopping the client, `liveSockets`. 4,986 backend unit, 608 integration and 1,348 frontend tests pass. Checked on the rehearsal copy: logging the QA DM out from a separate login closed the browser's socket ("Signed out"), and the open DM session refreshed and reconnected with no banner.
 
+**Update (2026-11-17, review fixes):** a fresh review of D235–D241 found two gaps here, both fixed. (1) A CONNECT still being processed when logout ran was skipped (it had no user yet) and then kept for the token's lifetime: `WebSocketSessions` now remembers each user's last logout for a day (`SIGNED_OUT_MEMORY`, pruned by the sweep), `AccessTokenClaims` carries the token's `issuedAt`, and a socket that authenticates with a token issued in an earlier second than the logout is closed with "Signed out" at once. A token from the logout's own second is kept, since JWT times are whole seconds and a still-signed-in device may have refreshed in that second. (2) A session whose `close` threw was already untracked, so nothing retried it: it is now put back while it is still open, and the next sweep or logout tries again. Not changed: if a token refresh fails for a reason other than 401, the client's next CONNECT still carries the previous token and the server's rejection shows the error banner, as before D238. Tests: `WebSocketSessionsTest` (retry after a failed close, CONNECT during logout closed and a same-second token kept, the logout forgotten after a day), `JwtTokenProviderTest` (issue time), `WebSocketAuthInterceptorTest`.
+
 ## D239: Rogue Expertise Required in the Wizard; Thieves' Tools as a Choice
 
 **Date:** 2026-11-17
@@ -4863,6 +4865,8 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D159, D226, D232
 
 **Tests:** `CreationRequestTest`, `LevelProgressionTest`, `CreationChecksIT`; frontend selectors, wizardReducer, ClassStep, ExpertiseModal and StatsTab tests.
+
+**Update (2026-11-17, review fix):** a level-up Expertise request could name thieves' tools twice, once with a straight and once with a curly apostrophe; the duplicate check compared the names as typed, so both counted as picks and the Rogue gained one Expertise for two. `applyExpertise` now reads every spelling as "Thieves' Tools" before removing duplicates, as creation already did (`CreationChecks.expertiseNames`). Test: `LevelProgressionTest.thievesToolsOncePerSpelling`.
 
 ## D240: Per-Option Subclass Spell Lists; the Genie's Kind; Grasping Tentacles
 
@@ -4943,6 +4947,8 @@ Also checked: minotaur, boar, elk, lion, aurochs, giant ox, titanothere, werewol
 
 **Tests:** `WarlockPatronsTest`, `GenieAndFathomlessTest`, `WeaponAttackIT` (options JSON); frontend `WeaponAttackForm.test.tsx`, `SpellCastModal.test.tsx`. On its branch: 5,031 backend unit, 617 integration and 1,367 frontend tests pass.
 
+**Update (2026-11-17, review fixes):** a fresh review found that when Shield turned the hit into a miss, or Counterspell took back the attack spell, the attacker kept the whole turn economy (`KeptCosts`, [[#D216]], [[#D196]]), including `geniesWrathUsed`, so the turn's next real hit got no Genie's Wrath. The same held for Sneak Attack's turn stamp and the last melee hit (a smite could follow a hit that never happened). `KeptCosts.putBack` now keeps the spent action but takes those three records from the reverted state (`TurnEconomy.withHitRecordsOf`). Genie's Wrath also now goes to the first hit on a creature still alive, so when a first beam kills its target a later beam's hit can carry it. The cast dialog's Genie's Wrath toggle turns back on for each spell picked. Not changed: Genie's Wrath on a lasting spell's later attacks (Spiritual Weapon) and its concentration-merge on a second hit of the same target in one cast stay as noted. Tests: `KeptCostsTest`.
+
 ## D243: D241's Leftovers — Charge Traits, Gruumsh's Spears, Enlarged Charges and Form Damage Types
 
 **Date:** 2026-11-17
@@ -4978,3 +4984,5 @@ A survey of every "moves at least N feet" wording in the bestiary found no other
 **Tests:** `ChargeLeftoversDataTest` (5), `TraitChargeIT` (5), `ChargeGripFormDataTest` (versatile count 265), `MonsterRidersTailDataTest` (notes replaced 7); frontend `MonsterAttackChoices.test.tsx` (Traits tab). 5,021 backend unit, 622 integration and 1,363 frontend tests pass.
 
 **Update (2026-11-17, browser check):** on the rehearsal copy the DM saw the centaur Pike's Charged box (off by default) and the wereraven Beak's Form select; via the API an aurochs Gore did 9 uncharged and 22 charged with the prone save, and a hobgoblin's Longbow refused a two-handed grip (400). The Form select's options now show each form's damage, as "Raven form (1 piercing)" or "Enlarged (1d8 piercing if charging)" (`monsterChoices.formLabel`). Code comments for the monster-attack choices cite D241 (they had the agents' working number D239).
+
+**Update (2026-11-17, review):** two points were checked and left as they are. The TRAIT charges cost nothing and aren't tied to the monster's turn, since the DM triggers them after moving the creature and the app doesn't track movement. The Minotaur Infiltrator's prone save stays tied to the charge: in its Gore the save sentence follows the charge sentence ("If the minotaur moved at least 10 feet straight toward the target immediately before it hit … If the target is a creature, it must succeed on a DC 14 Strength saving throw or be pushed up to 10 feet … and have the prone condition"), which reads as part of the charge, as other minotaurs' Charge riders do; a DM who reads it otherwise applies prone by hand.

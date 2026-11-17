@@ -100,12 +100,20 @@ public class JwtTokenProvider {
                 return Optional.empty();
             }
             return Optional.of(new AccessTokenClaims(UUID.fromString(claims.getSubject()),
-                    claims.get("username", String.class), claims.getExpiration().toInstant()));
+                    claims.get("username", String.class),
+                    claims.getIssuedAt() == null ? null : claims.getIssuedAt().toInstant(),
+                    claims.getExpiration().toInstant()));
         } catch (JwtException | IllegalArgumentException e) {
             return Optional.empty();
         }
     }
 
     /** The user an access token was issued to, and when it expires. */
-    public record AccessTokenClaims(UUID userId, String username, Instant expiresAt) {}
+    public record AccessTokenClaims(UUID userId, String username, Instant issuedAt, Instant expiresAt) {
+
+        /** Claims with no issue time. */
+        public AccessTokenClaims(UUID userId, String username, Instant expiresAt) {
+            this(userId, username, null, expiresAt);
+        }
+    }
 }

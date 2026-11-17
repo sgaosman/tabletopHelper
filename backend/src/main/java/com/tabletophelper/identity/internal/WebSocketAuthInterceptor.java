@@ -41,7 +41,8 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
                     new UsernamePasswordAuthenticationToken(claims.userId(), null, Collections.emptyList());
             auth.setDetails(claims.username());
             accessor.setUser(auth);
-            webSocketSessions.authenticated(accessor.getSessionId(), claims.userId(), claims.expiresAt());
+            webSocketSessions.authenticated(accessor.getSessionId(), claims.userId(), claims.issuedAt(),
+                    claims.expiresAt());
         }
         else if ((StompCommand.SUBSCRIBE.equals(command) || StompCommand.SEND.equals(command))
                 && webSocketSessions.isExpired(accessor.getSessionId())) {

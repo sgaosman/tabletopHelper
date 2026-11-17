@@ -1002,6 +1002,20 @@ class LevelProgressionTest {
         }
 
         @Test
+        @DisplayName("Thieves' tools spelled with a straight and a curly apostrophe are one pick, not two (D239 review)")
+        void thievesToolsOncePerSpelling() {
+            PlayerCharacter rogue = f.create(f.human, CharacterFixture.scores(), f.rogue, 6);
+            rogue.setSkillProficiencies(List.of("Stealth", "Perception", "Athletics"));
+            rogue.setToolProficiencies(List.of("Thieves' Tools"));
+            PendingChoice expertise = f.pending(rogue, Type.EXPERTISE);
+
+            assertThatThrownBy(() -> f.choose(rogue, expertise,
+                    request -> request.setExpertiseSkills(List.of("Thieves' Tools", "Thieves’ Tools"))))
+                    .isInstanceOf(ValidationException.class);
+            assertThat(f.pending(rogue, Type.EXPERTISE)).isNotNull();
+        }
+
+        @Test
         @DisplayName("Thieves' tools without proficiency, a second time, or for a Bard's Expertise, which takes skills "
                 + "only (PHB p.54), are 400s")
         void thievesToolsRefused() {

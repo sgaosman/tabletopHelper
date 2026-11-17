@@ -20,7 +20,8 @@ import java.util.Map;
  * was cast and the attack made. Both read what to keep here, so the two can't drift apart.
  * <ul>
  *   <li>Always: spell slots, resource pools (sorcery points, item charges), the turn economy and the items used (a
- *       scroll read or a potion drunk stays used up, D218).</li>
+ *       scroll read or a potion drunk stays used up, D218). The economy's records of a hit (Sneak Attack's turn, the
+ *       last melee hit, Genie's Wrath) go back to how they were before, since the hit never happened.</li>
  *   <li>For an attack taken back by Shield ({@link Kind#ATTACK}), also its conditions, its Spell Effects and its
  *       concentration, as the attack left them: invisibility that ended as it attacked stays ended, a one-shot rider
  *       spent on the roll, as True Strike's advantage or a smite, stays spent, and concentration ended by casting the
@@ -70,7 +71,9 @@ final class KeptCosts {
     void putBack(EncounterParticipant creature) {
         creature.setSpellSlotsCurrent(slots != null ? new LinkedHashMap<>(slots) : null);
         creature.setResourcePoolsCurrent(copy(pools));
-        creature.setTurnEconomy(economy);
+        // The action stays spent, but what only a hit records goes back to before it: the hit never happened
+        TurnEconomy before = creature.getTurnEconomy();
+        creature.setTurnEconomy(economy != null && before != null ? economy.withHitRecordsOf(before) : economy);
         creature.setItemsUsed(copy(itemsUsed));
         if (kind == Kind.ATTACK) {
             creature.setActiveConditions(copy(conditions));

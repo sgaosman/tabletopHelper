@@ -73,9 +73,12 @@ final class GeniesWrath {
         if (economy.geniesWrathUsed()) {
             return;
         }
+        // The first hit on a creature still alive: a creature a hit killed takes nothing more, so a later beam's hit
+        // on another creature can still carry it (D242 review)
         Optional<EffectApplier.Applied> hit = results.stream()
                 .filter(result -> result.outcome().outcome() == Outcome.HIT
                         || result.outcome().outcome() == Outcome.CRITICAL)
+                .filter(result -> result.target().getLifeState() != LifeState.DEAD)
                 .findFirst();
         if (hit.isEmpty()) {
             return;
@@ -88,10 +91,6 @@ final class GeniesWrath {
         EffectApplier.Use use = new EffectApplier.Use(actor, actor.getDisplayName(), CombatActionType.ATTACK,
                 "uses " + NAME + " (+" + amount + " " + type + ") after the hit", "on", NAME, null);
         EffectApplier.Applied first = hit.get();
-        // A creature the hit killed takes nothing more, and the use isn't spent
-        if (first.target().getLifeState() == LifeState.DEAD) {
-            return;
-        }
         effectApplier.addToHit(encounter, use, effect, first.target(),
                 new EffectApplier.HitDamage(first.concentrationCheck(), first.leftoverAtZero()));
         actor.setTurnEconomy(economyOf(actor).withGeniesWrathUsed());

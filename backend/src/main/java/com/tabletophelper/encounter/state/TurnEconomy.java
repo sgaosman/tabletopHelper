@@ -195,6 +195,18 @@ public record TurnEconomy(
                 unerringAccuracyUsed, true);
     }
 
+    /**
+     * The same economy with the other's records of what the turn's hits did: Sneak Attack's turn, the last melee hit
+     * and Genie's Wrath. A hit Shield turns into a miss, or a spell Counterspell takes back, never hit, so these go back
+     * to how they were before it while the action it cost stays spent (D242 review).
+     */
+    public TurnEconomy withHitRecordsOf(TurnEconomy other) {
+        return new TurnEconomy(actions, actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed, reactionUsed,
+                objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged, actionSurgeUsed,
+                attackedOrDamaged, other.sneakAttackTurn, martialArtsAttack, flurryStrikesLeft, other.lastMeleeHit,
+                deftStrikeUsed, unerringAccuracyUsed, other.geniesWrathUsed);
+    }
+
     /** This economy as the rules module's budget. */
     public TurnBudget budget() {
         return new TurnBudget(actions, actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed, reactionUsed,

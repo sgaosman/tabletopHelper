@@ -210,6 +210,8 @@ export default function SpellCastModal({
     setSelectedSpell(spell);
     setCastOption(spell.castOptions?.[0] ?? null);
     setForms({});
+    // Genie's Wrath starts on for each spell, as the attack form's does (D242)
+    setWrath(true);
     // Choices about willing creatures belong to the spell they were made for
     setConsents({});
     flow.setError('');

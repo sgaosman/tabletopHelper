@@ -124,6 +124,72 @@ class WebSocketSessionsTest {
     }
 
     @Test
+    @DisplayName("A socket whose close fails while it is still open stays tracked, so the next sweep tries again")
+    void close_failureWhileOpenIsRetried() throws IOException {
+        var stuck = open("s1", aria, START.plusSeconds(10));
+        when(stuck.isOpen()).thenReturn(true);
+        doThrow(new IOException("busy")).doNothing().when(stuck).close(any());
+
+        clock.advance(Duration.ofSeconds(10));
+        assertEquals(1, sessions.closeExpired());
+        assertEquals(1, sessions.openCount());
+
+        assertEquals(1, sessions.closeExpired());
+        verify(stuck, times(2)).close(WebSocketSessions.TOKEN_EXPIRED);
+        assertEquals(0, sessions.openCount());
+    }
+
+    @Test
+    @DisplayName("A CONNECT in flight during logout, with a token issued before it, is closed once it authenticates; "
+            + "a token issued from the logout's second on is kept")
+    void connectDuringLogout_isClosed() throws IOException {
+        WebSocketSession inFlight = session("s1");
+        WebSocketSession fresh = session("s2");
+        sessions.opened(inFlight);
+        sessions.opened(fresh);
+
+        clock.advance(Duration.ofSeconds(5));
+        assertEquals(0, sessions.closeAllFor(aria));
+        sessions.authenticated("s1", aria, START, START.plusSeconds(600));
+        sessions.authenticated("s2", aria, START.plusSeconds(5), START.plusSeconds(605));
+
+        verify(inFlight).close(WebSocketSessions.SIGNED_OUT);
+        verify(fresh, never()).close(any());
+        assertEquals(1, sessions.openCount());
+    }
+
+    @Test
+    @DisplayName("A CONNECT during logout whose close fails is closed by the next sweep")
+    void connectDuringLogout_failedCloseIsSwept() throws IOException {
+        WebSocketSession inFlight = session("s1");
+        when(inFlight.isOpen()).thenReturn(true);
+        doThrow(new IOException("busy")).doNothing().when(inFlight).close(any());
+        sessions.opened(inFlight);
+
+        clock.advance(Duration.ofSeconds(5));
+        sessions.closeAllFor(aria);
+        sessions.authenticated("s1", aria, START, START.plusSeconds(600));
+        assertEquals(1, sessions.openCount());
+
+        assertEquals(1, sessions.closeExpired());
+        assertEquals(0, sessions.openCount());
+    }
+
+    @Test
+    @DisplayName("A logout is forgotten once tokens issued before it can no longer be valid")
+    void signedOut_isForgottenAfterAWhile() throws IOException {
+        sessions.closeAllFor(aria);
+        clock.advance(WebSocketSessions.SIGNED_OUT_MEMORY.plusSeconds(1));
+        sessions.closeExpired();
+
+        WebSocketSession late = session("s1");
+        sessions.opened(late);
+        sessions.authenticated("s1", aria, START, clock.instant().plusSeconds(600));
+
+        verify(late, never()).close(any());
+    }
+
+    @Test
     @DisplayName("Sweeps and a logout racing close each session exactly once")
     void concurrentClosesCloseEachSessionOnce() throws Exception {
         int count = 200;

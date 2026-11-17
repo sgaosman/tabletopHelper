@@ -482,7 +482,9 @@ public class PendingChoiceService {
                 + (toolOffered ? 1 : 0);
         int needed = (int) Math.min(choice.count(), eligible);
         List<String> chosen = new ArrayList<>();
-        for (String skill : distinct(orEmpty(skills))) {
+        // Thieves' tools under any spelling of the apostrophe are one pick, so they can't fill two (D239)
+        for (String skill : distinct(orEmpty(skills).stream()
+                .map(s -> ThievesTools.is(s) ? ThievesTools.NAME : s).toList())) {
             if (ThievesTools.is(skill)) {
                 chosen.add(thievesToolsExpertise(character, choice.className(), expert));
                 continue;
