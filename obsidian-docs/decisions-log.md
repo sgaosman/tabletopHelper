@@ -4868,6 +4868,8 @@ The plan's twelve questions were answered with its recommended answers when the 
 
 **Update (2026-11-17, review fix):** a level-up Expertise request could name thieves' tools twice, once with a straight and once with a curly apostrophe; the duplicate check compared the names as typed, so both counted as picks and the Rogue gained one Expertise for two. `applyExpertise` now reads every spelling as "Thieves' Tools" before removing duplicates, as creation already did (`CreationChecks.expertiseNames`). Test: `LevelProgressionTest.thievesToolsOncePerSpelling`.
 
+**Update (2026-11-17, browser check):** on the rehearsal copy a Human rogue in the wizard couldn't leave the Class step until its two Expertise picks were made, and Thieves' Tools was offered beside the four chosen skills. The hint now follows the book's "two of your skill proficiencies, or one of your skill proficiencies and your proficiency with thieves' tools": "Choose 2 of your skill proficiencies, or 1 of them and your proficiency with thieves' tools"; before the class skills are picked, when only the tool can be chosen, it reads "Choose one of your skill proficiencies or your proficiency with thieves' tools".
+
 ## D240: Per-Option Subclass Spell Lists; the Genie's Kind; Grasping Tentacles
 
 **Date:** 2026-11-17

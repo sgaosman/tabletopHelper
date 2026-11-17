@@ -338,8 +338,12 @@ export default function ClassStep({ classes, state, dispatch, onSelectClass, onA
             <span className="font-heading text-[11px] font-semibold text-faint">{selectedExpertise.length}/{expertiseRequired} selected</span>
           </div>
           <p className="font-body text-[13px] text-faint mb-3">
-            Choose {expertiseRequired} of your skill proficiencies, or your proficiency with thieves&apos; tools, to gain
-            expertise in (double proficiency bonus).
+            {/* The Rogue's wording: two skills, or one skill and thieves' tools (D239) */}
+            {expertiseRequired > 1
+              ? <>Choose {expertiseRequired} of your skill proficiencies, or {expertiseRequired - 1} of them and your
+                proficiency with thieves&apos; tools, to gain expertise in (double proficiency bonus).</>
+              : <>Choose one of your skill proficiencies or your proficiency with thieves&apos; tools to gain expertise
+                in (double proficiency bonus).</>}
           </p>
           <div className="flex gap-1.5 flex-wrap">
             {expertiseOptions(state)
