@@ -60,6 +60,9 @@ import java.util.UUID;
  *       becomes, as {@link WildShapeEffects} carries it out; "end" reverts early as a bonus action.</li>
  *   <li>{@value #ARCANE_RECOVERY} (Wizard 1, PHB p.115): used only when finishing a short rest, on the character
  *       sheet, so the table refuses it.</li>
+ *   <li>{@value #ELEMENTAL_GIFT} (Genie warlock 6, TCE, D242): "as a bonus action, you can give yourself a flying speed
+ *       of 30 feet that lasts for 10 minutes, during which you can hover", an {@value #ELEMENTAL_GIFT_ENTRY} entry
+ *       whose flying speed the turn economy reads ({@link TurnEconomies}); used again, it starts afresh.</li>
  *   <li>A racial feature's effect, such as Breath Weapon (M24.5b, D208): {@link RaceFeatureEffects} carries it out.</li>
  * </ul>
  */
@@ -87,6 +90,12 @@ public class FeatureEffects {
     public static final String STEP_DISENGAGE = "step-of-the-wind-disengage";
     public static final String KENSEIS_SHOT = "kenseis-shot";
     public static final String SHARPEN_THE_BLADE = "sharpen-the-blade";
+    public static final String ELEMENTAL_GIFT = "elemental-gift";
+
+    /** Elemental Gift's entry on the warlock, and the flying speed and rounds it lasts: 30 feet for 10 minutes (TCE). */
+    public static final String ELEMENTAL_GIFT_ENTRY = "elemental gift";
+    public static final int ELEMENTAL_GIFT_FLY = 30;
+    public static final int ELEMENTAL_GIFT_ROUNDS = 100;
 
     private static final List<String> KI_OPTIONS = List.of(PATIENT_DEFENSE, STEP_DASH, STEP_DISENGAGE, KENSEIS_SHOT,
             SHARPEN_THE_BLADE);
@@ -241,6 +250,12 @@ public class FeatureEffects {
                     poolCost);
             case ARCANE_RECOVERY -> throw new ConflictException(pool.displayName() + " is used when finishing a short "
                     + "rest, from the character sheet");
+            case ELEMENTAL_GIFT -> {
+                requireNoOption(pool, option);
+                requireOneUse(pool, uses);
+                yield new Plan(effect, null, poolCost, 1, user, ": gains a flying speed of " + ELEMENTAL_GIFT_FLY
+                        + " feet for 10 minutes, during which it can hover");
+            }
             default -> throw new IllegalStateException("The " + pool.poolId() + " pool has an unknown effect " + effect);
         };
     }
@@ -312,6 +327,9 @@ public class FeatureEffects {
                     user.setTurnEconomy(economy(user).withBudget(ActionEconomy.disengage(economy(user).budget())));
                 }
             }
+            case ELEMENTAL_GIFT -> effectApplier.addFeatureEntry(user, new ConditionEntry(UUID.randomUUID(),
+                    ELEMENTAL_GIFT_ENTRY, ELEMENTAL_GIFT_ROUNDS, encounter.getRoundNumber(), "Elemental Gift",
+                    user.getId(), null, null, EndRule.afterRounds(user.getId()), null));
             default -> throw new IllegalStateException("Unknown effect " + plan.effect());
         }
     }

@@ -705,7 +705,7 @@ public class CharacterStats {
                     boxed(ClassProgression.spellsKnown(classTables, c.name(), subclass, classLevel)),
                     boxed(ClassProgression.preparedSpells(classTables, c.name(), classLevel, modifier)),
                     Boolean.TRUE.equals(c.characterClass().getIsPactMagic()),
-                    // With the option picked, such as a Genie warlock's kind or a Land druid's terrain (D239)
+                    // With the option picked, such as a Genie warlock's kind or a Land druid's terrain (D240)
                     SubclassSpells.listName(c.name(), subclass,
                             SubclassSpells.optionOf(character, c.entry().classId()))));
         }

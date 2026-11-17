@@ -85,7 +85,7 @@ public class CharacterClassLoader implements ContentLoader {
     // and the options, such as a Circle of the Land's terrains, whose prepared spells leave the always-prepared list),
     // spell names without their |source suffix, cantrips granted without a fallback choice and cantrip choices by school,
     // and version 10 an option's expanded spells, so the Genie's four kinds are options (TCE p.73), and the spells a
-    // subclass teaches with a use a long rest, as the Fathomless's Evard's black tentacles (TCE p.73)
+    // subclass teaches with a use a long rest, as the Fathomless's Evard's black tentacles (TCE p.72)
     @Override
     public int version() {
         return 10;
@@ -808,7 +808,7 @@ public class CharacterClassLoader implements ContentLoader {
      * class's list ({@code expanded}, names in the data's order), as each of the Genie's four kinds (TCE p.73: the genie
      * spells every kind has, then the kind's own); and {@code daily}, the spells it teaches by class level that are also
      * cast once without a slot between long rests, as the Fathomless's Evard's black tentacles at Warlock 10 (Grasping
-     * Tentacles, TCE p.73: 5etools' {@code "known": {"10": {"daily": {"1": [...]}}}}). Cantrips ({@code #c}) are left
+     * Tentacles, TCE p.72: 5etools' {@code "known": {"10": {"daily": {"1": [...]}}}}). Cantrips ({@code #c}) are left
      * out: data/content/subclass-proficiencies.json grants them, so levelling down forgets them with the subclass's other
      * cantrips. Choices (objects, such as a College of Lore's Additional Magical Secrets or a Divine Soul's cleric list)
      * are left out too. A prepared caster's subclass learns no spells this way: the only one the data gives, a Circle of

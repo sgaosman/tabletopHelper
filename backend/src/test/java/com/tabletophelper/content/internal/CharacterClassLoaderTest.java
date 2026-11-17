@@ -403,8 +403,8 @@ class CharacterClassLoaderTest {
     }
 
     @Test
-    @DisplayName("D239: each of the Genie's kinds is an option with its expanded spells, the genie spells and its own "
-            + "(TCE p.73), and the Fathomless teaches Evard's black tentacles at Warlock 10 once a long rest (TCE p.73)")
+    @DisplayName("D240: each of the Genie's kinds is an option with its expanded spells, the genie spells and its own "
+            + "(TCE p.73), and the Fathomless teaches Evard's black tentacles at Warlock 10 once a long rest (TCE p.72)")
     void genieKindsAndGraspingTentacles() throws Exception {
         assertThat(json(loader.parseGrantedSpells(json("""
                 {"additionalSpells": [

@@ -1,6 +1,7 @@
 package com.tabletophelper.encounter.internal;
 
 import com.tabletophelper.character.DmAdjustments;
+import com.tabletophelper.character.WarlockPatrons;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.encounter.CombatActionType;
@@ -521,6 +522,15 @@ public class EffectApplier {
         }
         endExtraTurnsIfOthers(encounter, use.actor(), applied);
         return applied;
+    }
+
+    /**
+     * As {@link #applyToHit}, for an Effect needing no roll, as Genie's Wrath's damage added to a hit (TCE, D242),
+     * resolved here against the one creature the hit struck.
+     */
+    public Applied addToHit(Encounter encounter, Use use, Effect effect, EncounterParticipant target, HitDamage hit) {
+        return applyToHit(encounter, use, effect, resolver.resolve(effect, List.of(stats.target(target, effect))), hit)
+                .getFirst();
     }
 
     /** An entry about the Effect as a whole, which names no target, so it can't name a hidden one (D157). */
@@ -4000,11 +4010,26 @@ public class EffectApplier {
         if (change.concentrationEnds()) {
             endConcentrationAtZero(encounter, target);
         } else if (damage > 0 && target.getConcentration() != null && target.getLifeState() == LifeState.ALIVE) {
+            // Grasping Tentacles: "damage can't break your concentration on this spell" (TCE, D242), so no check
+            if (unbreakableByDamage(target)) {
+                return null;
+            }
             return hitCheck != null && target.getConcentration().id().equals(hitCheck.instanceId())
                     ? concentrationCheckAgain(encounter, target, hitCheck, damage)
                     : concentrationCheck(encounter, target, damage);
         }
         return null;
+    }
+
+    /**
+     * Whether damage can't break the creature's concentration: a Fathomless warlock of 10th level or higher
+     * concentrating on Evard's black tentacles (Grasping Tentacles, TCE, D242). Dropping to 0 hit points still ends it,
+     * as the creature is then incapacitated (PHB p.203).
+     */
+    static boolean unbreakableByDamage(EncounterParticipant creature) {
+        return creature.getConcentration() != null && creature.getCharacter() != null
+                && WarlockPatrons.blackTentacles(creature.getConcentration().spell())
+                && WarlockPatrons.graspingTentacles(creature.getCharacter());
     }
 
     private void logLifeChange(Encounter encounter, EncounterParticipant target, Vitals before, VitalsChange change) {

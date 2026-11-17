@@ -72,7 +72,7 @@ describe('SubclassOptionModal', () => {
     expect(applied).toEqual({ choiceId: 'choice-terrain', subclassOption: 'Arctic' });
   });
 
-  it("offers a Genie warlock's kinds, each with the spells it alone adds, the genie spells shown once (TCE p.73, D239)", async () => {
+  it("offers a Genie warlock's kinds, each with the spells it alone adds, the genie spells shown once (TCE p.73, D240)", async () => {
     const warlock = {
       ...makeMockCharacter('char-002', 'Sahar', 'Warlock', 1),
       multiclassEntries: [{ classId: 'cls-warlock', className: 'Warlock', subclassId: 'sc-genie',

@@ -698,7 +698,7 @@ class PendingChoicesIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("D239: a Genie warlock owes its kind at Warlock 1, and once it is picked only the genie spells and "
+    @DisplayName("D240: a Genie warlock owes its kind at Warlock 1, and once it is picked only the genie spells and "
             + "that kind's join its list (TCE p.73)")
     void genieKind() {
         UUID warlockId = insertCaster("Warlock", 8, "CHA", true);
@@ -728,8 +728,8 @@ class PendingChoicesIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("D239: a Fathomless warlock learns Evard's black tentacles at Warlock 10, with a use a long rest "
-            + "(Grasping Tentacles, TCE p.73), and levelling down forgets it")
+    @DisplayName("D240: a Fathomless warlock learns Evard's black tentacles at Warlock 10, with a use a long rest "
+            + "(Grasping Tentacles, TCE p.72), and levelling down forgets it")
     void graspingTentacles() {
         UUID warlockId = insertCaster("Warlock", 8, "CHA", true);
         spellRepository.save(Spell.builder().name("Evard's Black Tentacles").level(4).school("Conjuration")

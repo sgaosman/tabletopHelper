@@ -81,8 +81,8 @@ class SubclassAndRaceSpellsTest {
             .characterClass(f.cleric)
             .additionalProficiencies("{\"weapons\":[\"martial\"],\"cantrips\":[{\"count\":1,\"school\":\"Necromancy\"}]}")
             .build();
-    // As the class loader stores them (version 10, D239): two of the Genie's four kinds, each with the genie spells
-    // and its own (TCE p.73), and the Fathomless's Grasping Tentacles (TCE p.73)
+    // As the class loader stores them (version 10, D240): two of the Genie's four kinds, each with the genie spells
+    // and its own (TCE p.73), and the Fathomless's Grasping Tentacles (TCE p.72)
     private final Subclass genie = Subclass.builder().id(UUID.randomUUID()).name("The Genie")
             .characterClass(f.warlock)
             .grantedSpells("{\"options\":["
@@ -107,7 +107,7 @@ class SubclassAndRaceSpellsTest {
         spell("Druidcraft", 0, "Transmutation", "Druid");
         spell("Hex", 1, "Enchantment", "Warlock");
         spell("Detect Magic", 1, "Divination", "Wizard");
-        // The spells table's lists since the spell loader's version 5 (D239)
+        // The spells table's lists since the spell loader's version 5 (D240)
         spell("Hold Person", 2, "Enchantment", "Bard", "Cleric", "Druid", "Sorcerer", "Warlock", "Wizard",
                 "Druid (Circle of the Land: Arctic)");
         spell("Spider Climb", 2, "Transmutation", "Sorcerer", "Warlock", "Wizard",
@@ -222,7 +222,7 @@ class SubclassAndRaceSpellsTest {
         }
 
         @Test
-        @DisplayName("D239: only the terrain picked joins the druid's list, so an Arctic druid can't prepare the "
+        @DisplayName("D240: only the terrain picked joins the druid's list, so an Arctic druid can't prepare the "
                 + "Underdark's spider climb, which isn't a druid spell, and an Underdark druid can")
         void onlyTheTerrainPickedIsOnTheList() {
             PlayerCharacter arctic = landDruid();
@@ -248,7 +248,7 @@ class SubclassAndRaceSpellsTest {
         }
 
         @Test
-        @DisplayName("D239: a Land druid with no terrain picked has no circle spells on its list")
+        @DisplayName("D240: a Land druid with no terrain picked has no circle spells on its list")
         void noTerrainNoCircleSpells() {
             PlayerCharacter pc = landDruid();
             f.levelUp(pc, druid);
@@ -354,7 +354,7 @@ class SubclassAndRaceSpellsTest {
     }
 
     @Nested
-    @DisplayName("D239: the Genie's kind and the Fathomless's tentacles (TCE p.73)")
+    @DisplayName("D240: the Genie's kind and the Fathomless's tentacles (TCE p.72–73)")
     class WarlockPatrons {
 
         @Test

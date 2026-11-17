@@ -6115,6 +6115,10 @@
               "type": "string"
             }
           },
+          "geniesWrath": {
+            "type": "string",
+            "nullable": true
+          },
           "kenseiWeapon": {
             "type": "boolean"
           },
@@ -6232,6 +6236,10 @@
             "nullable": true
           },
           "forceCrit": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "geniesWrath": {
             "type": "boolean",
             "nullable": true
           },
@@ -6663,6 +6671,10 @@
               "type": "string",
               "format": "uuid"
             },
+            "nullable": true
+          },
+          "geniesWrath": {
+            "type": "boolean",
             "nullable": true
           },
           "itemName": {
@@ -13521,6 +13533,10 @@
             "format": "int32",
             "nullable": true
           },
+          "geniesWrath": {
+            "type": "string",
+            "nullable": true
+          },
           "level": {
             "type": "integer",
             "format": "int32"
@@ -14605,6 +14621,10 @@
           "flurryStrikesLeft": {
             "type": "integer",
             "format": "int32",
+            "nullable": true
+          },
+          "geniesWrathUsed": {
+            "type": "boolean",
             "nullable": true
           },
           "lastMeleeHit": {

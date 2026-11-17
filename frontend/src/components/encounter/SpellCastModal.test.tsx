@@ -462,6 +462,41 @@ describe('SpellCastModal', () => {
     expect(screen.getByRole('button', { name: 'Advantage' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Normal' })).toHaveAttribute('aria-pressed', 'false');
   });
+  it("sends Genie's Wrath with a spell the server offers it for, unless declined (TCE, D242)", async () => {
+    spellOptions([{ name: 'Fire Bolt', level: 0, castingTime: 'ACTION', sources: [{ source: 'NONE', levels: [0] }],
+      geniesWrath: '+2 fire' }]);
+    targeting();
+    const requests = castRequests();
+    const { user } = await renderModal();
+
+    await user.click(await screen.findByRole('button', { name: /Fire Bolt/ }));
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    const toggle = screen.getByRole('button', { name: "Genie's Wrath +2 fire" });
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: 'Cast Spell' }));
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0].body).toMatchObject({ spellName: 'Fire Bolt', geniesWrath: true });
+  });
+
+  it("offers no Genie's Wrath once dealt this turn", async () => {
+    spellOptions([{ name: 'Fire Bolt', level: 0, castingTime: 'ACTION', sources: [{ source: 'NONE', levels: [0] }],
+      geniesWrath: '+2 fire' }]);
+    targeting();
+    const caster = { ...wizard, turnEconomy: {
+      actions: 1, actionsUsed: 0, attackActionTaken: false, attacksLeft: 0, bonusActionUsed: false,
+      reactionUsed: false, objectInteractionUsed: false, bonusActionSpellCast: false, otherSpellCast: false,
+      dashed: false, disengaged: false, geniesWrathUsed: true,
+    } };
+    const { user } = await renderModal({ caster });
+
+    await user.click(await screen.findByRole('button', { name: /Fire Bolt/ }));
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByRole('button', { name: 'Cast Spell' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Genie's Wrath/ })).not.toBeInTheDocument();
+  });
 });
 
 describe('SpellCastModal and the turn economy (D174)', () => {

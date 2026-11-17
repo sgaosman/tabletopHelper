@@ -65,7 +65,7 @@ export default function ManageSpellsModal({
 
   const isChoice = type === 'choice' && !!choice;
   // A known caster learns from its subclass's additions too, such as a Genie warlock's kind's expanded spells (TCE
-  // p.73), as the server names them (D239); a prepared caster's subclass spells are always prepared, so not offered
+  // p.73), as the server names them (D240); a prepared caster's subclass spells are always prepared, so not offered
   const subclassList = isChoice && choice?.type === 'SPELLS' && spellList === casting?.spellList
     ? casting?.subclassSpellList ?? undefined : undefined;
   const isCantripChoice = isChoice && choice?.type === 'CANTRIPS';

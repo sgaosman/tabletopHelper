@@ -2068,7 +2068,7 @@ class PendingChoiceServiceTest {
             spell("Feeblemind", 8, "Bard", "Druid", "Warlock", "Wizard");
             spell("Power Word Kill", 9, "Bard", "Sorcerer", "Warlock", "Wizard");
             // The Genie's expanded spells add wish to the warlock's list for a Genie warlock of every kind (TCE p.73),
-            // listed under each kind since D239
+            // listed under each kind since D240
             spell("Wish", 9, "Sorcerer", "Wizard", "Warlock (The Genie: Dao)", "Warlock (The Genie: Marid)");
             lenient().when(f.subclassRepository.findById(genie.getId())).thenReturn(Optional.of(genie));
         }
@@ -2181,7 +2181,7 @@ class PendingChoiceServiceTest {
             PlayerCharacter pc = create(f.warlock, 17, request -> request.setSubclassId(genie.getId()));
             PendingChoice ninth = pc.getPendingChoices().stream()
                     .filter(c -> c.type() == Type.MYSTIC_ARCANUM && c.maxSpellLevel() == 9).findFirst().orElseThrow();
-            // Until its kind is picked, no genie spell is on its list (D239)
+            // Until its kind is picked, no genie spell is on its list (D240)
             assertThatThrownBy(() -> learn(pc, ninth, "Wish")).isInstanceOf(ValidationException.class);
             f.choose(pc, f.pending(pc, Type.SUBCLASS_OPTION), request -> request.setSubclassOption("Marid"));
 

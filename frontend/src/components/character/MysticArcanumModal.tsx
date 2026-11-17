@@ -32,7 +32,7 @@ export default function MysticArcanumModal({ character, choice, onComplete, onSk
   const level = choice.maxSpellLevel ?? 6;
   const className = choice.className ?? 'Warlock';
   const spellList = choice.spellList ?? className;
-  // The subclass's additions as the server names them, a Genie's those of its kind (D239)
+  // The subclass's additions as the server names them, a Genie's those of its kind (D240)
   const subclassList = character.spellcasting.find(c => c.className === className)?.subclassSpellList ?? undefined;
 
   function handleConfirm() {

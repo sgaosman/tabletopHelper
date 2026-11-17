@@ -239,7 +239,7 @@ describe('ManageSpellsModal for a Pending Choice (D159)', () => {
     expect(searched).toEqual(['Wizard']);
   });
 
-  it("learns a Genie warlock's spells from its list and its kind's expanded spells (TCE p.73, D239)", async () => {
+  it("learns a Genie warlock's spells from its list and its kind's expanded spells (TCE p.73, D240)", async () => {
     const searched: Array<[string, string | null]> = [];
     const sanctuary = { ...spell('Sanctuary', 1), classes: ['Cleric', 'Warlock (The Genie: Dao)'] };
     const thunderwave = { ...spell('Thunderwave', 1), classes: ['Wizard', 'Warlock (The Genie: Djinni)'] };

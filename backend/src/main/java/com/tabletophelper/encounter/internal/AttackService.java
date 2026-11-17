@@ -162,6 +162,11 @@ public class AttackService {
         Prepared attack = request.getWeapon() != null ? weaponAttack(encounter, actor, target, request, cost)
                 : enteredAttack(actor, request, cost);
         attack = withRescue(actor, request, attack);
+        // Genie's Wrath is checked before anything is charged (TCE, D242)
+        boolean geniesWrath = Boolean.TRUE.equals(request.getGeniesWrath());
+        if (geniesWrath) {
+            GeniesWrath.require(encounter, actor);
+        }
         manualModifiers.require(encounter, userId, attack.modifiers());
         CombatAccess.requireNotDead(List.of(target));
         CombatAccess.requireReachable(actor, List.of(target));
@@ -208,6 +213,9 @@ public class AttackService {
             // Unerring Accuracy is spent only when it rerolled a miss, once on each of the monk's turns (XGE p.35)
             if (applied.getFirst().outcome().rerolled()) {
                 actor.setTurnEconomy(economyOf(actor).withUnerringAccuracyUsed());
+            }
+            if (geniesWrath) {
+                GeniesWrath.afterHits(encounter, actor, applied, effectApplier);
             }
         }
         return encounterService.toResponse(encounterRepository.save(encounter));
@@ -568,7 +576,8 @@ public class AttackService {
         return new AttackOption(weapon.name(), numbers.ability(), held.proficient(),
                 numbers.attackBonus() + rollBonuses.total(), plus(numbers.damage(), sharpened).toString(),
                 weapon.damageType(), weapon.ranged(), powerAttack, reckless, weapon.twoHanded(), versatile, features,
-                numbers.critRange(), sneakAttack, numbers.martialArts(), kenseiWeapon, unerring);
+                numbers.critRange(), sneakAttack, numbers.martialArts(), kenseiWeapon, unerring,
+                GeniesWrath.offered(character));
     }
 
     // ── What an attack costs ─────────────────────────────────────

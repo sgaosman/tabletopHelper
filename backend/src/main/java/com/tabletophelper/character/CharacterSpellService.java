@@ -507,10 +507,10 @@ public class CharacterSpellService {
 
     /**
      * Learns the spells a subclass teaches at a class level that are also cast once without a slot between long rests
-     * (D239), as the Fathomless's Evard's black tentacles at Warlock 10: "You learn the spell Evard's black tentacles.
+     * (D240), as the Fathomless's Evard's black tentacles at Warlock 10: "You learn the spell Evard's black tentacles.
      * It counts as a warlock spell for you, but it doesn't count against the number of spells you know. You can also
      * cast it once without a spell slot, and you regain the ability to do so when you finish a long rest" (Grasping
-     * Tentacles, TCE p.73). Each is known with the source "subclass:" and the subclass's name and one use a long rest,
+     * Tentacles, TCE p.72). Each is known with the source "subclass:" and the subclass's name and one use a long rest,
      * which the pools give an innate pool, and is cast with a slot too. Unlike {@link #learnSubclassSpells} it is
      * learned even when the class knows the spell already, so the free cast isn't lost; levelling down takes away only
      * the subclass's entry. One the spell data lacks isn't learned.
@@ -725,7 +725,7 @@ public class CharacterSpellService {
      * The spell of that name, when it is on the class's list: the list its class tables name (the class's own, or the
      * wizard's for an Eldritch Knight or Arcane Trickster), or its subclass's additions, those of the option picked for
      * a subclass whose additions follow one, so a Land druid's other terrains' circle spells and a Genie warlock's
-     * other kinds' spells aren't on it (D239).
+     * other kinds' spells aren't on it (D240).
      */
     private Spell classSpell(ClassSpellcasting casting, String name) {
         Spell spell = spellRepository.findByNameIgnoreCase(name.trim())

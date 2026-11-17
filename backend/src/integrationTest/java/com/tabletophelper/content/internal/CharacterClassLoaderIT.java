@@ -347,8 +347,8 @@ class CharacterClassLoaderIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("D239: the Genie's four kinds are options with the genie spells and their own (TCE p.73), and the "
-            + "Fathomless teaches Evard's black tentacles at Warlock 10 once a long rest (TCE p.73)")
+    @DisplayName("D240: the Genie's four kinds are options with the genie spells and their own (TCE p.73), and the "
+            + "Fathomless teaches Evard's black tentacles at Warlock 10 once a long rest (TCE p.72)")
     void genieKindsAndGraspingTentacles() {
         load();
 
@@ -364,7 +364,7 @@ class CharacterClassLoaderIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("D239: the spells table lists a subclass option's spells under the option, as \"Warlock (The Genie: "
+    @DisplayName("D240: the spells table lists a subclass option's spells under the option, as \"Warlock (The Genie: "
             + "Dao)\" or \"Druid (Circle of the Land: Arctic)\", and a subclass without options under its name")
     void spellListsOfSubclassOptions() {
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {

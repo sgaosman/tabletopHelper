@@ -1043,7 +1043,10 @@
       "resetAmount": null,
       "resetCheck": null,
       "spendActionType": "BONUS_ACTION",
-      "description": "Gain a flying speed of 30 feet for 10 minutes.",
+      "description": "Gain a flying speed of 30 feet for 10 minutes, during which you can hover.",
+      "metadata": {
+        "effect": "elemental-gift"
+      },
       "icon": "wind"
     },
     {

@@ -70,6 +70,7 @@ public final class TurnEconomies {
         Map<String, Integer> speeds = new LinkedHashMap<>();
         List<OngoingModifier> modifiers = new ArrayList<>(ActiveModifiers.modifiersOn(participant));
         modifiers.addAll(abjured(participant));
+        modifiers.addAll(elementalGift(participant));
         OngoingModifiers.speeds(baseSpeed(participant, objectMapper), modifiers)
                 .forEach((kind, feet) -> speeds.put(kind, Exhaustion.speed(feet, exhaustion)));
         return speeds;
@@ -93,6 +94,20 @@ public final class TurnEconomies {
                     null, List.of(), false, false, false, null, false, null, List.of(), null, null));
         }
         return modifiers;
+    }
+
+    /*
+     * Elemental Gift's flying speed of 30 feet while its entry lasts (TCE, D242), as a speed a spell gives, so a higher
+     * flying speed stays and the speed modifiers apply to it.
+     */
+    private static List<OngoingModifier> elementalGift(EncounterParticipant participant) {
+        if (CreatureStats.conditionNames(participant).stream()
+                .noneMatch(FeatureEffects.ELEMENTAL_GIFT_ENTRY::equalsIgnoreCase)) {
+            return List.of();
+        }
+        return List.of(new OngoingModifier(UUID.randomUUID(), OngoingModifier.Kind.GRANTED_SPEED, null, null,
+                FeatureEffects.ELEMENTAL_GIFT_FLY, null, null, List.of(), false, false, false, null, false, "fly",
+                List.of(), null, null));
     }
 
     // The participant's speeds before exhaustion

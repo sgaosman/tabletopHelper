@@ -3,6 +3,7 @@ package com.tabletophelper.encounter.internal;
 import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.character.CharacterService;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.WarlockPatrons;
 import com.tabletophelper.character.dto.ClassSpellcasting;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.SpellSlot;
@@ -171,6 +172,15 @@ public class SpellcastingService {
         FormSpells.Prepared forms = formSpells.prepare(caster, casting.spellName(), targets, request.getForms());
         // So is each choice to be affected despite a trait such as Limited Magic Immunity (MM p.257, D198)
         Map<UUID, Boolean> consents = consents(encounter, targets, request.getSpellConsents(), userId);
+        // So is Genie's Wrath, which goes with a spell that makes an attack roll (TCE, D242)
+        boolean geniesWrath = Boolean.TRUE.equals(request.getGeniesWrath());
+        if (geniesWrath) {
+            if (!spellEffects.attackRoll(casting.spellName())) {
+                throw new ValidationException(GeniesWrath.NAME + " follows a hit with an attack roll, and "
+                        + casting.spellName() + " makes none");
+            }
+            GeniesWrath.require(encounter, caster);
+        }
 
         String costNote = quickened ? costNote(CastingTime.BONUS_ACTION) : costNote(payment.castingTime());
         Charge.SpellKind kind = payment.spellLevel() == 0 ? Charge.SpellKind.CANTRIP : Charge.SpellKind.LEVELLED;
@@ -222,6 +232,10 @@ public class SpellcastingService {
                 saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(),
                 costNote + (duplicate != null ? " through " + payment.spellName() : ""), metamagic, summon, option,
                 consents);
+        if (geniesWrath) {
+            GeniesWrath.afterHits(encounter, caster, result.applied(), effectApplier);
+        }
+        graspingTentacles(encounter, caster, casting.spellName());
         if (summon != null) {
             summoner.afterCast(encounter, caster, summon, casting.castLevel(), own.ability(),
                     attackBonus(own, request.getOverrideSpellAttackBonus()),
@@ -237,6 +251,22 @@ public class SpellcastingService {
                     Math.max(casting.castLevel(), casting.spellLevel()), metamagic.has(Metamagic.Option.SUBTLE));
         }
         return response(encounter, result, payment.castLevel(), payment.source());
+    }
+
+    /*
+     * Grasping Tentacles (Fathomless warlock 10, TCE, D242): "Whenever you cast this spell, your patron's magic bolsters
+     * you, granting you a number of temporary hit points equal to your warlock level." Every cast of Evard's black
+     * tentacles counts, a slot's as well as the free one, as "this spell" names the spell; that damage can't break the
+     * concentration is EffectApplier's.
+     */
+    private void graspingTentacles(Encounter encounter, EncounterParticipant caster, String spellName) {
+        PlayerCharacter character = caster.getCharacter();
+        if (character == null || !WarlockPatrons.blackTentacles(spellName)
+                || !WarlockPatrons.graspingTentacles(character)) {
+            return;
+        }
+        effectApplier.gainTempHp(encounter, caster, caster,
+                FeatureEffects.classLevel(character, WarlockPatrons.WARLOCK), "Grasping Tentacles");
     }
 
     /*
@@ -332,7 +362,7 @@ public class SpellcastingService {
         Effect attacked = new Effect(spellName, new Effect.Attack(0, RollMode.NORMAL, true, false), List.of(), null,
                 List.of(), false, null);
         return new SpellCaster.CastResult(spellName, 0, false, null, lead + ". " + attack.description() + note,
-                SpellCaster.outcomes(attacked, List.of(attack)));
+                SpellCaster.outcomes(attacked, List.of(attack)), List.of(attack));
     }
 
     // Counterspell, whose counter is already resolved, or Dispel Magic on its one target, or on two when Twinned Spell
@@ -414,11 +444,14 @@ public class SpellcastingService {
         EncounterParticipant participant = CombatAccess.target(encounter, participantId, userId);
         accessPolicy.requireControls(campaignId, participant.getControlledByUserId(), userId);
         String ban = castingBan(participant);
+        String wrath = participant.getCharacter() != null ? GeniesWrath.offered(participant.getCharacter()) : null;
         List<SpellOption> options = metamagicCasting.withMetamagic(participant, casterSpells.options(participant))
                 .stream()
                 .map(option -> option.withCastOptions(castOptions(option.name()))
                         .withDuplicatesUpTo(duplicatesUpTo(option.name()))
-                        .withTargetRoles(targetRoles(option.name(), option.level())))
+                        .withTargetRoles(targetRoles(option.name(), option.level()))
+                        // Genie's Wrath may follow the hit of a spell that makes an attack roll (TCE, D242)
+                        .withGeniesWrath(wrath != null && spellEffects.attackRoll(option.name()) ? wrath : null))
                 .toList();
         return ban == null ? options : options.stream().map(option -> option.unavailable(ban)).toList();
     }

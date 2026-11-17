@@ -56,7 +56,7 @@ function sharedExpanded(options: GrantedOption[]): string[] {
 /**
  * One of the named lists a subclass's player picks when it is taken (D231): a Circle of the Land druid's terrain, whose
  * circle spells it then has always prepared at Druid 3, 5, 7 and 9 (PHB p.68-69), a Divine Soul sorcerer's affinity,
- * whose spell it learns (XGE p.50), or a Genie warlock's kind, whose spells join its spell list (TCE p.73, D239). Each
+ * whose spell it learns (XGE p.50), or a Genie warlock's kind, whose spells join its spell list (TCE p.73, D240). Each
  * option shows its spells, from the subclass's data, and the spells every option adds are shown once. The server
  * records the pick on the subclass's level, so levelling down past it takes it away.
  */

@@ -747,7 +747,7 @@ public class PendingChoiceService {
      * One of the named lists a subclass's player picks from, by name in any case: a Circle of the Land druid's terrain
      * (PHB p.68-69: arctic, coast, desert, forest, grassland, mountain, swamp or Underdark), whose circle spells the druid
      * then has always prepared from Druid 3, a Divine Soul's affinity (XGE p.50), whose spell it learns, or a Genie
-     * warlock's kind (TCE p.73: dao, djinni, efreeti or marid), whose expanded spells join the warlock's list (D239,
+     * warlock's kind (TCE p.73: dao, djinni, efreeti or marid), whose expanded spells join the warlock's list (D240,
      * through ClassSpellcasting.subclassSpellList). Recorded on
      * the level that owes it, the subclass's, as its {@code subclassOption}; the option's spells of each class level the
      * character has are learned and recorded on that level, so levelling down forgets them. A level that records an
@@ -804,7 +804,7 @@ public class PendingChoiceService {
             recordSubclassSpells(character, levelIndex, spellService.learnSubclassSpells(character, names,
                     subclass.getName()));
         }
-        // With a use a long rest, as the Fathomless's Evard's black tentacles at Warlock 10 (TCE p.73, D239)
+        // With a use a long rest, as the Fathomless's Evard's black tentacles at Warlock 10 (TCE p.72, D240)
         List<String> daily = granted.dailyAt(classLevel);
         if (!daily.isEmpty()) {
             recordSubclassSpells(character, levelIndex, spellService.learnDailySubclassSpells(character, daily,
@@ -875,7 +875,7 @@ public class PendingChoiceService {
                         found.add(new MissingSubclassSpell(subclass.getName(), name, entry.className(), level, index));
                     }
                 }
-                // Known from the subclass with its use even when the class knows it too (D239)
+                // Known from the subclass with its use even when the class knows it too (D240)
                 for (String name : daily) {
                     if (!CharacterSpellService.knowsFromSubclass(character, name, subclass.getName())
                             && spellService.isSpell(name)) {
@@ -910,7 +910,7 @@ public class PendingChoiceService {
      * @param classLevel   the class level that teaches it
      * @param levelIndex   that level's place in the level history
      * @param oncePerLongRest whether it is also cast once without a slot between long rests, as the Fathomless's
-     *                        Evard's black tentacles (TCE p.73, D239)
+     *                        Evard's black tentacles (TCE p.72, D240)
      */
     public record MissingSubclassSpell(String subclassName, String spell, String className, int classLevel,
                                        int levelIndex, boolean oncePerLongRest) {

@@ -81,7 +81,7 @@ describe('MysticArcanumModal', () => {
   });
 
   it("offers a Genie warlock wish, its patron's expanded spell, as its 9th-level arcanum (TCE p.73)", async () => {
-    // The server names the additions of the warlock's kind (D239)
+    // The server names the additions of the warlock's kind (D240)
     const genie = { ...makeMockCharacter('char-012', 'Sahar', 'Warlock', 17),
       spellcasting: [warlockCasting('The Genie', 'Warlock (The Genie: Marid)')] };
     const ninth = makeMockPendingChoice({

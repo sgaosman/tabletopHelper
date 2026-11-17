@@ -27,7 +27,7 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param pactMagic         true for a warlock, whose slots are pact slots
  * @param subclassSpellList the name the spells table gives the subclass's additions to the list, such as "Warlock (The
  *                          Fathomless)", or for a subclass whose additions follow its player's option, the option's,
- *                          such as "Warlock (The Genie: Dao)" or "Druid (Circle of the Land: Arctic)" (D239); null
+ *                          such as "Warlock (The Genie: Dao)" or "Druid (Circle of the Land: Arctic)" (D240); null
  *                          without a subclass. A subclass whose option isn't picked yet has its name alone, which no
  *                          spell is listed under
  */
