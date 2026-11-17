@@ -5004,15 +5004,15 @@ A survey of every "moves at least N feet" wording in the bestiary found no other
 - **Labels.** Each attack button on the player's turn order is named for its target ("Attack Goblin 2"), not just "Attack"; the dashboard's invite-code box is labelled "Invite code".
 - **A double-clicked join is a 409.** Two joins at once both passed the membership check, and the second hit the unique membership constraint as a 500. `joinCampaign` now flushes the insert and answers a constraint failure with the same "Already a member of this campaign" 409.
 - **The inventory's item picker follows its entry.** It was kept by position, so removing an entry above it moved it onto the next entry, where a pick would link the wrong item. Removing an entry now moves the picker with its own entry, or closes it when its entry is removed. Long item names wrap instead of pushing the row sideways on a phone.
+- **An encounter being prepared is the DM's.** Players could read their campaign's Preparing encounters through `GET /api/encounters/campaign/{id}` and `/{id}` (in the Player View, but with any monster the DM hadn't hidden yet), though their pages never ask: a player meets an encounter once it starts, when its session code is made. **(choice)** A Preparing encounter is now left out of a non-DM's list, and asked for by id it is a 404, as an unknown one is. Once started it shows as before.
 
 **Not changed, for the user:**
 - **The bestiary gate can be reached by anyone.** [[#D235]] lets a user who runs any campaign read stat blocks, and any user can create a campaign, so a player can make a throwaway campaign and read every monster's AC and speed. Closing it needs a choice: a DM role on the account, or monster detail limited to monsters in the caller's encounters (which the encounter builder's search would then need another way to serve).
-- **Players can read their campaign's Preparing encounters** through `GET /api/encounters/campaign/{id}` and `/{id}` (Player View, so hidden monsters stay hidden). The player pages never ask for them.
 - **Hidden participants' IDs** remain in a few Player View fields (`summonedParticipantIds`, `controlledIds`, `risingIds`, `usableByIds`); no names leak.
 - **No way to leave a campaign or remove a member**, and every member sees the invite code ([[#D238]] notes that closing a removed member's sockets waits on this).
 
-**Key files:** `encounter/internal/HitPointService.java`, `encounter/EncounterViews.java`, `campaign/CampaignService.java`; frontend `pages/player/EncounterSessionPage.tsx`, `pages/player/PlayerDashboard.tsx`, `pages/player/sheet/InventoryTab.tsx`
+**Key files:** `encounter/internal/HitPointService.java`, `encounter/EncounterViews.java`, `encounter/EncounterService.java`, `campaign/CampaignService.java`; frontend `pages/player/EncounterSessionPage.tsx`, `pages/player/PlayerDashboard.tsx`, `pages/player/sheet/InventoryTab.tsx`
 
 **Related:** D157, D161, D163, D235, D238
 
-**Tests:** `HitPointServiceTest.playerDeathSaveOnlyWhenDue`, `EncounterViewsTest` (concentration slot), `CampaignServiceTest.joinCampaign_concurrentDuplicateIsConflict`; frontend `EncounterSessionPage.test.tsx` (Roll only when due, attack labels), `InventoryTab.test.tsx` (picker follows its entry).
+**Tests:** `HitPointServiceTest.playerDeathSaveOnlyWhenDue`, `EncounterViewsTest` (concentration slot), `CampaignServiceTest.joinCampaign_concurrentDuplicateIsConflict`; frontend `EncounterSessionPage.test.tsx` (Roll only when due, attack labels), `InventoryTab.test.tsx` (picker follows its entry); `PlayerViewIT.preparingEncountersAreTheDms`.
