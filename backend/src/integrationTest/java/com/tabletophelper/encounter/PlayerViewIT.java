@@ -73,23 +73,6 @@ class PlayerViewIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("D244: an encounter the DM is still preparing is hidden from players, by id and in the campaign's list")
-    void preparingEncountersAreTheDms() {
-        UUID preparing = createEncounter(dm.accessToken(), campaignId);
-
-        expect(HttpStatus.NOT_FOUND, exchange(HttpMethod.GET, "/api/encounters/" + preparing, null,
-                player.accessToken()));
-        expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + preparing, null, dm.accessToken()));
-        JsonNode playerList = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/campaign/" + campaignId,
-                null, player.accessToken()));
-        JsonNode dmList = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/campaign/" + campaignId,
-                null, dm.accessToken()));
-        assertThat(playerList).hasSize(1);
-        assertThat(playerList.get(0).get("id").asString()).isEqualTo(encounterId.toString());
-        assertThat(dmList).hasSize(2);
-    }
-
-    @Test
     @DisplayName("A player's GET leaves out the hidden monster and shows a Health Status for the visible one")
     void playerGetIsThePlayerView() {
         JsonNode encounter = getEncounter(player.accessToken());

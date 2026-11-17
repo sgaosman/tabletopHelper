@@ -115,10 +115,6 @@ public class EncounterService {
     public EncounterResponse getEncounter(UUID encounterId, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
         accessPolicy.requireMember(encounter.getCampaign().getId(), userId);
-        // An encounter the DM is still preparing is theirs alone: players meet it once it starts (D244)
-        if (!seenBy(encounter, userId)) {
-            throw new NotFoundException("Encounter not found");
-        }
         return toResponse(encounter);
     }
 
@@ -126,15 +122,8 @@ public class EncounterService {
     public List<EncounterResponse> getEncountersByCampaign(UUID campaignId, UUID userId) {
         accessPolicy.requireMember(campaignId, userId);
         return encounterRepository.findByCampaignIdOrderByCreatedAtDesc(campaignId).stream()
-                .filter(encounter -> seenBy(encounter, userId))
                 .map(this::toResponse)
                 .toList();
-    }
-
-    // Whether the user may see the encounter: its DM always, anyone else once it has started (D244)
-    private static boolean seenBy(Encounter encounter, UUID userId) {
-        return encounter.getStatus() != EncounterStatus.PREPARING
-                || encounter.getCampaign().getDm().getId().equals(userId);
     }
 
     /**
