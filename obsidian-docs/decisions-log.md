@@ -4949,6 +4949,8 @@ Also checked: minotaur, boar, elk, lion, aurochs, giant ox, titanothere, werewol
 
 **Update (2026-11-17, review fixes):** a fresh review found that when Shield turned the hit into a miss, or Counterspell took back the attack spell, the attacker kept the whole turn economy (`KeptCosts`, [[#D216]], [[#D196]]), including `geniesWrathUsed`, so the turn's next real hit got no Genie's Wrath. The same held for Sneak Attack's turn stamp and the last melee hit (a smite could follow a hit that never happened). `KeptCosts.putBack` now keeps the spent action but takes those three records from the reverted state (`TurnEconomy.withHitRecordsOf`). Genie's Wrath also now goes to the first hit on a creature still alive, so when a first beam kills its target a later beam's hit can carry it. The cast dialog's Genie's Wrath toggle turns back on for each spell picked. Not changed: Genie's Wrath on a lasting spell's later attacks (Spiritual Weapon) and its concentration-merge on a second hit of the same target in one cast stay as noted. Tests: `KeptCostsTest`.
 
+**Update (2026-11-17, rehearsal check):** on the rehearsal copy a level 3 Genie warlock made through the creation API owed the Genie Kind (Dao, Djinni, Efreeti, Marid); with Efreeti chosen, *sanctuary* (Dao) was refused as "isn't on the Warlock spell list" and *burning hands* accepted. In an encounter its spell options showed Eldritch Blast with "+2 fire", and the first hit logged "uses Genie's Wrath (+2 fire) after the hit on QA Ogre 1: 2 fire damage"; later casts that turn added none.
+
 ## D243: D241's Leftovers — Charge Traits, Gruumsh's Spears, Enlarged Charges and Form Damage Types
 
 **Date:** 2026-11-17
