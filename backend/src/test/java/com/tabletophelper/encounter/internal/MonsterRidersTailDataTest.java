@@ -141,10 +141,11 @@ class MonsterRidersTailDataTest {
         // grappled target and the spectral cloud's rising; 28, 21, 15, 6, 9 and 6 before. D206 rebuilds the shambling
         // mound's Engulf (an engulfing with a limit, on a grappled target) and the boneless's Crushing Embrace (on a
         // grappled target). D209 reads the regisaur's Swallow and adds the slithering bloodfin's: 2 more swallows, each
-        // regurgitating, with a limit and only for a grappled target
+        // regurgitating, with a limit and only for a grappled target. D243 replaces the orc war chief's and the Eye of
+        // Gruumsh's hand-written two-handed spear notes, which their versatile key now says: 2 more notes replaced
         assertEquals(Map.ofEntries(Map.entry("ABILITY_REDUCTION", 2), Map.entry("AT_ZERO", 12),
                 Map.entry("COUNTED_SAVES", 6), Map.entry("ON_KILL", 7), Map.entry("POSSESSION", 8),
-                Map.entry("engulfed", 2), Map.entry("limit", 22), Map.entry("noteReplaced", 5),
+                Map.entry("engulfed", 2), Map.entry("limit", 22), Map.entry("noteReplaced", 7),
                 Map.entry("onlyIfGrappled", 7), Map.entry("rebuilt", 19), Map.entry("regurgitates", 34),
                 Map.entry("stable", 11), Map.entry("swallowed", 42), Map.entry("targetGrappled", 18)), counts);
     }

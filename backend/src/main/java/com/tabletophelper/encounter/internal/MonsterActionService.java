@@ -148,6 +148,11 @@ public class MonsterActionService {
                 componentTargetIds != null ? distinct(componentTargetIds) : targetIds, userId);
         CombatAccess.requireNotDead(targets);
         CombatAccess.requireReachable(monster, targets);
+        // An action for creatures up to a size, as the giff's Headfirst Charge (MPMM, D243)
+        String tooBig = MonsterRiders.tooBigForAction(actionName, action.maxTargetSize(), targets);
+        if (tooBig != null) {
+            throw new ConflictException(tooBig);
+        }
         requireTiming(encounter, monster, request.actionSource());
         // A charmed creature can't attack its charmer or target it with harmful abilities (PHB p.290, D224)
         Charms.enforce(encounter, monster, targets, userId, combatLog, CombatActionType.MONSTER_ACTION);
@@ -780,11 +785,12 @@ public class MonsterActionService {
     /**
      * What an action of this source costs from the monster's turn (D174): an action from its actions, its bonus action
      * from its bonus actions, and its reaction from its reactions; null for legendary and lair actions, which are
-     * outside the economy (D163).
+     * outside the economy (D163), and for a trait the DM uses, as the giff's Headfirst Charge, which comes with its
+     * movement (D243).
      */
     private static ActionCost costOf(String source) {
         return switch (source != null ? source : "") {
-            case "LEGENDARY", "LAIR" -> null;
+            case "LEGENDARY", "LAIR", "TRAIT" -> null;
             case "BONUS" -> ActionCost.BONUS_ACTION;
             case "REACTION" -> ActionCost.REACTION;
             default -> ActionCost.ACTION;

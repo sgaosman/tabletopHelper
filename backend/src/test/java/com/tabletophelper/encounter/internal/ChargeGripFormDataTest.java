@@ -117,7 +117,7 @@ class ChargeGripFormDataTest {
 
     @Test
     @DisplayName("Versatile attacks, the hand-built and the generated, read as such: the hobgoblin's longsword 1d10 + 1 "
-            + "(MM p.186), the knight's greatsword none; two hundred and sixty-three in all")
+            + "(MM p.186), the knight's greatsword none; two hundred and sixty-five in all (D243)")
     void versatile() {
         MonsterTemplates.Action longsword = action("Hobgoblin", "MM", "Longsword");
         assertEquals("1d10 + 1 slashing", MonsterEffects.twoHandedDamageOf(longsword));
@@ -136,7 +136,7 @@ class ChargeGripFormDataTest {
                 }
             }
         }
-        assertEquals(263, count);
+        assertEquals(265, count);
     }
 
     @Test

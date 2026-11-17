@@ -27,12 +27,15 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * its two-handed damage is rolled (an attack that isn't versatile refuses true); and the form the monster is in, one of
  * the forms the attack's damage depends on or "usual" for none of them, null for the app to tell. A multiattack takes
  * componentCharged, componentTwoHanded and componentForms instead, one per component, null for nothing chosen.
+ * <p>
+ * actionSource TRAIT (D243): a trait the DM uses as an action, one with a delivery method, as the giff's Headfirst
+ * Charge after it moves (MPMM); it costs nothing from the monster's turn.
  */
 public record MonsterActionRequest(
         @Schema(requiredMode = REQUIRED) UUID monsterParticipantId,
         @Schema(requiredMode = REQUIRED) String actionName,
         @Schema(requiredMode = REQUIRED, allowableValues = {"ACTION", "BONUS", "REACTION", "LEGENDARY",
-                "LAIR"}) String actionSource,
+                "LAIR", "TRAIT"}) String actionSource,
         @Schema(requiredMode = REQUIRED) List<UUID> targetParticipantIds,
         Integer overrideAttackBonus,
         Integer overrideSaveDC,

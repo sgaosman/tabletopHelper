@@ -220,6 +220,26 @@ final class MonsterRiders {
         return null;
     }
 
+    /**
+     * Why an action that reaches only creatures up to a size can't be used on one of these targets, as the giff's
+     * Headfirst Charge on a Huge creature, "a Large or smaller creature" (MPMM, D243); null when it can. A target whose
+     * size isn't known is the DM's to judge, so it isn't refused.
+     */
+    static String tooBigForAction(String action, String maxTargetSize, List<EncounterParticipant> targets) {
+        int largest = rank(maxTargetSize);
+        if (largest < 0) {
+            return null;
+        }
+        for (EncounterParticipant target : targets) {
+            String size = CreatureStats.size(target);
+            if (rank(size) > largest) {
+                return action + " reaches only a " + maxTargetSize.trim() + " or smaller creature, and "
+                        + target.getDisplayName() + " is " + size;
+            }
+        }
+        return null;
+    }
+
     // The creatures the attacker's action holds grappled, the living ones
     static List<EncounterParticipant> held(EncounterParticipant attacker, String action) {
         return everyone(attacker).stream()
