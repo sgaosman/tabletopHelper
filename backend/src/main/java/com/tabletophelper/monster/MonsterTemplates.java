@@ -163,7 +163,8 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
 
     /**
      * The list an action of this source is in: LEGENDARY, LAIR, BONUS (the bonus actions) and REACTION (the reactions)
-     * name theirs, and anything else the actions.
+     * name theirs, TRAIT the traits the DM uses as an action, those with a delivery method, as the giff's Headfirst
+     * Charge (MPMM, D243), and anything else the actions.
      */
     public List<Action> list(String source) {
         return switch (source != null ? source : "") {
@@ -171,6 +172,9 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
             case "LAIR" -> lairActions;
             case "BONUS" -> bonusActions;
             case "REACTION" -> reactions;
+            case "TRAIT" -> traits.stream()
+                    .filter(trait -> trait.deliveryMethod() != null && !trait.deliveryMethod().isBlank())
+                    .toList();
             default -> actions;
         };
     }
@@ -271,6 +275,9 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      *                                straight toward a target and then hits it with a pike attack on the same turn" (MM
      *                                p.38): its parts under onlyIf.attackerCharged come only when the DM says the
      *                                monster charged; null for none (D239)
+     * @param maxTargetSize           the largest creature the whole action reaches, as the giff's Headfirst Charge's
+     *                                "a Large or smaller creature" (MPMM); a bigger target is refused; null for any
+     *                                (D243)
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Action(String name, String description, Boolean automatable, String deliveryMethod,
@@ -285,7 +292,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                          String dmNote, Integer grappleLimit, boolean grappleLimitBlocks, String immuneAfterSave,
                          List<String> exemptTypes, List<String> targetTypes, boolean targetGrappled, Heads heads,
                          OnAllHit onAllHit, List<String> damageOptions, String rechargeGroup, Versatile versatile,
-                         Charge charge) {
+                         Charge charge, String maxTargetSize) {
 
         /** The damage type of a part the monster chooses when it uses the action (D207). */
         public static final String OPTION = "option";
@@ -317,7 +324,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                     usesRecharge, rechargeType, cost, multiattack, multiattackComponents, multiattackDescription,
                     multiattackNote, eyeRays, rayCount, rays, dmNote, grappleLimit, grappleLimitBlocks,
                     immuneAfterSave, exemptTypes, targetTypes, targetGrappled, heads, onAllHit, null, null, null,
-                    null);
+                    null, null);
         }
 
         /** Whether the monster chooses the damage type when it uses the action (D207). */
@@ -332,7 +339,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                     usesPerDay, usesRecharge, rechargeType, cost, multiattack, multiattackComponents,
                     multiattackDescription, multiattackNote, eyeRays, rayCount, rays, dmNote, grappleLimit,
                     grappleLimitBlocks, immuneAfterSave, exemptTypes, targetTypes, targetGrappled, heads, onAllHit,
-                    damageOptions, rechargeGroup, versatile, charge);
+                    damageOptions, rechargeGroup, versatile, charge, maxTargetSize);
         }
 
         /** The action as the DM chose to use it (D207, D239). */

@@ -34,18 +34,21 @@ type TemplatesAnswer = MonsterActionTemplate & {
   error?: string;
 };
 
-export type MonsterActionTab = 'actions' | 'bonus' | 'reactions' | 'legendary' | 'lair';
+export type MonsterActionTab = 'actions' | 'bonus' | 'reactions' | 'legendary' | 'lair' | 'traits';
 
 type Tab = MonsterActionTab;
 
-/** The action source each tab sends (D138, D163, D174). */
+/** The action source each tab sends (D138, D163, D174, D243). */
 const TAB_SOURCE: Record<Tab, ActionSource> = {
-  actions: 'ACTION', bonus: 'BONUS', reactions: 'REACTION', legendary: 'LEGENDARY', lair: 'LAIR',
+  actions: 'ACTION', bonus: 'BONUS', reactions: 'REACTION', legendary: 'LEGENDARY', lair: 'LAIR', traits: 'TRAIT',
 };
 
-/** What each tab's actions cost from the monster's turn; legendary and lair actions are outside it (D163). */
+/**
+ * What each tab's actions cost from the monster's turn; legendary and lair actions are outside it (D163), and a trait
+ * the DM uses, as a giff's Headfirst Charge, comes with the monster's movement (D243).
+ */
 const TAB_COST: Record<Tab, EconomyCost> = {
-  actions: 'ACTION', bonus: 'BONUS_ACTION', reactions: 'REACTION', legendary: 'NONE', lair: 'NONE',
+  actions: 'ACTION', bonus: 'BONUS_ACTION', reactions: 'REACTION', legendary: 'NONE', lair: 'NONE', traits: 'NONE',
 };
 
 /** The server's own words for a refused monster action, where it gave any. */
@@ -174,6 +177,8 @@ export default function InlineMonsterActions({
   const reactions = (templates.reactions || []).filter(a => !noAttacks || !isAttackAction(a));
   const legendary = templates.legendaryActions || [];
   const lair = templates.lairActions || [];
+  // The traits the DM uses as an action, those with a delivery method, as a giff's Headfirst Charge (D243)
+  const traitActions: MonsterAction[] = (templates.traits || []).filter(t => !!t.deliveryMethod);
   const pools = templates.resourcePools || {};
   const hasLegendary = legendary.length > 0;
   const hasLair = lair.length > 0;
@@ -183,7 +188,7 @@ export default function InlineMonsterActions({
   const lairReason = !inLair ? `${participant.displayName} isn't fighting in its lair` : 'Lair actions wait for the Lair\'s turn, on initiative 20';
 
   const currentActions = tab === 'legendary' ? legendary : tab === 'lair' ? lair
-    : tab === 'bonus' ? bonusActions : tab === 'reactions' ? reactions : actions;
+    : tab === 'bonus' ? bonusActions : tab === 'reactions' ? reactions : tab === 'traits' ? traitActions : actions;
   // The DM goes over the monster's turn economy rather than being refused (D174)
   const overBudget = chargeBlock(participant, { cost: TAB_COST[tab] });
 
@@ -233,19 +238,25 @@ export default function InlineMonsterActions({
 
   return (
     <div className="px-4 py-2 border-t border-rule-light bg-page">
-      {(hasLegendary || hasLair || bonusActions.length > 0 || reactions.length > 0) && (
+      {(hasLegendary || hasLair || bonusActions.length > 0 || reactions.length > 0 || traitActions.length > 0) && (
         <div className="flex flex-wrap gap-2 mb-2">
           <TabBtn active={tab === 'actions'} onClick={() => switchTab('actions')} label={`Actions (${actions.length})`} />
           {bonusActions.length > 0 && <TabBtn active={tab === 'bonus'} onClick={() => switchTab('bonus')} label={`Bonus actions (${bonusActions.length})`} />}
           {reactions.length > 0 && <TabBtn active={tab === 'reactions'} onClick={() => switchTab('reactions')} label={`Reactions (${reactions.length})`} />}
           {hasLegendary && <TabBtn active={tab === 'legendary'} onClick={() => switchTab('legendary')} label={`Legendary (${legendaryRemaining})`} />}
           {hasLair && <TabBtn active={tab === 'lair'} onClick={() => switchTab('lair')} label={`Lair (${lair.length})`} />}
+          {traitActions.length > 0 && <TabBtn active={tab === 'traits'} onClick={() => switchTab('traits')} label={`Traits (${traitActions.length})`} />}
         </div>
       )}
 
       {tab === 'legendary' && ownTurn && (
         <p role="note" className="mb-2 font-body text-[13px] font-semibold text-faint">
           Legendary actions are used on other creatures' turns, not {participant.displayName}'s own.
+        </p>
+      )}
+      {tab === 'traits' && (
+        <p role="note" className="mb-2 font-body text-[13px] font-semibold text-faint">
+          Traits are used when they trigger, as a charge after {participant.displayName} moves, and cost no action.
         </p>
       )}
       {overBudget && (

@@ -173,3 +173,51 @@ describe('InlineMonsterActions: charges, grips and forms (D239)', () => {
     }]));
   });
 });
+
+/**
+ * A charge that hangs on no attack, as the giff's Headfirst Charge (MPMM), is a trait the DM uses from the Traits tab
+ * (D243); a trait without a delivery method isn't offered.
+ */
+describe('InlineMonsterActions: traits the DM uses (D243)', () => {
+  const giffTemplate = {
+    actions: [
+      { name: 'Longsword', attackBonus: 6, deliveryMethod: 'ATTACK_ROLL', attackType: 'MELEE_WEAPON', automatable: true,
+        effects: [{ effectType: 'DAMAGE', damageDice: '1d8 + 4', damageType: 'slashing' }] },
+    ],
+    traits: [
+      { name: 'Firearms Knowledge', description: 'The giff ignores the loading property of muskets and pistols.' },
+      { name: 'Headfirst Charge', description: 'If the giff moves at least 20 feet in a straight line...',
+        deliveryMethod: 'SAVING_THROW', saveDC: 14, saveAbility: 'STR', halfOnSave: false, targetCount: 1,
+        maxTargetSize: 'Large',
+        dmNote: 'Used when the giff moves at least 20 feet in a straight line and ends within 5 feet of the target; it costs no action.',
+        effects: [
+          { effectType: 'DAMAGE', damageDice: '2d6', damageType: 'bludgeoning' },
+          { effectType: 'CONDITION', condition: 'prone' },
+        ] },
+    ],
+  } satisfies MonsterActionTemplate;
+
+  beforeEach(() => {
+    setupAuthToken();
+    server.use(http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json(giffTemplate)));
+  });
+
+  it('offers only the usable traits, at no cost, and sends them as a trait', async () => {
+    const requests = monsterActions();
+    const user = await renderActions();
+
+    await user.click(await screen.findByRole('button', { name: 'Traits (1)' }));
+    expect(screen.getByRole('note')).toHaveTextContent('cost no action');
+    expect(screen.queryByRole('button', { name: /Firearms Knowledge/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Headfirst Charge' }));
+    expect(screen.getByText(/DM: Used when the giff moves at least 20 feet/)).toBeInTheDocument();
+    expect(screen.queryByText(/Over the action economy/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Gimli' }));
+    await user.click(screen.getByRole('button', { name: 'Execute Headfirst Charge (1 target)' }));
+
+    await waitFor(() => expect(requests).toEqual([{
+      monsterParticipantId: 'part-centaur', actionName: 'Headfirst Charge', actionSource: 'TRAIT',
+      targetParticipantIds: ['part-gimli'],
+    }]));
+  });
+});

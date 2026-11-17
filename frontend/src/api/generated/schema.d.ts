@@ -3792,7 +3792,7 @@ export interface components {
         MonsterActionRequest: {
             actionName: string;
             /** @enum {string} */
-            actionSource: "ACTION" | "BONUS" | "REACTION" | "LEGENDARY" | "LAIR";
+            actionSource: "ACTION" | "BONUS" | "REACTION" | "LEGENDARY" | "LAIR" | "TRAIT";
             advantage?: boolean | null;
             attackerForm?: string | null;
             charged?: boolean | null;

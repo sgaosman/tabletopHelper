@@ -16719,13 +16719,65 @@
           {
             "effectType": "DAMAGE",
             "damageDice": "2d10",
-            "damageType": "variable"
+            "damageType": "acid",
+            "onlyIf": {
+              "attackerForm": "acid form",
+              "text": "in acid form"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d10",
+            "damageType": "cold",
+            "onlyIf": {
+              "attackerForm": "cold form",
+              "text": "in cold form"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d10",
+            "damageType": "fire",
+            "onlyIf": {
+              "attackerForm": "fire form",
+              "text": "in fire form"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d10",
+            "damageType": "lightning",
+            "onlyIf": {
+              "attackerForm": "lightning form",
+              "text": "in lightning form"
+            },
+            "_rider": "added"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d10",
+            "damageType": "poison",
+            "onlyIf": {
+              "attackerForm": "poison form",
+              "text": "in poison form"
+            },
+            "_rider": "added"
           }
         ],
         "automatable": true,
-        "_riderNote": "Also on a hit, applied by hand: Plus 11 (2d10) damage of a type determined by the animated breath's form: acid, cold, fire, lightning, or poison.",
-        "_riderNoteNew": true,
-        "dmNote": "Also on a hit, applied by hand: Plus 11 (2d10) damage of a type determined by the animated breath's form: acid, cold, fire, lightning, or poison."
+        "_riderRemoved": [
+          {
+            "at": 1,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "2d10",
+              "damageType": "variable"
+            }
+          }
+        ]
       }
     ],
     "bonusActions": [
@@ -69101,7 +69153,29 @@
       {
         "name": "Headfirst Charge",
         "combatRelevant": true,
-        "description": "If the equinal moves at least 30 feet in a straight line toward a creature and ends within 5 feet of it, that creature must succeed on a 17 Strength saving throw or take 14 (4d6) bludgeoning damage and have the prone condition."
+        "description": "If the equinal moves at least 30 feet in a straight line toward a creature and ends within 5 feet of it, that creature must succeed on a 17 Strength saving throw or take 14 (4d6) bludgeoning damage and have the prone condition.",
+        "deliveryMethod": "SAVING_THROW",
+        "saveDC": 17,
+        "saveAbility": "STR",
+        "halfOnSave": false,
+        "targetCount": 1,
+        "effects": [
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "4d6",
+            "damageType": "bludgeoning"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone"
+          }
+        ],
+        "dmNote": "Used when the equinal moves at least 30 feet in a straight line and ends within 5 feet of the target; it costs no action.",
+        "_riderReplaced": {
+          "name": "Headfirst Charge",
+          "combatRelevant": true,
+          "description": "If the equinal moves at least 30 feet in a straight line toward a creature and ends within 5 feet of it, that creature must succeed on a 17 Strength saving throw or take 14 (4d6) bludgeoning damage and have the prone condition."
+        }
       }
     ]
   },
@@ -73343,7 +73417,31 @@
       {
         "name": "Skewering Charge",
         "combatRelevant": true,
-        "description": "If the ferrumach moves at least 20 feet in a straight line toward a Large or smaller creature and ends within 5 feet of it, that creature must succeed on a 16 Strength saving throw or have the grappled condition (escape 18) and take 10 (3d6) piercing damage."
+        "description": "If the ferrumach moves at least 20 feet in a straight line toward a Large or smaller creature and ends within 5 feet of it, that creature must succeed on a 16 Strength saving throw or have the grappled condition (escape 18) and take 10 (3d6) piercing damage.",
+        "deliveryMethod": "SAVING_THROW",
+        "saveDC": 16,
+        "saveAbility": "STR",
+        "halfOnSave": false,
+        "targetCount": 1,
+        "effects": [
+          {
+            "effectType": "CONDITION",
+            "condition": "grappled",
+            "escapeDC": 18
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "3d6",
+            "damageType": "piercing"
+          }
+        ],
+        "dmNote": "Used when the ferrumach moves at least 20 feet in a straight line and ends within 5 feet of the target; it costs no action.",
+        "maxTargetSize": "Large",
+        "_riderReplaced": {
+          "name": "Skewering Charge",
+          "combatRelevant": true,
+          "description": "If the ferrumach moves at least 20 feet in a straight line toward a Large or smaller creature and ends within 5 feet of it, that creature must succeed on a 16 Strength saving throw or have the grappled condition (escape 18) and take 10 (3d6) piercing damage."
+        }
       }
     ]
   },
@@ -87069,7 +87167,30 @@
             "condition": "prone"
           }
         ],
-        "description": "If the giff moves at least 20 feet in a straight line and ends within 5 feet of a Large or smaller creature, that creature must succeed on a 16 Strength saving throw or take 7 (2d6) bludgeoning damage and be knocked prone."
+        "description": "If the giff moves at least 20 feet in a straight line and ends within 5 feet of a Large or smaller creature, that creature must succeed on a 16 Strength saving throw or take 7 (2d6) bludgeoning damage and be knocked prone.",
+        "deliveryMethod": "SAVING_THROW",
+        "halfOnSave": false,
+        "targetCount": 1,
+        "dmNote": "Used when the giff moves at least 20 feet in a straight line and ends within 5 feet of the target; it costs no action.",
+        "maxTargetSize": "Large",
+        "_riderReplaced": {
+          "name": "Headfirst Charge",
+          "combatRelevant": true,
+          "saveDC": 16,
+          "saveAbility": "STR",
+          "effects": [
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "2d6",
+              "damageType": "bludgeoning"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "prone"
+            }
+          ],
+          "description": "If the giff moves at least 20 feet in a straight line and ends within 5 feet of a Large or smaller creature, that creature must succeed on a 16 Strength saving throw or take 7 (2d6) bludgeoning damage and be knocked prone."
+        }
       },
       {
         "name": "Siege Monster",
@@ -87261,7 +87382,30 @@
       {
         "name": "Headfirst Charge",
         "traitType": "COMBAT_PASSIVE",
-        "description": "The giff can try to knock a creature over; if the giff moves at least 20 feet in a straight line and ends within 5 feet of a Large or smaller creature, that creature must succeed on a 14 Strength saving throw or take 7 (2d6) bludgeoning damage and be knocked prone."
+        "description": "The giff can try to knock a creature over; if the giff moves at least 20 feet in a straight line and ends within 5 feet of a Large or smaller creature, that creature must succeed on a 14 Strength saving throw or take 7 (2d6) bludgeoning damage and be knocked prone.",
+        "deliveryMethod": "SAVING_THROW",
+        "saveDC": 14,
+        "saveAbility": "STR",
+        "halfOnSave": false,
+        "targetCount": 1,
+        "effects": [
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "2d6",
+            "damageType": "bludgeoning"
+          },
+          {
+            "effectType": "CONDITION",
+            "condition": "prone"
+          }
+        ],
+        "dmNote": "Used when the giff moves at least 20 feet in a straight line and ends within 5 feet of the target; it costs no action.",
+        "maxTargetSize": "Large",
+        "_riderReplaced": {
+          "name": "Headfirst Charge",
+          "traitType": "COMBAT_PASSIVE",
+          "description": "The giff can try to knock a creature over; if the giff moves at least 20 feet in a straight line and ends within 5 feet of a Large or smaller creature, that creature must succeed on a 14 Strength saving throw or take 7 (2d6) bludgeoning damage and be knocked prone."
+        }
       }
     ]
   },
@@ -87367,14 +87511,37 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "prone",
-            "durationText": null,
-            "durationRounds": null
+            "condition": "prone"
           }
         ],
         "saveDC": 14,
         "saveAbility": "STR",
-        "description": "The giff can try to knock a creature over; if the giff moves at least 20 feet in a straight line that ends within 5 feet of a Large or smaller creature, that creature must succeed on a DC 14 Strength saving throw or take 7 (2d6) bludgeoning damage and be knocked prone."
+        "description": "The giff can try to knock a creature over; if the giff moves at least 20 feet in a straight line that ends within 5 feet of a Large or smaller creature, that creature must succeed on a DC 14 Strength saving throw or take 7 (2d6) bludgeoning damage and be knocked prone.",
+        "deliveryMethod": "SAVING_THROW",
+        "halfOnSave": false,
+        "targetCount": 1,
+        "dmNote": "Used when the giff moves at least 20 feet in a straight line and ends within 5 feet of the target; it costs no action.",
+        "maxTargetSize": "Large",
+        "_riderReplaced": {
+          "name": "Headfirst Charge",
+          "combatRelevant": true,
+          "effects": [
+            {
+              "effectType": "DAMAGE",
+              "damageDice": "2d6",
+              "damageType": "bludgeoning"
+            },
+            {
+              "effectType": "CONDITION",
+              "condition": "prone",
+              "durationText": null,
+              "durationRounds": null
+            }
+          ],
+          "saveDC": 14,
+          "saveAbility": "STR",
+          "description": "The giff can try to knock a creature over; if the giff moves at least 20 feet in a straight line that ends within 5 feet of a Large or smaller creature, that creature must succeed on a DC 14 Strength saving throw or take 7 (2d6) bludgeoning damage and be knocked prone."
+        }
       },
       {
         "name": "Firearms Knowledge",
@@ -101229,22 +101396,33 @@
         "targetCount": 1,
         "effects": [
           {
-            "effectType": "DAMAGE",
-            "damageDice": "1d10 + 7",
-            "damageType": null
-          },
-          {
             "effectType": "CONDITION",
             "condition": "prone"
           },
           {
             "effectType": "CONDITION",
             "condition": "stunned"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1d10 + 7",
+            "damageType": "bludgeoning",
+            "_rider": "added"
           }
         ],
-        "_riderNote": "On a hit: 12 (1d10 + 7) bludgeoning, magic damage. The DM settles the choice by hand. Also on a hit, applied by hand: If the target is a creature, Hlam can choose one of the following additional effects: The target must succeed on a DC 18 Strength saving throw or drop one item it is holding (Hlam's choice).",
+        "_riderRemoved": [
+          {
+            "at": 0,
+            "part": {
+              "effectType": "DAMAGE",
+              "damageDice": "1d10 + 7",
+              "damageType": null
+            }
+          }
+        ],
+        "_riderNote": "Also on a hit, applied by hand: If the target is a creature, Hlam can choose one of the following additional effects: The target must succeed on a DC 18 Strength saving throw or drop one item it is holding (Hlam's choice).",
         "_riderNoteNew": true,
-        "dmNote": "On a hit: 12 (1d10 + 7) bludgeoning, magic damage. The DM settles the choice by hand. Also on a hit, applied by hand: If the target is a creature, Hlam can choose one of the following additional effects: The target must succeed on a DC 18 Strength saving throw or drop one item it is holding (Hlam's choice)."
+        "dmNote": "Also on a hit, applied by hand: If the target is a creature, Hlam can choose one of the following additional effects: The target must succeed on a DC 18 Strength saving throw or drop one item it is holding (Hlam's choice)."
       },
       {
         "name": "Dart",
@@ -132425,12 +132603,23 @@
               "attackerCharged": true,
               "text": "if it moved at least 10 feet straight toward the target first"
             }
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1d8",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerCharged": true,
+              "text": "if it moved at least 10 feet straight toward the target first, while enlarged",
+              "attackerForm": "enlarged"
+            },
+            "_rider": "added"
           }
         ],
         "automatable": true,
         "charge": {
           "feet": 10,
-          "note": "The extra damage is 2d8 piercing if the minotaur is enlarged instead, by hand. A target that fails the save is also pushed up to 10 feet away, by hand."
+          "note": "A target that fails the save is also pushed up to 10 feet away, by hand."
         },
         "_riderActionKeys": [
           "charge"
@@ -145435,7 +145624,14 @@
             "damageType": "piercing"
           }
         ],
-        "dmNote": "If used with two hands to make a melee attack, the spear deals 12 (2d8 + 3) piercing damage instead."
+        "versatile": {
+          "twoHandedDamageDice": "1d8 + 3",
+          "twoHandedDamageType": "piercing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ],
+        "_riderNoteReplaced": "If used with two hands to make a melee attack, the spear deals 12 (2d8 + 3) piercing damage instead."
       }
     ],
     "spellcasting": {
@@ -145728,7 +145924,14 @@
             "_rider": "added"
           }
         ],
-        "dmNote": "If used with two hands to make a melee attack, the spear deals 13 (2d8 + 4) piercing damage instead."
+        "versatile": {
+          "twoHandedDamageDice": "1d8 + 4",
+          "twoHandedDamageType": "piercing"
+        },
+        "_riderActionKeys": [
+          "versatile"
+        ],
+        "_riderNoteReplaced": "If used with two hands to make a melee attack, the spear deals 13 (2d8 + 4) piercing damage instead."
       },
       {
         "name": "Battle Cry",
@@ -163781,10 +163984,7 @@
             "damageDice": "2d4",
             "damageType": "cold"
           }
-        ],
-        "_riderNote": "On a hit: 7 (1d8 + 3) slashing damage, or 8 (1d10 + 3) slashing damage if Sephek uses the weapon with two hands, plus 5 (2d4) cold damage. The DM settles the choice by hand.",
-        "_riderNoteNew": true,
-        "dmNote": "On a hit: 7 (1d8 + 3) slashing damage, or 8 (1d10 + 3) slashing damage if Sephek uses the weapon with two hands, plus 5 (2d4) cold damage. The DM settles the choice by hand."
+        ]
       },
       {
         "name": "Ice Dagger",
@@ -208185,6 +208385,23 @@
         "effects": [
           {
             "effectType": "DAMAGE",
+            "damageDice": "1d6 + 2",
+            "damageType": "bludgeoning",
+            "_rider": "added"
+          },
+          {
+            "effectType": "DAMAGE",
+            "damageDice": "1d6 + 2",
+            "damageType": "piercing",
+            "onlyIf": {
+              "attackerForm": "spider form",
+              "text": "in spider form"
+            },
+            "replacesDamage": true,
+            "_rider": "added"
+          },
+          {
+            "effectType": "DAMAGE",
             "damageDice": "6d6",
             "damageType": "poison"
           }
@@ -227169,7 +227386,7 @@
             "damageType": "bludgeoning"
           }
         ],
-        "dmNote": "On a hit: 5 (1d6 + 2) bludgeoning, magic damage. The DM settles the choice by hand. Also on a hit, applied by hand: Vajra can expend 1 of the staff's charges to deal an extra 3 (1d6) force damage on a hit.",
+        "dmNote": "Also on a hit, applied by hand: Vajra can expend 1 of the staff's charges to deal an extra 3 (1d6) force damage on a hit.",
         "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 2) bludgeoning, magic damage, or 6 (1d8 + 2) bludgeoning, magic damage when used with two hands. Vajra can expend 1 of the staff's charges to deal an extra 3 (1d6) force damage on a hit."
       }
     ],

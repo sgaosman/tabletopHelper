@@ -250,11 +250,17 @@ export interface MonsterSpellcasting {
   atWillSpells?: string[];
 }
 
-export interface MonsterTrait {
+/**
+ * A monster's trait. One with a deliveryMethod is one the DM uses as an action, from the Traits tab, as the giff's
+ * Headfirst Charge after it moves (MPMM): it carries an action's keys and costs nothing (D243).
+ */
+export interface MonsterTrait extends Omit<MonsterAction, 'name' | 'description'> {
   name: string;
-  description: string;
+  description?: string;
   combatRelevant?: boolean;
   mechanicType?: string;
+  /** The largest creature it reaches, as "Large" for "a Large or smaller creature"; the server refuses a bigger one. */
+  maxTargetSize?: string;
 }
 
 /**

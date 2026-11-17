@@ -128,10 +128,11 @@ FLAT_DAMAGE = re.compile(r'^\s*(\d+) ([a-z]+) damage')
 # "if used with two hands", and the later wording "when used with two hands to make a melee attack" (D202)
 # and since D239 the wordings without the type ("or 10 (1d10 + 5) if used with two hands"), with ", magic", with the
 # extra damage repeated ("or 6 (1d10 + 1) slashing damage plus 7 (2d6) fire damage when used with two hands") or "in
-# two hands"
+# two hands"; since D243 also "if Sephek uses the weapon with two hands" (IDRotF)
+TWO_HANDS = (r'(?:if|when) (?:used|wielded|[A-Z]?[a-z]+ uses (?:it|the weapon)) (?:with|in) (?:two|both) hands')
 VERSATILE = re.compile(r',?\s*or (\d+) \(\{@(?:damage|dice) ([^}]+)\}\)(?: ([a-z]+))?(?:,? magic)?(?: damage)?'
-                       r'(?: plus \d+ \(\{@damage [^}]+\}\) [a-z]+ damage)?,? (?:if|when) (?:used|wielded) '
-                       r'(?:with|in) (?:two|both) hands(?: to make a melee attack)?')
+                       r'(?: plus \d+ \(\{@damage [^}]+\}\) [a-z]+ damage)?,? ' + TWO_HANDS
+                       + r'(?: to make a melee attack)?')
 SAVE = re.compile(r'\{@dc (\d+)\}\s+(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)'
                   r'(?: or (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma))?\s+saving throw')
 ACT_SAVE = re.compile(r'\{@actSave (str|dex|con|int|wis|cha)\}\s*\{@dc (\d+)\}')
@@ -257,7 +258,9 @@ def predicate(tail):
 def damage_part(match):
     """A DAMAGE part of a ONE_DAMAGE match, and whether its type is a choice."""
     if match.group(2):
-        damage_type, choice = match.group(3), False
+        # ", magic" says only that the damage is magical, as Vajra Safahr's Blackstaff's "bludgeoning, magic damage"
+        # (WDH), and is no choice of type (D243)
+        damage_type, choice = re.sub(r', magic$', '', match.group(3)), False
         if ' or ' in damage_type or ',' in damage_type:
             choice = True
             damage_type = damage_type.split(',')[0].split(' or ')[0]
@@ -1565,6 +1568,28 @@ def read_attack(raw):
 PLUS_INSIDE = re.compile(r'(\d+) \(\{@damage ([^}]+)\} plus \{@damage ([^}]+)\}\) ([a-z]+) damage')
 
 
+def less_dice(total, extra):
+    """The dice of total without extra, of the same die, as "2d8 + 3" without "1d8" is "1d8 + 3"; None when they
+    don't share the die or extra is as many dice or more (D243)."""
+    whole = re.match(r'^(\d+)d(\d+)(\s*[+-]\s*\d+)?$', total.strip())
+    part = re.match(r'^(\d+)d(\d+)$', extra.strip())
+    if not whole or not part or whole.group(2) != part.group(2) or int(part.group(1)) >= int(whole.group(1)):
+        return None
+    rest = re.sub(r'\s*([+-])\s*', r' \1 ', whole.group(3) or '')
+    return '%dd%s%s' % (int(whole.group(1)) - int(part.group(1)), whole.group(2), rest)
+
+
+def inside_two_handed(hit, two_handed):
+    """A versatile weapon's two-handed dice without the extra dice the one-handed damage holds inside its brackets: the
+    orc war chief's spear's "12 (1d6 + 4 plus 1d8) piercing damage, or 13 (2d8 + 4) piercing damage if used with two
+    hands" (MM) is 1d8 + 4 with two hands, its Gruumsh's Fury 1d8 coming on top as in one hand (D243). The dice as they
+    are when the damage holds no such extra; None when it does and they can't be taken apart."""
+    inside = PLUS_INSIDE.search(hit)
+    if not inside:
+        return two_handed
+    return less_dice(two_handed, inside.group(3))
+
+
 def plus_inside(match):
     first, extra, kind = match.group(2), match.group(3), match.group(4)
     return '%d ({@damage %s}) %s damage plus %d ({@damage %s}) %s damage' % (
@@ -1576,13 +1601,17 @@ def read_hit(hit):
     the effects don't say, and its versatile damage. Damage of a type the monster chooses is a part of damageType
     "option", with the types in the action's damageOptions (D207)."""
     hit, damage_options = chosen_types(hit)
+    original = hit
     hit = PLUS_INSIDE.sub(plus_inside, hit)
     sentences = SENTENCE.split(hit.strip())
     first, rest = sentences[0], sentences[1:]
     versatile = VERSATILE.search(first)
     two_handed = None
     if versatile:
-        two_handed = {'twoHandedDamageDice': versatile.group(2).strip(), 'twoHandedDamageType': versatile.group(3)}
+        # The two-handed dice without the extra the one-handed damage holds in its brackets (D243)
+        dice = inside_two_handed(original, versatile.group(2).strip())
+        if dice is not None:
+            two_handed = {'twoHandedDamageDice': dice, 'twoHandedDamageType': versatile.group(3)}
         first = first[:versatile.start()] + first[versatile.end():]
     effects, choice, remainder = base_damage(first)
     if not effects and DAMAGE.search(first) and not saves(first) and not qualified(first):
@@ -2087,7 +2116,8 @@ RIDER_STATS = ('attacks matched', 'attacks changed', 'damage given a save', 'dam
                'save actions given half on a success', 'damage put right', 'multiattacks put right',
                'save actions given one target', 'charges', 'charge damage gated', 'charge conditions gated',
                'charges not read', 'charges without their attack', 'versatile added', 'form damage added',
-               'form damage not matched')
+               'form damage not matched', 'charge damage given a form', 'form damage types added',
+               'charge traits made usable')
 # The keys of a condition that tie it to another or keep it from some creatures (D203)
 LINK_KEYS = ('endsWith', 'exemptTypes', 'endsOnDamage')
 LASTING_TYPES = ('HP_MAX_REDUCTION', 'LIFE_DRAIN', 'EXHAUSTION', 'MODIFIER', 'ONGOING_DAMAGE', 'COUNTED_SAVES',
@@ -2890,6 +2920,8 @@ CHARGE_SAVE = re.compile(r"\bdc ?(\d+) (strength|dexterity|constitution) saving 
 CHARGE_PUSH = re.compile(r"pushed up to (\d+) feet(?: away| from [a-z' -]+?)?(?= and|,|\.|$)")
 CHARGE_BONUS = re.compile(r"^if the target is (?:knocked )?prone|^if the target has the prone condition")
 CHARGE_TEXT = 'if it moved at least %d feet straight toward the target first'
+# A charge's alternative extra damage while the monster is enlarged (D243)
+CHARGE_ENLARGED = re.compile(r"(?:if|while) (?:the [a-z]+ |it )?(?:is )?enlarged")
 
 
 def charge_specs(monster):
@@ -2915,15 +2947,25 @@ def charge_of(spec, action_damage_type):
                              or s.lower().startswith('if the target is a')]
     text = ' '.join(kept).lower()
     when = {'attackerCharged': True, 'text': CHARGE_TEXT % spec['feet']}
-    out = {'damage': None, 'condition': None, 'notes': [], 'alternative': None}
+    out = {'damage': None, 'condition': None, 'notes': [], 'alternative': None, 'enlarged': None}
     extra = CHARGE_EXTRA.search(text)
     if extra:
+        damage_type = extra.group(2) or action_damage_type
         out['damage'] = {'effectType': 'DAMAGE', 'damageDice': re.sub(r'\s*([+-])\s*', r' \1 ', extra.group(1)),
-                         'damageType': extra.group(2) or action_damage_type, 'onlyIf': dict(when)}
+                         'damageType': damage_type, 'onlyIf': dict(when)}
         if extra.group(3):
             out['alternative'] = re.sub(r'\s*([+-])\s*', r' \1 ', extra.group(3))
-            out['notes'].append('The extra damage is %s %s %s instead, by hand.' % (
-                out['alternative'], extra.group(2) or action_damage_type, extra.group(4)))
+            # The minotaur infiltrator's "or 9 (2d8) piercing damage if the minotaur is enlarged" (BMT): the dice
+            # beyond the usual extra, under the charge and the Form "enlarged" (D243)
+            more = less_dice(out['alternative'], out['damage']['damageDice']) \
+                if CHARGE_ENLARGED.fullmatch(extra.group(4)) else None
+            if more is not None:
+                out['enlarged'] = {'effectType': 'DAMAGE', 'damageDice': more, 'damageType': damage_type,
+                                   'onlyIf': dict(when, attackerForm='enlarged',
+                                                  text=when['text'] + ', while enlarged')}
+            else:
+                out['notes'].append('The extra damage is %s %s %s instead, by hand.' % (
+                    out['alternative'], damage_type, extra.group(4)))
     save = CHARGE_SAVE.search(text)
     if save and 'prone' in save.group(4):
         condition = {'effectType': 'CONDITION', 'condition': 'prone', 'saveDC': int(save.group(1)),
@@ -3037,6 +3079,9 @@ def apply_charge(action, spec, stats):
                         and p.get('onlyIf') is None and not p.get('_rider')), None)
             if alt is not None:
                 remove_part(action, alt)
+        if charge['enlarged'] is not None:
+            effects.append(dict(charge['enlarged'], _rider='added'))
+            stats['charge damage given a form'] += 1
     if charge['condition'] is not None:
         part = charge['condition']
         prone = next((p for p in effects if isinstance(p, dict) and p.get('effectType') == 'CONDITION'
@@ -3095,8 +3140,7 @@ def charge_pass(entry, monster, stats):
 # "or 6 (1d10 + 1) slashing damage if used with two hands", with the type, "damage" or a "plus" damage left out as
 # some stat blocks write it (D239)
 VERSATILE_ANY = re.compile(r'(?:,? or|,) (\d+) \(\{@(?:damage|dice) ([^}]+)\}\)(?: ([a-z]+))?(?:,? magic)?(?: damage)?'
-                           r'(?: plus \d+ \(\{@damage [^}]+\}\) [a-z]+ damage)?,? (?:if|when) (?:used|wielded) '
-                           r'(?:with|in) two hands')
+                           r'(?: plus \d+ \(\{@damage [^}]+\}\) [a-z]+ damage)?,? ' + TWO_HANDS)
 # The rider pass's note of a two-handed alternative alone, which the versatile key now says: Izek Strazni's "Or 15
 # (2d10 + 4) when used with two hands." (CoS), or "On a hit: 5 (1d8 + 1) slashing damage plus 7 (2d6) fire damage, or 6
 # (1d10 + 1) slashing damage plus 7 (2d6) fire damage when used with two hands." with nothing else to choose
@@ -3104,12 +3148,15 @@ VERSATILE_NOTE = re.compile(r'Or \d+ \([^)]+\)(?: [a-z]+)?(?: damage)? (?:if|whe
                             r'hands(?: to make a melee attack)?(?:, plus \d+ \([^)]+\) [a-z]+ damage)?\.'
                             r'|On a hit: [^.]*\bor \d+ \([^)]+\) [^.]*?(?:if|when) (?:used|wielded) (?:with|in) two '
                             r'hands(?: to make a melee attack)?\.')
+HAND_VERSATILE_NOTE = re.compile(r'If used with two hands(?: to make a melee attack)?, the [a-z ]+ deals \d+ \([^)]+\) '
+                                 r'[a-z]+ damage instead\.')
 
 
 def versatile_pass(entry, monster, stats):
     """A hand-built attack whose stat block gives a two-handed alternative and that has none gets the action key
     "versatile" (D239), as the generated entries have it, so the DM sees both and chooses. A one-handed damage that is
-    two dice expressions, as the orc war chief's spear's "1d6 + 4 plus 1d8" with Gruumsh's Fury (MM), is left out."""
+    two dice expressions, as the orc war chief's spear's "1d6 + 4 plus 1d8" with Gruumsh's Fury (MM), gets the
+    two-handed dice without the extra, which its own part still deals (D243)."""
     for key_5e, key_def, _ in RIDER_LISTS:
         actions = [a for a in entry.get(key_def) or [] if isinstance(a, dict)]
         for stat in monster.get(key_5e) or []:
@@ -3118,7 +3165,12 @@ def versatile_pass(entry, monster, stats):
             raw = flatten(stat.get('entries'))
             hit = raw.partition('{@h}')[2]
             match = VERSATILE_ANY.search(hit)
-            if not match or ' plus {@damage' in hit[:match.start()].split(')')[0]:
+            if not match:
+                continue
+            # A one-handed damage of two dice expressions, as the orc war chief's spear's "1d6 + 4 plus 1d8" with
+            # Gruumsh's Fury (MM), keeps its extra with two hands (D243)
+            dice = inside_two_handed(hit, match.group(2).strip())
+            if dice is None:
                 continue
             action = hand_built(actions, parse_name(stat['name'])[0])
             if action is None or action.get('deliveryMethod') != 'ATTACK_ROLL' or 'versatile' in action:
@@ -3130,9 +3182,15 @@ def versatile_pass(entry, monster, stats):
                           and p.get('onlyIf') is None and p.get('saveDC') is None), None)
             if first is None:
                 continue
-            dice = re.sub(r'\s*([+-])\s*', r' \1 ', match.group(2).strip())
+            dice = re.sub(r'\s*([+-])\s*', r' \1 ', dice)
             add_action_keys(action, {'versatile': {'twoHandedDamageDice': dice,
                                                    'twoHandedDamageType': match.group(3) or first.get('damageType')}})
+            # A hand-written note of the two-handed damage alone, as the orc war chief's "If used with two hands to
+            # make a melee attack, the spear deals 13 (2d8 + 4) piercing damage instead." (MM), goes the same way,
+            # kept in "_riderNoteReplaced" for a re-run to restore (D243)
+            if '_riderNote' not in action and '_riderNoteReplaced' not in action \
+                    and HAND_VERSATILE_NOTE.fullmatch(action.get('dmNote') or ''):
+                action['_riderNoteReplaced'] = action.pop('dmNote')
             # The rider pass's note of the two-handed damage alone goes, as Izek Strazni's "Or 15 (2d10 + 4) when
             # used with two hands." (CoS)
             drop_note_sentences(action, lambda s: bool(VERSATILE_NOTE.fullmatch(s))
@@ -3148,6 +3206,49 @@ FORM_ALTERNATIVE = re.compile(r'^\d+ \((\d+d\d+(?: [+-] \d+)?)\) ([a-z]+) damage
                               r'([a-z]+) damage in ([a-z]+(?: or [a-z]+)?) form\.')
 
 
+# "5 (1d6 + 2) bludgeoning (piercing in spider form) damage", the yochlol's Slam (Bite in Spider Form) (MM, D243)
+FORM_TYPE_IN = re.compile(r'^\d+ \((\d+d\d+(?: [+-] \d+)?)\) ([a-z]+) \(([a-z]+) in ([a-z]+) form\) damage')
+# "plus 11 (2d10) damage of a type determined by the animated breath's form: acid, cold, fire, lightning, or poison",
+# the animated breath's Slam (FTD, D243)
+FORM_TYPED_EXTRA = re.compile(r"plus \d+ \((\d+d\d+(?: [+-] \d+)?)\) damage of a type determined by [a-z' ]+?'s form: "
+                              r"((?:[a-z]+, )+or [a-z]+)\.?$")
+
+
+def form_types(action, type_in, typed, stats):
+    """A damage whose type depends on the monster's form gets a part for each form under onlyIf.attackerForm (D243):
+    the yochlol's Slam deals piercing in spider form in place of its bludgeoning, which the hand-built entry left out
+    (MM), and the animated breath's Slam the 2d10 of its form's type, acid, cold, fire, lightning or poison, for the
+    entry's "variable" (FTD)."""
+    effects = action['effects']
+    if type_in:
+        dice, usual, other, form = type_in.group(1), type_in.group(2), type_in.group(3), type_in.group(4) + ' form'
+        own = next((p for p in effects if isinstance(p, dict) and p.get('effectType') == 'DAMAGE'
+                    and dice_key(p) == (dice_norm(dice), usual) and p.get('onlyIf') is None), None)
+        if own is None:
+            own = {'effectType': 'DAMAGE', 'damageDice': dice, 'damageType': usual, '_rider': 'added'}
+            effects.insert(0, own)
+            stats['damage added'] += 1
+        effects.insert(next(i for i, p in enumerate(effects) if p is own) + 1, {
+            'effectType': 'DAMAGE', 'damageDice': dice, 'damageType': other,
+            'onlyIf': {'attackerForm': form, 'text': 'in ' + form}, 'replacesDamage': True, '_rider': 'added'})
+        stats['form damage types added'] += 1
+        return
+    dice = typed.group(1)
+    kinds = re.split(r',? or |, ', typed.group(2))
+    own = next((p for p in effects if isinstance(p, dict) and p.get('effectType') == 'DAMAGE'
+                and dice_norm(p.get('damageDice')) == dice_norm(dice) and p.get('onlyIf') is None), None)
+    at = len(effects)
+    if own is not None:
+        at = next(i for i, p in enumerate(effects) if p is own)
+        remove_part(action, own)
+    for offset, kind in enumerate(kinds):
+        effects.insert(at + offset, {'effectType': 'DAMAGE', 'damageDice': dice, 'damageType': kind,
+                                     'onlyIf': {'attackerForm': kind + ' form', 'text': 'in ' + kind + ' form'},
+                                     '_rider': 'added'})
+    drop_note_sentences(action, lambda s: 'of a type determined by' in s)
+    stats['form damage types added'] += 1
+
+
 def form_pass(entry, monster, stats):
     """A hand-built attack whose damage depends on the monster's form gets its other form's damage as an alternative
     under onlyIf.attackerForm (D239), which the DM picks when using the attack: the wereraven's beak deals 1 piercing
@@ -3160,13 +3261,18 @@ def form_pass(entry, monster, stats):
         first = SENTENCE.split(strip_tags(raw.partition('{@h}')[2]).strip())[0].lower()
         flat = FORM_FLAT_FIRST.match(first)
         alternative = FORM_ALTERNATIVE.match(first)
-        if not flat and not alternative:
+        type_in = FORM_TYPE_IN.match(first)
+        typed = FORM_TYPED_EXTRA.search(first)
+        if not flat and not alternative and not type_in and not typed:
             continue
         action = hand_built(actions, parse_name(stat['name'])[0])
         if action is None or action.get('deliveryMethod') != 'ATTACK_ROLL' or not isinstance(action.get('effects'), list):
             continue
         effects = action['effects']
         if any(isinstance(p, dict) and (p.get('onlyIf') or {}).get('attackerForm') for p in effects):
+            continue
+        if type_in or typed:
+            form_types(action, type_in, typed, stats)
             continue
         if flat:
             base = (flat.group(5), flat.group(6))
@@ -3188,6 +3294,68 @@ def form_pass(entry, monster, stats):
                                                and 'saving throw' not in s.lower())
                             or s == 'The DM settles the choice by hand.')
         stats['form damage added'] += 1
+
+
+# A charge with no attack (D243): "If the equinal moves at least 30 feet in a straight line toward a creature and ends
+# within 5 feet of it, that creature must succeed on a DC 17 Strength saving throw or take 14 (4d6) bludgeoning damage
+# and have the prone condition." (MPP), the giff's Headfirst Charge (MTF, MPMM, BAM) and the ferrumach's Skewering
+# Charge (MPP)
+TRAIT_CHARGE = re.compile(r"^(?:the [a-z]+ can try to knock a creature over; )?if (?:the )?[a-z' -]+? moves at least "
+                          r"(\d+) feet in a straight line(?: toward an? (?:(tiny|small|medium|large|huge) or smaller )?"
+                          r"creature)?,? (?:and ends|that ends) within 5 feet of (?:it|an? (?:(tiny|small|medium|large|"
+                          r"huge) or smaller )?creature), that creature must succeed on a dc ?(\d+) (strength|dexterity|"
+                          r"constitution) saving throw or (.+?)\.$")
+TRAIT_CHARGE_DAMAGE = re.compile(r"\btake \d+ \((\d+d\d+(?: [+-] \d+)?)\) ([a-z]+) damage")
+TRAIT_CHARGE_CONDITION = re.compile(r"\b(?:be knocked|have the) (prone|grappled)(?: condition)?"
+                                    r"(?: \(escape dc ?(\d+)\))?")
+TRAIT_CHARGE_NOTE = ('Used when %s moves at least %d feet in a straight line and ends within 5 feet of the target; it '
+                     'costs no action.')
+
+
+def charge_trait_pass(entry, monster, stats):
+    """A charge trait that hangs on no attack, as the giff's Headfirst Charge, becomes a saving throw the DM uses from
+    the monster's traits on the creature it charged (D243): the trait's damage and its condition on a failed save, none
+    on a success, for a creature no bigger than the trait says. The trait as the entry had it is kept in
+    "_riderReplaced", which strip_riders puts back first."""
+    traits = [t for t in entry.get('traits') or [] if isinstance(t, dict)]
+    for trait in traits:
+        strip_riders(trait)
+    for stat in monster.get('trait') or []:
+        if not isinstance(stat, dict) or not stat.get('name'):
+            continue
+        text = strip_tags(flatten(stat.get('entries'))).lower()
+        match = TRAIT_CHARGE.match(text)
+        if not match:
+            continue
+        name = parse_name(stat['name'])[0]
+        trait = next((t for t in traits if (t.get('name') or '').strip().lower() == name.lower()), None)
+        if trait is None:
+            continue
+        effects = []
+        for part in re.split(r' and (?=take|be|have)', match.group(6)):
+            damage = TRAIT_CHARGE_DAMAGE.search(part)
+            condition = TRAIT_CHARGE_CONDITION.search(part)
+            if damage:
+                effects.append({'effectType': 'DAMAGE', 'damageDice': damage.group(1), 'damageType': damage.group(2)})
+            elif condition:
+                effects.append(dict({'effectType': 'CONDITION', 'condition': condition.group(1)},
+                                    **({'escapeDC': int(condition.group(2))} if condition.group(2) else {})))
+            else:
+                effects = None
+                break
+        if not effects:
+            stats['charges not read'] += 1
+            continue
+        original = json.loads(json.dumps(trait))
+        size = match.group(2) or match.group(3)
+        who = re.match(r"^(?:.*?; )?if ((?:the )?[a-z' -]+?) moves", text).group(1)
+        trait.update(deliveryMethod='SAVING_THROW', saveDC=int(match.group(4)),
+                     saveAbility=ABILITIES[match.group(5)], halfOnSave=False, targetCount=1, effects=effects,
+                     dmNote=TRAIT_CHARGE_NOTE % (who, int(match.group(1))))
+        if size:
+            trait['maxTargetSize'] = size.capitalize()
+        trait['_riderReplaced'] = original
+        stats['charge traits made usable'] += 1
 
 
 def rider_pass(entry, monster, stats):
@@ -3233,6 +3401,8 @@ def rider_pass(entry, monster, stats):
     form_pass(entry, monster, stats)
     versatile_pass(entry, monster, stats)
     charge_pass(entry, monster, stats)
+    # Charges that hang on no attack (D243)
+    charge_trait_pass(entry, monster, stats)
 
 
 def main():
@@ -3278,6 +3448,7 @@ def main():
             definitions[targets[k]] = merged(definitions[targets[k]], generated)
             # A generated attack gets its charge as a hand-built one does (D239)
             charge_pass(definitions[targets[k]], monster, dict.fromkeys(RIDER_STATS, 0))
+            charge_trait_pass(definitions[targets[k]], monster, dict.fromkeys(RIDER_STATS, 0))
             stats['monsters'] += 1
             stats['legendaryResistance'] += 'legendaryResistanceCount' in generated
             for list_key in ('actions', 'bonusActions', 'reactions'):

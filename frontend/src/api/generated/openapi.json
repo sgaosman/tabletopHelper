@@ -11053,7 +11053,8 @@
               "BONUS",
               "REACTION",
               "LEGENDARY",
-              "LAIR"
+              "LAIR",
+              "TRAIT"
             ]
           },
           "advantage": {

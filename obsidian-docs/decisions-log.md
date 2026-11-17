@@ -4907,8 +4907,44 @@ Also checked: minotaur, boar, elk, lion, aurochs, giant ox, titanothere, werewol
 
 **Trade-offs:** charges without an attack hit (giff and equinal Headfirst Charge, ferrumach Skewering Charge) aren't automated. The Minotaur Infiltrator's enlarged charge damage is in its note. Elk charge damage, untyped in the stat block, uses the Ram's bludgeoning. Yochlol and Animated Breath form-dependent types remain notes. Still without versatile: the orc Eye of Gruumsh and War Chief spears, Vajra Safahr's Blackstaff, Sephek's sword.
 
+**Update (2026-11-17):** all these leftovers are closed: the giff, equinal and ferrumach charges are traits the DM uses, the orc spears, Vajra's Blackstaff and Sephek's sword offer their grips with nothing left to settle, the Minotaur Infiltrator's enlarged charge damage and the yochlol and animated breath damage types follow the Form choice; see [[#D243]].
+
 **Key files:** `backend/scripts/generate_monster_actions.py`, `monster-action-definitions.json`, `MonsterTemplates.java`, `MonsterEffects.java`, `MonsterActionService.java`, `MonsterRiders.java`, `MonsterActionRequest.java`, `MultiattackOption.java`; frontend `InlineMonsterActions.tsx`, `MultiattackPicker.tsx`, `utils/monsterChoices.ts`
 
 **Related:** D192, D202, D207, D227, D235
 
 **Tests:** `ChargeGripFormTest`, `ChargeGripFormDataTest`, `ChargeGripFormIT`, `MultiattackIT`, `MonsterActionCorrectionsDataTest`; frontend `MonsterAttackChoices.test.tsx`. Merged: 5,016 backend unit, 617 integration and 1,362 frontend tests pass.
+
+## D243: D241's Leftovers — Charge Traits, Gruumsh's Spears, Enlarged Charges and Form Damage Types
+
+**Date:** 2026-11-17
+**Status:** Accepted — implemented (no migration; monster action data changed, so it reloads)
+
+**Context:** [[#D241]] left four items open. Wording from the repo's local 5etools bestiary data (2014.5e.tools refuses automated fetches):
+- Giff (MPMM), Headfirst Charge: "The giff can try to knock a creature over; if the giff moves at least 20 feet in a straight line and ends within 5 feet of a Large or smaller creature, that creature must succeed on a DC 14 Strength saving throw or take 7 (2d6) bludgeoning damage and be knocked prone." The MTF giff (DC 14) and the Giff Shock Trooper (BAM, DC 16) read the same.
+- Equinal Guardinal (MPP), Headfirst Charge: "If the equinal moves at least 30 feet in a straight line toward a creature and ends within 5 feet of it, that creature must succeed on a DC 17 Strength saving throw or take 14 (4d6) bludgeoning damage and have the prone condition."
+- Ferrumach Rilmani (MPP), Skewering Charge: "If the ferrumach moves at least 20 feet in a straight line toward a Large or smaller creature and ends within 5 feet of it, that creature must succeed on a DC 16 Strength saving throw or have the grappled condition (escape DC 18) and take 10 (3d6) piercing damage."
+- Orc War Chief (MM), Spear: "12 (1d6 + 4 plus 1d8) piercing damage, or 13 (2d8 + 4) piercing damage if used with two hands to make a melee attack"; Gruumsh's Fury: "The orc deals an extra 4 (1d8) damage when it hits with a weapon attack (included in the attacks)." The Orc Eye of Gruumsh's spear is 1d6 + 3 plus 1d8, or 2d8 + 3.
+- Vajra Safahr (WDH), Blackstaff: "5 (1d6 + 2) bludgeoning, magic damage, or 6 (1d8 + 2) bludgeoning, magic damage when used with two hands."
+- Sephek Kaltro (IDRotF), Ice Longsword: "7 (1d8 + 3) slashing damage, or 8 (1d10 + 3) slashing damage if Sephek uses the weapon with two hands, plus 5 (2d4) cold damage."
+- Minotaur Infiltrator (BMT), Gore: "the target takes an extra 4 (1d8) piercing damage, or 9 (2d8) piercing damage if the minotaur is enlarged."
+- Yochlol (MM), Slam (Bite in Spider Form): "5 (1d6 + 2) bludgeoning (piercing in spider form) damage plus 21 (6d6) poison damage."
+- Animated Breath (FTD), Slam: "plus 11 (2d10) damage of a type determined by the animated breath's form: acid, cold, fire, lightning, or poison."
+A survey of every "moves at least N feet" wording in the bestiary found no other charge without an attack hit; the Zaratan's Earth-Shaking Movement (concentration saves) and the Maelephant Nomad's Reckless Charge (a manual bonus action with a Claw attack) are different shapes and stay as they are.
+
+**Decision:**
+- **Charge traits** (5 traits on 5 monsters: Giff MPMM and MTF, Giff Shock Trooper, Equinal Guardinal, Ferrumach Rilmani): the generator's new `charge_trait_pass` makes each a saving-throw action on its trait: the trait's damage and condition on a failed save, nothing on a success, one target, the size cap as a new action key `maxTargetSize`, and a DM note saying when it is used. The trait as the data had it stays in `_riderReplaced`, so re-runs restore it first. The DM uses it from a new **Traits** tab (only traits with a delivery method show), sent as the new action source `TRAIT`: it costs nothing from the turn economy and has no timing check, since it comes with the monster's movement. A target bigger than `maxTargetSize` is a 409 ("Headfirst Charge reaches only a Large or smaller creature, and Giant is Huge"); a target of unknown size is the DM's call. The ferrumach's grapple is by the ferrumach, escape DC 18, so Bladed Edges' note still applies to it.
+- **Gruumsh's spears:** a two-handed damage written over a bracketed "X plus Y" has Y taken out of it (2d8 + 4 − 1d8 = 1d8 + 4), so the Grip's two-handed choice rolls 1d8 + 4 and the Fury's own 1d8 part still comes, 2d8 + 4 in all as written. The hand-written two-handed notes go (kept in `_riderNoteReplaced`).
+- **Vajra and Sephek** already had their two-handed damage; what was wrong was the "The DM settles the choice by hand" note. The generator now reads ", magic" as no choice of type and "if Sephek uses the weapon with two hands" as a two-handed wording, so the notes are gone; Vajra's staff-charge note stays. Side effect: Hlam's Unarmed Strike (WDH, "bludgeoning, magic damage") loses the same stale note and its untyped 1d10 + 7 becomes bludgeoning.
+- **Minotaur Infiltrator:** the charge gains an extra 1d8 piercing under both `attackerCharged` and `attackerForm: "enlarged"`, so charging while enlarged deals the charge's 1d8 plus 1d8 (2d8, the same dice) and its note no longer asks the DM to do it.
+- **Yochlol:** the hand-built Slam lacked its 1d6 + 2 entirely; it gets 1d6 + 2 bludgeoning and a 1d6 + 2 piercing alternative "in spider form" (`replacesDamage`), picked with the Form select.
+- **Animated Breath:** the "variable" 2d10 becomes five 2d10 parts, one per form ("acid form" … "poison form"), each under `attackerForm`, picked with the Form select; its note goes.
+- Player logs show no AC or hidden numbers ([[#D235]]); trait uses log as "Giff uses Headfirst Charge."
+
+**Trade-offs:** the trait has no once-per-turn limit because none is written. The two-handed spear choice is the DM's even when thrown ("to make a melee attack" is not checked). The animated breath's form isn't tracked, so "As the app sees it" leaves the 2d10 to the DM with a note per form and "Usual damage" drops it; the yochlol likewise. Still open, outside this list: the Verbeeg Longstrider and Marauder spears ("if used to make a ranged attack or used with two hands to make a melee attack", IDRotF).
+
+**Key files:** `backend/scripts/generate_monster_actions.py`, `monster-action-definitions.json`, `MonsterTemplates.java` (`maxTargetSize`, TRAIT list), `MonsterActionService.java`, `MonsterRiders.java`, `MonsterActionRequest.java`; frontend `InlineMonsterActions.tsx`, `types/combat.ts`, `api/generated/openapi.json`, `api/generated/schema.d.ts`
+
+**Related:** [[#D202]], [[#D207]], [[#D227]], [[#D235]], [[#D241]]
+
+**Tests:** `ChargeLeftoversDataTest` (5), `TraitChargeIT` (5), `ChargeGripFormDataTest` (versatile count 265), `MonsterRidersTailDataTest` (notes replaced 7); frontend `MonsterAttackChoices.test.tsx` (Traits tab). 5,021 backend unit, 622 integration and 1,363 frontend tests pass.
